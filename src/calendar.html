@@ -1,0 +1,61 @@
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>easepick</title>
+    <script src="https://cdn.jsdelivr.net/npm/@easepick/datetime@1.2.1/dist/index.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@easepick/core@1.2.1/dist/index.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@easepick/base-plugin@1.2.1/dist/index.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@easepick/range-plugin@1.2.1/dist/index.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@easepick/amp-plugin@1.2.1/dist/index.umd.min.js"></script>
+</head>
+
+<body>
+    <input id="start-date" />
+    <input id="end-date" />
+    <script>
+
+        const picker = new easepick.create({
+            element: document.getElementById('start-date'),
+            css: [
+                'https://cdn.jsdelivr.net/npm/@easepick/bundle@1.2.1/dist/index.css',
+                'https://cdn.jsdelivr.net/npm/@easepick/range-plugin@1.2.1/dist/index.css',
+                'calendar1.css'
+            ],
+            firstDay: 0,
+            calendars: 2,
+            format: "MM-DD-YYYY",
+            plugins: ['RangePlugin'],
+            RangePlugin: {
+                elementEnd: document.getElementById('end-date'),
+                //TODO: these dates need to be dynamic 
+                startDate: "05-12-2024",
+                endDate: "05-19-2024",
+                minDays: 7,
+                tooltip: false
+            }
+        });
+    </script>
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            console.log("leah")
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            const dayElements = document.querySelectorAll('.calendar .days-grid .day'); // this is the issue, day elements is empty 
+            console.log(dayElements)
+
+            dayElements.forEach(function (day) {
+                const dayDate = new Date(parseInt(day.getAttribute('data-time')));
+
+
+                if (dayDate < today) {
+                    day.classList.add('disabled');
+                    day.removeAttribute('onclick');
+                }
+            });
+        });
+    </script>
+</body>
+
+</html>

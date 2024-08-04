@@ -7,7 +7,7 @@ const BUILD_DIRECTORY = 'dist';
 const PRODUCTION = process.env.NODE_ENV === 'production';
 
 // Config entrypoint files
-const ENTRY_POINTS = ['src/index.ts'];
+const ENTRY_POINTS = ['src/index.ts', 'src/listing.ts', 'src/payment.ts', 'src/reservation_confirmation.ts', 'src/trips.ts', 'src/trip_details.ts', 'src/trip_change.ts', 'src/trip_cancel.ts', 'src/trip_payments.ts', 'src/trip_cancelled.ts', 'src/help.ts', 'src/account.ts', 'src/messaging.ts'];
 
 // Config dev serving
 const LIVE_RELOAD = !PRODUCTION;
@@ -25,6 +25,9 @@ const context = await esbuild.context({
   inject: LIVE_RELOAD ? ['./bin/live-reload.js'] : undefined,
   define: {
     SERVE_ORIGIN: JSON.stringify(SERVE_ORIGIN),
+    STRIPE_KEY: JSON.stringify(
+      PRODUCTION ? '123456' : 'pk_test_51OsWQaBjoQQxZuTR7kxKM3PQ891E9I2EbUPpWANip2KMtR9VBvfgBLFTtpXH3XfDO1iFFBAuQ3EdjG6G2WyN4Sjf006Suh9NY6'
+    ),
   },
 });
 
