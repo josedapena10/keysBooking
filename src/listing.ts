@@ -78,6 +78,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 
+
+
+
+
+
+
+
+
 (async function () {
   try {
 
@@ -672,10 +680,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 
-
-
-
-
 window.Webflow ||= [];
 window.Webflow.push(() => {
   const mapElement = document.querySelector('[fs-element="Listing-Map"]');
@@ -698,7 +702,17 @@ window.Webflow.push(() => {
             console.error("Error retrieving Wized data:", error);
           }
 
-          console.log("Marker Position:", { lat: latitude, lng: longitude });
+          // Calculate new latitude and longitude to show 0.1 miles south and right
+          const miles = 0.05;
+          const earthRadius = 3958.8; // Radius of the Earth in miles
+          const latOffset = -(miles / earthRadius) * (180 / Math.PI); // Negative to go south
+          const lngOffset = (miles / earthRadius) * (180 / Math.PI) / Math.cos(latitude * Math.PI / 180); // Positive to go right (east)
+
+          const fakeLatitude = latitude + latOffset;
+          const fakeLongitude = longitude + lngOffset;
+
+          console.log("True Position:", { lat: latitude, lng: longitude });
+          console.log("Marker Position (0.1 miles south and right):", { lat: fakeLatitude, lng: fakeLongitude });
 
           if (latitude && longitude) {
             clearInterval(checkDataInterval); // Stop the interval once data is available
@@ -710,7 +724,7 @@ window.Webflow.push(() => {
             script.onload = () => {
               const map = new window.google.maps.Map(mapElement, {
                 zoom: 16,
-                center: { lat: latitude, lng: longitude },
+                center: { lat: fakeLatitude, lng: fakeLongitude },
                 mapTypeId: 'roadmap',
                 mapTypeControl: false,
                 fullscreenControl: false,
@@ -729,7 +743,7 @@ window.Webflow.push(() => {
                   { "featureType": "poi", "elementType": "labels.text", "stylers": [{ "visibility": "off" }] },
                   { "featureType": "road", "elementType": "labels", "stylers": [{ "visibility": "off" }] },
                   { "featureType": "transit", "elementType": "labels", "stylers": [{ "visibility": "off" }] },
-                  { "featureType": "water", "elementType": "geometry", "stylers": [{ "color": "#3998ed" }] },
+                  { "featureType": "water", "elementType": "geometry", "stylers": [{ "color": "#9ecaff" }] },
                   { "featureType": "road", "elementType": "geometry", "stylers": [{ "color": "#f0f0f0" }, { "visibility": "on" }] },
                 ]
               });
@@ -746,16 +760,29 @@ window.Webflow.push(() => {
               </svg>`;
 
               const marker = new google.maps.Marker({
-                position: { lat: latitude, lng: longitude },
+                position: { lat: fakeLatitude, lng: fakeLongitude },
                 map: map,
                 icon: {
                   url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(pinSvgString),
-                  scaledSize: new google.maps.Size(48, 48),
+                  scaledSize: new google.maps.Size(56, 56),
                   origin: new google.maps.Point(0, 0),
-                  anchor: new google.maps.Point(24, 48)
+                  anchor: new google.maps.Point(28, 28)
                 },
                 title: 'A marker using a custom SVG image.'
               });
+
+              // Add a blue circle around the altered coordinates
+              const circle = new google.maps.Circle({
+                strokeColor: '#67C8FF',
+                strokeOpacity: 0.0,
+                strokeWeight: 2,
+                fillColor: '#3998ed',
+                fillOpacity: 0.3,
+                map: map,
+                center: { lat: fakeLatitude, lng: fakeLongitude },
+                radius: 0.25 * 1609.34 // 0.25 miles in meters
+              });
+
             };
             document.head.appendChild(script);
           }
@@ -771,28 +798,8 @@ window.Webflow.push(() => {
 
 
 
-// async function createPaymentIntent() {
-//   try {
-//     const response = await fetch('https://x8ki-letl-twmt.n7.xano.io/api:FNhKS6jt/payment_intent', {
-//       method: 'POST',
-//     });
-//     const data = await response.json(); // Parse the response body as JSON
 
-//     console.log("Client Secret:", data.clientSecret);
-//     clientSecret = data.clientSecret; // Store the client secret globally
-//   } catch (err) {
-//     console.error('Error creating payment intent:', err);
-//     clientSecret = null;
-//   }
-// }
 
-// (async function () {
-//   try {
-//     await createPaymentIntent(); // Call createPaymentIntent() when the page loads to generate the session ID
-//   } catch (err) {
-//     console.error('Error:', err.message);
-//   }
-// })();
 
 
 
@@ -812,58 +819,117 @@ window.Webflow.push(() => {
 
 window.Wized = window.Wized || [];
 window.Wized.push((Wized) => {
-  // Get references to the elements using data-element attributes
-  const reservationCardDatesElement = document.querySelector('[data-element="calendarModal_reservationCardDates"]');
-  const closeButtonElement = document.querySelector('[data-element="calendarModal_closeButton"]');
-  const calendarModalElement = document.querySelector('[data-element="calendarModal"]');
-  const bodyElement = document.querySelector('[data-element="body"]');
+  // // Get references to the elements using data-element attributes
+  // const reservationCardDatesElement = document.querySelector('[data-element="calendarModal_reservationCardDates"]');
+  // const closeButtonElement = document.querySelector('[data-element="calendarModal_closeButton"]');
+  // const calendarModalElement = document.querySelector('[data-element="calendarModal"]');
+  // const bodyElement = document.querySelector('[data-element="body"]');
 
-  // Ensure the calendar modal is initially hidden
-  if (calendarModalElement) {
-    calendarModalElement.style.display = 'none'; // Hide the modal on page load
-  }
 
-  // Show or hide the calendar modal when the reservation card dates element is clicked
-  if (reservationCardDatesElement) {
-    reservationCardDatesElement.addEventListener('click', () => {
-      if (calendarModalElement) {
-        if (calendarModalElement.style.display === 'block') {
-          // If the modal is already visible, hide it
-          calendarModalElement.style.display = 'none';
-        } else {
-          // Otherwise, show the modal
-          calendarModalElement.style.display = 'block';
+  // // Ensure the calendar modal is initially hidden
+  // if (calendarModalElement) {
+  //   calendarModalElement.style.display = 'none'; // Hide the modal on page load
+  // }
+
+  // // Show or hide the calendar modal when the reservation card dates element is clicked
+  // if (reservationCardDatesElement) {
+  //   reservationCardDatesElement.addEventListener('click', () => {
+  //     if (calendarModalElement) {
+  //       if (calendarModalElement.style.display === 'block') {
+  //         // If the modal is already visible, hide it
+  //         calendarModalElement.style.display = 'none';
+  //       } else {
+  //         // Otherwise, show the modal
+  //         calendarModalElement.style.display = 'block';
+  //       }
+  //     }
+  //   });
+  // }
+
+  // // Hide the calendar modal when the close button is clicked
+  // if (closeButtonElement) {
+  //   closeButtonElement.addEventListener('click', () => {
+  //     if (calendarModalElement) {
+  //       calendarModalElement.style.display = 'none'; // Hide the modal
+  //     }
+  //   });
+  // }
+
+  // // Hide the calendar modal when clicking outside the modal (on the body)
+  // if (bodyElement) {
+  //   bodyElement.addEventListener('click', (event) => {
+  //     if (calendarModalElement && calendarModalElement.style.display === 'block') {
+  //       // Check if the click was outside the modal
+  //       if (!calendarModalElement.contains(event.target) && !reservationCardDatesElement.contains(event.target)) {
+  //         calendarModalElement.style.display = 'none'; // Hide the modal
+  //       }
+  //     }
+  //   });
+  // }
+
+
+
+  //const calendarModalMonths = document.querySelector('[data-element="calendarModal_monthsContainer"]');
+  // Select the element
+
+  // Define the HTML content to add
+  //const htmlContent = `
+  //<input id="start-date" />
+  // <input id="end-date" />
+  //`;
+
+  // Add the HTML content to the element
+  // calendarModalMonths.innerHTML = htmlContent;
+
+  console.log("calendar element")
+
+  //console.log(calendarModalMonths)
+  const startDate = Wized.data.n.parameter.checkin;
+  console.log("ealh start date")
+  console.log(startDate)
+  // Fetch the start date from Wized data
+  const endDate = Wized.data.n.parameter.checkout
+
+  const script1 = document.createElement('script');
+  script1.innerHTML = `
+    const picker = new easepick.create({
+        element: document.getElementById('Input_CheckIn'),
+        css: [
+            'https://cdn.jsdelivr.net/npm/@easepick/bundle@1.2.1/dist/index.css',
+            'https://cdn.jsdelivr.net/npm/@easepick/range-plugin@1.2.1/dist/index.css',
+            'calendar1.css'
+        ],
+        firstDay: 0,
+        calendars: 2,
+        index: 100,
+        format: "YYYY-MM-DD",
+        plugins: ['RangePlugin'],
+        RangePlugin: {
+          elementEnd: document.getElementById('Input_CheckOut'),
+          startDate: "${startDate}",
+            endDate: "${endDate}",
+            minDays: 7,
+            tooltip: false
         }
-      }
     });
-  }
+`;
+  document.body.appendChild(script1);
 
-  // Hide the calendar modal when the close button is clicked
-  if (closeButtonElement) {
-    closeButtonElement.addEventListener('click', () => {
-      if (calendarModalElement) {
-        calendarModalElement.style.display = 'none'; // Hide the modal
-      }
-    });
-  }
+  picker.on('select', (event) => {
+    const startDate = picker.getStartDate();
 
-  // Hide the calendar modal when clicking outside the modal (on the body)
-  if (bodyElement) {
-    bodyElement.addEventListener('click', (event) => {
-      if (calendarModalElement && calendarModalElement.style.display === 'block') {
-        // Check if the click was outside the modal
-        if (!calendarModalElement.contains(event.target) && !reservationCardDatesElement.contains(event.target)) {
-          calendarModalElement.style.display = 'none'; // Hide the modal
-        }
-      }
-    });
-  }
+    if (startDate) {
+        // Automatically set the end date to 7 days after the start date
+        const endDate = new Date(startDate);
+        endDate.setDate(endDate.getDate() + 7);
 
+        // Format the end date to match the required format
+        const formattedEndDate = endDate.toISOString().split('T')[0]; // Format: "YYYY-MM-DD"
 
-
-  const calendarModalMonths = document.querySelector('[data-element="calendarModal_monthsContainer"]');
-
-
+        // Set the end date in the picker
+        picker.setEndDate(formattedEndDate);
+    }
+});
 
 
 });

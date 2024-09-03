@@ -30,3 +30,49 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 
+
+
+
+
+(async function () {
+    try {
+
+        const profileButton = document.querySelector('[data-element="profile_button"]');
+        const profileButtonDropdown = document.querySelector('[data-element="profile_button_dropdown"]');
+        let isPopupOpen = false;
+
+        // Close the dropdown initially
+        profileButtonDropdown.style.display = 'none';
+
+        // Function to toggle the dropdown
+        const togglePopup = () => {
+            isPopupOpen = !isPopupOpen;
+            profileButtonDropdown.style.display = isPopupOpen ? 'flex' : 'none';
+        };
+
+        // Event listener for profile button click and toggling the dropdown
+        profileButton.addEventListener('click', function () {
+            togglePopup();
+        });
+
+        // Event listener for body click to close the dropdown
+        document.body.addEventListener('click', function (evt) {
+            if (!profileButton.contains(evt.target) && !profileButtonDropdown.contains(evt.target)) {
+                isPopupOpen = false;
+                profileButtonDropdown.style.display = 'none';
+            }
+        });
+
+        // Event listeners to close the popup when buttons inside are clicked
+        const popupButtons = profileButtonDropdown.querySelectorAll('[data-element*="Button"]');
+        popupButtons.forEach(button => {
+            button.addEventListener('click', function () {
+                isPopupOpen = false;
+                profileButtonDropdown.style.display = 'none';
+            });
+        });
+
+    } catch (err) {
+        console.error('Error:', err.message);
+    }
+})();

@@ -1,6 +1,7 @@
-/* Custom CSS styles */
+/* Custom CSS styles
 .calendars {
     display: flex;
+    color: white;
 }
 
 .calendar.days-grid .day.today {

@@ -77,6 +77,7 @@ let isWizedReady = false;
 
 // Listen for DOMContentLoaded
 document.addEventListener('DOMContentLoaded', () => {
+    /*
     console.log("DOM fully loaded and parsed");
 
     // Define function to initialize Splide
@@ -84,9 +85,9 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log("Initializing Splides...");
 
 
-        // splides.forEach((splide) => new Splide(splide).mount());
+        splides.forEach((splide) => new Splide(splide).mount());
     };
-
+*/
 
     // Initialize Wized
     window.Wized = window.Wized || [];
@@ -115,37 +116,27 @@ document.addEventListener('DOMContentLoaded', () => {
                         var photoUrls = property._property_pictures;
                         console.log('Photo URLs:', photoUrls);
 
-                        // Check if the element already has an associated Splide instance
-                        if (splideInstances.has(splideElement)) {
-                            // Destroy the existing Splide instance
-                            splideInstances.get(splideElement).destroy();
-                            splideElement.innerHTML = ''; // Clear old slides
-                        }
-
                         // Initialize Splide for this slider
                         var slider = new Splide(splideElement, {
-                            type: 'loop',
-                            heightRatio: 0.5,
                         }).mount();
                         console.log('Slider Initialized:', slider);
 
                         // Store the new Splide instance
-                        splideInstances.set(splideElement, slider);
+                        //   splideInstances.set(splideElement, slider);
 
-                        // Add slides to the slider
+
                         photoUrls.forEach((photoUrl) => {
-                            slider.add({
-                                content: `<img src="${photoUrl.property_image.url}" alt="Property Photo">`,
-                            });
+                            slider.add(`<li class="splide__slide"><img src="${photoUrl.property_image.url}" alt="Property Photo"></li>`);
                         });
+                        console.log('Number of slides:', slider.Components.Slides.length);
+
+
+
+                        console.log('Number of slides:', slider.Components.Slides.length);
 
                         // Refresh the slider after adding slides
                         slider.refresh();
-                        console.log(slider)
-                        setTimeout(() => {
-                            console.log('Number of slides:', slider.Components.Slides.length);
-                            console.log('Slider state after refresh:', slider);
-                        }, 100); // Timeout to ensure refresh completes
+                        console.log('Number of slides:', slider.splides.length);
 
                     }
                 });
