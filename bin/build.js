@@ -11,8 +11,9 @@ const ENTRY_POINTS = ['src/index.ts', 'src/listing.ts', 'src/payment.ts', 'src/r
 
 // Config dev serving
 const LIVE_RELOAD = !PRODUCTION;
-const SERVE_PORT = 3000;
-const SERVE_ORIGIN = `http://localhost:${SERVE_PORT}`;
+const SERVE_PORT = 8080;
+const SERVE_ORIGIN = `http://34.44.122.86:${SERVE_PORT}`;
+//const SERVE_ORIGIN = `http://localhost:${SERVE_PORT}`;
 
 // Create context
 const context = await esbuild.context({
