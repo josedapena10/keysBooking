@@ -919,17 +919,17 @@ window.Wized.push((Wized) => {
     const startDate = picker.getStartDate();
 
     if (startDate) {
-        // Automatically set the end date to 7 days after the start date
-        const endDate = new Date(startDate);
-        endDate.setDate(endDate.getDate() + 7);
+      // Automatically set the end date to 7 days after the start date
+      const endDate = new Date(startDate);
+      endDate.setDate(endDate.getDate() + 7);
 
-        // Format the end date to match the required format
-        const formattedEndDate = endDate.toISOString().split('T')[0]; // Format: "YYYY-MM-DD"
+      // Format the end date to match the required format
+      const formattedEndDate = endDate.toISOString().split('T')[0]; // Format: "YYYY-MM-DD"
 
-        // Set the end date in the picker
-        picker.setEndDate(formattedEndDate);
+      // Set the end date in the picker
+      picker.setEndDate(formattedEndDate);
     }
-});
+  });
 
 
 });
