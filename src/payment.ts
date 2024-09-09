@@ -31,55 +31,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 
-// const stripe = Stripe(STRIPE_KEY);
-
-// (async function () {
-//     try {
-//         const form = document.querySelector('[data-element="payment_form"]');
-//         if (!form) throw new Error('Payment form element not found');
-
-//         const stripePlaceholder = form.querySelector('[data-element="stripe"]');
-//         if (!stripePlaceholder) throw new Error('Stripe placeholder element not found');
-
-//         // Correct initialization of Stripe Elements for the Payment Element
-//         const elements = stripe.elements({ clientSecret });
-//         const paymentElement = elements.create('payment');
-//         paymentElement.mount(stripePlaceholder);
-
-//         form.addEventListener('submit', async (e) => {
-//             e.preventDefault();
-//             e.stopPropagation();
-
-//             // Ensure clientSecret is available
-//             if (!clientSecret) {
-//                 console.error('Failed to load client secret');
-//                 return;
-//             }
-
-//             let email = 'leahbissey@gmail.com';
-//             // grab their email and update payment intent 
-
-//             const { error, paymentIntent } = await stripe.confirmPayment({
-//                 elements,
-//                 redirect: 'if_required',
-//                 metadata: { email }, // Pass email as metadata
-//             }, {
-//                 clientSecret: clientSecret,
-//             });
-
-//             if (error) {
-//                 console.error(`Payment failed: ${error.message}`);
-//             } else {
-//                 console.log('Payment succeeded:', paymentIntent);
-//                 // pussh reservation to DB
-//             }
-//         });
-//     } catch (err) {
-//         console.error('Error:', err.message);
-//     }
-// })();
-
-
 
 
 (async function () {

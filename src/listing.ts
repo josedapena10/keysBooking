@@ -690,7 +690,7 @@ window.Webflow.push(() => {
   window.onload = () => {
     try {
       let latitude, longitude;
-      const apiKey = 'AIzaSyDIsh3z39SZKKEsHm59QVcOucjCrFMepfQ'; // Replace with your actual API key
+      const apiKey = 'AIzaSyDIsh3z39SZKKEsHm59QVcOucjCrFMepfQ';
 
       const checkDataInterval = setInterval(async () => {
         window.Wized = window.Wized || [];
