@@ -25,6 +25,9 @@ devDependencies:
   '@playwright/test':
     specifier: ^1.39.0
     version: 1.39.0
+  '@stripe/connect-js':
+    specifier: 3.3.12
+    version: 3.3.12
   '@stripe/stripe-js':
     specifier: ^3.0.7
     version: 3.0.7
@@ -633,6 +636,10 @@ packages:
     hasBin: true
     dependencies:
       playwright: 1.39.0
+    dev: true
+
+  /@stripe/connect-js@3.3.12:
+    resolution: {integrity: sha512-hXbgvGq9Lb6BYgsb8lcbjL76Yqsxr0yAj6T9ZFTfUK0O4otI5GSEWum9do9rf/E5OfYy6fR1FG/77Jve2w1o6Q==}
     dev: true
 
   /@stripe/stripe-js@3.0.7:

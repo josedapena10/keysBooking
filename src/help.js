@@ -324,3 +324,98 @@ window.Wized.push((Wized) => {
     }
 
 });
+
+
+
+
+
+//copy email and phone number to clipboard
+
+document.addEventListener('DOMContentLoaded', () => {
+    // Function to copy text to the clipboard
+    function copyToClipboard(text) {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+    }
+
+    // Select the email and phone number buttons
+    const copyEmailButton = document.querySelector('[data-element="help_copyEmail"]');
+    const copyPhoneButton = document.querySelector('[data-element="help_copyPhone"]');
+
+    // Email and phone number to copy
+    const email = 'help@keysbooking.com';
+    const phoneNumber = '+1786XXXXXX';
+
+    // Add click event listeners
+    if (copyEmailButton) {
+        copyEmailButton.addEventListener('click', () => {
+            copyToClipboard(email);
+            alert('Email copied to clipboard!');
+        });
+    }
+
+    if (copyPhoneButton) {
+        copyPhoneButton.addEventListener('click', () => {
+            copyToClipboard(phoneNumber);
+            alert('Phone number copied to clipboard!');
+        });
+    }
+});
+
+
+
+
+
+
+//disable browser focus highlight
+document.addEventListener('DOMContentLoaded', () => {
+    // Function to dynamically inject CSS to override browser styles
+    function injectCustomStyles() {
+        // Create a <style> element
+        const style = document.createElement('style');
+
+        // Add CSS rules to disable default browser styles
+        style.textContent = `
+        /* Remove default outline and box-shadow for focus */
+        :focus {
+          outline: none !important;
+          box-shadow: none !important;
+          background-color: transparent !important; /* Optional: Remove background color */
+        }
+  
+        /* Remove default styles for specific elements */
+        a:focus, button:focus, input:focus, textarea:focus, select:focus {
+          outline: none !important;
+          box-shadow: none !important;
+        }
+  
+        /* Optional: Ensure smooth scrolling */
+        html {
+          scroll-behavior: smooth; /* Smooth scrolling */
+        }
+  
+        /* Optional: Remove default focus highlight for mobile devices */
+        @media (max-width: 767px) {
+          :focus {
+            outline: none !important;
+            box-shadow: none !important;
+          }
+        }
+      `;
+
+        // Append the <style> element to the document <head>
+        document.head.appendChild(style);
+    }
+
+    // Call the function to inject the styles
+    injectCustomStyles();
+
+    // Optional: Reapply styles on window resize
+    window.addEventListener('resize', () => {
+        injectCustomStyles();
+    });
+});
