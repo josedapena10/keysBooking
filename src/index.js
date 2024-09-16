@@ -2,14 +2,12 @@
 var script = document.createElement('script');
 script.src = 'https://cdn.jsdelivr.net/npm/@finsweet/attributes-mirrorclick@1/mirrorclick.js';
 document.body.appendChild(script);
-console.log("Leah 1")
 
 
 
 // for no scroll background when modal is open
 // when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("leah")
     // on .open-modal click
     document.querySelectorAll('.open_modal').forEach(trigger => {
         trigger.addEventListener('click', function () {
@@ -68,7 +66,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
     } catch (err) {
-        console.error('Error:', err.message);
+
     }
 })();
 
@@ -97,29 +95,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
         Wized.on('requestend', (event) => {
             if (event.name === 'Load_Property_Card') {
-                console.log('Specific request finished:', event);
 
                 // Retrieve the properties and sliders
                 var properties = event.data; // Adjust this based on your actual data structure
-                console.log('Properties:', properties);
 
                 // Select all elements that should be Splide sliders
                 var splides = document.querySelectorAll('.splide');
-                console.log("Splides found:", splides);
 
                 // Loop through each slider and assign the corresponding property photos
                 splides.forEach((splideElement, index) => {
                     if (properties[index]) {
                         var property = properties[index];
-                        console.log('Property:', property);
 
                         var photoUrls = property._property_pictures;
-                        console.log('Photo URLs:', photoUrls);
 
                         // Initialize Splide for this slider
                         var slider = new Splide(splideElement, {
                         }).mount();
-                        console.log('Slider Initialized:', slider);
 
                         // Store the new Splide instance
                         //   splideInstances.set(splideElement, slider);
@@ -128,15 +120,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         photoUrls.forEach((photoUrl) => {
                             slider.add(`<li class="splide__slide"><img src="${photoUrl.property_image.url}" alt="Property Photo"></li>`);
                         });
-                        console.log('Number of slides:', slider.Components.Slides.length);
-
-
-
-                        console.log('Number of slides:', slider.Components.Slides.length);
 
                         // Refresh the slider after adding slides
                         slider.refresh();
-                        console.log('Number of slides:', slider.splides.length);
 
                     }
                 });
@@ -393,7 +379,6 @@ window.Wized.push((Wized) => {
             Wized.data.v.signup_buttonclicked = true;
         });
     } else {
-        console.error('SignUp_AgreeSubmitButton not found or not rendered.');
     }
 
 });

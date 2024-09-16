@@ -7,12 +7,12 @@ const BUILD_DIRECTORY = 'dist';
 const PRODUCTION = process.env.NODE_ENV === 'production';
 
 // Config entrypoint files
-const ENTRY_POINTS = ['src/index.ts', 'src/listing.ts', 'src/payment.ts', 'src/reservation_confirmation.ts', 'src/trips.ts', 'src/trip_details.ts', 'src/trip_change.ts', 'src/trip_cancel.ts', 'src/trip_payments.ts', 'src/trip_cancelled.ts', 'src/help.ts', 'src/account.ts', 'src/messaging.ts'];
+const ENTRY_POINTS = ['src/index.js', 'src/listing.js', 'src/payment.js', 'src/reservation_confirmation.js', 'src/trips.js', 'src/trip_details.js', 'src/trip_change.js', 'src/trip_cancel.js', 'src/trip_payments.js', 'src/trip_cancelled.js', 'src/help.js', 'src/account.js', 'src/messaging.js', 'src/create_stripe_account_host.js'];
 
 // Config dev serving
 const LIVE_RELOAD = !PRODUCTION;
 const SERVE_PORT = 8080;
-const SERVE_ORIGIN = `http://34.44.122.86:${SERVE_PORT}`;
+const SERVE_ORIGIN = `http://localhost:${SERVE_PORT}`;
 //const SERVE_ORIGIN = `http://localhost:${SERVE_PORT}`;
 
 // Create context

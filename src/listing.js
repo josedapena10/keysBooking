@@ -5,8 +5,6 @@ var script = document.createElement('script');
 script.src = 'https://cdn.jsdelivr.net/npm/@finsweet/attributes-mirrorclick@1/mirrorclick.js';
 document.body.appendChild(script);
 
-console.log("test");
-
 
 
 // for no scroll background when modal is open
@@ -72,7 +70,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
   } catch (err) {
-    console.error('Error:', err.message);
   }
 })();
 
@@ -125,7 +122,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
   } catch (err) {
-    console.error('Error:', err.message);
   }
 })();
 
@@ -269,7 +265,6 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
     } catch (error) {
-      console.error("Error waiting for request or accessing max_guests:", error);
     }
 
 
@@ -535,7 +530,6 @@ document.addEventListener('DOMContentLoaded', () => {
         Wized.data.v.signup_buttonclicked = true;
       });
     } else {
-      console.error('SignUp_AgreeSubmitButton not found or not rendered.');
     }
 
 
@@ -699,7 +693,6 @@ window.Webflow.push(() => {
             latitude = Wized.data.v.latitude;
             longitude = Wized.data.v.longitude;
           } catch (error) {
-            console.error("Error retrieving Wized data:", error);
           }
 
           // Calculate new latitude and longitude to show 0.1 miles south and right
@@ -710,9 +703,6 @@ window.Webflow.push(() => {
 
           const fakeLatitude = latitude + latOffset;
           const fakeLongitude = longitude + lngOffset;
-
-          console.log("True Position:", { lat: latitude, lng: longitude });
-          console.log("Marker Position (0.1 miles south and right):", { lat: fakeLatitude, lng: fakeLongitude });
 
           if (latitude && longitude) {
             clearInterval(checkDataInterval); // Stop the interval once data is available
@@ -789,7 +779,6 @@ window.Webflow.push(() => {
         });
       }, 1000); // Check every second
     } catch (error) {
-      console.error("Error:", error);
     }
   };
 });
@@ -881,12 +870,9 @@ window.Wized.push((Wized) => {
   // Add the HTML content to the element
   // calendarModalMonths.innerHTML = htmlContent;
 
-  console.log("calendar element")
 
   //console.log(calendarModalMonths)
   const startDate = Wized.data.n.parameter.checkin;
-  console.log("ealh start date")
-  console.log(startDate)
   // Fetch the start date from Wized data
   const endDate = Wized.data.n.parameter.checkout
 
