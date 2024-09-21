@@ -2,14 +2,12 @@
 var script = document.createElement('script');
 script.src = 'https://cdn.jsdelivr.net/npm/@finsweet/attributes-mirrorclick@1/mirrorclick.js';
 document.body.appendChild(script);
-console.log("Leah 1")
 
 
 
 // for no scroll background when modal is open
 // when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("leah")
     // on .open-modal click
     document.querySelectorAll('.open_modal').forEach(trigger => {
         trigger.addEventListener('click', function () {
@@ -67,7 +65,56 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
     } catch (err) {
-        console.error('Error:', err.message);
     }
 })();
 
+
+
+// Print receipt
+window.Wized = window.Wized || [];
+window.Wized.push((Wized) => {
+    // Get the current path
+    const currentPath = Wized.data.n.path;
+
+    // Check if the current path matches "/user/reservation" or "/trips/details"
+    if (currentPath === "/user/reservation" || currentPath === "/trips/details" || currentPath === "/trips/cancelled") {
+        // Get the reservation code from the parameters
+        const reservationCode = Wized.data.n.parameter.reservation_code;
+
+        // If the reservation code exists, load the receipt page in the background
+        if (reservationCode) {
+            const iframe = loadReceiptPage(reservationCode);
+
+            // Add event listeners to all buttons with the matching data-element
+            const paymentButtons = document.querySelectorAll('[data-element="tripCancelled_printReceipt"]');
+            paymentButtons.forEach(paymentButton => {
+                paymentButton.addEventListener('click', () => {
+                    printReceiptFromIframe(iframe);
+                });
+            });
+        }
+    }
+});
+
+function loadReceiptPage(reservationCode) {
+    // Create an iframe element
+    const iframe = document.createElement('iframe');
+
+    // Set the iframe's source to the receipt page with the reservation code parameter
+    iframe.src = `/keys-booking-receipt?reservation_code=${reservationCode}`;
+
+    // Set the iframe to be hidden
+    iframe.style.display = 'none';
+
+    // Append the iframe to the document body to load it in the background
+    document.body.appendChild(iframe);
+
+    // Return the iframe element so it can be used later
+    return iframe;
+}
+
+function printReceiptFromIframe(iframe) {
+    // Trigger the print dialog from the loaded iframe content
+    iframe.contentWindow.focus();
+    iframe.contentWindow.print();
+}

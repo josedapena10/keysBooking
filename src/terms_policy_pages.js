@@ -27,6 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 
+
 (async function () {
     try {
         const profileButton = document.querySelector('[data-element="profile_button"]');
@@ -65,8 +66,10 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
     } catch (err) {
+
     }
 })();
+
 
 
 
@@ -321,46 +324,6 @@ window.Wized.push((Wized) => {
 
 });
 
-
-
-
-
-//copy email and phone number to clipboard
-
-document.addEventListener('DOMContentLoaded', () => {
-    // Function to copy text to the clipboard
-    function copyToClipboard(text) {
-        const textarea = document.createElement('textarea');
-        textarea.value = text;
-        document.body.appendChild(textarea);
-        textarea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textarea);
-    }
-
-    // Select the email and phone number buttons
-    const copyEmailButton = document.querySelector('[data-element="help_copyEmail"]');
-    const copyPhoneButton = document.querySelector('[data-element="help_copyPhone"]');
-
-    // Email and phone number to copy
-    const email = 'support@keysbooking.com';
-    const phoneNumber = '+1786XXXXXX';
-
-    // Add click event listeners
-    if (copyEmailButton) {
-        copyEmailButton.addEventListener('click', () => {
-            copyToClipboard(email);
-            alert('Email copied to clipboard!');
-        });
-    }
-
-    if (copyPhoneButton) {
-        copyPhoneButton.addEventListener('click', () => {
-            copyToClipboard(phoneNumber);
-            alert('Phone number copied to clipboard!');
-        });
-    }
-});
 
 
 

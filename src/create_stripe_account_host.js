@@ -25,10 +25,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const data = await response.json();
-            console.log(data)
             return data.result1.response.result.client_secret; // Assuming the response contains a client_secret field
         } catch (error) {
-            console.error('Error:', error);
         }
     }
 
@@ -51,13 +49,11 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     accountOnboarding.setOnExit(() => {
-        console.log('User exited the onboarding flow');
     });
     const container = document.getElementById('container');
     if (container) {
         container.appendChild(accountOnboarding);
     } else {
-        console.log('Container element not found.');
     }
 
 
@@ -75,10 +71,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const data = await response.json();
-            console.log(data)
             return data.result1.response.result.client_secret; // Assuming the response contains a client_secret field
         } catch (error) {
-            console.error('Error:', error);
         }
     }
 });

@@ -802,184 +802,131 @@ window.Webflow.push(() => {
 // //calender
 // //calender
 
+document.addEventListener('DOMContentLoaded', function () {
+
+  window.Wized = window.Wized || [];
+  window.Wized.push((async (Wized) => {
+
+    await Wized.requests.waitFor('Load_Property_Calendar_Disabled')
 
 
+    let data = Wized.data.r.Load_Property_Calendar_Disabled;
 
+    // Convert the list of date strings into Date objects without modifying the day
+    let disabledDates = data.data.map(item => {
+      // Split the date string into parts (assuming format YYYY-MM-DD)
+      let [year, month, day] = item.date.split('-');
 
-window.Wized = window.Wized || [];
-window.Wized.push((Wized) => {
-  // // Get references to the elements using data-element attributes
-  // const reservationCardDatesElement = document.querySelector('[data-element="calendarModal_reservationCardDates"]');
-  // const closeButtonElement = document.querySelector('[data-element="calendarModal_closeButton"]');
-  // const calendarModalElement = document.querySelector('[data-element="calendarModal"]');
-  // const bodyElement = document.querySelector('[data-element="body"]');
-
-
-  // // Ensure the calendar modal is initially hidden
-  // if (calendarModalElement) {
-  //   calendarModalElement.style.display = 'none'; // Hide the modal on page load
-  // }
-
-  // // Show or hide the calendar modal when the reservation card dates element is clicked
-  // if (reservationCardDatesElement) {
-  //   reservationCardDatesElement.addEventListener('click', () => {
-  //     if (calendarModalElement) {
-  //       if (calendarModalElement.style.display === 'block') {
-  //         // If the modal is already visible, hide it
-  //         calendarModalElement.style.display = 'none';
-  //       } else {
-  //         // Otherwise, show the modal
-  //         calendarModalElement.style.display = 'block';
-  //       }
-  //     }
-  //   });
-  // }
-
-  // // Hide the calendar modal when the close button is clicked
-  // if (closeButtonElement) {
-  //   closeButtonElement.addEventListener('click', () => {
-  //     if (calendarModalElement) {
-  //       calendarModalElement.style.display = 'none'; // Hide the modal
-  //     }
-  //   });
-  // }
-
-  // // Hide the calendar modal when clicking outside the modal (on the body)
-  // if (bodyElement) {
-  //   bodyElement.addEventListener('click', (event) => {
-  //     if (calendarModalElement && calendarModalElement.style.display === 'block') {
-  //       // Check if the click was outside the modal
-  //       if (!calendarModalElement.contains(event.target) && !reservationCardDatesElement.contains(event.target)) {
-  //         calendarModalElement.style.display = 'none'; // Hide the modal
-  //       }
-  //     }
-  //   });
-  // }
-
-
-
-  //const calendarModalMonths = document.querySelector('[data-element="calendarModal_monthsContainer"]');
-  // Select the element
-
-  // Define the HTML content to add
-  //const htmlContent = `
-  //<input id="start-date" />
-  // <input id="end-date" />
-  //`;
-
-  // Add the HTML content to the element
-  // calendarModalMonths.innerHTML = htmlContent;
-
-
-  //console.log(calendarModalMonths)
-  const startDate = Wized.data.n.parameter.checkin;
-  // Fetch the start date from Wized data
-  const endDate = Wized.data.n.parameter.checkout
-
-  const script1 = document.createElement('script');
-  script1.innerHTML = `
-    const picker = new easepick.create({
-        element: document.getElementById('Input_CheckIn'),
-        css: [
-            'https://cdn.jsdelivr.net/npm/@easepick/bundle@1.2.1/dist/index.css',
-            'https://cdn.jsdelivr.net/npm/@easepick/range-plugin@1.2.1/dist/index.css',
-            'calendar1.css'
-        ],
-        firstDay: 0,
-        calendars: 2,
-        index: 100,
-        format: "YYYY-MM-DD",
-        plugins: ['RangePlugin'],
-        RangePlugin: {
-          elementEnd: document.getElementById('Input_CheckOut'),
-          startDate: "${startDate}",
-            endDate: "${endDate}",
-            minDays: 7,
-            tooltip: false
-        }
+      // Create a new Date object in local time without changing the date by explicitly setting the time to noon
+      return new Date(year, month - 1, day, 12, 0, 0); // Months are 0-indexed in JavaScript Date
     });
-`;
-  document.body.appendChild(script1);
 
-  picker.on('select', (event) => {
-    const startDate = picker.getStartDate();
+    //works but missing stuff
+    var checkIn = document.getElementById('datepicker1');
+    var checkOut = document.getElementById('datepicker2');
+    checkIn.setAttribute('readonly', true);
+    checkOut.setAttribute('readonly', true);
 
-    if (startDate) {
-      // Automatically set the end date to 7 days after the start date
-      const endDate = new Date(startDate);
-      endDate.setDate(endDate.getDate() + 7);
+    // Step 1: Get the checkin and checkout parameters from the URL
+    var urlParams = new URLSearchParams(window.location.search);
+    var initialCheckIn = urlParams.get('checkin');  // Example: '2024-10-20'
+    var initialCheckOut = urlParams.get('checkout'); // Example: '2024-10-23'
 
-      // Format the end date to match the required format
-      const formattedEndDate = endDate.toISOString().split('T')[0]; // Format: "YYYY-MM-DD"
+    let today = new Date();
+    let twoYearsLater = new Date(today);
+    twoYearsLater.setFullYear(today.getFullYear() + 2);
+    var newCheckIn = urlParams.get('checkin');
+    var newCheckOut = urlParams.get('checkout');
 
-      // Set the end date in the picker
-      picker.setEndDate(formattedEndDate);
+    // Step 2: Initialize Lightpick and set initial date range if available
+    var picker = new Lightpick({
+      field: checkIn,
+      secondField: checkOut,
+      singleDate: false,
+      parentEl: document.getElementById('calendarInline'),
+      inline: true,
+      minDays: 8,
+      numberOfColumns: 2,
+      format: "MM/DD/YY",
+      minDate: today,
+      maxDate: twoYearsLater,
+      disableDates: disabledDates,
+      disabledDatesInRange: false,
+      tooltipNights: true, // Enables calculation of nights instead of days in the tooltip
+      numberOfMonths: 2,
+      locale: {
+        tooltip: {
+          one: 'night',     // Singular form
+          other: 'nights'   // Plural form
+        }
+      },
+      startDate: newCheckIn ? moment(newCheckIn, 'YYYY-MM-DD') : today,  // Open to check-in date if set
+      onSelect: function (start, end) {
+
+        // Step 4: When user selects new dates, update the URL parameters
+        if (start && end) {
+          newCheckIn = start.format('YYYY-MM-DD');
+          newCheckOut = end.format('YYYY-MM-DD');
+
+          // Update the URL parameters without reloading the page
+          var url = new URL(window.location.href);
+          url.searchParams.set('checkin', newCheckIn);
+          url.searchParams.set('checkout', newCheckOut);
+          window.history.replaceState({}, '', url);
+          if (newCheckIn == null || newCheckIn == null) {
+            Wized.data.n.parameter.checkin = ""
+            Wized.data.n.parameter.checkout = ""
+          } else {
+            Wized.data.n.parameter.checkin = newCheckIn
+            Wized.data.n.parameter.checkout = newCheckOut
+          }
+        }
+      }
+    });
+
+    // Step 3: If initial check-in and check-out exist, set the date range in the picker
+    if (initialCheckIn && initialCheckOut) {
+      let checkInDate = new Date(initialCheckIn);
+      let checkOutDate = new Date(initialCheckOut);
+
+      // Manually add one day to both dates
+      checkInDate.setDate(checkInDate.getDate() + 1);
+      checkOutDate.setDate(checkOutDate.getDate() + 1);
+
+      // Set the date range with the adjusted dates
+      picker.setDateRange(checkInDate, checkOutDate);
+
+    } else {
+      if (!initialCheckIn) datepicker1.placeholder = 'Set Date';
+      if (!initialCheckOut) datepicker2.placeholder = 'Set Date';
     }
-  });
 
+    let clearDatesButton = document.getElementById('clear-dates');
 
+    clearDatesButton.addEventListener('click', async function () {
+      newCheckIn = null
+      newCheckOut = null
+      Wized.data.n.parameter.checkin = ""
+      Wized.data.n.parameter.checkout = ""
+      //  await Wized.requests.execute('Load_Property_Calendar_Query');
+      picker.setDateRange(null, null);
+    });
+
+    let closeButton = document.querySelectorAll('[data-element="calendarModal_closeButton"]')
+    closeButton[0].addEventListener('click', async function () {
+      await Wized.requests.execute('Load_Property_Calendar_Query');
+
+    })
+
+    let calendarModal = document.querySelector('[data-element="calendarModal"]');
+
+    // Add event listener for clicking outside the modal
+    document.addEventListener('click', function (event) {
+      // Check if the click is outside the calendar modal
+      if (!calendarModal.contains(event.target) && !closeButton[0].contains(event.target)) {
+        // If clicked outside the modal, trigger the same action as close button
+        closeButton[0].click();
+      }
+    });
+  }));
 });
-
-
-
-
-
-
-
-
-
-
-// window.onload = async () => {
-//   // Wait for Wized to be ready
-//   await Wized.request.awaitAllPageLoad();
-
-//   // Import necessary modules (if using ES modules syntax)
-
-
-//   // Function to disable past dates
-//   function disablePastDates() {
-//     const today = new Date();
-//     today.setHours(0, 0, 0, 0);
-
-//     const dayElements = document.querySelectorAll('.calendar .days-grid .day');
-
-//     dayElements.forEach(function (day) {
-//       const dayDate = new Date(parseInt(day.getAttribute('data-time') || ''));
-
-//       if (dayDate < today) {
-//         day.classList.add('disabled');
-//         day.removeAttribute('onclick');
-//       }
-//     });
-//   }
-
-//   // Initialize easepick date range picker
-//   document.addEventListener('DOMContentLoaded', function () {
-//     const startInput = document.getElementById('start-date');
-//     const endInput = document.getElementById('end-date');
-
-//     const picker = new easepick.create({
-//       element: startInput,
-//       css: [
-//         'https://cdn.jsdelivr.net/npm/@easepick/bundle@1.2.1/dist/index.css',
-//         'https://cdn.jsdelivr.net/npm/@easepick/range-plugin@1.2.1/dist/index.css',
-//         'calendar1.css'
-//       ],
-//       firstDay: 0,
-//       calendars: 2,
-//       format: 'MM-DD-YYYY',
-//       plugins: ['RangePlugin'],
-//       RangePlugin: {
-//         elementEnd: endInput,
-//         // Replace with dynamic values for startDate and endDate
-//         startDate: '05-12-2024',
-//         endDate: '05-19-2024',
-//         minDays: 7,
-//         tooltip: false
-//       }
-//     });
-
-//     // Disable past dates after the picker is initialized
-//     disablePastDates();
-//   });
-// };
