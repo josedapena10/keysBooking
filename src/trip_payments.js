@@ -2,14 +2,12 @@
 var script = document.createElement('script');
 script.src = 'https://cdn.jsdelivr.net/npm/@finsweet/attributes-mirrorclick@1/mirrorclick.js';
 document.body.appendChild(script);
-console.log("Leah 1")
 
 
 
 // for no scroll background when modal is open
 // when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("leah")
     // on .open-modal click
     document.querySelectorAll('.open_modal').forEach(trigger => {
         trigger.addEventListener('click', function () {
@@ -67,6 +65,5 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
     } catch (err) {
-        console.error('Error:', err.message);
     }
 })();

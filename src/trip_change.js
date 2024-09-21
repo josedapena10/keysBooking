@@ -37,7 +37,6 @@
         });
 
     } catch (err) {
-        console.error('Error:', err.message);
     }
 })();
 
@@ -175,7 +174,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
         } catch (error) {
-            console.error("Error waiting for request or accessing max_guests:", error);
         }
 
     });

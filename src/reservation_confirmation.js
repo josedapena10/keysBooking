@@ -63,7 +63,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
     } catch (err) {
-        console.error('Error:', err.message);
     }
 })();
 
@@ -76,7 +75,6 @@ window.Wized.push((Wized) => {
 
     // Check if the element was found
     if (!copyDirections || !copyDirections.node) {
-        console.error('Element not found or element.node is undefined.');
         return;
     }
 
@@ -84,7 +82,6 @@ window.Wized.push((Wized) => {
     copyDirections.node.addEventListener('click', () => {
         const address = getAddress();
         if (!address) {
-            console.error('Address is undefined or empty.');
             return;
         }
         copyToClipboard(address);
@@ -101,14 +98,6 @@ window.Wized.push((Wized) => {
 
     }
 
-    function copyToClipboard(text) {
-        navigator.clipboard.writeText(text).then(() => {
-            console.log('Text copied to clipboard:', text);
-        }).catch(err => {
-            console.error('Failed to copy text:', err);
-        });
-    }
-
 });
 
 
@@ -116,6 +105,7 @@ window.Wized.push((Wized) => {
 
 
 
+// Print receipt
 window.Wized = window.Wized || [];
 window.Wized.push((Wized) => {
     // Get the current path
@@ -130,13 +120,13 @@ window.Wized.push((Wized) => {
         if (reservationCode) {
             const iframe = loadReceiptPage(reservationCode);
 
-            // Add event listener to print when the button is clicked
-            const paymentButton = document.querySelector('[data-element="ReservationConfirmation_PrintPaymentReceipt"]');
-            if (paymentButton) {
+            // Add event listeners to all buttons with the matching data-element
+            const paymentButtons = document.querySelectorAll('[data-element="tripDetail_reservationDetails_payments_button"]');
+            paymentButtons.forEach(paymentButton => {
                 paymentButton.addEventListener('click', () => {
                     printReceiptFromIframe(iframe);
                 });
-            }
+            });
         }
     }
 });

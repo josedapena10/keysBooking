@@ -2,14 +2,12 @@
 var script = document.createElement('script');
 script.src = 'https://cdn.jsdelivr.net/npm/@finsweet/attributes-mirrorclick@/mirrorclick.js';
 document.body.appendChild(script);
-console.log("Leah 1")
 
 
 
 // for no scroll background when modal is open
 // when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("leah")
     // on .open-modal click
     document.querySelectorAll('.open-modal').forEach(trigger => {
         trigger.addEventListener('click', function () {
@@ -71,7 +69,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
     } catch (err) {
-        console.error('Error:', err.message);
     }
 })();
 
@@ -326,7 +323,6 @@ window.Wized.push((Wized) => {
             Wized.data.v.signup_buttonclicked = true;
         });
     } else {
-        console.error('SignUp_AgreeSubmitButton not found or not rendered.');
     }
 
 });
