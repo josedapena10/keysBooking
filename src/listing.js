@@ -930,3 +930,114 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }));
 });
+
+
+
+
+
+
+
+
+
+
+
+// Listen for DOMContentLoaded
+document.addEventListener('DOMContentLoaded', () => {
+
+  // Initialize Wized
+  window.Wized = window.Wized || [];
+  window.Wized.push((Wized) => {
+    // Map to track Splide instances
+
+    Wized.on('requestend', (event) => {
+      if (event.name === 'Load_Property_Details') {
+
+        // Retrieve the properties and sliders
+        var propertyPhotos = event.data.property._property_all_pictures;
+
+        // Select all elements that should be Splide sliders
+        var splide = document.querySelector('.splide');
+
+
+        // Initialize Splide for this slider
+        var slider = new Splide(splide, {
+          type: 'loop',   // Enable looping
+        });
+
+        slider.on('pagination:mounted', function (data) {
+          // Limit the number of pagination dots to a maximum of 5
+          const maxDots = 5;
+
+          // Hide excess pagination dots beyond maxDots
+          data.items.forEach((item, i) => {
+            if (i >= maxDots) {
+              item.li.style.display = 'none';
+            }
+          });
+        });
+
+        slider.on('move', function (newIndex) {
+          const maxDots = 5;
+
+          // Calculate which dot should be highlighted based on the current slide
+          const activeDotIndex = newIndex % maxDots;
+
+          // Get all pagination dots
+          const dots = splide.querySelectorAll('.splide__pagination__page');
+
+          // Remove active class from all dots
+          dots.forEach((dot) => {
+            dot.classList.remove('is-active');
+          });
+
+          // Add active class to the correct dot
+          if (dots[activeDotIndex]) {
+            dots[activeDotIndex].classList.add('is-active');
+          }
+        });
+
+        slider.mount();
+
+        propertyPhotos.forEach((photoUrl) => {
+          var li = document.createElement('li');
+          li.classList.add('splide__slide');
+          li.innerHTML = `<img src="${photoUrl.property_image.url}" alt="Property Photo">`;
+          slider.add(li);
+        });
+
+        var prevArrow = splide.querySelector('.splide__arrow--prev');
+        var nextArrow = splide.querySelector('.splide__arrow--next');
+
+        // Style the arrows themselves (opacity and padding)
+        [prevArrow, nextArrow].forEach((arrow) => {
+          if (arrow) {
+            arrow.style.opacity = '0.8'; // Make less transparent
+            arrow.style.height = '34px';
+            arrow.style.width = '34px';
+            arrow.style.boxShadow = '0px 0px 2px rgba(255, 255, 255, 0.4)';
+          }
+        });
+
+        // Ensure the icon inside the arrows (usually an SVG) remains visible
+        var arrowIcons = splide.querySelectorAll('.splide__arrow svg');
+        arrowIcons.forEach((icon) => {
+          icon.style.width = '16px'; // Set a fixed size for the icon
+          icon.style.height = '16px'; // Adjust as needed
+        });
+
+        [prevArrow, nextArrow].forEach(arrow => {
+          if (arrow) {
+            arrow.addEventListener('click', (e) => {
+              e.preventDefault(); // Prevent the link's default behavior
+              e.stopPropagation();
+            });
+          }
+        });
+
+        // Refresh the slider after adding slides
+        slider.refresh();
+
+      }
+    });
+  });
+});
