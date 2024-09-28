@@ -325,4 +325,45 @@ window.Wized.push((Wized) => {
     } else {
     }
 
+
+
+
+
+
+    //forgot password
+    //forgot password
+    // Handle input rules for ForgotPassword_Email
+    const forgotPasswordEmailInput = Wized.elements.get('ForgotPassword_Email');
+
+    // Add validation logic for ForgotPassword_Email
+    forgotPasswordEmailInput.node.addEventListener('focus', (event) => {
+        const inputElement = event.target;
+        if (inputElement.value === '') {
+            inputElement.value = '';  // Clear the field when focused if empty
+        }
+    });
+
+    forgotPasswordEmailInput.node.addEventListener('input', handleEmailInput);
+    forgotPasswordEmailInput.node.addEventListener('keydown', handleKeyDown);
+    forgotPasswordEmailInput.node.addEventListener('change', handleEmailInput);
+
+    // Function to handle email input
+    function handleEmailInput(event) {
+        const inputElement = event.target;
+        let input = inputElement.value.replace(/[^a-zA-Z0-9@._-]/g, ''); // Strip invalid characters for email
+        inputElement.value = input; // Update the field with sanitized input
+    }
+
+    // Function to handle key down events
+    function handleKeyDown(event) {
+        const key = event.key;
+        const inputElement = event.target;
+
+        // Prevent any characters that are not alphanumeric or standard email characters
+        if (!/^[a-zA-Z0-9@._-]$/.test(key) && key.length === 1) {
+            event.preventDefault(); // Prevent invalid characters
+        }
+    }
+
+
 });
