@@ -6,7 +6,6 @@ script.src = 'https://cdn.jsdelivr.net/npm/@finsweet/attributes-mirrorclick@1/mi
 document.body.appendChild(script);
 
 
-
 // for no scroll background when modal is open
 // when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
@@ -25,109 +24,88 @@ document.addEventListener('DOMContentLoaded', () => {
       document.querySelectorAll('body').forEach(target => target.classList.remove('no-scroll'));
     });
   });
+
+
+
+  (async function () {
+    try {
+      const profileButton = document.querySelector('[data-element="profile_button"]');
+      const profileButtonDropdown = document.querySelector('[data-element="profile_button_dropdown"]');
+      let isPopupOpen = false;
+
+      // Close the dropdown initially
+      profileButtonDropdown.style.display = 'none';
+
+      // Function to toggle the dropdown
+      const togglePopup = () => {
+        isPopupOpen = !isPopupOpen;
+        profileButtonDropdown.style.display = isPopupOpen ? 'flex' : 'none';
+      };
+
+      // Event listener for profile button click and toggling the dropdown
+      profileButton.addEventListener('click', function () {
+        togglePopup();
+      });
+
+      // Event listeners to close the popup when buttons inside are clicked
+      const popupButtons = profileButtonDropdown.querySelectorAll('[data-element*="Button"]');
+      popupButtons.forEach(button => {
+        button.addEventListener('click', function () {
+          isPopupOpen = false;
+          profileButtonDropdown.style.display = 'none';
+        });
+      });
+
+      let closeButtons = document.querySelectorAll('[data-element="calendarModal_closeButton"]')
+
+      let calendarModal = document.querySelector('[data-element="calendarModal"]');
+      const closeButtonGuest = document.querySelectorAll('[data-element*="Input_Guests_Dropdown_CloseText"]');
+      const guestButtonDropdown = document.querySelector('[data-element="Input_Guests_Dropdown"]');
+      // Handle body clicks for closing both the profile dropdown and calendar modal
+      document.body.addEventListener('click', function (evt) {
+        // Handle profile button and dropdown visibility
+        if (!profileButton.contains(evt.target) && !profileButtonDropdown.contains(evt.target)) {
+          if (isPopupOpen) {
+            isPopupOpen = false;
+            profileButtonDropdown.style.display = 'none';
+          }
+        }
+
+        // Handle clicks outside the calendar modal
+        if (!calendarModal.contains(evt.target)) {
+          if (calendarModal.style.display == 'flex') {
+            closeButtons[0].click();
+
+
+            if (profileButton.contains(evt.target)) {
+              if (!isPopupOpen) {
+                togglePopup()
+              }
+            }
+          }
+        }
+
+        if (!guestButtonDropdown.contains(evt.target)) {
+          if (guestButtonDropdown.style.display == 'flex') {
+            closeButtonGuest[0].click();
+
+            if (profileButton.contains(evt.target)) {
+              if (!isPopupOpen) {
+                togglePopup()
+              }
+            }
+          }
+        }
+
+
+      });
+
+    } catch (err) {
+
+    }
+  })();
+
 });
-
-
-
-
-
-(async function () {
-  try {
-
-    const profileButton = document.querySelector('[data-element="profile_button"]');
-    const profileButtonDropdown = document.querySelector('[data-element="profile_button_dropdown"]');
-    let isPopupOpen = false;
-
-    // Close the dropdown initially
-    profileButtonDropdown.style.display = 'none';
-
-    // Function to toggle the dropdown
-    const togglePopup = () => {
-      isPopupOpen = !isPopupOpen;
-      profileButtonDropdown.style.display = isPopupOpen ? 'flex' : 'none';
-    };
-
-    // Event listener for profile button click and toggling the dropdown
-    profileButton.addEventListener('click', function () {
-      togglePopup();
-    });
-
-    // Event listener for body click to close the dropdown
-    document.body.addEventListener('click', function (evt) {
-      if (!profileButton.contains(evt.target) && !profileButtonDropdown.contains(evt.target)) {
-        isPopupOpen = false;
-        profileButtonDropdown.style.display = 'none';
-      }
-    });
-
-    // Event listeners to close the popup when buttons inside are clicked
-    const popupButtons = profileButtonDropdown.querySelectorAll('[data-element*="Button"]');
-    popupButtons.forEach(button => {
-      button.addEventListener('click', function () {
-        isPopupOpen = false;
-        profileButtonDropdown.style.display = 'none';
-      });
-    });
-
-  } catch (err) {
-  }
-})();
-
-
-
-
-
-
-
-
-
-
-
-(async function () {
-  try {
-
-    const guestButton = document.querySelector('[data-element="Input_Guests"]');
-    const guestButtonDropdown = document.querySelector('[data-element="Input_Guests_Dropdown"]');
-    let isPopupOpen = false;
-
-    // Close the dropdown initially
-    guestButtonDropdown.style.display = 'none';
-
-    // Function to toggle the dropdown
-    const togglePopup = () => {
-      isPopupOpen = !isPopupOpen;
-      guestButtonDropdown.style.display = isPopupOpen ? 'flex' : 'none';
-    };
-
-    // Event listener for guest button click and toggling the dropdown
-    guestButton.addEventListener('click', function () {
-      togglePopup();
-    });
-
-    // Event listener for body click to close the dropdown
-    document.body.addEventListener('click', function (evt) {
-      if (!guestButton.contains(evt.target) && !guestButtonDropdown.contains(evt.target)) {
-        isPopupOpen = false;
-        guestButtonDropdown.style.display = 'none';
-      }
-    });
-
-    // Event listeners to close the popup when buttons inside are clicked
-    const closeButton = document.querySelectorAll('[data-element*="Input_Guests_Dropdown_CloseText"]');
-    closeButton.forEach(button => {
-      button.addEventListener('click', function () {
-        isPopupOpen = false;
-        guestButtonDropdown.style.display = 'none';
-      });
-    });
-
-  } catch (err) {
-  }
-})();
-
-
-
-
 
 
 
@@ -150,18 +128,27 @@ document.addEventListener('DOMContentLoaded', () => {
       let max_pets = 2;
       let pet_policy = Wized.data.v.pets_allowed; // Retrieve pet policy
 
+      // Updated to avoid overwriting the keys
       let plusButtons = {
-        adults: document.querySelector('#plus-button'),
-        children: document.querySelector('#plus-button1'),
-        infants: document.querySelector('#plus-button2'),
-        pets: document.querySelector('#plus-button3')
+        adultsDesktop: document.querySelector('#plus-button'),
+        childrenDesktop: document.querySelector('#plus-button1'),
+        infantsDesktop: document.querySelector('#plus-button2'),
+        petsDesktop: document.querySelector('#plus-button3'),
+        adultsPhone: document.querySelector('#plus-buttonPhone'),
+        childrenPhone: document.querySelector('#plus-button1Phone'),
+        infantsPhone: document.querySelector('#plus-button2Phone'),
+        petsPhone: document.querySelector('#plus-button3Phone')
       };
 
       let minusButtons = {
-        adults: document.querySelector('#minus-button1'),
-        children: document.querySelector('#minus-button2'),
-        infants: document.querySelector('#minus-button3'),
-        pets: document.querySelector('#minus-button4')
+        adultsDesktop: document.querySelector('#minus-button1'),
+        childrenDesktop: document.querySelector('#minus-button2'),
+        infantsDesktop: document.querySelector('#minus-button3'),
+        petsDesktop: document.querySelector('#minus-button4'),
+        adultsPhone: document.querySelector('#minus-button1Phone'),
+        childrenPhone: document.querySelector('#minus-button2Phone'),
+        infantsPhone: document.querySelector('#minus-button3Phone'),
+        petsPhone: document.querySelector('#minus-button4Phone')
       };
 
       setupSVGButtons();
@@ -172,6 +159,7 @@ document.addEventListener('DOMContentLoaded', () => {
         disablePetButtons(); // Disable pet buttons if pets are not allowed
       }
 
+      // Add event listeners for both desktop and phone buttons
       Object.keys(plusButtons).forEach(type => {
         plusButtons[type].addEventListener('click', () => handleIncrement(type));
       });
@@ -181,21 +169,28 @@ document.addEventListener('DOMContentLoaded', () => {
       });
 
       function handleIncrement(type) {
-        if (type === 'adults' || type === 'children') {
+        const counterType = getCounterType(type); // Get base counter type (adults, children, infants, pets)
+        if (counterType === 'adults' || counterType === 'children') {
           if (counters.adults + counters.children < max_guests) {
-            incrementCounter(type);
+            incrementCounter(counterType);
           }
-        } else if (type === 'infants' && counters.infants < max_infants) {
-          incrementCounter(type);
-        } else if (type === 'pets' && counters.pets < max_pets && pet_policy) {
-          incrementCounter(type);
+        } else if (counterType === 'infants' && counters.infants < max_infants) {
+          incrementCounter(counterType);
+        } else if (counterType === 'pets' && counters.pets < max_pets && pet_policy) {
+          incrementCounter(counterType);
         }
       }
 
       function handleDecrement(type) {
-        if (type === 'adults' && counters[type] > 1 || type !== 'adults' && counters[type] > 0) {
-          decrementCounter(type);
+        const counterType = getCounterType(type); // Get base counter type (adults, children, infants, pets)
+        if (counterType === 'adults' && counters[counterType] > 1 || counterType !== 'adults' && counters[counterType] > 0) {
+          decrementCounter(counterType);
         }
+      }
+
+      function getCounterType(type) {
+        // Get base counter type for any button (removes "Desktop" or "Phone" suffix)
+        return type.replace('Desktop', '').replace('Phone', '');
       }
 
       function incrementCounter(type) {
@@ -237,10 +232,18 @@ document.addEventListener('DOMContentLoaded', () => {
           const maxCondition = type === 'adults' || type === 'children' ? counters.adults + counters.children >= max_guests :
             type === 'infants' ? counters.infants >= max_infants :
               counters.pets >= max_pets;
-          plusButtons[type].style.opacity = maxCondition ? '0.3' : '1';
+          Object.keys(plusButtons).forEach(buttonType => {
+            if (getCounterType(buttonType) === type) {
+              plusButtons[buttonType].style.opacity = maxCondition ? '0.3' : '1';
+            }
+          });
 
           const minCondition = type === 'adults' ? counters[type] <= 1 : counters[type] <= 0;
-          minusButtons[type].style.opacity = minCondition ? '0.3' : '1';
+          Object.keys(minusButtons).forEach(buttonType => {
+            if (getCounterType(buttonType) === type) {
+              minusButtons[buttonType].style.opacity = minCondition ? '0.3' : '1';
+            }
+          });
         });
 
         // Ensure pet buttons remain disabled and at reduced opacity if pets are not allowed
@@ -250,12 +253,15 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       function disablePetButtons() {
-        plusButtons.pets.disabled = true;
-        minusButtons.pets.disabled = true;
-        plusButtons.pets.style.opacity = '0.3';  // Ensure opacity remains reduced
-        minusButtons.pets.style.opacity = '0.3'; // Ensure opacity remains reduced
+        plusButtons.petsDesktop.disabled = true;
+        minusButtons.petsDesktop.disabled = true;
+        plusButtons.petsPhone.disabled = true;
+        minusButtons.petsPhone.disabled = true;
+        plusButtons.petsDesktop.style.opacity = '0.3';  // Ensure opacity remains reduced
+        minusButtons.petsDesktop.style.opacity = '0.3'; // Ensure opacity remains reduced
+        plusButtons.petsPhone.style.opacity = '0.3';    // Ensure opacity remains reduced
+        minusButtons.petsPhone.style.opacity = '0.3';   // Ensure opacity remains reduced
       }
-
 
       function setupSVGButtons() {
         const svgPlus = '<svg width="30" height="30" xmlns="http://www.w3.org/2000/svg"><circle cx="15" cy="15" r="14" fill="none" stroke="#808080" stroke-width="1"></circle><rect x="9" y="14" width="12" height="2" rx="2" fill="#808080"></rect><rect x="14" y="9" width="2" height="12" rx="2" fill="#808080"></rect></svg>';
@@ -265,12 +271,8 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
     } catch (error) {
+      console.error(error);
     }
-
-
-
-
-
 
 
 
@@ -545,130 +547,47 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 
+    //forgot password
+    //forgot password
+    // Handle input rules for ForgotPassword_Email
+    const forgotPasswordEmailInput = Wized.elements.get('ForgotPassword_Email');
+
+    // Add validation logic for ForgotPassword_Email
+    forgotPasswordEmailInput.node.addEventListener('focus', (event) => {
+      const inputElement = event.target;
+      if (inputElement.value === '') {
+        inputElement.value = '';  // Clear the field when focused if empty
+      }
+    });
+
+    forgotPasswordEmailInput.node.addEventListener('input', handleEmailInput);
+    forgotPasswordEmailInput.node.addEventListener('keydown', handleKeyDown);
+    forgotPasswordEmailInput.node.addEventListener('change', handleEmailInput);
+
+    // Function to handle email input
+    function handleEmailInput(event) {
+      const inputElement = event.target;
+      let input = inputElement.value.replace(/[^a-zA-Z0-9@._-]/g, ''); // Strip invalid characters for email
+      inputElement.value = input; // Update the field with sanitized input
+    }
+
+    // Function to handle key down events
+    function handleKeyDown(event) {
+      const key = event.key;
+      const inputElement = event.target;
+
+      // Prevent any characters that are not alphanumeric or standard email characters
+      if (!/^[a-zA-Z0-9@._-]$/.test(key) && key.length === 1) {
+        event.preventDefault(); // Prevent invalid characters
+      }
+    }
+
+
+
+
+
   });
 });
-
-// document.addEventListener('DOMContentLoaded', () => {
-//   window.Wized = window.Wized || [];
-//   window.Wized.push(async (Wized) => {
-//     try {
-//       const requestName = 'Load_Property_Details'; // Ensure this matches the actual request name
-//       await Wized.requests.waitFor(requestName);
-
-//       let counters = {
-//         adults: parseInt(Wized.data.n.parameter.adults),
-//         children: parseInt(Wized.data.n.parameter.children),
-//         infants: parseInt(Wized.data.n.parameter.infants),
-//         pets: parseInt(Wized.data.n.parameter.pets)
-//       };
-
-//       let max_guests = Wized.data.v.max_guests;
-//       let max_infants = 5;
-//       let max_pets = 2;
-
-//       let plusButtons = {
-//         adults: document.querySelector('#plus-button'),
-//         children: document.querySelector('#plus-button1'),
-//         infants: document.querySelector('#plus-button2'),
-//         pets: document.querySelector('#plus-button3')
-//       };
-
-//       let minusButtons = {
-//         adults: document.querySelector('#minus-button1'),
-//         children: document.querySelector('#minus-button2'),
-//         infants: document.querySelector('#minus-button3'),
-//         pets: document.querySelector('#minus-button4')
-//       };
-
-//       setupSVGButtons();
-//       updateAllButtonStates();
-//       updateGuestsParameter();
-
-//       Object.keys(plusButtons).forEach(type => {
-//         plusButtons[type].addEventListener('click', () => handleIncrement(type));
-//       });
-
-//       Object.keys(minusButtons).forEach(type => {
-//         minusButtons[type].addEventListener('click', () => handleDecrement(type));
-//       });
-
-//       function handleIncrement(type) {
-//         if (type === 'adults' || type === 'children') {
-//           if (counters.adults + counters.children < max_guests) {
-//             incrementCounter(type);
-//           }
-//         } else if (type === 'infants' && counters.infants < max_infants) {
-//           incrementCounter(type);
-//         } else if (type === 'pets' && counters.pets < max_pets) {
-//           incrementCounter(type);
-//         }
-//       }
-
-//       function handleDecrement(type) {
-//         if (type === 'adults' && counters[type] > 1 || type !== 'adults' && counters[type] > 0) {
-//           decrementCounter(type);
-//         }
-//       }
-
-//       function incrementCounter(type) {
-//         counters[type]++;
-//         updateCounterInDataStore(type);
-//         if (type === 'adults' || type === 'children') {
-//           updateGuestsParameter();
-//         }
-//       }
-
-//       function decrementCounter(type) {
-//         counters[type]--;
-//         updateCounterInDataStore(type);
-//         if (type === 'adults' || type === 'children') {
-//           updateGuestsParameter();
-//         }
-//       }
-
-//       function updateCounterInDataStore(type) {
-//         Wized.data.n.parameter[type] = counters[type];
-//         updateURLParameter(type, counters[type]);
-//         updateAllButtonStates();
-//       }
-
-//       function updateGuestsParameter() {
-//         const totalGuests = counters.adults + counters.children;
-//         Wized.data.n.parameter.guests = totalGuests;
-//         updateURLParameter('guests', totalGuests);
-//       }
-
-//       function updateURLParameter(type, value) {
-//         let url = new URL(window.location);
-//         url.searchParams.set(type, value);
-//         history.pushState(null, "", url);
-//       }
-
-//       function updateAllButtonStates() {
-//         Object.keys(counters).forEach(type => {
-//           const maxCondition = type === 'adults' || type === 'children' ? counters.adults + counters.children >= max_guests :
-//             type === 'infants' ? counters.infants >= max_infants :
-//               counters.pets >= max_pets;
-//           plusButtons[type].style.opacity = maxCondition ? '0.2' : '1';
-
-//           const minCondition = type === 'adults' ? counters[type] <= 1 : counters[type] <= 0;
-//           minusButtons[type].style.opacity = minCondition ? '0.2' : '1';
-//         });
-//       }
-
-//       function setupSVGButtons() {
-//         const svgPlus = '<svg width="30" height="30" xmlns="http://www.w3.org/2000/svg"><circle cx="15" cy="15" r="14" fill="none" stroke="#808080" stroke-width="2"></circle><rect x="9" y="14" width="12" height="2" rx="2" fill="#808080"></rect><rect x="14" y="9" width="2" height="12" rx="2" fill="#808080"></rect></svg>';
-//         const svgMinus = '<svg width="30" height="30" xmlns="http://www.w3.org/2000/svg"><circle cx="15" cy="15" r="14" fill="none" stroke="#808080" stroke-width="2"></circle><rect x="9" y="14" width="12" height="2" rx="2" fill="#808080"></rect></svg>';
-//         Object.values(plusButtons).forEach(button => button.innerHTML = svgPlus);
-//         Object.values(minusButtons).forEach(button => button.innerHTML = svgMinus);
-//       }
-
-//     } catch (error) {
-//       console.error("Error waiting for request or accessing max_guests:", error);
-//     }
-//   });
-// });
-
 
 
 
@@ -788,15 +707,6 @@ window.Webflow.push(() => {
 
 
 
-
-
-
-
-
-
-
-
-
 // //calender
 // //calender
 // //calender
@@ -824,13 +734,20 @@ document.addEventListener('DOMContentLoaded', function () {
     //works but missing stuff
     var checkIn = document.getElementById('datepicker1');
     var checkOut = document.getElementById('datepicker2');
+    var mobileCheckIn = document.getElementById('datepicker1Phone')
+    var mobileCheckOut = document.getElementById('datepicker2Phone')
+
     checkIn.setAttribute('readonly', true);
     checkOut.setAttribute('readonly', true);
+    mobileCheckIn.setAttribute('readonly', true);
+    mobileCheckOut.setAttribute('readonly', true);
 
     // Step 1: Get the checkin and checkout parameters from the URL
     var urlParams = new URLSearchParams(window.location.search);
     var initialCheckIn = urlParams.get('checkin');  // Example: '2024-10-20'
     var initialCheckOut = urlParams.get('checkout'); // Example: '2024-10-23'
+
+
 
     let today = new Date();
     let twoYearsLater = new Date(today);
@@ -838,12 +755,15 @@ document.addEventListener('DOMContentLoaded', function () {
     var newCheckIn = urlParams.get('checkin');
     var newCheckOut = urlParams.get('checkout');
 
+    const elements = document.querySelectorAll('.calendar-inline');
+
+
     // Step 2: Initialize Lightpick and set initial date range if available
     var picker = new Lightpick({
       field: checkIn,
       secondField: checkOut,
       singleDate: false,
-      parentEl: document.getElementById('calendarInline'),
+      parentEl: elements[0],
       inline: true,
       minDays: 8,
       numberOfColumns: 2,
@@ -863,8 +783,29 @@ document.addEventListener('DOMContentLoaded', function () {
       startDate: newCheckIn ? moment(newCheckIn, 'YYYY-MM-DD') : today,  // Open to check-in date if set
       onSelect: function (start, end) {
 
+        var oldCheckIn = urlParams.get('checkin');
+        var oldCheckOut = urlParams.get('checkout');
+
+
         // Step 4: When user selects new dates, update the URL parameters
         if (start && end) {
+          // console.log("old checkin is: ")
+          //    console.log(oldCheckIn)
+          //   console.log("old checkout is: ")
+          //   console.log(oldCheckOut)
+          //  console.log("new start date is ")
+          //   console.log(start)
+          //   console.log("new end date is ")
+          //   console.log(end)
+          if (start._f != oldCheckIn) {
+
+            //    console.log("leah")
+            Wized.data.n.parameter.checkout = ""
+            var url = new URL(window.location.href);
+            url.searchParams.set('checkout', "");
+
+
+          }
           newCheckIn = start.format('YYYY-MM-DD');
           newCheckOut = end.format('YYYY-MM-DD');
 
@@ -883,59 +824,118 @@ document.addEventListener('DOMContentLoaded', function () {
         }
       }
     });
+    // CREATE CALENDAR FOR MOBILE
+    var pickerMobile = new Lightpick({
+      field: mobileCheckIn,
+      secondField: mobileCheckOut,
+      singleDate: false,
+      parentEl: elements[1],
+      inline: true,
+      minDays: 8,
+      numberOfColumns: 1,
+      format: "MM/DD/YY",
+      minDate: today,
+      maxDate: twoYearsLater,
+      disableDates: disabledDates,
+      disabledDatesInRange: false,
+      tooltipNights: true, // Enables calculation of nights instead of days in the tooltip
+      numberOfMonths: 2,
+      locale: {
+        tooltip: {
+          one: 'night',     // Singular form
+          other: 'nights'   // Plural form
+        }
+      },
+      startDate: newCheckIn ? moment(newCheckIn, 'YYYY-MM-DD') : today,  // Open to check-in date if set
+      onSelect: function (start, end) {
+
+        // once there's a new checkin date, automatically clear out the checkout date to an empty string unless the 
+        // new checkin date clicked becomes the new checkout date. in that case, do not clear out check out date. 
+        // Step 4: When user selects new dates, update the URL parameters
+        if (start && end) {
+          console.log("leah")
+          console.log(start)
+          console.log(end)
+          console.log(picker.getEndDate())
+          newCheckIn = start.format('YYYY-MM-DD');
+          newCheckOut = end.format('YYYY-MM-DD');
+
+          // Update the URL parameters without reloading the page
+          var url = new URL(window.location.href);
+          url.searchParams.set('checkin', newCheckIn);
+          url.searchParams.set('checkout', newCheckOut);
+          console.log(newCheckOut)
+          window.history.replaceState({}, '', url);
+          if (newCheckIn == null || newCheckIn == null) {
+            Wized.data.n.parameter.checkin = ""
+            Wized.data.n.parameter.checkout = ""
+          } else {
+            Wized.data.n.parameter.checkin = newCheckIn
+            Wized.data.n.parameter.checkout = newCheckOut
+          }
+        }
+      }
+    });
+
+    if ((initialCheckIn == "") || (initialCheckOut == "")) {
+      picker.setDateRange(null, null);
+      pickerMobile.setDateRange(null, null)
+
+    }
 
     // Step 3: If initial check-in and check-out exist, set the date range in the picker
     if (initialCheckIn && initialCheckOut) {
-      let checkInDate = new Date(initialCheckIn);
-      let checkOutDate = new Date(initialCheckOut);
-
-      // Manually add one day to both dates
-      checkInDate.setDate(checkInDate.getDate() + 1);
-      checkOutDate.setDate(checkOutDate.getDate() + 1);
 
       // Set the date range with the adjusted dates
-      picker.setDateRange(checkInDate, checkOutDate);
+      picker.setDateRange(initialCheckIn, initialCheckOut);
+      pickerMobile.setDateRange(initialCheckIn, initialCheckOut)
 
     } else {
       if (!initialCheckIn) datepicker1.placeholder = 'Set Date';
       if (!initialCheckOut) datepicker2.placeholder = 'Set Date';
     }
 
-    let clearDatesButton = document.getElementById('clear-dates');
-
-    clearDatesButton.addEventListener('click', async function () {
-      newCheckIn = null
-      newCheckOut = null
-      Wized.data.n.parameter.checkin = ""
-      Wized.data.n.parameter.checkout = ""
-      //  await Wized.requests.execute('Load_Property_Calendar_Query');
-      picker.setDateRange(null, null);
+    let clearButtons = document.querySelectorAll('[data-element="calendarModal_clearDates"]')
+    clearButtons.forEach(button => {
+      button.addEventListener('click', async function () {
+        newCheckIn = null
+        newCheckOut = null
+        Wized.data.n.parameter.checkin = ""
+        Wized.data.n.parameter.checkout = ""
+        picker.setDateRange(null, null);
+        pickerMobile.setDateRange(null, null)
+      });
     });
 
-    let closeButton = document.querySelectorAll('[data-element="calendarModal_closeButton"]')
-    closeButton[0].addEventListener('click', async function () {
-      await Wized.requests.execute('Load_Property_Calendar_Query');
 
-    })
+
+
+
+    let closeButtons = document.querySelectorAll('[data-element="calendarModal_closeButton"]')
+
+    closeButtons.forEach(button =>
+      button.addEventListener('click', async function () {
+        await Wized.requests.execute('Load_Property_Calendar_Query');
+
+      }))
+
 
     let calendarModal = document.querySelector('[data-element="calendarModal"]');
 
     // Add event listener for clicking outside the modal
-    document.addEventListener('click', function (event) {
-      // Check if the click is outside the calendar modal
-      if (!calendarModal.contains(event.target) && !closeButton[0].contains(event.target)) {
-        // If clicked outside the modal, trigger the same action as close button
-        closeButton[0].click();
-      }
-    });
+    // document.addEventListener('click', function (event) {
+    // Check if the click is outside the calendar modal
+    //  if (!calendarModal.contains(event.target) && !closeButton[0].contains(event.target)) {
+    // If clicked outside the modal, trigger the same action as close button
+    //    closeButton[0].click();
+    //   }
+    // });
+
+
+
+
   }));
 });
-
-
-
-
-
-
 
 
 
