@@ -1,9 +1,3 @@
-import { populateSelectOptions } from "@finsweet/ts-utils";
-
-// for background 2nd click modal - mirror click
-var script = document.createElement('script');
-script.src = 'https://cdn.jsdelivr.net/npm/@finsweet/attributes-mirrorclick@1/mirrorclick.js';
-document.body.appendChild(script);
 
 // for no scroll background when modal is open
 // when DOM is ready
@@ -68,37 +62,45 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 
-window.Wized = window.Wized || [];
-window.Wized.push((Wized) => {
-    // Get reference to the copyDirections element
-    const copyDirections = Wized.elements.get('TripDetails_DirectionsModal_CopyAddress_Button');
 
-    // Check if the element was found
-    if (!copyDirections || !copyDirections.node) {
-        return;
-    }
 
-    // Attach event listener to copyDirections element
-    copyDirections.node.addEventListener('click', () => {
-        const address = getAddress();
-        if (!address) {
-            return;
-        }
-        copyToClipboard(address);
-        alert('Address copied to clipboard!');
-    });
 
-    // Example implementation of getAddress and copyToClipboard
-    function getAddress() {
+document.addEventListener('DOMContentLoaded', () => {
+    window.Wized = window.Wized || [];
+    window.Wized.push(async (Wized) => {
+
+        await Wized.requests.waitFor('reservation_confirmation');
+
+        const copyDirections = Wized.elements.get('TripDetails_DirectionsModal_CopyAddress_Button');
 
         // Function to retrieve the address
-        const addressLine1 = Wized.data.r.reservation_confirmation.data[0]._reservation_confirmation_property_info[0].address_line_1;
-        const addressLine2 = Wized.data.r.reservation_confirmation.data[0]._reservation_confirmation_property_info[0].address_line_2;
-        return `${addressLine1}, ${addressLine2}`;
+        const getAddress = () => {
+            const addressLine1 = Wized.data.r.reservation_confirmation.data[0]._reservation_confirmation_property_info[0].address_line_1;
+            const addressLine2 = Wized.data.r.reservation_confirmation.data[0]._reservation_confirmation_property_info[0].address_line_2;
+            return `${addressLine1}, ${addressLine2}`;
 
-    }
+        };
 
+        // Function to copy text to clipboard
+        const copyToClipboard = (text) => {
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+        };
+
+        // Attach event listener to copyDirections element
+        copyDirections.node.addEventListener('click', () => {
+            const address = getAddress();
+            copyToClipboard(address);
+            alert('Address copied to clipboard!');
+        });
+
+    });
 });
+
 
 
 

@@ -112,48 +112,6 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 
-document.addEventListener('DOMContentLoaded', () => {
-    window.Wized = window.Wized || [];
-    window.Wized.push(async (Wized) => {
-
-        const copyDirections = Wized.elements.get('TripDetails_DirectionsModal_CopyAddress_Button');
-        const copyAddressButton = Wized.elements.get('tripDetail_gettingThereSection_copyAddress_button');
-
-        // Function to retrieve the address
-        const getAddress = () => {
-            const addressLine1 = Wized.data.r.trip_details.data._property.address_line_1;
-            const addressLine2 = Wized.data.r.trip_details.data._property.address_line_2;
-            return `${addressLine1}, ${addressLine2}`;
-        };
-
-        // Function to copy text to clipboard
-        const copyToClipboard = (text) => {
-            const textarea = document.createElement('textarea');
-            textarea.value = text;
-            document.body.appendChild(textarea);
-            textarea.select();
-            document.execCommand('copy');
-            document.body.removeChild(textarea);
-        };
-
-        // Attach event listener to copyDirections element
-        copyDirections.node.addEventListener('click', () => {
-            const address = getAddress();
-            copyToClipboard(address);
-            alert('Address copied to clipboard!');
-        });
-
-        // Attach event listener to copyAddressButton element
-        copyAddressButton.node.addEventListener('click', () => {
-            const address = getAddress();
-            copyToClipboard(address);
-            alert('Address copied to clipboard!');
-        });
-
-
-    });
-});
-
 
 
 
