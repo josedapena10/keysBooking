@@ -843,7 +843,7 @@ document.addEventListener('DOMContentLoaded', function () {
       disableDates: disabledDates,
       disabledDatesInRange: false,
       tooltipNights: true, // Enables calculation of nights instead of days in the tooltip
-      numberOfMonths: 2,
+      numberOfMonths: 1,
       locale: {
         tooltip: {
           one: 'night',     // Singular form
