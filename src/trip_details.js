@@ -70,6 +70,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 
+
+
+//Function to copy text to clipboard
+const copyToClipboard = (text) => {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textarea);
+};
+
 document.addEventListener('DOMContentLoaded', () => {
     window.Wized = window.Wized || [];
     window.Wized.push(async (Wized) => {
@@ -84,15 +96,15 @@ document.addEventListener('DOMContentLoaded', () => {
             return `${addressLine1}, ${addressLine2}`;
         };
 
-        // Function to copy text to clipboard
-        const copyToClipboard = (text) => {
-            const textarea = document.createElement('textarea');
-            textarea.value = text;
-            document.body.appendChild(textarea);
-            textarea.select();
-            document.execCommand('copy');
-            document.body.removeChild(textarea);
-        };
+        // // Function to copy text to clipboard
+        // const copyToClipboard = (text) => {
+        //     const textarea = document.createElement('textarea');
+        //     textarea.value = text;
+        //     document.body.appendChild(textarea);
+        //     textarea.select();
+        //     document.execCommand('copy');
+        //     document.body.removeChild(textarea);
+        // };
 
         // Attach event listener to copyDirections element
         copyDirections.node.addEventListener('click', () => {
@@ -107,6 +119,25 @@ document.addEventListener('DOMContentLoaded', () => {
             copyToClipboard(address);
             alert('Address copied to clipboard!');
         });
+
+
+
+
+        const copyChangeReservationSubject = Wized.elements.get('TripDetails_ChangeReservationModal_CopySubjectLine');
+
+        // Function to retrieve the address
+        const getSubjectLine = () => {
+            return "Change Reservation - " + Wized.data.r.trip_details.data.reservation_code;
+        };
+
+
+        // Attach event listener to copyDirections element
+        copyChangeReservationSubject.node.addEventListener('click', () => {
+            const address = getSubjectLine();
+            copyToClipboard(address);
+            alert('Subject line copied!');
+        });
+
 
     });
 });

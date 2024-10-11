@@ -783,29 +783,9 @@ document.addEventListener('DOMContentLoaded', function () {
       startDate: newCheckIn ? moment(newCheckIn, 'YYYY-MM-DD') : today,  // Open to check-in date if set
       onSelect: function (start, end) {
 
-        var oldCheckIn = urlParams.get('checkin');
-        var oldCheckOut = urlParams.get('checkout');
-
-
         // Step 4: When user selects new dates, update the URL parameters
         if (start && end) {
-          // console.log("old checkin is: ")
-          //    console.log(oldCheckIn)
-          //   console.log("old checkout is: ")
-          //   console.log(oldCheckOut)
-          //  console.log("new start date is ")
-          //   console.log(start)
-          //   console.log("new end date is ")
-          //   console.log(end)
-          if (start._f != oldCheckIn) {
 
-            //    console.log("leah")
-            Wized.data.n.parameter.checkout = ""
-            var url = new URL(window.location.href);
-            url.searchParams.set('checkout', "");
-
-
-          }
           newCheckIn = start.format('YYYY-MM-DD');
           newCheckOut = end.format('YYYY-MM-DD');
 
@@ -814,6 +794,16 @@ document.addEventListener('DOMContentLoaded', function () {
           url.searchParams.set('checkin', newCheckIn);
           url.searchParams.set('checkout', newCheckOut);
           window.history.replaceState({}, '', url);
+
+          var oldCheckOut = Wized.data.n.parameter.checkout
+          let newEndDate = formatTimestamp(end._i)
+          if (oldCheckOut == newEndDate) {
+            Wized.data.n.parameter.checkout = ""
+            url.searchParams.set('checkout', "");
+            window.history.replaceState({}, '', url);
+            return
+          }
+
           if (newCheckIn == null || newCheckIn == null) {
             Wized.data.n.parameter.checkin = ""
             Wized.data.n.parameter.checkout = ""
@@ -821,9 +811,23 @@ document.addEventListener('DOMContentLoaded', function () {
             Wized.data.n.parameter.checkin = newCheckIn
             Wized.data.n.parameter.checkout = newCheckOut
           }
+        } else {
         }
       }
     });
+
+    function formatTimestamp(timestamp) {
+      // Check if the timestamp is already in the format 'yyyy-mm-dd'
+      if (/^\d{4}-\d{2}-\d{2}$/.test(timestamp)) {
+        return timestamp;
+      }
+      const date = new Date(timestamp);  // Parse the timestamp
+      const year = date.getFullYear();
+      const month = ('0' + (date.getMonth() + 1)).slice(-2);  // Add leading zero if needed
+      const day = ('0' + date.getDate()).slice(-2);  // Add leading zero if needed
+      return `${year}-${month}-${day}`;
+    }
+
     // CREATE CALENDAR FOR MOBILE
     var pickerMobile = new Lightpick({
       field: mobileCheckIn,
@@ -849,14 +853,8 @@ document.addEventListener('DOMContentLoaded', function () {
       startDate: newCheckIn ? moment(newCheckIn, 'YYYY-MM-DD') : today,  // Open to check-in date if set
       onSelect: function (start, end) {
 
-        // once there's a new checkin date, automatically clear out the checkout date to an empty string unless the 
-        // new checkin date clicked becomes the new checkout date. in that case, do not clear out check out date. 
-        // Step 4: When user selects new dates, update the URL parameters
         if (start && end) {
-          console.log("leah")
-          console.log(start)
-          console.log(end)
-          console.log(picker.getEndDate())
+
           newCheckIn = start.format('YYYY-MM-DD');
           newCheckOut = end.format('YYYY-MM-DD');
 
@@ -864,8 +862,17 @@ document.addEventListener('DOMContentLoaded', function () {
           var url = new URL(window.location.href);
           url.searchParams.set('checkin', newCheckIn);
           url.searchParams.set('checkout', newCheckOut);
-          console.log(newCheckOut)
           window.history.replaceState({}, '', url);
+
+          var oldCheckOut = Wized.data.n.parameter.checkout
+          let newEndDate = formatTimestamp(end._i)
+          if (oldCheckOut == newEndDate) {
+            Wized.data.n.parameter.checkout = ""
+            url.searchParams.set('checkout', "");
+            window.history.replaceState({}, '', url);
+            return
+          }
+
           if (newCheckIn == null || newCheckIn == null) {
             Wized.data.n.parameter.checkin = ""
             Wized.data.n.parameter.checkout = ""
@@ -1041,3 +1048,4 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 });
+
