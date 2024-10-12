@@ -628,7 +628,7 @@ window.Webflow.push(() => {
 
             const script = document.createElement('script');
             script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}`;
-            script.defer = true;
+            // script.defer = true;
             script.async = true;
             script.onload = () => {
               const map = new window.google.maps.Map(mapElement, {

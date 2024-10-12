@@ -10,7 +10,6 @@
     },
     "types": [
       "@finsweet/ts-utils",
-      "@stripe/stripe-js"
     ]
   }
 }
