@@ -385,7 +385,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Email and phone number to copy
     const email = 'support@keysbooking.com';
-    const phoneNumber = '+1786XXXXXX';
+    const phoneNumber = '+13053011952';
 
     // Add click event listeners
     if (copyEmailButton) {
