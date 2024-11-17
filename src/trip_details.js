@@ -290,7 +290,7 @@ window.Webflow.push(() => {
                         latitude = Wized.data.v.latitude;
                         longitude = Wized.data.v.longitude;
                     } catch (error) {
-                        console.error(error);
+                        //console.error(error);
                     }
 
                     if (latitude && longitude) {
