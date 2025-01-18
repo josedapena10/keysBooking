@@ -1,9 +1,7 @@
 // Object to store listing data
 let listingData = {
     selectedAmenities: [], // Array to store selected amenity IDs
-    photos: [], // Array to store selected photos with file extension and url
-    coverPhotos: [], // Array to store cover photos
-    dockPhotos: [], // Array to store dock photos
+    photos: [], // Array to store selected photos with file extension, url, and selection info
     title: '', // Store title text
     description: '', // Store description text
     price: '', // Store price value
@@ -31,27 +29,33 @@ let listingData = {
         clearance: '', // Store clearance with ft unit
         dockMaterial: '', // Store dock material
         draw: '', // Store draw with ft unit
-        selectedButtons: [], // Store selected dock buttons
-        shorePowerAmp: '' // Store shore power amp value if selected
+        selectedButtons: [] // Store selected dock buttons
     },
     address: {
         addressLine1: '', // Store street address like "127 Mockingbird Lane"
         addressLine2: '', // Store city/state/zip like "Marathon, FL 33050"
         cityState: '', // Store city and state like "Marathon, Florida"
-        neighborhood: '' // Store neighborhood like "Sombrero Beach"
+        neighborhood: '',
+        unit: '', // Store unit number like "201"
+        city: '', // Store city like "Marathon"
+        state: '', // Store state like "Florida"
+        zipcode: '' // Store zipcode like "33050"
     },
+    addressNotSelected: null,
+    addressChosen: null,
     addressVerified: null,
     duringStayRules: [],
     beforeDepartureRules: [], // Array to store selected departure rules
     safetyFeatures: [], // Array to store selected safety features
     cancellationPolicy: null, // Store selected cancellation policy
-    userId: null // Will be set when user data loads
+    userId: null, // Will be set when user data loads
+    unfinishedPropertyId: null // Store ID of unfinished property if continuing one
 };
 
-// Add event listeners for save and exit button and conditional next step button
+// Add event listeners for save and exit button and submit button
 document.addEventListener('DOMContentLoaded', function () {
     const saveAndExitButton = document.querySelector('[data-element="addHome_saveAndExit"]');
-    const nextStepButton = document.getElementById('nextStep');
+    const submitButton = document.getElementById('submitButton');
 
     // Function to handle saving property data
     async function handlePropertySave() {
@@ -71,6 +75,17 @@ document.addEventListener('DOMContentLoaded', function () {
                 uuid: uuid
             };
 
+            // Add unfinished property ID if continuing an existing listing
+            if (listingData.unfinishedPropertyId) {
+                propertyData.unfinished_propertyID = listingData.unfinishedPropertyId;
+            }
+
+            // Check if user is in review info step
+            const reviewInfoStep = document.getElementById('reviewInfo');
+            if (reviewInfoStep && window.getComputedStyle(reviewInfoStep).display !== 'none') {
+                propertyData.addHome_complete = true;
+            }
+
             // Only add fields that have been filled out
             if (listingData.title) propertyData.property_name = listingData.title;
             if (listingData.description) propertyData.listing_description = listingData.description;
@@ -88,6 +103,7 @@ document.addEventListener('DOMContentLoaded', function () {
             if (listingData.checkIn.method) {
                 propertyData.check_in_time = `${listingData.checkIn.time} ${listingData.checkIn.period}`;
                 propertyData.check_out_time = `${listingData.checkOut.time} ${listingData.checkOut.period}`;
+                propertyData.check_in_method = listingData.checkIn.method.text;
             }
 
             // Only add address fields if they exist
@@ -95,7 +111,22 @@ document.addEventListener('DOMContentLoaded', function () {
             if (listingData.address.addressLine2) propertyData.address_line_2 = listingData.address.addressLine2;
             if (listingData.address.cityState) propertyData.listing_city_state = listingData.address.cityState;
             if (listingData.address.neighborhood) propertyData.listing_neighborhood = listingData.address.neighborhood;
+            if (listingData.address.unit) {
+                const unitValue = listingData.address.unit;
+                if (!unitValue.toLowerCase().includes('apt') &&
+                    !unitValue.toLowerCase().includes('unit') &&
+                    !unitValue.toLowerCase().includes('suite')) {
+                    propertyData.listing_unit = '#' + unitValue;
+                } else {
+                    propertyData.listing_unit = unitValue;
+                }
+            }
+            if (listingData.address.city) propertyData.listing_city = listingData.address.city;
+            if (listingData.address.state) propertyData.listing_state = listingData.address.state;
+            if (listingData.address.zipcode) propertyData.listing_zipcode = listingData.address.zipcode;
             if (listingData.addressVerified !== null) propertyData.addressVerified = listingData.addressVerified;
+            if (listingData.addressNotSelected !== null) propertyData.address_notSelected = listingData.addressNotSelected;
+            if (listingData.addressChosen !== null) propertyData.address_chosen = listingData.addressChosen;
 
             // Only add cancellation policy if one is selected
             if (listingData.cancellationPolicy) {
@@ -125,6 +156,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
             }
 
+            // Add private dock step response
+            if (listingData.dock.hasPrivateDock !== null) {
+                propertyData.addHome_privateDockStep = listingData.dock.hasPrivateDock ? 'yes' : 'no';
+            }
+
             // Only add dock data if property has private dock and fields are filled
             if (listingData.dock.hasPrivateDock === true) {
                 propertyData.private_dock = true;
@@ -139,8 +175,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (listingData.dock.selectedButtons.includes('Cleaning station')) propertyData.dock_cleaningStation = true;
                 if (listingData.dock.selectedButtons.includes('Dock light')) propertyData.dock_light = true;
                 if (listingData.dock.selectedButtons.includes('Underwater light')) propertyData.dock_underwaterLight = true;
-                if (listingData.dock.selectedButtons.includes('AMP')) propertyData.dock_shorePower = true;
+                if (listingData.dock.selectedButtons.includes('Shore power')) propertyData.dock_shorePower = true;
             }
+
 
             // Send POST request to property API
             const propertyResponse = await fetch('https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/property', {
@@ -164,6 +201,11 @@ document.addEventListener('DOMContentLoaded', function () {
                     property_id: propertyResult.id,
                     selectedAmenities: listingData.selectedAmenities.map(id => ({ amenity_id: id }))
                 };
+
+                // Add unfinishedListing flag if continuing an existing listing
+                if (listingData.unfinishedPropertyId) {
+                    amenityData.unfinishedListing = true;
+                }
 
                 const amenityResponse = await fetch('https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/property_add_home_attribute', {
                     method: 'POST',
@@ -216,14 +258,19 @@ document.addEventListener('DOMContentLoaded', function () {
                 console.log('Rules saved successfully:', rulesResult);
             }
 
-            // If photos were added, make the property_photos_add_home request
+            // If photos or cover photos were added, make the property_photos_add_home request
             if (listingData.photos.length > 0) {
                 const photoData = {
                     property_id: propertyResult.id,
                     addedPhotos: listingData.photos.map(photo => ({
-                        image: photo.dataUrl
-                    }))
+                        image: photo.dataUrl,
+                        isCoverPhoto: photo.isCoverPhoto,
+                        coverPhotoOrder: photo.coverPhotoOrder,
+                        isDockPhoto: photo.isDockPhoto
+                    })),
                 };
+
+                console.log(photoData);
 
                 const photoResponse = await fetch('https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/property_add_home_photos', {
                     method: 'POST',
@@ -243,9 +290,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 console.log('Photos saved successfully:', photoResult);
             }
 
-            // If safety features were added (excluding only "No carbon monoxide alarm"), make the property_add_home_safety request
-            if (listingData.safetyFeatures.length > 0 &&
-                !(listingData.safetyFeatures.length === 1 && listingData.safetyFeatures[0].text === "No carbon monoxide alarm")) {
+            // If safety features were added, make the property_add_home_safety request
+            if (listingData.safetyFeatures.length > 0) {
                 const safetyData = {
                     property_id: propertyResult.id,
                     selectedSafety: listingData.safetyFeatures.map(feature => ({
@@ -283,16 +329,9 @@ document.addEventListener('DOMContentLoaded', function () {
         saveAndExitButton.addEventListener('click', handlePropertySave);
     }
 
-    // Add click handler for next step button
-    if (nextStepButton) {
-        nextStepButton.addEventListener('click', function () {
-            const nextStepText = document.getElementById('nextStepText');
-            const currentStep = steps[currentStepNumber - 1];
-
-            if (currentStep === 'reviewInfo' || (nextStepText && nextStepText.textContent === 'Confirm')) {
-                handlePropertySave();
-            }
-        });
+    // Add click handler for submit button
+    if (submitButton) {
+        submitButton.addEventListener('click', handlePropertySave);
     }
 });
 
@@ -343,7 +382,10 @@ document.addEventListener('DOMContentLoaded', async function () {
                     textElement.textContent = `Your listing started on ${formattedDate}`;
 
                     // Add click handler to resume listing
-                    newBlock.addEventListener('click', () => {
+                    newBlock.addEventListener('click', async () => {
+                        // Store the unfinished property ID
+                        listingData.unfinishedPropertyId = listing.id;
+
                         // Populate listingData with existing data
                         if (listing.num_guests) listingData.basics.guests = listing.num_guests;
                         if (listing.num_bedrooms) listingData.basics.bedrooms = listing.num_bedrooms;
@@ -354,36 +396,79 @@ document.addEventListener('DOMContentLoaded', async function () {
                         if (listing.address_line_2) listingData.address.addressLine2 = listing.address_line_2;
                         if (listing.listing_city_state) listingData.address.cityState = listing.listing_city_state;
                         if (listing.listing_neighborhood) listingData.address.neighborhood = listing.listing_neighborhood;
-
+                        if (listing.listing_unit) listingData.address.unit = listing.listing_unit;
+                        if (listing.listing_city) listingData.address.city = listing.listing_city;
+                        if (listing.listing_state) listingData.address.state = listing.listing_state;
+                        if (listing.listing_zipcode) listingData.address.zipcode = listing.listing_zipcode;
+                        if (listing.address_notSelected) listingData.addressNotSelected = listing.address_notSelected;
+                        if (listing.address_chosen) listingData.addressChosen = listing.address_chosen;
                         if (listing.addressVerified !== null) listingData.addressVerified = listing.addressVerified;
 
                         if (listing._property_attribute) {
+                            // Handle amenities
                             listingData.selectedAmenities = listing._property_attribute.map(attr => attr.attribute_id);
+
+                            // Handle safety features
+                            listingData.safetyFeatures = listing._property_attribute
+                                .filter(attr => attr.inSafetyInformationSection)
+                                .map(attr => {
+                                    let type;
+                                    const text = attr.attribute_custom_name.toLowerCase();
+
+                                    if (text.includes('carbon monoxide')) {
+                                        if (text.includes('no carbon monoxide')) {
+                                            type = 'noCarbonMonoxideAlarm';
+                                        } else {
+                                            type = 'carbonMonoxideAlarm';
+                                        }
+                                    } else if (text.includes('camera')) {
+                                        if (text.includes('doorbell')) {
+                                            type = 'doorbellCamera';
+                                        } else {
+                                            type = 'securityCamera';
+                                        }
+                                    } else if (text.includes('fire extinguisher')) {
+                                        type = 'fireExtinguisher';
+                                    } else if (text.includes('smoke')) {
+                                        type = 'smokeAlarm';
+                                    } else if (text.includes('first aid')) {
+                                        type = 'firstAidKit';
+                                    }
+
+                                    return {
+                                        type,
+                                        text: attr.attribute_custom_name
+                                    };
+                                })
+                                .filter(feature => feature && feature.type); // Remove any undefined entries
                         }
 
-                        if (listing.private_dock !== null) {
-                            listingData.dock.hasPrivateDock = listing.private_dock;
-                            if (listing.private_dock) {
-                                if (listing.dock_maxBoatLength) listingData.dock.boatSize = listing.dock_maxBoatLength;
-                                if (listing.dock_maxBeamLength) listingData.dock.beam = listing.dock_maxBeamLength;
-                                if (listing.dock_maxDrawLength) listingData.dock.draw = listing.dock_maxDrawLength;
-                                if (listing.dock_maxClearance) listingData.dock.clearance = listing.dock_maxClearance;
-                                if (listing.dock_material) listingData.dock.dockMaterial = listing.dock_material;
+                        if (listing.addHome_privateDockStep === 'no') {
+                            listingData.dock.hasPrivateDock = false;
+                        } else if (listing.private_dock === true) {
+                            listingData.dock.hasPrivateDock = true;
+                            if (listing.dock_maxBoatLength) listingData.dock.boatSize = listing.dock_maxBoatLength;
+                            if (listing.dock_maxBeamLength) listingData.dock.beam = listing.dock_maxBeamLength;
+                            if (listing.dock_maxDrawLength) listingData.dock.draw = listing.dock_maxDrawLength;
+                            if (listing.dock_maxClearance) listingData.dock.clearance = listing.dock_maxClearance;
+                            if (listing.dock_material) listingData.dock.dockMaterial = listing.dock_material;
 
-                                const dockFeatures = [];
-                                if (listing.dock_freshWater) dockFeatures.push('Fresh water hookup');
-                                if (listing.dock_cleaningStation) dockFeatures.push('Cleaning station');
-                                if (listing.dock_light) dockFeatures.push('Dock light');
-                                if (listing.dock_underwaterLight) dockFeatures.push('Underwater light');
-                                if (listing.dock_shorePower) dockFeatures.push('AMP');
-                                listingData.dock.selectedButtons = dockFeatures;
-                            }
+                            const dockFeatures = [];
+                            if (listing.dock_freshWater) dockFeatures.push('Fresh water hookup');
+                            if (listing.dock_cleaningStation) dockFeatures.push('Cleaning station');
+                            if (listing.dock_light) dockFeatures.push('Dock light');
+                            if (listing.dock_underwaterLight) dockFeatures.push('Underwater light');
+                            if (listing.dock_shorePower) dockFeatures.push('Shore power');
+                            listingData.dock.selectedButtons = dockFeatures;
                         }
 
                         if (listing._property_pictures) {
                             listingData.photos = listing._property_pictures.map(pic => ({
                                 url: pic.property_image.url,
-                                dataUrl: pic.property_image.url
+                                dataUrl: pic.property_image.url,
+                                isCoverPhoto: pic.inHeaderPreview || false,
+                                coverPhotoOrder: pic.inPreviewOrder || null,
+                                isDockPhoto: pic.in_dock_section || false
                             }));
                         }
 
@@ -393,53 +478,147 @@ document.addEventListener('DOMContentLoaded', async function () {
                         if (listing.cleaning_fee) listingData.cleaningFee = listing.cleaning_fee.toString();
                         if (listing.min_nights) listingData.minNights = listing.min_nights;
 
+                        // Set check-in/check-out times and method from property rules
                         if (listing._property_rules) {
-                            listingData.duringStayRules = listing._property_rules.map(rule => ({
-                                text: rule.selectedDuringStayOptions
-                            }));
-                            listingData.beforeDepartureRules = listing._property_rules.map(rule => ({
-                                text: rule.selectedBeforeDepartureOptions
-                            }));
+                            // Group rules by category
+                            const checkInRules = listing._property_rules.filter(rule => rule.rules_category_id === 1);
+                            const duringVisitRules = listing._property_rules.filter(rule => rule.rules_category_id === 2);
+                            const beforeDepartureRules = listing._property_rules.filter(rule => rule.rules_category_id === 3);
+
+                            // Set check-in method from rules
+                            const checkInMethodRule = checkInRules.find(rule => rule.rules_id === 3);
+                            if (checkInMethodRule) {
+                                const methodText = checkInMethodRule.rules_custom.toLowerCase();
+                                let methodType;
+
+                                // Map text to type
+                                if (methodText.includes('keypad')) methodType = 'keypad';
+                                else if (methodText.includes('lockbox')) methodType = 'lockbox';
+                                else if (methodText.includes('person')) methodType = 'inPerson';
+                                else if (methodText.includes('digital card')) methodType = 'digitalCard';
+
+                                listingData.checkIn.method = {
+                                    type: methodType,
+                                    text: checkInMethodRule.rules_custom
+                                };
+                            }
+
+                            // Set check-in/check-out times
+                            if (listing.check_in_time) {
+                                const [time, period] = listing.check_in_time.split(' ');
+                                listingData.checkIn = {
+                                    ...listingData.checkIn,
+                                    time: parseInt(time),
+                                    period: period
+                                };
+                            }
+
+                            if (listing.check_out_time) {
+                                const [time, period] = listing.check_out_time.split(' ');
+                                listingData.checkOut = {
+                                    time: parseInt(time),
+                                    period: period
+                                };
+                            }
+
+                            // Map during visit rules
+                            listingData.duringStayRules = duringVisitRules.map(rule => {
+                                if (rule.rules_id === 4) {
+                                    return {
+                                        type: 'guestMax',
+                                        text: 'guests maximum'
+                                    };
+                                } else if (rule.rules_id === 6) {
+                                    return {
+                                        type: 'noParty',
+                                        text: rule.rules_custom
+                                    };
+                                } else if (rule.rules_id === 5) {
+                                    return {
+                                        type: 'noPet',
+                                        text: rule.rules_custom
+                                    };
+                                } else if (rule.rules_id === 7) {
+                                    return {
+                                        type: 'noSmoking',
+                                        text: rule.rules_custom
+                                    };
+                                }
+                            }).filter(Boolean);
+
+                            // Map before departure rules
+                            listingData.beforeDepartureRules = beforeDepartureRules.map(rule => {
+                                if (rule.rules_id === 8) {
+                                    return {
+                                        type: 'towels',
+                                        text: rule.rules_custom
+                                    };
+                                } else if (rule.rules_id === 9) {
+                                    return {
+                                        type: 'trash',
+                                        text: rule.rules_custom
+                                    };
+                                } else if (rule.rules_id === 10) {
+                                    return {
+                                        type: 'bedsheets',
+                                        text: rule.rules_custom
+                                    };
+                                } else if (rule.rules_id === 11) {
+                                    return {
+                                        type: 'furniture',
+                                        text: rule.rules_custom
+                                    };
+                                }
+                            }).filter(Boolean);
+
+                            if (listing.cancellationPolicy_type !== null) listingData.cancellationPolicy = listing.cancellationPolicy_type;
                         }
 
                         // Determine which step to resume from
                         let resumeStep = 'basics';
-                        if (listing.num_guests) {
-                            if (listing.address_line_1) {
+                        if (listing.num_guests && listing.num_bedrooms && listing.num_beds && listing.num_bathrooms) {
+                            if (listing.address_line_1 && listing.listing_city_state && listing.listing_zipcode) {
                                 if (listing.addressVerified) {
                                     if (listing._property_attribute?.length) {
-                                        if (listing.private_dock !== null) {
-                                            if (listing._property_pictures?.length) {
-                                                if (listing.property_name) {
-                                                    if (listing.listing_description) {
-                                                        if (listing.nightlyPrice) {
-                                                            if (listing.cleaning_fee) {
-                                                                if (listing.min_nights) {
-                                                                    if (listing._property_rules?.length) {
-                                                                        resumeStep = 'safety';
-                                                                    } else {
-                                                                        resumeStep = 'rules';
-                                                                    }
-                                                                } else {
-                                                                    resumeStep = 'minNights';
-                                                                }
-                                                            } else {
-                                                                resumeStep = 'cleaningFee';
-                                                            }
-                                                        } else {
-                                                            resumeStep = 'pricing';
-                                                        }
-                                                    } else {
-                                                        resumeStep = 'description';
-                                                    }
-                                                } else {
-                                                    resumeStep = 'title';
-                                                }
-                                            } else {
-                                                resumeStep = 'photos';
-                                            }
-                                        } else {
+                                        // Check dock step conditions
+                                        if (listing.addHome_privateDockStep === null) {
                                             resumeStep = 'dock';
+                                        } else if (listing.private_dock === true &&
+                                            (!listing.dock_maxBoatLength ||
+                                                !listing.dock_maxBeamLength ||
+                                                !listing.dock_maxDrawLength ||
+                                                !listing.dock_maxClearance ||
+                                                !listing.dock_material)) {
+                                            resumeStep = 'dock';
+                                        } else if (listing._property_pictures?.length < 5) {
+                                            resumeStep = 'photos';
+                                        } else {
+                                            // Check cover photos condition
+                                            const coverPhotoCount = listing._property_pictures.filter(pic => pic.inHeaderPreview).length;
+                                            if (coverPhotoCount < 5) {
+                                                resumeStep = 'coverPhotos';
+                                            } else if (listing.private_dock === true && listing._property_pictures.filter(pic => pic.in_dock_section).length < 2) {
+                                                resumeStep = 'dockPhotos';
+                                            } else if (!listing.property_name) {
+                                                console.log("Leah gets here resume step is title")
+                                                resumeStep = 'title';
+                                            } else if (!listing.listing_description) {
+                                                resumeStep = 'description';
+                                            } else if (!listing.nightlyPrice) {
+                                                resumeStep = 'pricing';
+                                            } else if (!listing.cleaning_fee) {
+                                                resumeStep = 'cleaningFee';
+                                            } else if (!listing.min_nights) {
+                                                resumeStep = 'minNights';
+                                            } else if (!listing._property_rules?.length) {
+                                                resumeStep = 'rules';
+                                            } else if (!listing._property_attribute.filter(attr => attr.inSafetyInformationSection).length) {
+                                                resumeStep = 'safety';
+                                            } else if (!listing.cancellationPolicy_type) {
+                                                resumeStep = 'cancellationPolicy';
+                                            } else {
+                                                resumeStep = 'reviewInfo';
+                                            }
                                         }
                                     } else {
                                         resumeStep = 'amenities';
@@ -452,7 +631,263 @@ document.addEventListener('DOMContentLoaded', async function () {
                             }
                         }
 
-                        goToStep(steps.indexOf(resumeStep) + 1);
+                        console.log({ resumeStep })
+                        // Navigate to the determined step
+                        const stepIndex = steps.indexOf(resumeStep);
+                        console.log({ stepIndex })
+                        if (stepIndex !== -1) {
+                            // Initialize and populate all previous steps before navigating
+                            for (let i = 0; i <= stepIndex; i++) {
+                                const stepId = steps[i];
+                                switch (stepId) {
+                                    case 'basics':
+                                        await initializeCounters();
+                                        // Update UI with stored values using correct element IDs
+                                        const guestsText = document.getElementById('guests-text');
+                                        const bedroomsText = document.getElementById('bedrooms-text');
+                                        const bedsText = document.getElementById('beds-text');
+                                        const bathsText = document.getElementById('baths-text');
+
+                                        if (guestsText) guestsText.textContent = listingData.basics.guests;
+                                        if (bedroomsText) bedroomsText.textContent = listingData.basics.bedrooms;
+                                        if (bedsText) bedsText.textContent = listingData.basics.beds;
+                                        if (bathsText) bathsText.textContent = listingData.basics.baths;
+                                        break;
+                                    case 'location':
+                                        // Populate location form fields first
+                                        const addressLine1Input = document.getElementById("addressLine1-input");
+                                        const addressLine2Input = document.getElementById("addressLine2-input");
+                                        const addressCityInput = document.getElementById("addressCity-input");
+                                        const addressStateInput = document.getElementById("addressState-input");
+                                        const addressZipcodeInput = document.getElementById("addressZipcode-input");
+
+                                        if (addressLine1Input) addressLine1Input.value = listingData.address.addressLine1;
+                                        if (addressLine2Input) addressLine2Input.value = listingData.address.unit;
+                                        if (addressCityInput) addressCityInput.value = listingData.address.city;
+                                        if (addressStateInput) addressStateInput.value = listingData.address.state;
+                                        if (addressZipcodeInput) addressZipcodeInput.value = listingData.address.zipcode;
+
+                                        // Then validate location
+                                        await validateLocation();
+                                        break;
+
+                                    case 'confirmLocation':
+                                        // Set selectedAddressType based on previously chosen address
+                                        selectedAddressType = listingData.addressChosen || 'suggested';
+
+                                        // Set up the addresses in the UI
+                                        const confirmSuggestedAddress = document.getElementById("confirmSuggestedAddress");
+                                        const confirmEnteredAddress = document.getElementById("confirmEnteredAddress");
+
+                                        if (confirmSuggestedAddress && confirmEnteredAddress) {
+                                            if (selectedAddressType === 'suggested') {
+                                                let suggestedAddress = listingData.address.addressLine1;
+                                                if (listingData.address.unit) {
+                                                    suggestedAddress += ` ${listingData.address.unit}`;
+                                                }
+                                                suggestedAddress += `, ${listingData.address.city}, ${listingData.address.state} ${listingData.address.zipcode}`;
+                                                confirmSuggestedAddress.textContent = suggestedAddress;
+                                                confirmEnteredAddress.textContent = listingData.addressNotSelected;
+                                            } else {
+                                                let enteredAddress = listingData.address.addressLine1;
+                                                if (listingData.address.unit) {
+                                                    enteredAddress += ` ${listingData.address.unit}`;
+                                                }
+                                                enteredAddress += `, ${listingData.address.city}, ${listingData.address.state} ${listingData.address.zipcode}`;
+                                                confirmEnteredAddress.textContent = enteredAddress;
+                                                confirmSuggestedAddress.textContent = listingData.addressNotSelected;
+                                            }
+                                        }
+
+                                        updateAddressSelection();
+                                        break;
+
+                                    case 'amenities':
+                                        await fetchAndRenderAmenities();
+                                        // Select previously chosen amenities
+                                        listingData.selectedAmenities.forEach(amenityId => {
+                                            const amenityElement = document.querySelector(`[data-amenity-id="${amenityId}"]`);
+                                            if (amenityElement) {
+                                                // Apply selected styling directly
+                                                amenityElement.style.borderWidth = '2px';
+                                                amenityElement.style.borderColor = '#000000';
+                                                amenityElement.style.margin = '-1px';
+                                            }
+                                        });
+                                        break;
+                                    case 'dock':
+                                        await initializeDockStep();
+                                        // Restore dock selections
+                                        const dockRadios = document.querySelectorAll('[name="dockOption"]');
+                                        dockRadios.forEach(radio => {
+                                            if ((radio.value === 'yes' && listingData.dock.hasPrivateDock) ||
+                                                (radio.value === 'no' && !listingData.dock.hasPrivateDock)) {
+                                                radio.checked = true;
+                                            }
+                                        });
+                                        break;
+                                    case 'photos':
+                                        await initializePhotosStep();
+                                        // Restore uploaded photos
+                                        const photoContainer = document.querySelector('[data-element="photos_container"]');
+                                        if (photoContainer && listingData.photos.length) {
+                                            listingData.photos.forEach(photo => {
+                                                // Create and append photo preview elements
+                                                const photoPreview = createPhotoPreview(photo.url);
+                                                photoContainer.appendChild(photoPreview);
+                                            });
+                                        }
+                                        break;
+                                    case 'coverPhotos':
+                                        await initializeCoverPhotosStep();
+                                        break;
+                                    case 'dockPhotos':
+                                        if (listingData.dock.hasPrivateDock) {
+                                            await initializeDockPhotosStep();
+                                        }
+                                        break;
+                                    case 'title':
+                                        console.log("Leah gets here title step is ab to be rendered")
+                                        await initializeTitleStep();
+                                        console.log("leah after title step is rendered")
+                                        break;
+                                    case 'description':
+                                        console.log("Leah gets here description step is ab to be rendered")
+                                        await initializeDescriptionStep();
+                                        console.log("Leah gets here description step was rendered")
+                                        const descriptionInput = document.querySelector('[data-element="description_input"]');
+                                        if (descriptionInput) descriptionInput.value = listingData.description;
+                                        break;
+                                    case 'pricing':
+                                        await initializePricingStep();
+                                        const priceInput = document.querySelector('[data-element="pricing_input"]');
+                                        if (priceInput) priceInput.value = listingData.price;
+                                        break;
+                                    case 'cleaningFee':
+                                        await initializeCleaningFeeStep();
+                                        const cleaningFeeInput = document.querySelector('[data-element="cleaningFee_input"]');
+                                        if (cleaningFeeInput) cleaningFeeInput.value = listingData.cleaningFee;
+                                        break;
+                                    case 'minNights':
+                                        await initializeMinNightsStep();
+                                        const minNightsInput = document.querySelector('[data-element="minNights_input"]');
+                                        if (minNightsInput) minNightsInput.value = listingData.minNights;
+                                        break;
+                                    case 'rules':
+                                        await initializeRulesStep();
+
+                                        // Restore check-in/check-out times
+                                        const checkInInput = document.querySelector('[data-element="checkInInput"]');
+                                        const checkOutInput = document.querySelector('[data-element="checkOutInput"]');
+
+                                        if (checkInInput && listingData.checkIn) {
+                                            checkInInput.value = listingData.checkIn.time;
+                                            checkInInput.setAttribute('value', listingData.checkIn.time);
+
+                                            // Set AM/PM for check-in
+                                            const checkInAMButton = document.querySelector('[data-element="checkInAM_button"]');
+                                            const checkInPMButton = document.querySelector('[data-element="checkInPM_button"]');
+                                            if (listingData.checkIn.period === 'AM') {
+                                                checkInAMButton.style.border = '2px solid black';
+                                                checkInPMButton.style.border = '1px solid #e2e2e2';
+                                            } else {
+                                                checkInPMButton.style.border = '2px solid black';
+                                                checkInAMButton.style.border = '1px solid #e2e2e2';
+                                            }
+                                        }
+
+                                        if (checkOutInput && listingData.checkOut) {
+                                            checkOutInput.value = listingData.checkOut.time;
+                                            checkOutInput.setAttribute('value', listingData.checkOut.time);
+
+                                            // Set AM/PM for check-out
+                                            const checkOutAMButton = document.querySelector('[data-element="checkOutAM_button"]');
+                                            const checkOutPMButton = document.querySelector('[data-element="checkOutPM_button"]');
+                                            if (listingData.checkOut.period === 'AM') {
+                                                checkOutAMButton.style.border = '2px solid black';
+                                                checkOutPMButton.style.border = '1px solid #e2e2e2';
+                                            } else {
+                                                checkOutPMButton.style.border = '2px solid black';
+                                                checkOutAMButton.style.border = '1px solid #e2e2e2';
+                                            }
+                                        }
+
+                                        // Restore check-in method
+                                        if (listingData.checkIn.method) {
+                                            const methodButton = document.querySelector(`[data-element="checkInMethod_${listingData.checkIn.method.type}"]`);
+                                            if (methodButton) {
+                                                methodButton.style.outline = '2px solid black';
+                                                methodButton.style.outlineOffset = '-1px';
+                                            }
+                                        }
+
+                                        // Restore during stay rules
+                                        const guestMaxButton = document.querySelector('[data-element="duringVisit_guestMax"]');
+                                        if (guestMaxButton) {
+                                            guestMaxButton.textContent = `${listingData.basics.guests} guests maximum`;
+                                            guestMaxButton.style.outline = '2px solid black';
+                                            guestMaxButton.style.outlineOffset = '-1px';
+                                        }
+
+                                        listingData.duringStayRules.forEach(rule => {
+                                            if (rule.type !== 'guestMax') {
+                                                const ruleButton = document.querySelector(`[data-element="duringVisit_${rule.type}"]`);
+                                                if (ruleButton) {
+                                                    ruleButton.style.outline = '2px solid black';
+                                                    ruleButton.style.outlineOffset = '-1px';
+                                                }
+                                            }
+                                        });
+
+                                        // Restore before departure rules
+                                        listingData.beforeDepartureRules.forEach(rule => {
+                                            const ruleButton = document.querySelector(`[data-element="beforeDeparture_${rule.type}"]`);
+                                            if (ruleButton) {
+                                                ruleButton.style.outline = '2px solid black';
+                                                ruleButton.style.outlineOffset = '-1px';
+                                            }
+                                        });
+                                        break;
+                                    case 'safety':
+                                        await initializeSafetyStep();
+                                        // Restore selected safety features
+                                        listingData.safetyFeatures.forEach(feature => {
+                                            const featureButton = document.querySelector(`[data-element="safety_${feature.type}"]`);
+                                            if (featureButton) {
+                                                featureButton.style.outline = '2px solid black';
+                                                featureButton.style.outlineOffset = '-1px';
+                                            }
+                                        });
+                                        break;
+                                    case 'cancellationPolicy':
+                                        await initializeCancellationPolicyStep();
+                                        // Restore selected cancellation policy
+                                        if (listingData.cancellationPolicy) {
+                                            // Map policy names to keys
+                                            const policyMap = {
+                                                'Relaxed': 'relaxed',
+                                                'Standard': 'standard',
+                                                'Firm': 'firm',
+                                                'Grace window': 'graceWindow',
+                                                'No refund': 'noRefund'
+                                            };
+
+                                            const policyKey = policyMap[listingData.cancellationPolicy];
+                                            if (policyKey) {
+                                                const policyButton = document.querySelector(`[data-element="cancellationPolicy_${policyKey}"]`);
+                                                if (policyButton) {
+                                                    policyButton.style.outline = '2px solid black';
+                                                    policyButton.style.outlineOffset = '-1px';
+                                                }
+                                            }
+                                        }
+                                        break;
+                                }
+                            }
+
+                            // Navigate to the next incomplete step
+                            goToStep(stepIndex + 1);
+                        }
                     });
 
                     listingContainer.appendChild(newBlock);
@@ -580,7 +1015,6 @@ let hasAttemptedToLeave = {
     cancellationPolicy: false
 };
 
-
 function shouldValidateStep(stepId) {
     // Add logic here to determine which steps need validation
     return stepId === 'basics' || stepId === 'location' || stepId === 'confirmLocation' || stepId === 'amenities' || stepId === 'dock' || stepId === 'photos' || stepId === 'coverPhotos' || stepId === 'dockPhotos' || stepId === 'title' || stepId === 'description' || stepId === 'pricing' || stepId === 'cleaningFee' || stepId === 'minNights' || stepId === 'rules' || stepId === 'safety' || stepId === 'cancellationPolicy';
@@ -625,19 +1059,165 @@ function validateStep(stepId) {
     }
 }
 
+// Handle next button click
+document.getElementById('nextStep').addEventListener('click', function () {
+    //console.log(`Next step clicked: Current step ${currentStepNumber}`);
+
+    const currentStepId = steps[currentStepNumber - 1];
+
+    // Set hasAttemptedToLeave to true for the current step when trying to move forward
+    if (shouldValidateStep(currentStepId)) {
+        hasAttemptedToLeave[currentStepId] = true;
+    }
+
+    // Proceed to the next step if valid
+    if (currentStepNumber < steps.length) {
+        goToStep(currentStepNumber + 1, 'forward');
+    }
+});
+
+// Handle previous button click
+document.getElementById('prevStep').addEventListener('click', function () {
+    console.log(`Previous step clicked: Current step ${currentStepNumber}`);
+
+    // Go to the previous step if not the first step
+    if (currentStepNumber > 1) {
+        goToStep(currentStepNumber - 1, 'back');
+    }
+});
+
+// Handle hash change event (when the user manually changes the hash or presses back/forward)
+window.addEventListener('hashchange', function () {
+    const hash = window.location.hash.substring(1); // Remove the leading "#"
+    const stepNumber = steps.indexOf(hash) + 1;
+    console.log(`Handling hash change, step number: ${stepNumber}`);
+    if (stepNumber > 0) {
+        goToStep(stepNumber, currentStepNumber < stepNumber ? 'forward' : 'back');
+    }
+});
+
+// Function to show a specific step and update URL hash
+function goToStep(stepNumber, direction = 'forward') {
+    //console.log(`Navigating to step ${stepNumber}`);
+    console.log(listingData);
+    // Ensure stepNumber is within bounds
+    if (stepNumber < 1 || stepNumber > steps.length) {
+        //console.error(`Invalid step number: ${stepNumber}`);
+        return;
+    }
+
+    const currentStepId = steps[currentStepNumber - 1];
+    let nextStepId = steps[stepNumber - 1];
+
+    // Handle dockPhotos step navigation when no private dock
+    if (nextStepId === 'dockPhotos' && !listingData.dock.hasPrivateDock) {
+        if (direction === 'forward') {
+            nextStepId = 'title';
+            stepNumber = steps.indexOf('title') + 1;
+        } else {
+            nextStepId = 'coverPhotos';
+            stepNumber = steps.indexOf('coverPhotos') + 1;
+        }
+    }
+
+    // Check if current step needs validation before moving on
+    if (shouldValidateStep(currentStepId) && direction === 'forward') {
+        hasAttemptedToLeave[currentStepId] = true;
+        validateStep(currentStepId).then(isValid => {
+            if (!isValid) {
+                //console.warn(`Validation failed for ${currentStepId} section`);
+                return; // Exit if validation fails
+            }
+            proceedToNextStep();
+        });
+    } else {
+        proceedToNextStep();
+    }
+
+    function proceedToNextStep() {
+        // Reset the hasAttemptedToLeave flag when leaving a step
+        if (hasAttemptedToLeave[currentStepId]) {
+            hasAttemptedToLeave[currentStepId] = false;
+        }
+
+        const previousStep = document.querySelector('.step.active');
+
+        if (previousStep) {
+            // Start hiding the current step
+            previousStep.style.opacity = '0';
+            previousStep.style.transition = 'opacity 0.5s ease-out';
+
+            // Wait for the transition to complete before hiding it
+            setTimeout(() => {
+                previousStep.style.display = 'none';
+                previousStep.classList.remove('active');
+                showStep(nextStepId);
+            }, 500); // Match the delay with the transition duration
+        } else {
+            showStep(nextStepId); // First step load
+        }
+
+        // Update the URL hash without reloading the page
+        window.location.hash = `#${nextStepId}`;
+
+        // Update the currentStepNumber
+        currentStepNumber = stepNumber;
+
+        // Disable or enable buttons based on the current step
+        updateButtonStates();
+    }
+}
+
+
+
+// Function to enable/disable buttons based on the current step
+function updateButtonStates() {
+    const nextStepText = document.getElementById('nextStepText');
+    const prevStepButton = document.getElementById('prevStep');
+    const nextStepButton = document.getElementById('nextStep');
+    const submitButton = document.getElementById('submitButton');
+
+    // Update the text content based on the current step
+    if (nextStepText) {
+        if (currentStepNumber === 1) {
+            nextStepText.textContent = "Get Started";
+        } else {
+            nextStepText.textContent = "Next";
+        }
+    }
+
+    // Handle visibility of the "Previous" button
+    if (prevStepButton) {
+        if (currentStepNumber === 1) {
+            prevStepButton.style.display = "none"; // Hide on the first step
+        } else {
+            prevStepButton.style.display = "flex"; // Show on other steps
+        }
+    }
+
+    // Handle visibility of the "Next" and "Submit" buttons
+    if (nextStepButton && submitButton) {
+        if (steps[currentStepNumber - 1] === "manageAddHome") {
+            nextStepButton.style.display = "none";
+            submitButton.style.display = "none";
+        } else if (steps[currentStepNumber - 1] === "reviewInfo") {
+            nextStepButton.style.display = "none";
+            submitButton.style.display = "flex";
+        } else {
+            nextStepButton.style.display = "flex";
+            submitButton.style.display = "none";
+            nextStepButton.disabled = (currentStepNumber === steps.length);
+        }
+    }
+}
+
+// Variable to track selected address type
+let selectedAddressType = 'suggested'; // Default to suggested address
+
 // Function to show the current step with fade-in effect
 function showStep(stepId) {
     const currentStep = document.getElementById(stepId);
     if (currentStep) {
-        // Handle dockPhotos visibility based on private dock status
-        if (stepId === 'dockPhotos') {
-            if (!listingData.dock.hasPrivateDock) {
-                currentStep.style.display = 'none';
-                goToStep(steps.indexOf('title') + 1); // Skip to title step
-                return;
-            }
-        }
-
         currentStep.style.display = 'flex';
         currentStep.style.opacity = '0'; // Start hidden
         setTimeout(() => {
@@ -652,17 +1232,18 @@ function showStep(stepId) {
     // Initialize the counter logic when the "basics" step is shown
     if (stepId === "basics") {
         initializeCounters();
+        // Pre-fetch amenities for next step
+        fetchAndRenderAmenities();
     }
 
     // Set default address selection when showing confirmLocation step
     if (stepId === "confirmLocation") {
-        selectedAddressType = 'suggested';
-        updateAddressSelection();
+        // selectedAddressType = 'suggested';
+        // updateAddressSelection();
     }
 
-    // Fetch and render amenities when showing amenities step
+    // When showing amenities step, amenities should already be loaded
     if (stepId === "amenities") {
-        fetchAndRenderAmenities();
         // Hide amenities error when first showing the step
         const amenitiesError = document.getElementById('amenities-error');
         if (amenitiesError) {
@@ -704,15 +1285,11 @@ function showStep(stepId) {
         // Only show and initialize if user has private dock
         if (listingData.dock.hasPrivateDock) {
             initializeDockPhotosStep();
-            currentStep.style.display = 'flex';
             // Hide dock photos error when first showing the step
             const dockPhotosError = document.getElementById('dockPhotos-error');
             if (dockPhotosError) {
                 dockPhotosError.style.display = 'none';
             }
-        } else {
-            currentStep.style.display = 'none';
-            goToStep(steps.indexOf('title') + 1); // Skip to title step
         }
     }
 
@@ -796,182 +1373,476 @@ function showStep(stepId) {
     }
 }
 
+// Function to fetch and render amenities
+async function fetchAndRenderAmenities() {
+    try {
+        const response = await fetch('https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/attribute');
+        const amenities = await response.json();
 
+        // Get all amenity elements
+        const amenityElements = document.querySelectorAll('[data-element="amenity"]');
+        const iconElements = document.querySelectorAll('[data-element="amenity_icon"]');
+        const textElements = document.querySelectorAll('[data-element="amenity_text"]');
 
-// Handle next button click
-document.getElementById('nextStep').addEventListener('click', function () {
-    //console.log(`Next step clicked: Current step ${currentStepNumber}`);
+        // Loop through amenities and update elements
+        amenities.forEach((amenity, i) => {
+            // Create new elements if needed
+            if (i >= amenityElements.length) {
+                // Clone the first amenity element and its children
+                const template = amenityElements[0].cloneNode(true);
+                const newIcon = template.querySelector('[data-element="amenity_icon"]');
+                const newText = template.querySelector('[data-element="amenity_text"]');
 
-    const currentStepId = steps[currentStepNumber - 1];
+                // Update the new elements
+                if (newIcon) {
+                    newIcon.src = amenity.attribute_icon.url;
+                    newIcon.alt = amenity.attribute_name;
+                    newIcon.loading = 'eager'; // Set eager loading
+                }
+                if (newText) {
+                    newText.textContent = amenity.attribute_name;
+                }
 
-    // Set hasAttemptedToLeave to true for the current step when trying to move forward
-    if (shouldValidateStep(currentStepId)) {
-        hasAttemptedToLeave[currentStepId] = true;
-    }
+                // Add click handler and styling
+                template.style.cursor = 'pointer';
+                template.dataset.amenityId = amenity.id;
+                template.addEventListener('click', () => toggleAmenity(template, amenity.id));
 
-    // Proceed to the next step if valid
-    if (currentStepNumber < steps.length) {
-        goToStep(currentStepNumber + 1);
-    }
-});
+                // Insert the new element after the last amenity
+                amenityElements[0].parentNode.appendChild(template);
+            } else {
+                // Update existing elements
+                if (iconElements[i]) {
+                    iconElements[i].src = amenity.attribute_icon.url;
+                    iconElements[i].alt = amenity.attribute_name;
+                    iconElements[i].loading = 'eager'; // Set eager loading
+                }
+                if (textElements[i]) {
+                    textElements[i].textContent = amenity.attribute_name;
+                }
 
-// Handle previous button click
-document.getElementById('prevStep').addEventListener('click', function () {
-    console.log(`Previous step clicked: Current step ${currentStepNumber}`);
-
-    // Go to the previous step if not the first step
-    if (currentStepNumber > 1) {
-        goToStep(currentStepNumber - 1);
-    }
-});
-
-// Handle hash change event (when the user manually changes the hash or presses back/forward)
-window.addEventListener('hashchange', function () {
-    const hash = window.location.hash.substring(1); // Remove the leading "#"
-    const stepNumber = steps.indexOf(hash) + 1;
-    console.log(`Handling hash change, step number: ${stepNumber}`);
-    if (stepNumber > 0) {
-        goToStep(stepNumber);
-    }
-});
-
-// Function to show a specific step and update URL hash
-function goToStep(stepNumber) {
-    //console.log(`Navigating to step ${stepNumber}`);
-
-    // Ensure stepNumber is within bounds
-    if (stepNumber < 1 || stepNumber > steps.length) {
-        //console.error(`Invalid step number: ${stepNumber}`);
-        return;
-    }
-
-    const currentStepId = steps[currentStepNumber - 1];
-    const nextStepId = steps[stepNumber - 1];
-
-    // Check if current step needs validation before moving on
-    if (shouldValidateStep(currentStepId) && stepNumber > currentStepNumber) {
-        hasAttemptedToLeave[currentStepId] = true;
-        validateStep(currentStepId).then(isValid => {
-            if (!isValid) {
-                //console.warn(`Validation failed for ${currentStepId} section`);
-                return; // Exit if validation fails
+                // Add click handler and styling to existing elements
+                amenityElements[i].style.cursor = 'pointer';
+                amenityElements[i].dataset.amenityId = amenity.id;
+                amenityElements[i].addEventListener('click', () => toggleAmenity(amenityElements[i], amenity.id));
             }
-            proceedToNextStep();
         });
-    } else {
-        proceedToNextStep();
-    }
 
-    function proceedToNextStep() {
-        // Reset the hasAttemptedToLeave flag when leaving a step
-        if (hasAttemptedToLeave[currentStepId]) {
-            hasAttemptedToLeave[currentStepId] = false;
-        }
-
-        const previousStep = document.querySelector('.step.active');
-
-        if (previousStep) {
-            // Start hiding the current step
-            previousStep.style.opacity = '0';
-            previousStep.style.transition = 'opacity 0.5s ease-out';
-
-            // Wait for the transition to complete before hiding it
-            setTimeout(() => {
-                previousStep.style.display = 'none';
-                previousStep.classList.remove('active');
-                showStep(nextStepId);
-            }, 500); // Match the delay with the transition duration
-        } else {
-            showStep(nextStepId); // First step load
-        }
-
-        // Update the URL hash without reloading the page
-        window.location.hash = `#${nextStepId}`;
-
-        // Update the currentStepNumber
-        currentStepNumber = stepNumber;
-
-        // Disable or enable buttons based on the current step
-        updateButtonStates();
+    } catch (error) {
+        console.error('Error fetching amenities:', error);
     }
 }
 
-// Function to enable/disable buttons based on the current step
-function updateButtonStates() {
-    const nextStepText = document.getElementById('nextStepText');
-    const prevStepButton = document.getElementById('prevStep');
-    const nextStepButton = document.getElementById('nextStep');
+// Function to toggle amenity selection
+function toggleAmenity(element, amenityId) {
+    // // Remove any existing click handlers first
+    // if (element && element.parentNode) {
+    //     const clone = element.cloneNode(true);
+    //     element.parentNode.replaceChild(clone, element);
+    //     element = clone;
+    // }
 
-    // Update the text content based on the current step
-    if (nextStepText) {
-        if (currentStepNumber === 1) {
-            nextStepText.textContent = "Get Started";
-        } else if (steps[currentStepNumber - 1] === "reviewInfo") {
-            nextStepText.textContent = "Confirm";
+    // Add click handler to cloned element
+    element.addEventListener('click', () => {
+        const isSelected = element.style.borderWidth === '2px';
+
+        if (isSelected) {
+            element.style.borderWidth = '1px';
+            element.style.borderColor = '#e2e2e2'; // Reset to default color
+            element.style.margin = '0px'; // Reset margin
+            listingData.selectedAmenities = listingData.selectedAmenities.filter(id => id !== amenityId);
         } else {
-            nextStepText.textContent = "Next";
+            element.style.borderWidth = '2px';
+            element.style.borderColor = '#000000'; // Set black border when selected
+            element.style.margin = '-1px'; // Offset the larger border
+            if (!listingData.selectedAmenities.includes(amenityId)) {
+                listingData.selectedAmenities.push(amenityId);
+            }
         }
-    }
 
-    // Handle visibility of the "Previous" button
-    if (prevStepButton) {
-        if (currentStepNumber === 1) {
-            prevStepButton.style.display = "none"; // Hide on the first step
-        } else {
-            prevStepButton.style.display = "flex"; // Show on other steps
+        // Convert amenity IDs array to JSON string
+        const amenityIdsJson = JSON.stringify(listingData.selectedAmenities);
+        listingData.selectedAmenities = JSON.parse(amenityIdsJson);
+
+        // Hide error message when user selects an amenity
+        if (hasAttemptedToLeave.amenities) {
+            validateAmenities();
         }
-    }
+    });
 
-    // Handle visibility of the "Next" button
-    if (nextStepButton) {
-        if (steps[currentStepNumber - 1] === "manageAddHome") {
-            nextStepButton.style.display = "none"; // Hide on manageAddHome step
+    // Trigger initial click to handle selection
+    element.click();
+}
+
+function validateLocation() {
+    return new Promise((resolve) => {
+        const addressLine1Input = document.getElementById("addressLine1-input");
+        const addressLine2Input = document.getElementById("addressLine2-input");
+        const addressCityInput = document.getElementById("addressCity-input");
+        const addressStateInput = document.getElementById("addressState-input");
+        const addressZipcodeInput = document.getElementById("addressZipcode-input");
+        const locationError = document.getElementById('location-error');
+        const locationSubText = document.getElementById('location-subText');
+
+        // Check only for addressLine1, city, state and zip as required fields
+        const requiredFields = [addressLine1Input, addressCityInput, addressStateInput, addressZipcodeInput];
+        const hasEmptyFields = requiredFields.some(input => !input.value.trim());
+
+        console.log('Validating location fields:');
+        console.log('Address Line 1:', addressLine1Input?.value || 'empty');
+        console.log('Address Line 2:', addressLine2Input?.value || 'empty');
+        console.log('City:', addressCityInput?.value || 'empty');
+        console.log('State:', addressStateInput?.value || 'empty');
+        console.log('Zipcode:', addressZipcodeInput?.value || 'empty');
+
+        // Florida Keys ZIP codes
+        const keysZipCodes = ['33001', '33036', '33037', '33040', '33041', '33042', '33043', '33044', '33045', '33050', '33051', '33052', '33070'];
+
+        // Check if zipcode is in Florida Keys
+        const isKeysZipcode = keysZipCodes.includes(addressZipcodeInput?.value?.trim());
+        console.log('Is Florida Keys ZIP code:', isKeysZipcode);
+
+        if (hasEmptyFields) {
+            console.log('Empty required fields detected');
+            if (locationError && hasAttemptedToLeave.location) {
+                locationError.textContent = "Please fill in all required fields";
+                locationError.style.display = 'block';
+                highlightInvalidInputs(requiredFields.filter(input => !input.value.trim()));
+                if (locationSubText) locationSubText.style.display = 'none';
+            }
+            resolve(false);
+            return;
+        }
+
+        if (!isKeysZipcode) {
+            console.log('Not a Florida Keys ZIP code');
+            if (locationError && hasAttemptedToLeave.location) {
+                locationError.textContent = "Please enter a valid Florida Keys ZIP code";
+                locationError.style.display = 'block';
+                highlightInvalidInputs([addressZipcodeInput]);
+                if (locationSubText) locationSubText.style.display = 'none';
+            }
+            resolve(false);
+            return;
+        }
+
+        // Update listingData with all address fields
+        listingData.address = {
+            addressLine1: addressLine1Input.value.trim(),
+            addressLine2: addressCityInput.value.trim() + ', ' + addressStateInput.value.trim() + ' ' + addressZipcodeInput.value.trim(),
+            cityState: `${addressCityInput.value.trim()}, ${addressStateInput.value.trim()}`,
+            neighborhood: '', // This would need to come from another source
+            unit: addressLine2Input.value.trim(), // Add unit from addressLine2
+            city: addressCityInput.value.trim(),
+            state: addressStateInput.value.trim(),
+            zipcode: addressZipcodeInput.value.trim()
+        };
+
+        // Build address object with available data
+        const address = {
+            address: {
+                addressLines: [addressLine1Input.value],
+                locality: addressCityInput.value,
+                administrativeArea: addressStateInput.value === 'Florida' ? 'FL' : addressStateInput.value,
+                postalCode: addressZipcodeInput.value,
+                regionCode: "US"
+            }
+        };
+
+        // Add addressLine2 if it has a value
+        if (addressLine2Input?.value.trim()) {
+            address.address.addressLines.push(addressLine2Input.value);
+        }
+
+        console.log('Sending address to Google API:', address);
+
+        // Validate with Google API
+        validateAddressWithGoogle(address).then(result => {
+            console.log('Google API response:', result);
+            if (result.isValid) {
+                // Show suggested address in confirmLocation step
+                const confirmSuggestedAddress = document.getElementById("confirmSuggestedAddress");
+                const confirmEnteredAddress = document.getElementById("confirmEnteredAddress");
+                const confirmSuggestedContainer = document.getElementById("confirmSuggestedAddress_Container");
+                const confirmEnteredContainer = document.getElementById("confirmEnteredAddress_Container");
+
+                // Set addressVerified to true since we've validated the address
+                listingData.addressVerified = true;
+
+                // Format entered address similar to Google's format
+                let enteredAddress = addressLine1Input.value;
+                if (addressLine2Input?.value.trim()) {
+                    enteredAddress += ` ${addressLine2Input.value}`;
+                }
+                enteredAddress += `, ${addressCityInput.value}, ${addressStateInput.value} ${addressZipcodeInput.value}`;
+
+                if (confirmSuggestedAddress) {
+                    confirmSuggestedAddress.textContent = result.formattedAddress;
+                }
+
+                if (confirmEnteredAddress) {
+                    confirmEnteredAddress.textContent = enteredAddress;
+                }
+
+                // Use previously selected address type if it exists, otherwise default to suggested
+                selectedAddressType = listingData.addressChosen || 'suggested';
+                listingData.addressChosen = selectedAddressType;
+                listingData.addressNotSelected = selectedAddressType === 'suggested' ? enteredAddress : result.formattedAddress;
+
+                // Add click handlers for address selection
+                if (confirmSuggestedContainer && confirmEnteredContainer) {
+                    updateAddressSelection();
+
+                    confirmSuggestedContainer.onclick = () => {
+                        selectedAddressType = 'suggested';
+                        listingData.addressChosen = 'suggested';
+                        // Update listingData with suggested address
+                        const addressParts = result.formattedAddress.split(',').map(part => part.trim());
+
+                        // Extract unit number from suggested address if present
+                        let addressLine1 = addressParts[0];
+                        let unit = '';
+                        const unitMatch = addressLine1.match(/(.*?)\s+(#.+)$/);
+                        if (unitMatch) {
+                            addressLine1 = unitMatch[1];
+                            unit = unitMatch[2]; // Keeps the # if present
+                        } else {
+                            unit = addressLine2Input.value.trim(); // Fallback to entered unit
+                        }
+
+                        listingData.address = {
+                            addressLine1: addressLine1,
+                            addressLine2: addressParts.slice(1).join(',').trim(),
+                            cityState: `${addressParts[1]}, ${addressParts[2].split(' ')[0]}`,
+                            neighborhood: '',
+                            unit: unit,
+                            city: addressParts[1],
+                            state: addressParts[2].split(' ')[0],
+                            zipcode: addressParts[2].split(' ')[1]
+                        };
+                        listingData.addressNotSelected = enteredAddress;
+                        updateAddressSelection();
+                    };
+
+                    confirmEnteredContainer.onclick = () => {
+                        selectedAddressType = 'entered';
+                        listingData.addressChosen = 'entered';
+                        // Revert to originally entered address
+                        listingData.address = {
+                            addressLine1: addressLine1Input.value.trim(),
+                            addressLine2: addressCityInput.value.trim() + ', ' + addressStateInput.value.trim() + ' ' + addressZipcodeInput.value.trim(),
+                            cityState: `${addressCityInput.value.trim()}, ${addressStateInput.value.trim()}`,
+                            neighborhood: '',
+                            unit: addressLine2Input.value.trim(),
+                            city: addressCityInput.value.trim(),
+                            state: addressStateInput.value.trim(),
+                            zipcode: addressZipcodeInput.value.trim()
+                        };
+                        listingData.addressNotSelected = result.formattedAddress;
+                        updateAddressSelection();
+                    };
+                }
+
+                if (locationError) locationError.style.display = 'none';
+                resetInputStyles([addressLine1Input, addressLine2Input, addressCityInput, addressStateInput, addressZipcodeInput]);
+                if (locationSubText) locationSubText.style.display = 'block';
+                resolve(true);
+            } else {
+                console.log('Address validation failed');
+                if (locationError && hasAttemptedToLeave.location) {
+                    locationError.textContent = "Please enter a valid address";
+                    locationError.style.display = 'block';
+                    if (locationSubText) locationSubText.style.display = 'none';
+                }
+                resolve(false);
+            }
+        });
+    });
+}
+
+function updateAddressSelection() {
+    const confirmSuggestedContainer = document.getElementById("confirmSuggestedAddress_Container");
+    const confirmEnteredContainer = document.getElementById("confirmEnteredAddress_Container");
+
+    if (confirmSuggestedContainer && confirmEnteredContainer) {
+        if (selectedAddressType === 'suggested') {
+            confirmSuggestedContainer.style.backgroundColor = '#9ecaff';
+            confirmSuggestedContainer.style.boxShadow = '0 0 15px rgba(0, 0, 0, 0.2)';
+            confirmEnteredContainer.style.backgroundColor = '';
+            confirmEnteredContainer.style.boxShadow = '';
         } else {
-            nextStepButton.style.display = "flex"; // Show on other steps
-            nextStepButton.disabled = (currentStepNumber === steps.length); // Disable on last step
+            confirmEnteredContainer.style.backgroundColor = '#9ecaff';
+            confirmEnteredContainer.style.boxShadow = '0 0 15px rgba(0, 0, 0, 0.2)';
+            confirmSuggestedContainer.style.backgroundColor = '';
+            confirmSuggestedContainer.style.boxShadow = '';
         }
     }
 }
 
-// Variable to track selected address type
-let selectedAddressType = 'suggested'; // Default to suggested address
+// Function to initialize cancellation policy step
+function initializeCancellationPolicyStep() {
+    const cancellationPolicies = {
+        relaxed: document.querySelector('[data-element="cancellationPolicy_relaxed"]'),
+        standard: document.querySelector('[data-element="cancellationPolicy_standard"]'),
+        firm: document.querySelector('[data-element="cancellationPolicy_firm"]'),
+        graceWindow: document.querySelector('[data-element="cancellationPolicy_graceWindow"]'),
+        noRefund: document.querySelector('[data-element="cancellationPolicy_noRefund"]')
+    };
 
+    const policyValues = {
+        relaxed: "Relaxed",
+        standard: "Standard",
+        firm: "Firm",
+        graceWindow: "Grace window",
+        noRefund: "No refund"
+    };
 
-// Function to render all photos
-function renderPhotos() {
-    const photoContainerParent = document.querySelector('[data-element="photo_container_parent"]');
-    if (!photoContainerParent) return;
+    const cancellationPolicyError = document.getElementById('cancellationPolicy-error');
+    const cancellationPolicySubText = document.getElementById('cancellationPolicy-subText');
 
-    // Only show photo container when we have photos
-    photoContainerParent.style.display = listingData.photos.length ? 'grid' : 'none';
+    // Hide error message initially
+    if (cancellationPolicyError) cancellationPolicyError.style.display = 'none';
+    if (cancellationPolicySubText) cancellationPolicySubText.style.display = 'block';
 
-    // Log photos array
-    console.log('Current photos:', listingData.photos);
+    // Set up click handlers for all policy options
+    Object.entries(cancellationPolicies).forEach(([policy, button]) => {
+        if (button) {
+            button.style.cursor = 'pointer';
 
-    // Clear existing photos
-    const allContainers = document.querySelectorAll('[data-element="photo_container_parent"]');
-    allContainers.forEach((container, idx) => {
-        if (idx > 0) container.remove();
-    });
+            button.addEventListener('click', () => {
+                // Clear selection styling from all buttons
+                Object.values(cancellationPolicies).forEach(btn => {
+                    if (btn) {
+                        btn.style.outline = '';
+                        btn.style.outlineOffset = '';
+                    }
+                });
 
-    // Render each photo
-    listingData.photos.forEach((photo, idx) => {
-        if (idx === 0) {
-            const firstImg = photoContainerParent.querySelector('[data-element="photo_container"]');
-            if (firstImg) {
-                firstImg.src = photo.url || photo.dataUrl;
-                setupPhotoAddedDeleteButton(photoContainerParent, 0);
+                // Set selected policy
+                listingData.cancellationPolicy = policyValues[policy];
+                button.style.outline = '2px solid black';
+                button.style.outlineOffset = '-1px';
+
+                if (hasAttemptedToLeave.cancellationPolicy) {
+                    validateCancellationPolicy();
+                }
+            });
+
+            // Set initial state if policy was previously selected
+            if (listingData.cancellationPolicy === policyValues[policy]) {
+                button.style.outline = '2px solid black';
+                button.style.outlineOffset = '-1px';
             }
-        } else {
-            const newParent = photoContainerParent.cloneNode(true);
-            const newImg = newParent.querySelector('[data-element="photo_container"]');
-            if (newImg) {
-                newImg.src = photo.url || photo.dataUrl;
-                setupPhotoAddedDeleteButton(newParent, idx);
-            }
-            photoContainerParent.parentNode.appendChild(newParent);
         }
     });
+}
+
+// Function to initialize safety step
+function initializeSafetyStep() {
+    // Remove any existing event listeners first
+    const existingButtons = document.querySelectorAll('[data-element^="safety_"]');
+    existingButtons.forEach(button => {
+        const clone = button.cloneNode(true);
+        button.parentNode.replaceChild(clone, button);
+    });
+
+    const safetyFeatures = {
+        securityCamera: document.querySelector('[data-element="safety_securityCamera"]'),
+        doorbellCamera: document.querySelector('[data-element="safety_doorbellCamera"]'),
+        fireExtinguisher: document.querySelector('[data-element="safety_fireExtinguisher"]'),
+        smokeAlarm: document.querySelector('[data-element="safety_smokeAlarm"]'),
+        carbonMonoxideAlarm: document.querySelector('[data-element="safety_carbonMonoxideAlarm"]'),
+        firstAidKit: document.querySelector('[data-element="safety_firstAidKit"]')
+    };
+
+    const safetyError = document.getElementById('safety-error');
+    const safetySubText = document.getElementById('safety-subText');
+
+    // Hide error message initially
+    if (safetyError) safetyError.style.display = 'none';
+    if (safetySubText) safetySubText.style.display = 'block';
+
+    // Initialize safetyFeatures array if undefined
+    if (!listingData.safetyFeatures) {
+        listingData.safetyFeatures = [];
+    }
+
+    // Clean up any duplicate CO alarm entries first
+    const hasCarbonMonoxideAlarm = listingData.safetyFeatures.some(f => f.type === 'carbonMonoxideAlarm');
+    if (hasCarbonMonoxideAlarm) {
+        // Remove any "no alarm" entries if CO alarm is present
+        listingData.safetyFeatures = listingData.safetyFeatures.filter(f => f.type !== 'noCarbonMonoxideAlarm');
+    }
+
+    // Set up safety features
+    Object.entries(safetyFeatures).forEach(([feature, button]) => {
+        if (button) {
+            // Add button-like styles
+            button.style.cursor = 'pointer';
+            button.style.userSelect = 'none'; // Prevent text selection
+            button.style.WebkitUserSelect = 'none';
+
+            // Add click handlers for all safety features
+            button.addEventListener('click', (e) => {
+                e.preventDefault(); // Prevent any default behavior
+
+                const featureIndex = listingData.safetyFeatures.findIndex(f => f.type === feature);
+                if (featureIndex === -1) {
+                    // Feature not in array, add it with text from button
+                    listingData.safetyFeatures.push({
+                        type: feature,
+                        text: button.textContent.trim()
+                    });
+
+                    // If adding carbonMonoxideAlarm, ensure "no alarm" is removed
+                    if (feature === 'carbonMonoxideAlarm') {
+                        listingData.safetyFeatures = listingData.safetyFeatures.filter(f => f.type !== 'noCarbonMonoxideAlarm');
+                    }
+
+                    button.style.outline = '2px solid black';
+                    button.style.outlineOffset = '-1px';
+                } else {
+                    // Feature in array, remove it
+                    listingData.safetyFeatures.splice(featureIndex, 1);
+
+                    button.style.outline = '';
+                    button.style.outlineOffset = '';
+
+                    // If removing carbonMonoxideAlarm, add "no alarm" entry
+                    if (feature === 'carbonMonoxideAlarm') {
+                        listingData.safetyFeatures.push({
+                            type: 'noCarbonMonoxideAlarm',
+                            text: 'No carbon monoxide alarm'
+                        });
+                    }
+                }
+
+                if (hasAttemptedToLeave.safety) {
+                    validateSafety();
+                }
+            });
+
+            // Set initial state based on existing features
+            const existingFeature = listingData.safetyFeatures.find(f => f.type === feature);
+            if (existingFeature) {
+                button.style.outline = '2px solid black';
+                button.style.outlineOffset = '-1px';
+            }
+        }
+    });
+
+    // Only add noCarbonMonoxideAlarm if carbonMonoxideAlarm is not present and user has attempted to leave
+    if (hasAttemptedToLeave.safety) {
+        const currentHasCarbonMonoxideAlarm = listingData.safetyFeatures.some(f => f.type === 'carbonMonoxideAlarm');
+        const currentHasNoCarbonMonoxideAlarm = listingData.safetyFeatures.some(f => f.type === 'noCarbonMonoxideAlarm');
+
+        if (!currentHasCarbonMonoxideAlarm && !currentHasNoCarbonMonoxideAlarm) {
+            listingData.safetyFeatures.push({
+                type: 'noCarbonMonoxideAlarm',
+                text: 'No carbon monoxide alarm'
+            });
+        }
+    }
 }
 
 // Function to initialize photos step
@@ -1055,6 +1926,384 @@ function initializePhotosStep() {
     setupPhotoButton(addPhotosButton2);
 }
 
+// Function to initialize cover photos section
+function initializeCoverPhotosStep() {
+    console.log(listingData.photos);
+    let coverPhotosContainer = document.querySelector('[data-element="coverPhotos_photoContainer"]');
+    const coverPhotosError = document.getElementById('coverPhotos-error');
+    const coverPhotosSubText = document.getElementById('coverPhotos-subText');
+
+    if (!coverPhotosContainer) {
+        return;
+    }
+
+    // Remove any existing photo containers first
+    const existingContainers = document.querySelectorAll('[data-element="coverPhotos_photoContainer"]');
+    existingContainers.forEach((container, index) => {
+        if (index > 0) { // Keep the first container
+            container.remove();
+        }
+    });
+
+    // Create a fresh container to replace the original one
+    const newContainer = document.createElement('div');
+    newContainer.setAttribute('data-element', 'coverPhotos_photoContainer');
+    // Copy any existing styles or attributes from the original container
+    newContainer.className = coverPhotosContainer.className;
+    coverPhotosContainer.parentNode.replaceChild(newContainer, coverPhotosContainer);
+    coverPhotosContainer = newContainer;
+
+    // Create a reusable function to set up a photo container
+    const setupPhotoContainer = (container, photo, photoIndex) => {
+        const photoImage = document.createElement('img');
+        photoImage.setAttribute('data-element', 'coverPhotos_image');
+        photoImage.style.borderRadius = '5px';
+        container.appendChild(photoImage);
+
+        // Create number element with all styles applied directly
+        const numberEl = document.createElement('div');
+        numberEl.setAttribute('data-element', 'coverPhotos_number');
+        numberEl.className = 'coverPhotos_number';
+        numberEl.style.display = 'none';
+        numberEl.style.position = 'absolute';
+        numberEl.style.top = '8px';
+        numberEl.style.right = '8px';
+        numberEl.style.width = '30px';
+        numberEl.style.height = '30px';
+        numberEl.style.borderRadius = '100%';
+        numberEl.style.backgroundColor = 'white';
+        numberEl.style.border = '2px solid black';
+        numberEl.style.alignItems = 'center';
+        numberEl.style.justifyContent = 'center';
+        numberEl.style.fontSize = '15px';
+        numberEl.style.fontWeight = 'bold';
+        numberEl.style.color = 'black';
+        numberEl.style.fontFamily = 'Tt Fors, sans-serif';
+        numberEl.style.transition = 'all 0.3s ease';
+        numberEl.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+        container.appendChild(numberEl);
+
+        const photoUrl = photo.dataUrl;
+
+        if (!photoUrl.startsWith('data:')) {
+            const timestamp = new Date().getTime();
+            photoImage.src = photoUrl + '?' + timestamp;
+        } else {
+            photoImage.src = photoUrl;
+        }
+
+        photoImage.style.display = 'block';
+        photoImage.style.visibility = 'visible';
+        photoImage.style.opacity = '1';
+
+        photoImage.addEventListener('load', () => { });
+        photoImage.addEventListener('error', () => { });
+
+        // Make container clickable
+        container.style.cursor = 'pointer';
+        container.style.position = 'relative';
+
+        // Function to update all number colors based on total selected
+        const updateNumberColors = () => {
+            const selectedCoverPhotos = listingData.photos.filter(p => p.isCoverPhoto).length;
+            const allNumberElements = document.querySelectorAll('[data-element="coverPhotos_number"]');
+            allNumberElements.forEach(el => {
+                if (el.style.display === 'flex') {
+                    el.style.backgroundColor = selectedCoverPhotos === 5 ? '#90EE90' : 'white';
+                }
+            });
+        };
+
+        // Add click handler for photo selection
+        container.addEventListener('click', () => {
+            const numberEl = container.querySelector('[data-element="coverPhotos_number"]');
+
+            // If already selected, remove from selection
+            if (numberEl.style.display === 'flex') {
+                const currentOrder = listingData.photos[photoIndex].coverPhotoOrder;
+                numberEl.style.display = 'none';
+                numberEl.textContent = '';
+
+                // Remove cover photo properties from the photo in listingData
+                delete listingData.photos[photoIndex].isCoverPhoto;
+                delete listingData.photos[photoIndex].coverPhotoOrder;
+
+                // Update order numbers for remaining photos
+                listingData.photos.forEach(p => {
+                    if (p.isCoverPhoto && p.coverPhotoOrder > currentOrder) {
+                        p.coverPhotoOrder--;
+                    }
+                });
+
+                // Update displayed numbers
+                document.querySelectorAll('[data-element="coverPhotos_number"]').forEach(el => {
+                    if (el.style.display === 'flex') {
+                        const num = parseInt(el.textContent);
+                        if (num > currentOrder) {
+                            el.textContent = (num - 1).toString();
+                        }
+                    }
+                });
+
+                // Reset container border styles when unselected
+                container.style.outline = 'none';
+                container.style.border = '1px solid #e2e2e2';
+
+                // Update colors for all numbers
+                updateNumberColors();
+            }
+            // Add to selection if less than 5 photos are selected
+            else if (listingData.photos.filter(p => p.isCoverPhoto).length < 5) {
+                const order = listingData.photos.filter(p => p.isCoverPhoto).length + 1;
+                numberEl.style.display = 'flex';
+                numberEl.textContent = order.toString();
+                container.style.outline = '2px solid black';
+                container.style.outlineOffset = '-1px';
+                container.style.border = 'none';
+
+                // Add cover photo properties to the photo in listingData
+                listingData.photos[photoIndex].isCoverPhoto = true;
+                listingData.photos[photoIndex].coverPhotoOrder = order;
+
+                // Update colors for all numbers
+                updateNumberColors();
+            }
+        });
+
+        // Check if this photo is already a cover photo and restore its state
+        if (listingData.photos[photoIndex].isCoverPhoto) {
+            numberEl.style.display = 'flex';
+            numberEl.textContent = listingData.photos[photoIndex].coverPhotoOrder.toString();
+            container.style.outline = '2px solid black';
+            container.style.outlineOffset = '-1px';
+            container.style.border = 'none';
+            numberEl.style.backgroundColor = listingData.photos.filter(p => p.isCoverPhoto).length === 5 ? '#90EE90' : 'white';
+        }
+    };
+
+    // Display all photos by iterating through them once
+    listingData.photos.forEach((photo, index) => {
+        let currentContainer;
+        if (index === 0) {
+            currentContainer = coverPhotosContainer;
+        } else {
+            currentContainer = coverPhotosContainer.cloneNode(true);
+            currentContainer.innerHTML = '';
+            coverPhotosContainer.parentNode.appendChild(currentContainer);
+        }
+
+        setupPhotoContainer(currentContainer, photo, index);
+    });
+
+    // Hide error initially 
+    if (coverPhotosError) {
+        coverPhotosError.style.display = 'none';
+    }
+    if (coverPhotosSubText) {
+        coverPhotosSubText.style.display = 'block';
+    }
+}
+
+// Function to initialize dock photos section
+function initializeDockPhotosStep() {
+    // Skip this step if no private dock
+    if (!listingData.dock.hasPrivateDock) {
+        const titleStepIndex = steps.indexOf('title');
+        if (titleStepIndex !== -1) {
+            goToStep(titleStepIndex + 1);
+        }
+        return;
+    }
+
+    let dockPhotosContainer = document.querySelector('[data-element="dockPhotos_photoContainer"]');
+    const dockPhotosError = document.getElementById('dockPhotos-error');
+    const dockPhotosSubText = document.getElementById('dockPhotos-subText');
+
+    if (!dockPhotosContainer) {
+        return;
+    }
+
+    // Remove any existing photo containers first
+    const existingContainers = document.querySelectorAll('[data-element="dockPhotos_photoContainer"]');
+    existingContainers.forEach((container, index) => {
+        if (index > 0) { // Keep the first container
+            container.remove();
+        }
+    });
+
+    // Create a fresh container to replace the original one
+    const newContainer = document.createElement('div');
+    newContainer.setAttribute('data-element', 'dockPhotos_photoContainer');
+    // Copy any existing styles or attributes from the original container
+    newContainer.className = dockPhotosContainer.className;
+    dockPhotosContainer.parentNode.replaceChild(newContainer, dockPhotosContainer);
+    dockPhotosContainer = newContainer;
+
+    // Create a reusable function to set up a photo container
+    const setupPhotoContainer = (container, photo, photoIndex) => {
+        const photoImage = document.createElement('img');
+        photoImage.setAttribute('data-element', 'dockPhotos_image');
+        photoImage.style.borderRadius = '5px';
+        container.appendChild(photoImage);
+
+        // Create number element with all styles applied directly
+        const numberEl = document.createElement('div');
+        numberEl.setAttribute('data-element', 'dockPhotos_number');
+        numberEl.className = 'dockPhotos_number';
+        numberEl.style.display = 'none';
+        numberEl.style.position = 'absolute';
+        numberEl.style.top = '8px';
+        numberEl.style.right = '8px';
+        numberEl.style.width = '30px';
+        numberEl.style.height = '30px';
+        numberEl.style.borderRadius = '100%';
+        numberEl.style.backgroundColor = 'white';
+        numberEl.style.border = '2px solid black';
+        numberEl.style.alignItems = 'center';
+        numberEl.style.justifyContent = 'center';
+        numberEl.style.fontSize = '15px';
+        numberEl.style.fontWeight = 'bold';
+        numberEl.style.color = 'black';
+        numberEl.style.fontFamily = 'Tt Fors, sans-serif';
+        numberEl.style.transition = 'all 0.3s ease';
+        numberEl.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+        container.appendChild(numberEl);
+
+        // Set photo source
+        photoImage.src = photo.dataUrl;
+
+        // Make container clickable
+        container.style.cursor = 'pointer';
+        container.style.position = 'relative';
+
+        // Function to update all number colors based on total selected
+        const updateNumberColors = () => {
+            const selectedDockPhotos = listingData.photos.filter(p => p.isDockPhoto).length;
+            const allNumberElements = document.querySelectorAll('[data-element="dockPhotos_number"]');
+            allNumberElements.forEach(el => {
+                if (el.style.display === 'flex') {
+                    el.style.backgroundColor = selectedDockPhotos === 2 ? '#90EE90' : 'white';
+                }
+            });
+        };
+
+        // Add click handler
+        container.addEventListener('click', () => {
+            const numberEl = container.querySelector('[data-element="dockPhotos_number"]');
+
+            // If already selected, remove from selection
+            if (numberEl.style.display === 'flex') {
+                numberEl.style.display = 'none';
+                numberEl.textContent = '';
+
+                // Remove dock photo property
+                delete listingData.photos[photoIndex].isDockPhoto;
+
+                // Update displayed numbers
+                const selectedPhotos = listingData.photos.filter(p => p.isDockPhoto);
+                selectedPhotos.forEach((_, idx) => {
+                    const selectedContainer = document.querySelector(`[data-element="dockPhotos_number"][style*="display: flex"]:nth-of-type(${idx + 1})`);
+                    if (selectedContainer) {
+                        selectedContainer.textContent = (idx + 1).toString();
+                    }
+                });
+
+                // Reset container border styles
+                container.style.outline = 'none';
+                container.style.border = '1px solid #e2e2e2';
+
+                // Update colors for all numbers
+                updateNumberColors();
+            }
+            // Add to selection if less than 2 photos selected
+            else if (listingData.photos.filter(p => p.isDockPhoto).length < 2) {
+                const selectedCount = listingData.photos.filter(p => p.isDockPhoto).length + 1;
+                numberEl.style.display = 'flex';
+                numberEl.textContent = selectedCount.toString();
+                container.style.outline = '2px solid black';
+                container.style.outlineOffset = '-1px';
+                container.style.border = 'none';
+
+                // Add dock photo property
+                listingData.photos[photoIndex].isDockPhoto = true;
+
+                // Update colors for all numbers
+                updateNumberColors();
+            }
+        });
+
+        // Check if this photo is already a dock photo and restore its state
+        if (listingData.photos[photoIndex].isDockPhoto) {
+            const selectedCount = listingData.photos.slice(0, photoIndex).filter(p => p.isDockPhoto).length + 1;
+            numberEl.style.display = 'flex';
+            numberEl.textContent = selectedCount.toString();
+            container.style.outline = '2px solid black';
+            container.style.outlineOffset = '-1px';
+            container.style.border = 'none';
+            numberEl.style.backgroundColor = listingData.photos.filter(p => p.isDockPhoto).length === 2 ? '#90EE90' : 'white';
+        }
+    };
+
+    // Display all photos by iterating through them once
+    listingData.photos.forEach((photo, index) => {
+        let currentContainer;
+        if (index === 0) {
+            currentContainer = dockPhotosContainer;
+        } else {
+            currentContainer = dockPhotosContainer.cloneNode(true);
+            currentContainer.innerHTML = '';
+            dockPhotosContainer.parentNode.appendChild(currentContainer);
+        }
+
+        setupPhotoContainer(currentContainer, photo, index);
+    });
+
+    // Hide error initially 
+    if (dockPhotosError) {
+        dockPhotosError.style.display = 'none';
+    }
+    if (dockPhotosSubText) {
+        dockPhotosSubText.style.display = 'block';
+    }
+}
+
+// Function to render all photos
+function renderPhotos() {
+    const photoContainerParent = document.querySelector('[data-element="photo_container_parent"]');
+    if (!photoContainerParent) return;
+
+    // Only show photo container when we have photos
+    photoContainerParent.style.display = listingData.photos.length ? 'grid' : 'none';
+
+    // Log photos array
+    console.log('Current photos:', listingData.photos);
+
+    // Clear existing photos
+    const allContainers = document.querySelectorAll('[data-element="photo_container_parent"]');
+    allContainers.forEach((container, idx) => {
+        if (idx > 0) container.remove();
+    });
+
+    // Render each photo
+    listingData.photos.forEach((photo, idx) => {
+        if (idx === 0) {
+            const firstImg = photoContainerParent.querySelector('[data-element="photo_container"]');
+            if (firstImg) {
+                firstImg.src = photo.url || photo.dataUrl;
+                setupPhotoAddedDeleteButton(photoContainerParent, 0);
+            }
+        } else {
+            const newParent = photoContainerParent.cloneNode(true);
+            const newImg = newParent.querySelector('[data-element="photo_container"]');
+            if (newImg) {
+                newImg.src = photo.url || photo.dataUrl;
+                setupPhotoAddedDeleteButton(newParent, idx);
+            }
+            photoContainerParent.parentNode.appendChild(newParent);
+        }
+    });
+}
+
 // Function to handle photo selection
 function handlePhotoSelection(event) {
     const files = event.target.files;
@@ -1090,7 +2339,10 @@ function handlePhotoSelection(event) {
             listingData.photos.push({
                 dataUrl: e.target.result,
                 url: url,
-                fileExtension: fileExtension
+                fileExtension: fileExtension,
+                isCoverPhoto: false,
+                coverPhotoOrder: null,
+                isDockPhoto: false
             });
 
             // Render all photos after adding new one
@@ -1106,6 +2358,811 @@ function handlePhotoSelection(event) {
 
     // Clear the file input value to prevent auto-reopening
     event.target.value = '';
+}
+
+// Function to validate dock photos selection
+function validateDockPhotos() {
+    const dockPhotosError = document.getElementById('dockPhotos-error');
+    const dockPhotosSubText = document.getElementById('dockPhotos-subText');
+
+    // Skip validation if dock photos not required
+    if (!listingData.dock.hasPrivateDock) {
+        return true;
+    }
+
+    // Only validate if user has attempted to leave
+    if (!hasAttemptedToLeave.dockPhotos) {
+        return true;
+    }
+
+    // Count photos marked as dock photos
+    const dockPhotoCount = listingData.photos.filter(photo => photo.isDockPhoto).length;
+
+    // Hide error and show subtext if 2 photos selected
+    if (dockPhotoCount === 2) {
+        if (dockPhotosError) {
+            dockPhotosError.style.display = 'none';
+        }
+        if (dockPhotosSubText) {
+            dockPhotosSubText.style.display = 'block';
+        }
+        return true;
+    }
+
+    // Show error and hide subtext if less than 2 photos
+    if (dockPhotosError) {
+        const remainingPhotos = 2 - dockPhotoCount;
+        const photoText = remainingPhotos === 1 ? 'photo' : 'photos';
+        dockPhotosError.textContent = `Please select ${remainingPhotos} more ${photoText} to continue`;
+        dockPhotosError.style.display = 'block';
+        if (dockPhotosSubText) {
+            dockPhotosSubText.style.display = 'none';
+        }
+    }
+    return false;
+}
+
+// Function to validate cover photos selection
+function validateCoverPhotos() {
+    const coverPhotosError = document.getElementById('coverPhotos-error');
+    const coverPhotosSubText = document.getElementById('coverPhotos-subText');
+
+    // Only validate if user has attempted to leave
+    if (!hasAttemptedToLeave.coverPhotos) {
+        return true;
+    }
+
+    // Count photos marked as cover photos with valid order 1-5
+    const coverPhotoCount = listingData.photos.filter(photo =>
+        photo.isCoverPhoto &&
+        photo.coverPhotoOrder >= 1 &&
+        photo.coverPhotoOrder <= 5
+    ).length;
+
+    // Hide error and show subtext if 5 cover photos selected
+    if (coverPhotoCount === 5) {
+        if (coverPhotosError) {
+            coverPhotosError.style.display = 'none';
+        }
+        if (coverPhotosSubText) {
+            coverPhotosSubText.style.display = 'block';
+        }
+        return true;
+    }
+
+    // Show error and hide subtext if less than 5 cover photos
+    if (coverPhotosError) {
+        const remainingPhotos = 5 - coverPhotoCount;
+        const photoText = remainingPhotos === 1 ? 'photo' : 'photos';
+        coverPhotosError.textContent = `Please select ${remainingPhotos} more ${photoText} to continue`;
+        coverPhotosError.style.display = 'block';
+        if (coverPhotosSubText) {
+            coverPhotosSubText.style.display = 'none';
+        }
+    }
+    return false;
+}
+
+// Function to setup delete button for a photo
+function setupPhotoAddedDeleteButton(containerParent, photoIndex) {
+    const deleteButton = containerParent.querySelector('[data-element="deletePhotoAdded"]');
+    if (!deleteButton) return;
+
+    deleteButton.style.cursor = 'pointer';
+    deleteButton.onclick = (e) => {
+        e.stopPropagation();
+
+        // Remove photo from listingData array
+        listingData.photos.splice(photoIndex, 1);
+
+        // If no photos left, reset the UI
+        if (listingData.photos.length === 0) {
+            resetPhotoUI();
+        } else {
+            // Rerender all photos
+            renderPhotos();
+        }
+
+        // Revalidate if user has attempted to leave
+        if (hasAttemptedToLeave.photos) {
+            validatePhotos();
+        }
+    };
+}
+
+// Function to reset photo UI to initial state
+function resetPhotoUI() {
+    const addPhotosContainer = document.getElementById('addPhotosButton_Container');
+    const addPhotosButton2 = document.getElementById('addPhotosButton2');
+    const photoContainerParent = document.querySelector('[data-element="photo_container_parent"]');
+    const photoContainer = document.querySelector('[data-element="photo_container"]');
+
+    if (addPhotosContainer) {
+        addPhotosContainer.style.display = 'flex';
+        addPhotosContainer.style.flexDirection = 'column';
+        addPhotosContainer.style.gap = '15px';
+    }
+
+    if (addPhotosButton2) {
+        addPhotosButton2.style.display = 'none';
+    }
+
+    if (photoContainerParent) {
+        photoContainerParent.style.display = 'none';
+    }
+
+    if (photoContainer) {
+        photoContainer.src = '';
+    }
+}
+
+// Function to validate photos
+function validatePhotos() {
+    const photosError = document.getElementById('photos-error');
+    const photosSubText = document.getElementById('photos-subText');
+    const minPhotos = 5;
+    const currentPhotoCount = listingData.photos.length;
+    const isValid = currentPhotoCount >= minPhotos;
+
+    if (!isValid && hasAttemptedToLeave.photos) {
+        const remainingPhotos = minPhotos - currentPhotoCount;
+        if (photosError && photosSubText) {
+            photosError.textContent = `Please add ${remainingPhotos} more photo${remainingPhotos > 1 ? 's' : ''} to continue`;
+            photosError.style.display = 'block';
+            photosSubText.style.display = 'none';
+        }
+    } else {
+        if (photosError && photosSubText) {
+            photosError.style.display = 'none';
+            photosSubText.style.display = 'block';
+        }
+    }
+
+    return isValid;
+}
+
+// Counter logic for the "basics" step
+function initializeCounters() {
+    let counters = {
+        guests: listingData.basics.guests || 0,
+        bedrooms: listingData.basics.bedrooms || 0,
+        baths: listingData.basics.baths || 0,
+        beds: listingData.basics.beds || 0
+    };
+
+    const plusButtons = {
+        guests: document.getElementById('plus-button1'),
+        bedrooms: document.getElementById('plus-button2'),
+        baths: document.getElementById('plus-button3'),
+        beds: document.getElementById('plus-button4')
+    };
+
+    const minusButtons = {
+        guests: document.getElementById('minus-button1'),
+        bedrooms: document.getElementById('minus-button2'),
+        baths: document.getElementById('minus-button3'),
+        beds: document.getElementById('minus-button4')
+    };
+
+    const textFields = {
+        guests: document.getElementById('guests-text'),
+        bedrooms: document.getElementById('bedrooms-text'),
+        baths: document.getElementById('baths-text'),
+        beds: document.getElementById('beds-text')
+    };
+
+    setupSVGButtons();
+    updateAllButtonStates();
+
+    // Add event listeners for plus and minus buttons
+    Object.keys(plusButtons).forEach(type => {
+        plusButtons[type].addEventListener('click', () => handleIncrement(type));
+    });
+
+    Object.keys(minusButtons).forEach(type => {
+        minusButtons[type].addEventListener('click', () => handleDecrement(type));
+    });
+
+    function handleIncrement(type) {
+        counters[type]++;
+        listingData.basics[type] = counters[type]; // Save to basics object
+        updateCounterDisplay(type);
+        updateAllButtonStates();
+        if (hasAttemptedToLeave.basics) {
+            validateBasics();
+        }
+    }
+
+    function handleDecrement(type) {
+        if (counters[type] > 0) {
+            counters[type]--;
+            listingData.basics[type] = counters[type]; // Save to basics object
+            updateCounterDisplay(type);
+            updateAllButtonStates();
+            if (hasAttemptedToLeave.basics) {
+                validateBasics();
+            }
+        }
+    }
+
+    function updateCounterDisplay(type) {
+        textFields[type].textContent = counters[type];
+    }
+
+    function updateAllButtonStates() {
+        Object.keys(counters).forEach(type => {
+            // Disable minus button if the counter is 0
+            if (counters[type] <= 0) {
+                minusButtons[type].disabled = true;
+                minusButtons[type].style.opacity = '0.3';
+            } else {
+                minusButtons[type].disabled = false;
+                minusButtons[type].style.opacity = '1';
+            }
+
+            // Plus buttons will always be enabled since there's no max limit
+            plusButtons[type].style.opacity = '1';
+        });
+    }
+
+    function setupSVGButtons() {
+        const svgPlus = `
+            <svg width="30" height="30" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="15" cy="15" r="14" fill="none" stroke="#808080" stroke-width="1"></circle>
+                <rect x="9" y="14" width="12" height="2" rx="2" fill="#808080"></rect>
+                <rect x="14" y="9" width="2" height="12" rx="2" fill="#808080"></rect>
+            </svg>
+        `;
+        const svgMinus = `
+            <svg width="30" height="30" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="15" cy="15" r="14" fill="none" stroke="#808080" stroke-width="1"></circle>
+                <rect x="9" y="14" width="12" height="2" rx="2" fill="#808080"></rect>
+            </svg>
+        `;
+
+        Object.values(plusButtons).forEach(button => button.innerHTML = svgPlus);
+        Object.values(minusButtons).forEach(button => button.innerHTML = svgMinus);
+    }
+}
+
+
+
+// Function to initialize dock step
+function initializeDockStep() {
+    const dockOptions = {
+        yes: document.querySelector('[data-element="dock_yes"]'),
+        no: document.querySelector('[data-element="dock_no"]')
+    };
+
+    const dockInputContainer = document.querySelector('[data-element="dock_input_container"]');
+    const dockButtonsContainer = document.querySelector('[data-element="dock_buttons_container"]');
+    const dockError = document.getElementById('dock-error');
+    const dockSubText = document.getElementById('dock-subText');
+
+    // Get dock input fields
+    const boatSizeInput = document.querySelector('[data-element="dock_input_boatSize"]');
+    const beamInput = document.querySelector('[data-element="dock_input_beam"]');
+    const clearanceInput = document.querySelector('[data-element="dock_input_clearance"]');
+    const dockMaterialInput = document.querySelector('[data-element="dock_input_dockMaterial"]');
+    const dockDrawInput = document.querySelector('[data-element="dock_input_draw"]');
+
+    // Get dock button options
+    const dockButtonOptions = {
+        shorePower: document.querySelector('[data-element="dock_buttons_shorePower"]'),
+        freshWater: document.querySelector('[data-element="dock_buttons_freshWater"]'),
+        cleaningStation: document.querySelector('[data-element="dock_buttons_cleaningStation"]'),
+        dockLight: document.querySelector('[data-element="dock_buttons_dockLight"]'),
+        underwaterLight: document.querySelector('[data-element="dock_buttons_underwaterLight"]')
+    };
+
+    // Initialize selected buttons array if not exists
+    listingData.dock.selectedButtons = listingData.dock.selectedButtons || [];
+
+    // Set up numeric input validation and formatting
+    const setupNumericInput = (input, field) => {
+        if (input) {
+            input.addEventListener('input', (e) => {
+                e.target.value = e.target.value.replace(/[^0-9]/g, '');
+                if (e.target.value) {
+                    listingData.dock[field] = `${e.target.value} ft`;
+                } else {
+                    listingData.dock[field] = '';
+                }
+            });
+
+            // Set initial value from listingData if exists
+            if (listingData.dock[field]) {
+                input.value = listingData.dock[field].replace(' ft', '');
+            }
+        }
+    };
+
+    setupNumericInput(boatSizeInput, 'boatSize');
+    setupNumericInput(beamInput, 'beam');
+    setupNumericInput(clearanceInput, 'clearance');
+    setupNumericInput(dockDrawInput, 'draw');
+
+    // Set up dock material input
+    if (dockMaterialInput) {
+        dockMaterialInput.addEventListener('input', (e) => {
+            e.target.value = e.target.value.replace(/[^a-zA-Z\s]/g, '');
+            if (e.target.value.length > 0) {
+                e.target.value = e.target.value.charAt(0).toUpperCase() + e.target.value.slice(1);
+                listingData.dock.dockMaterial = e.target.value;
+            } else {
+                listingData.dock.dockMaterial = '';
+            }
+        });
+
+        // Set initial dock material value if exists
+        if (listingData.dock.dockMaterial) {
+            dockMaterialInput.value = listingData.dock.dockMaterial;
+        }
+    }
+
+    // Hide error message and containers initially
+    if (dockError) dockError.style.display = 'none';
+    if (dockSubText) dockSubText.style.display = 'block';
+    if (dockInputContainer) dockInputContainer.style.display = 'none';
+    if (dockButtonsContainer) dockButtonsContainer.style.display = 'none';
+
+    // Set up click handlers for dock options
+    Object.entries(dockOptions).forEach(([option, button]) => {
+        if (button) {
+            // Remove existing click listeners
+            const newButton = button.cloneNode(true);
+            button.parentNode.replaceChild(newButton, button);
+            dockOptions[option] = newButton;
+
+            newButton.addEventListener('click', () => {
+                // Reset styles for all buttons
+                Object.values(dockOptions).forEach(btn => {
+                    if (btn) {
+                        btn.classList.remove('selected');
+                        btn.style.outline = '';
+                        btn.style.outlineOffset = '';
+                    }
+                });
+
+                // Style selected button
+                newButton.classList.add('selected');
+                newButton.style.outline = '2px solid #000000';
+                newButton.style.outlineOffset = '-1px';
+
+                // Update listingData
+                listingData.dock.hasPrivateDock = (option === 'yes');
+
+                // Show/hide containers based on selection
+                if (dockInputContainer && dockButtonsContainer) {
+                    if (option === 'yes') {
+                        dockInputContainer.style.display = 'flex';
+                        dockButtonsContainer.style.display = 'flex';
+
+                        setTimeout(() => {
+                            dockInputContainer.scrollIntoView({
+                                behavior: 'smooth',
+                                block: 'start'
+                            });
+                        }, 100);
+                    } else {
+                        dockInputContainer.style.display = 'none';
+                        dockButtonsContainer.style.display = 'none';
+                        // Clear all dock-related data
+                        listingData.dock = {
+                            hasPrivateDock: false,
+                            selectedButtons: [],
+                            boatSize: '',
+                            beam: '',
+                            clearance: '',
+                            dockMaterial: '',
+                            draw: ''
+                        };
+                        // Reset all button styles
+                        Object.values(dockButtonOptions).forEach(btn => {
+                            if (btn) {
+                                btn.classList.remove('selected');
+                                btn.style.outline = '';
+                                btn.style.outlineOffset = '';
+                            }
+                        });
+                    }
+                }
+
+                // Validate after selection
+                validateDock();
+            });
+        }
+    });
+
+    // Set up click handlers for dock button options
+    const buttonLabels = {
+        shorePower: "Shore power",
+        freshWater: "Fresh water hookup",
+        cleaningStation: "Cleaning station",
+        dockLight: "Dock light",
+        underwaterLight: "Underwater light"
+    };
+
+    Object.entries(dockButtonOptions).forEach(([option, button]) => {
+        if (button) {
+            // Remove existing click listeners
+            const newButton = button.cloneNode(true);
+            button.parentNode.replaceChild(newButton, button);
+            dockButtonOptions[option] = newButton;
+
+            newButton.addEventListener('click', () => {
+                const isSelected = newButton.classList.contains('selected');
+
+                if (isSelected) {
+                    newButton.classList.remove('selected');
+                    newButton.style.outline = '';
+                    newButton.style.outlineOffset = '';
+
+                    const index = listingData.dock.selectedButtons.indexOf(buttonLabels[option]);
+                    if (index > -1) {
+                        listingData.dock.selectedButtons.splice(index, 1);
+                    }
+                } else {
+                    newButton.classList.add('selected');
+                    newButton.style.outline = '2px solid #000000';
+                    newButton.style.outlineOffset = '-1px';
+
+                    listingData.dock.selectedButtons.push(buttonLabels[option]);
+                }
+            });
+        }
+    });
+
+    // Initialize state if there's existing data
+    if (listingData.dock.hasPrivateDock !== null) {
+        const selectedOption = listingData.dock.hasPrivateDock ? 'yes' : 'no';
+        const selectedButton = dockOptions[selectedOption];
+        if (selectedButton) {
+            selectedButton.click();
+        }
+
+        // Restore selected dock buttons
+        if (listingData.dock.hasPrivateDock) {
+            listingData.dock.selectedButtons.forEach(label => {
+                const option = Object.keys(buttonLabels).find(key => buttonLabels[key] === label);
+                if (option && dockButtonOptions[option]) {
+                    dockButtonOptions[option].classList.add('selected');
+                    dockButtonOptions[option].style.outline = '2px solid #000000';
+                    dockButtonOptions[option].style.outlineOffset = '-1px';
+                }
+            });
+        }
+    }
+}
+
+// Function to initialize title step
+function initializeTitleStep() {
+    const descriptionInputField = document.querySelector('[data-element="title_input"]');
+    const characterCount = document.getElementById('titleInputField_characterCount');
+    const titleError = document.getElementById('title-error');
+    const titleSubText = document.getElementById('title-subText');
+    const maxChars = 35;
+
+    // Always show subtext if error is not visible
+    if (titleError && titleSubText) {
+        if (titleError.style.display === 'none') {
+            titleSubText.style.display = 'block';
+        }
+    }
+
+    if (descriptionInputField) {
+        // Set the contentEditable attribute to true
+        descriptionInputField.contentEditable = true;
+
+        // Set styles to ensure text wraps and aligns correctly
+        descriptionInputField.style.whiteSpace = 'pre-wrap';
+        descriptionInputField.style.textAlign = 'left';
+        descriptionInputField.style.height = '250px';
+        descriptionInputField.style.overflowY = 'auto';
+        descriptionInputField.style.boxSizing = 'border-box';
+        descriptionInputField.style.padding = '10px';
+        descriptionInputField.style.outline = 'none';
+        descriptionInputField.style.caretColor = 'auto'; // Ensure cursor is always visible
+
+        // Initialize character count display with existing text if any
+        const existingText = listingData.title || '';
+        if (characterCount) {
+            characterCount.textContent = `${existingText.length}/${maxChars}`;
+        }
+
+        // Set existing text if any and place cursor at end
+        if (existingText) {
+            descriptionInputField.innerText = existingText;
+            // Create a range at the end of the content
+            const range = document.createRange();
+            const selection = window.getSelection();
+            range.selectNodeContents(descriptionInputField);
+            range.collapse(false); // false means collapse to end
+            selection.removeAllRanges();
+            selection.addRange(range);
+        }
+
+        // Add an event listener to handle input changes
+        descriptionInputField.addEventListener('input', () => {
+            // Get text content without trimming to preserve spaces
+            const text = descriptionInputField.innerText;
+            const currentLength = text.trim().length;
+
+            // Update character count display and input styling
+            if (characterCount) {
+                characterCount.textContent = `${currentLength}/${maxChars}`; // Update character count
+                const isOverLimit = currentLength > maxChars;
+                characterCount.style.color = isOverLimit ? 'red' : 'grey'; // Change color if over limit
+
+                // Update input field styling when over limit
+                descriptionInputField.style.color = isOverLimit ? 'red' : ''; // Make text red if over limit
+                descriptionInputField.style.border = isOverLimit ? '1px solid red' : ''; // Add red border if over limit
+            }
+
+            // Store the title in listingData
+            listingData.title = text.trim();
+        });
+
+        // Always set initial focus to make cursor visible
+        descriptionInputField.focus();
+
+        // Ensure cursor is always visible by adding click handler
+        descriptionInputField.addEventListener('click', () => {
+            descriptionInputField.focus();
+        });
+
+        // Keep focus when field is empty
+        descriptionInputField.addEventListener('blur', () => {
+            if (!descriptionInputField.innerText.trim()) {
+                descriptionInputField.focus();
+            }
+        });
+    }
+}
+
+// Function to initialize description step
+function initializeDescriptionStep() {
+    const descriptionInputField = document.querySelector('[data-element="description_input"]');
+    const characterCount = document.getElementById('descriptionInputField_characterCount');
+    const descriptionError = document.getElementById('description-error');
+    const descriptionSubText = document.getElementById('description-subText');
+    const maxChars = 4000;
+
+    if (descriptionInputField) {
+        // Set the contentEditable attribute to true
+        descriptionInputField.contentEditable = true;
+
+        // Set styles to ensure text wraps and aligns correctly
+        descriptionInputField.style.whiteSpace = 'pre-wrap';
+        descriptionInputField.style.textAlign = 'left';
+        descriptionInputField.style.height = '250px';
+        descriptionInputField.style.overflowY = 'auto';
+        descriptionInputField.style.boxSizing = 'border-box';
+        descriptionInputField.style.padding = '10px';
+        descriptionInputField.style.outline = 'none';
+        descriptionInputField.style.caretColor = 'auto'; // Ensure cursor is always visible
+
+        // Initialize character count display with existing text if any
+        const existingText = listingData.description || '';
+        if (characterCount) {
+            characterCount.textContent = `${existingText.length}/${maxChars}`;
+        }
+        // Set existing text if any and place cursor at end
+        if (existingText) {
+            descriptionInputField.innerText = existingText;
+            // Create a range at the end of the content
+            const range = document.createRange();
+            const selection = window.getSelection();
+            range.selectNodeContents(descriptionInputField);
+            range.collapse(false); // false means collapse to end
+            selection.removeAllRanges();
+            selection.addRange(range);
+        }
+
+        // Add an event listener to handle input changes
+        descriptionInputField.addEventListener('input', () => {
+            // Get text content without trimming to preserve spaces
+            const text = descriptionInputField.innerText;
+            const currentLength = text.trim().length;
+
+            // Update character count display and input styling
+            if (characterCount) {
+                characterCount.textContent = `${currentLength}/${maxChars}`; // Update character count
+                const isOverLimit = currentLength > maxChars;
+                characterCount.style.color = isOverLimit ? 'red' : 'grey'; // Change color if over limit
+
+                // Update input field styling when over limit
+                descriptionInputField.style.color = isOverLimit ? 'red' : ''; // Make text red if over limit
+                descriptionInputField.style.border = isOverLimit ? '1px solid red' : ''; // Add red border if over limit
+            }
+
+            // Store the description in listingData
+            listingData.description = text.trim();
+        });
+
+        // Always set initial focus to make cursor visible
+        descriptionInputField.focus();
+
+        // Ensure cursor is always visible by adding click handler
+        descriptionInputField.addEventListener('click', () => {
+            descriptionInputField.focus();
+        });
+
+        // Keep focus when field is empty
+        descriptionInputField.addEventListener('blur', () => {
+            if (!descriptionInputField.innerText.trim()) {
+                descriptionInputField.focus();
+            }
+        });
+    }
+}
+
+// Function to initialize pricing step
+function initializePricingStep() {
+    const priceInput = document.querySelector('[data-element="setPriceInput"]');
+    if (priceInput) {
+        // Remove default focus outline/border for all browsers
+        priceInput.style.outline = 'none';
+        priceInput.style.border = 'none';
+        priceInput.style['-webkit-appearance'] = 'none';
+        priceInput.style['-moz-appearance'] = 'none';
+        priceInput.style['-ms-appearance'] = 'none';
+        priceInput.style.appearance = 'none';
+
+        // Set initial value if exists in listingData
+        if (listingData.price) {
+            priceInput.value = `$${listingData.price}`;
+        }
+
+        priceInput.addEventListener('focus', () => {
+            if (!priceInput.value.startsWith('$')) {
+                priceInput.value = '$' + priceInput.value;
+            }
+        });
+
+        priceInput.addEventListener('input', (e) => {
+            let value = e.target.value;
+
+            // Ensure $ is always at start
+            if (!value.startsWith('$')) {
+                value = '$' + value;
+            }
+
+            // Remove non-numeric characters except leading $
+            value = '$' + value.replace(/[^\d]/g, '');
+
+            e.target.value = value;
+
+            // Store numeric value without $ in listingData
+            listingData.price = value.substring(1);
+
+            if (hasAttemptedToLeave.pricing) {
+                validatePricing();
+            }
+        });
+
+        // Prevent backspace/delete from removing $
+        priceInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Backspace' || e.key === 'Delete') {
+                const cursorPosition = priceInput.selectionStart;
+                if (cursorPosition <= 1) {
+                    e.preventDefault();
+                }
+            }
+        });
+    }
+}
+
+// Function to initialize cleaning fee step
+function initializeCleaningFeeStep() {
+    const cleaningFeeInput = document.querySelector('[data-element="setCleaningFeeInput"]');
+    if (cleaningFeeInput) {
+        // Remove default focus outline/border for all browsers
+        cleaningFeeInput.style.outline = 'none';
+        cleaningFeeInput.style.border = 'none';
+        cleaningFeeInput.style['-webkit-appearance'] = 'none';
+        cleaningFeeInput.style['-moz-appearance'] = 'none';
+        cleaningFeeInput.style['-ms-appearance'] = 'none';
+        cleaningFeeInput.style.appearance = 'none';
+
+        // Set initial value if exists in listingData
+        if (listingData.cleaningFee) {
+            cleaningFeeInput.value = `$${listingData.cleaningFee}`;
+        }
+
+        cleaningFeeInput.addEventListener('focus', () => {
+            if (!cleaningFeeInput.value.startsWith('$')) {
+                cleaningFeeInput.value = '$' + cleaningFeeInput.value;
+            }
+        });
+
+        cleaningFeeInput.addEventListener('input', (e) => {
+            let value = e.target.value;
+
+            // Ensure $ is always at start
+            if (!value.startsWith('$')) {
+                value = '$' + value;
+            }
+
+            // Remove non-numeric characters except leading $
+            value = '$' + value.replace(/[^\d]/g, '');
+
+            e.target.value = value;
+
+            // Store numeric value without $ in listingData
+            listingData.cleaningFee = value.substring(1);
+
+            if (hasAttemptedToLeave.cleaningFee) {
+                validateCleaningFee();
+            }
+        });
+
+        // Prevent backspace/delete from removing $
+        cleaningFeeInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Backspace' || e.key === 'Delete') {
+                const cursorPosition = cleaningFeeInput.selectionStart;
+                if (cursorPosition <= 1) {
+                    e.preventDefault();
+                }
+            }
+        });
+    }
+}
+
+// Function to initialize min nights step
+function initializeMinNightsStep() {
+    const minNightsButtons = {
+        'noMinimum': document.getElementById('minNights_noMinimum'),
+        '3': document.getElementById('minNights_3'),
+        '5': document.getElementById('minNights_5'),
+        '7': document.getElementById('minNights_7'),
+        '14': document.getElementById('minNights_14'),
+        '30': document.getElementById('minNights_30'),
+        '60': document.getElementById('minNights_60'),
+        '90': document.getElementById('minNights_90')
+    };
+
+    // Function to update button styles
+    function updateButtonStyles(selectedButton) {
+        Object.values(minNightsButtons).forEach(button => {
+            if (button) {
+                if (button === selectedButton) {
+                    button.style.outline = '2px solid black';
+                    button.style.outlineOffset = '-1px';
+                } else {
+                    button.style.outline = '';
+                    button.style.outlineOffset = '';
+                }
+            }
+        });
+    }
+
+    // Add click handlers for all buttons
+    Object.entries(minNightsButtons).forEach(([value, button]) => {
+        if (button) {
+            button.addEventListener('click', () => {
+                // Update listingData
+                listingData.minNights = value === 'noMinimum' ? 1 : parseInt(value);
+
+                // Update button styles
+                updateButtonStyles(button);
+
+                // Revalidate if user has attempted to leave
+                if (hasAttemptedToLeave.minNights) {
+                    validateMinNights();
+                }
+            });
+        }
+    });
+
+    // Set initial selection if exists in listingData
+    if (listingData.minNights !== null) {
+        const value = listingData.minNights === 1 ? 'noMinimum' : listingData.minNights.toString();
+        const button = minNightsButtons[value];
+        if (button) {
+            updateButtonStyles(button);
+        }
+    }
 }
 
 // Function to initialize rules step
@@ -1394,6 +3451,47 @@ function initializeRulesStep() {
     }
 }
 
+function initializeReviewInfoStep() {
+    // Set cover photo
+    const reviewImage = document.querySelector('[data-element="reviewInfo_image"]');
+    const coverPhoto = listingData.photos.find(photo => photo.isCoverPhoto && photo.coverPhotoOrder === 1);
+    if (reviewImage && coverPhoto) {
+        reviewImage.src = coverPhoto.dataUrl;
+    }
+
+    // Set title
+    const reviewTitle = document.querySelector('[data-element="reviewInfo_title"]');
+    if (reviewTitle) {
+        reviewTitle.textContent = listingData.title;
+    }
+
+    // Set location
+    const reviewLocation = document.querySelector('[data-element="reviewInfo_location"]');
+    if (reviewLocation) {
+        reviewLocation.textContent = listingData.address.cityState;
+    }
+
+    // Calculate dates and total
+    const reviewDateTotal = document.querySelector('[data-element="reviewInfo_dateTotal"]');
+    if (reviewDateTotal) {
+        const startDate = new Date();
+        const nights = Math.max(7, listingData.minNights || 7);
+        const endDate = new Date(startDate);
+        endDate.setDate(endDate.getDate() + nights);
+
+        const formatDate = (date) => {
+            return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        };
+
+        const pricePerNight = parseFloat(listingData.price) || 0;
+        const cleaningFee = parseFloat(listingData.cleaningFee) || 0;
+        const subtotal = (pricePerNight * nights) + cleaningFee;
+        const total = subtotal * 1.1;
+
+        reviewDateTotal.textContent = `${formatDate(startDate)} - ${formatDate(endDate)} • $${total.toLocaleString()}`;
+    }
+}
+
 // Function to validate rules
 function validateRules() {
     let errors = [];
@@ -1459,173 +3557,6 @@ function validateRules() {
     return isValid;
 }
 
-
-function updateAddressSelection() {
-    const confirmSuggestedContainer = document.getElementById("confirmSuggestedAddress_Container");
-    const confirmEnteredContainer = document.getElementById("confirmEnteredAddress_Container");
-
-    if (confirmSuggestedContainer && confirmEnteredContainer) {
-        if (selectedAddressType === 'suggested') {
-            confirmSuggestedContainer.style.backgroundColor = '#9ecaff';
-            confirmSuggestedContainer.style.boxShadow = '0 0 15px rgba(0, 0, 0, 0.2)';
-            confirmEnteredContainer.style.backgroundColor = '';
-            confirmEnteredContainer.style.boxShadow = '';
-        } else {
-            confirmEnteredContainer.style.backgroundColor = '#9ecaff';
-            confirmEnteredContainer.style.boxShadow = '0 0 15px rgba(0, 0, 0, 0.2)';
-            confirmSuggestedContainer.style.backgroundColor = '';
-            confirmSuggestedContainer.style.boxShadow = '';
-        }
-    }
-}
-
-
-function validateLocation() {
-    return new Promise((resolve) => {
-        const addressLine1Input = document.getElementById("addressLine1-input");
-        const addressLine2Input = document.getElementById("addressLine2-input");
-        const addressCityInput = document.getElementById("addressCity-input");
-        const addressStateInput = document.getElementById("addressState-input");
-        const addressZipcodeInput = document.getElementById("addressZipcode-input");
-        const locationError = document.getElementById('location-error');
-        const locationSubText = document.getElementById('location-subText');
-
-        // Check only for addressLine1, city, state and zip as required fields
-        const requiredFields = [addressLine1Input, addressCityInput, addressStateInput, addressZipcodeInput];
-        const hasEmptyFields = requiredFields.some(input => !input.value.trim());
-
-        console.log('Validating location fields:');
-        console.log('Address Line 1:', addressLine1Input?.value || 'empty');
-        console.log('Address Line 2:', addressLine2Input?.value || 'empty');
-        console.log('City:', addressCityInput?.value || 'empty');
-        console.log('State:', addressStateInput?.value || 'empty');
-        console.log('Zipcode:', addressZipcodeInput?.value || 'empty');
-
-        // Florida Keys ZIP codes
-        const keysZipCodes = ['33001', '33036', '33037', '33040', '33041', '33042', '33043', '33044', '33045', '33050', '33051', '33052', '33070'];
-
-        // Check if zipcode is in Florida Keys
-        const isKeysZipcode = keysZipCodes.includes(addressZipcodeInput?.value?.trim());
-        console.log('Is Florida Keys ZIP code:', isKeysZipcode);
-
-        if (hasEmptyFields) {
-            console.log('Empty required fields detected');
-            if (locationError && hasAttemptedToLeave.location) {
-                locationError.textContent = "Please fill in all required fields";
-                locationError.style.display = 'block';
-                highlightInvalidInputs(requiredFields.filter(input => !input.value.trim()));
-                if (locationSubText) locationSubText.style.display = 'none';
-            }
-            resolve(false);
-            return;
-        }
-
-        if (!isKeysZipcode) {
-            console.log('Not a Florida Keys ZIP code');
-            if (locationError && hasAttemptedToLeave.location) {
-                locationError.textContent = "Please enter a valid Florida Keys ZIP code";
-                locationError.style.display = 'block';
-                highlightInvalidInputs([addressZipcodeInput]);
-                if (locationSubText) locationSubText.style.display = 'none';
-            }
-            resolve(false);
-            return;
-        }
-
-        // Update listingData with entered address
-        listingData.address.addressLine1 = addressLine1Input.value;
-        listingData.address.addressLine2 = `${addressCityInput.value}, ${addressStateInput.value === 'Florida' ? 'FL' : addressStateInput.value} ${addressZipcodeInput.value}`;
-        listingData.address.cityState = `${addressCityInput.value}, ${addressStateInput.value}`;
-
-        // Build address object with available data
-        const address = {
-            address: {
-                addressLines: [addressLine1Input.value],
-                locality: addressCityInput.value,
-                administrativeArea: addressStateInput.value === 'Florida' ? 'FL' : addressStateInput.value,
-                postalCode: addressZipcodeInput.value,
-                regionCode: "US"
-            }
-        };
-
-        // Add addressLine2 if it has a value
-        if (addressLine2Input?.value.trim()) {
-            address.address.addressLines.push(addressLine2Input.value);
-        }
-
-        console.log('Sending address to Google API:', address);
-
-        // Validate with Google API
-        validateAddressWithGoogle(address).then(result => {
-            console.log('Google API response:', result);
-            if (result.isValid) {
-                // Show suggested address in confirmLocation step
-                const confirmSuggestedAddress = document.getElementById("confirmSuggestedAddress");
-                const confirmEnteredAddress = document.getElementById("confirmEnteredAddress");
-                const confirmSuggestedContainer = document.getElementById("confirmSuggestedAddress_Container");
-                const confirmEnteredContainer = document.getElementById("confirmEnteredAddress_Container");
-
-                // Set addressVerified to true since we've validated the address
-                listingData.addressVerified = true;
-
-                if (confirmSuggestedAddress) {
-                    confirmSuggestedAddress.textContent = result.formattedAddress;
-                }
-
-                if (confirmEnteredAddress) {
-                    // Format entered address similar to Google's format
-                    let enteredAddress = addressLine1Input.value;
-                    if (addressLine2Input?.value.trim()) {
-                        enteredAddress += ` ${addressLine2Input.value}`;
-                    }
-                    enteredAddress += `, ${addressCityInput.value}, ${addressStateInput.value} ${addressZipcodeInput.value}, USA`;
-                    confirmEnteredAddress.textContent = enteredAddress;
-                }
-
-                // Add click handlers for address selection
-                if (confirmSuggestedContainer && confirmEnteredContainer) {
-                    // Set initial clicked state on suggested address
-                    selectedAddressType = 'suggested';
-                    updateAddressSelection();
-
-                    confirmSuggestedContainer.onclick = () => {
-                        selectedAddressType = 'suggested';
-                        // Update listingData with suggested address
-                        const addressParts = result.formattedAddress.split(',').map(part => part.trim());
-                        listingData.address.addressLine1 = addressParts[0];
-                        listingData.address.addressLine2 = addressParts.slice(1).join(',').trim();
-                        listingData.address.cityState = `${addressParts[1]}, ${addressParts[2].split(' ')[0]}`;
-                        updateAddressSelection();
-                    };
-
-                    confirmEnteredContainer.onclick = () => {
-                        selectedAddressType = 'entered';
-                        // Revert to originally entered address if user switches back
-                        listingData.address.addressLine1 = addressLine1Input.value;
-                        listingData.address.addressLine2 = `${addressCityInput.value}, ${addressStateInput.value === 'Florida' ? 'FL' : addressStateInput.value} ${addressZipcodeInput.value}`;
-                        listingData.address.cityState = `${addressCityInput.value}, ${addressStateInput.value}`;
-                        updateAddressSelection();
-                    };
-                }
-
-                if (locationError) locationError.style.display = 'none';
-                resetInputStyles([addressLine1Input, addressLine2Input, addressCityInput, addressStateInput, addressZipcodeInput]);
-                if (locationSubText) locationSubText.style.display = 'block';
-                resolve(true);
-            } else {
-                console.log('Address validation failed');
-                if (locationError && hasAttemptedToLeave.location) {
-                    locationError.textContent = "Please enter a valid address";
-                    locationError.style.display = 'block';
-                    if (locationSubText) locationSubText.style.display = 'none';
-                }
-                resolve(false);
-            }
-        });
-    });
-}
-
-
 function validateConfirmLocation() {
     const confirmLocationError = document.getElementById('confirmLocation-error');
 
@@ -1669,184 +3600,6 @@ async function validateAddressWithGoogle(address) {
     }
 }
 
-// Function to validate dock photos selection
-function validateDockPhotos() {
-    const dockPhotosError = document.getElementById('dockPhotos-error');
-    const dockPhotosSubText = document.getElementById('dockPhotos-subText');
-
-    // Skip validation if dock photos not required
-    if (!listingData.dock.hasPrivateDock) {
-        return true;
-    }
-
-    // Only validate if user has attempted to leave
-    if (!hasAttemptedToLeave.dockPhotos) {
-        return true;
-    }
-
-    // Hide error and show subtext if 2 photos selected
-    if (listingData.dockPhotos && listingData.dockPhotos.length === 2) {
-        if (dockPhotosError) {
-            dockPhotosError.style.display = 'none';
-        }
-        if (dockPhotosSubText) {
-            dockPhotosSubText.style.display = 'block';
-        }
-        return true;
-    }
-
-    // Show error and hide subtext if less than 2 photos
-    if (dockPhotosError) {
-        const remainingPhotos = 2 - (listingData.dockPhotos?.length || 0);
-        const photoText = remainingPhotos === 1 ? 'photo' : 'photos';
-        dockPhotosError.textContent = `Please select ${remainingPhotos} more ${photoText} to continue`;
-        dockPhotosError.style.display = 'block';
-        if (dockPhotosSubText) {
-            dockPhotosSubText.style.display = 'none';
-        }
-    }
-    return false;
-}
-
-
-
-
-// Function to validate cover photos selection
-function validateCoverPhotos() {
-    const coverPhotosError = document.getElementById('coverPhotos-error');
-    const coverPhotosSubText = document.getElementById('coverPhotos-subText');
-
-    // Only validate if user has attempted to leave
-    if (!hasAttemptedToLeave.coverPhotos) {
-        return true;
-    }
-
-    // Hide error and show subtext if 5 photos selected
-    if (listingData.coverPhotos && listingData.coverPhotos.length === 5) {
-        if (coverPhotosError) {
-            coverPhotosError.style.display = 'none';
-        }
-        if (coverPhotosSubText) {
-            coverPhotosSubText.style.display = 'block';
-        }
-        return true;
-    }
-
-    // Show error and hide subtext if less than 5 photos
-    if (coverPhotosError) {
-        const remainingPhotos = 5 - (listingData.coverPhotos?.length || 0);
-        const photoText = remainingPhotos === 1 ? 'photo' : 'photos';
-        coverPhotosError.textContent = `Please select ${remainingPhotos} more ${photoText} to continue`;
-        coverPhotosError.style.display = 'block';
-        if (coverPhotosSubText) {
-            coverPhotosSubText.style.display = 'none';
-        }
-    }
-    return false;
-}
-
-
-
-// Function to fetch and render amenities
-async function fetchAndRenderAmenities() {
-    try {
-        const response = await fetch('https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/attribute');
-        const amenities = await response.json();
-
-        // Get all amenity elements
-        const amenityElements = document.querySelectorAll('[data-element="amenity"]');
-        const iconElements = document.querySelectorAll('[data-element="amenity_icon"]');
-        const textElements = document.querySelectorAll('[data-element="amenity_text"]');
-
-        // Loop through amenities and update elements
-        amenities.forEach((amenity, i) => {
-            // Create new elements if needed
-            if (i >= amenityElements.length) {
-                // Clone the first amenity element and its children
-                const template = amenityElements[0].cloneNode(true);
-                const newIcon = template.querySelector('[data-element="amenity_icon"]');
-                const newText = template.querySelector('[data-element="amenity_text"]');
-
-                // Update the new elements
-                if (newIcon) {
-                    newIcon.src = amenity.attribute_icon.url;
-                    newIcon.alt = amenity.attribute_name;
-                    newIcon.loading = 'eager'; // Set eager loading
-                }
-                if (newText) {
-                    newText.textContent = amenity.attribute_name;
-                }
-
-                // Add click handler and styling
-                template.style.cursor = 'pointer';
-                template.dataset.amenityId = amenity.id;
-                template.addEventListener('click', () => toggleAmenity(template, amenity.id));
-
-                // Insert the new element after the last amenity
-                amenityElements[0].parentNode.appendChild(template);
-            } else {
-                // Update existing elements
-                if (iconElements[i]) {
-                    iconElements[i].src = amenity.attribute_icon.url;
-                    iconElements[i].alt = amenity.attribute_name;
-                    iconElements[i].loading = 'eager'; // Set eager loading
-                }
-                if (textElements[i]) {
-                    textElements[i].textContent = amenity.attribute_name;
-                }
-
-                // Add click handler and styling to existing elements
-                amenityElements[i].style.cursor = 'pointer';
-                amenityElements[i].dataset.amenityId = amenity.id;
-                amenityElements[i].addEventListener('click', () => toggleAmenity(amenityElements[i], amenity.id));
-            }
-        });
-
-    } catch (error) {
-        console.error('Error fetching amenities:', error);
-    }
-}
-
-// Function to toggle amenity selection
-function toggleAmenity(element, amenityId) {
-    // Remove any existing click handlers first
-    if (element && element.parentNode) {
-        const clone = element.cloneNode(true);
-        element.parentNode.replaceChild(clone, element);
-        element = clone;
-    }
-
-    // Add click handler to cloned element
-    element.addEventListener('click', () => {
-        const isSelected = element.style.borderWidth === '2px';
-
-        if (isSelected) {
-            element.style.borderWidth = '1px';
-            element.style.borderColor = '#e2e2e2'; // Reset to default color
-            element.style.margin = '0px'; // Reset margin
-            listingData.selectedAmenities = listingData.selectedAmenities.filter(id => id !== amenityId);
-        } else {
-            element.style.borderWidth = '2px';
-            element.style.borderColor = '#000000'; // Set black border when selected
-            element.style.margin = '-1px'; // Offset the larger border
-            if (!listingData.selectedAmenities.includes(amenityId)) {
-                listingData.selectedAmenities.push(amenityId);
-            }
-        }
-
-        // Convert amenity IDs array to JSON string
-        const amenityIdsJson = JSON.stringify(listingData.selectedAmenities);
-        listingData.selectedAmenities = JSON.parse(amenityIdsJson);
-
-        // Hide error message when user selects an amenity
-        if (hasAttemptedToLeave.amenities) {
-            validateAmenities();
-        }
-    });
-
-    // Trigger initial click to handle selection
-    element.click();
-}
 
 
 // Function to validate dock selection
@@ -1904,29 +3657,6 @@ function validateDock() {
             }
         }
 
-        // Check shore power input if shore power is selected
-        const shorePowerButton = document.querySelector('[data-element="dock_buttons_shorePower"]');
-        const shorePowerInput = document.querySelector('[data-element="dock_buttonInput_shorePower"]');
-
-        // Add input listener for shore power input
-        if (shorePowerInput && !shorePowerInput.hasInputListener) {
-            shorePowerInput.addEventListener('input', function () {
-                if (this.value) {
-                    this.style.border = '1px solid #e2e2e2';
-                }
-            });
-            shorePowerInput.hasInputListener = true;
-        }
-
-        if (shorePowerButton?.classList.contains('selected')) {
-            if (!shorePowerInput?.value) {
-                shorePowerInput.style.border = '2px solid red';
-                if (!firstError) firstError = shorePowerInput;
-            } else {
-                shorePowerInput.style.border = '1px solid #000000'; // Reset to default border when filled
-            }
-        }
-
         if (firstError) {
             if (dockError) {
                 dockError.textContent = "Please fill in all required dock information";
@@ -1950,606 +3680,6 @@ function validateDock() {
     return true;
 }
 
-// Function to initialize dock step
-function initializeDockStep() {
-    const dockOptions = {
-        yes: document.querySelector('[data-element="dock_yes"]'),
-        no: document.querySelector('[data-element="dock_no"]')
-    };
-
-    const dockInputContainer = document.querySelector('[data-element="dock_input_container"]');
-    const dockButtonsContainer = document.querySelector('[data-element="dock_buttons_container"]');
-    const dockError = document.getElementById('dock-error');
-    const dockSubText = document.getElementById('dock-subText');
-
-    // Get dock input fields
-    const boatSizeInput = document.querySelector('[data-element="dock_input_boatSize"]');
-    const beamInput = document.querySelector('[data-element="dock_input_beam"]');
-    const clearanceInput = document.querySelector('[data-element="dock_input_clearance"]');
-    const dockMaterialInput = document.querySelector('[data-element="dock_input_dockMaterial"]');
-    const dockDrawInput = document.querySelector('[data-element="dock_input_draw"]');
-
-    // Get dock button options
-    const dockButtonOptions = {
-        shorePower: document.querySelector('[data-element="dock_buttons_shorePower"]'),
-        freshWater: document.querySelector('[data-element="dock_buttons_freshWater"]'),
-        cleaningStation: document.querySelector('[data-element="dock_buttons_cleaningStation"]'),
-        dockLight: document.querySelector('[data-element="dock_buttons_dockLight"]'),
-        underwaterLight: document.querySelector('[data-element="dock_buttons_underwaterLight"]')
-    };
-
-    // Get shore power input and container
-    const shorePowerInput = document.querySelector('[data-element="dock_buttonInput_shorePower"]');
-    const shorePowerContainer = document.querySelector('[data-element="dock_buttonInput_shorePower_container"]');
-
-    // Initialize selected buttons array if not exists
-    listingData.dock.selectedButtons = listingData.dock.selectedButtons || [];
-
-    // Set up numeric input validation and formatting
-    const setupNumericInput = (input, field) => {
-        if (input) {
-            input.addEventListener('input', (e) => {
-                e.target.value = e.target.value.replace(/[^0-9]/g, '');
-                if (e.target.value) {
-                    listingData.dock[field] = `${e.target.value} ft`;
-                } else {
-                    listingData.dock[field] = '';
-                }
-            });
-
-            // Set initial value from listingData if exists
-            if (listingData.dock[field]) {
-                input.value = listingData.dock[field].replace(' ft', '');
-            }
-        }
-    };
-
-    setupNumericInput(boatSizeInput, 'boatSize');
-    setupNumericInput(beamInput, 'beam');
-    setupNumericInput(clearanceInput, 'clearance');
-    setupNumericInput(dockDrawInput, 'draw');
-
-    // Set up shore power input validation
-    if (shorePowerInput) {
-        shorePowerInput.addEventListener('input', (e) => {
-            e.target.value = e.target.value.replace(/[^0-9]/g, '');
-            if (e.target.value) {
-                listingData.dock.shorePowerAmp = `${e.target.value} AMP`;
-            } else {
-                listingData.dock.shorePowerAmp = '';
-            }
-        });
-
-        // Set initial shore power value if exists
-        if (listingData.dock.shorePowerAmp) {
-            shorePowerInput.value = listingData.dock.shorePowerAmp.replace(' AMP', '');
-        }
-    }
-
-    // Set up dock material input
-    if (dockMaterialInput) {
-        dockMaterialInput.addEventListener('input', (e) => {
-            e.target.value = e.target.value.replace(/[^a-zA-Z\s]/g, '');
-            if (e.target.value.length > 0) {
-                e.target.value = e.target.value.charAt(0).toUpperCase() + e.target.value.slice(1);
-                listingData.dock.dockMaterial = e.target.value;
-            } else {
-                listingData.dock.dockMaterial = '';
-            }
-        });
-
-        // Set initial dock material value if exists
-        if (listingData.dock.dockMaterial) {
-            dockMaterialInput.value = listingData.dock.dockMaterial;
-        }
-    }
-
-    // Hide error message and containers initially
-    if (dockError) dockError.style.display = 'none';
-    if (dockSubText) dockSubText.style.display = 'block';
-    if (dockInputContainer) dockInputContainer.style.display = 'none';
-    if (dockButtonsContainer) dockButtonsContainer.style.display = 'none';
-    if (shorePowerContainer) shorePowerContainer.style.display = 'none';
-
-    // Set up click handlers for dock options
-    Object.entries(dockOptions).forEach(([option, button]) => {
-        if (button) {
-            button.addEventListener('click', () => {
-                // Reset styles for all buttons
-                Object.values(dockOptions).forEach(btn => {
-                    if (btn) {
-                        btn.classList.remove('selected');
-                        btn.style.outline = '';
-                        btn.style.outlineOffset = '';
-                    }
-                });
-
-                // Style selected button
-                button.classList.add('selected');
-                button.style.outline = '2px solid #000000';
-                button.style.outlineOffset = '-1px';
-
-                // Update listingData
-                listingData.dock.hasPrivateDock = (option === 'yes');
-
-                // Show/hide containers based on selection
-                if (dockInputContainer && dockButtonsContainer) {
-                    if (option === 'yes') {
-                        dockInputContainer.style.display = 'flex';
-                        dockButtonsContainer.style.display = 'flex';
-
-                        setTimeout(() => {
-                            dockInputContainer.scrollIntoView({
-                                behavior: 'smooth',
-                                block: 'start'
-                            });
-                        }, 100);
-                    } else {
-                        dockInputContainer.style.display = 'none';
-                        dockButtonsContainer.style.display = 'none';
-                        // Clear all dock-related data
-                        listingData.dock = {
-                            hasPrivateDock: false,
-                            selectedButtons: [],
-                            boatSize: '',
-                            beam: '',
-                            clearance: '',
-                            dockMaterial: '',
-                            draw: '',
-                            shorePowerAmp: ''
-                        };
-                        // Reset all button styles
-                        Object.values(dockButtonOptions).forEach(btn => {
-                            if (btn) {
-                                btn.classList.remove('selected');
-                                btn.style.outline = '';
-                                btn.style.outlineOffset = '';
-                            }
-                        });
-                        if (shorePowerContainer) {
-                            shorePowerContainer.style.display = 'none';
-                            if (shorePowerInput) shorePowerInput.value = '';
-                        }
-                    }
-                }
-
-                // Validate after selection
-                validateDock();
-            });
-        }
-    });
-
-    // Set up click handlers for dock button options
-    const buttonLabels = {
-        shorePower: "Shore power",
-        freshWater: "Fresh water",
-        cleaningStation: "Cleaning station",
-        dockLight: "Dock light",
-        underwaterLight: "Underwater light"
-    };
-
-    Object.entries(dockButtonOptions).forEach(([option, button]) => {
-        if (button) {
-            button.addEventListener('click', (e) => {
-                if (option === 'shorePower' && e.target === shorePowerInput) {
-                    return;
-                }
-
-                const isSelected = button.classList.contains('selected');
-
-                if (isSelected) {
-                    button.classList.remove('selected');
-                    button.style.outline = '';
-                    button.style.outlineOffset = '';
-
-                    const index = listingData.dock.selectedButtons.indexOf(buttonLabels[option]);
-                    if (index > -1) {
-                        listingData.dock.selectedButtons.splice(index, 1);
-                    }
-
-                    if (option === 'shorePower') {
-                        if (shorePowerContainer) {
-                            shorePowerContainer.style.display = 'none';
-                            if (shorePowerInput) {
-                                shorePowerInput.value = '';
-                                listingData.dock.shorePowerAmp = '';
-                            }
-                        }
-                    }
-                } else {
-                    button.classList.add('selected');
-                    button.style.outline = '2px solid #000000';
-                    button.style.outlineOffset = '-1px';
-
-                    listingData.dock.selectedButtons.push(buttonLabels[option]);
-
-                    if (option === 'shorePower') {
-                        if (shorePowerContainer) {
-                            shorePowerContainer.style.display = 'flex';
-                            if (shorePowerInput) shorePowerInput.focus();
-                        }
-                    }
-                }
-            });
-        }
-    });
-
-    // Initialize state if there's existing data
-    if (listingData.dock.hasPrivateDock !== null) {
-        const selectedOption = listingData.dock.hasPrivateDock ? 'yes' : 'no';
-        const selectedButton = dockOptions[selectedOption];
-        if (selectedButton) {
-            selectedButton.click();
-        }
-
-        // Restore selected dock buttons
-        if (listingData.dock.hasPrivateDock) {
-            listingData.dock.selectedButtons.forEach(label => {
-                const option = Object.keys(buttonLabels).find(key => buttonLabels[key] === label);
-                if (option && dockButtonOptions[option]) {
-                    dockButtonOptions[option].classList.add('selected');
-                    dockButtonOptions[option].style.outline = '2px solid #000000';
-                    dockButtonOptions[option].style.outlineOffset = '-1px';
-
-                    if (option === 'shorePower' && listingData.dock.shorePowerAmp) {
-                        shorePowerContainer.style.display = 'flex';
-                    }
-                }
-            });
-        }
-    }
-}
-
-
-function initializeReviewInfoStep() {
-    // Set cover photo
-    const reviewImage = document.querySelector('[data-element="reviewInfo_image"]');
-    if (reviewImage && listingData.coverPhotos.length > 0) {
-        reviewImage.src = listingData.coverPhotos[0].dataUrl; // Access the dataUrl property of the photo object
-    }
-
-    // Set title
-    const reviewTitle = document.querySelector('[data-element="reviewInfo_title"]');
-    if (reviewTitle) {
-        reviewTitle.textContent = listingData.title;
-    }
-
-    // Set location
-    const reviewLocation = document.querySelector('[data-element="reviewInfo_location"]');
-    if (reviewLocation) {
-        reviewLocation.textContent = listingData.address.cityState;
-    }
-
-    // Calculate dates and total
-    const reviewDateTotal = document.querySelector('[data-element="reviewInfo_dateTotal"]');
-    if (reviewDateTotal) {
-        const startDate = new Date();
-        const nights = Math.max(7, listingData.minNights || 7);
-        const endDate = new Date(startDate);
-        endDate.setDate(endDate.getDate() + nights);
-
-        const formatDate = (date) => {
-            return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-        };
-
-        const pricePerNight = parseFloat(listingData.price) || 0;
-        const cleaningFee = parseFloat(listingData.cleaningFee) || 0;
-        const subtotal = (pricePerNight * nights) + cleaningFee;
-        const total = subtotal * 1.1;
-
-        reviewDateTotal.textContent = `${formatDate(startDate)} - ${formatDate(endDate)} • $${total.toLocaleString()}`;
-    }
-}
-
-// Function to initialize dock photos section
-function initializeDockPhotosStep() {
-    // Skip this step if no private dock
-    if (!listingData.dock.hasPrivateDock) {
-        const titleStepIndex = steps.indexOf('title');
-        if (titleStepIndex !== -1) {
-            goToStep(titleStepIndex + 1);
-        }
-        return;
-    }
-
-    let dockPhotosContainer = document.querySelector('[data-element="dockPhotos_photoContainer"]');
-    const dockPhotosError = document.getElementById('dockPhotos-error');
-    const dockPhotosSubText = document.getElementById('dockPhotos-subText');
-
-    if (!dockPhotosContainer) {
-        return;
-    }
-
-    // Remove any existing photo containers first
-    const existingContainers = document.querySelectorAll('[data-element="dockPhotos_photoContainer"]');
-    existingContainers.forEach((container, index) => {
-        if (index > 0) { // Keep the first container
-            container.remove();
-        }
-    });
-
-    // Create a fresh container to replace the original one
-    const newContainer = document.createElement('div');
-    newContainer.setAttribute('data-element', 'dockPhotos_photoContainer');
-    // Copy any existing styles or attributes from the original container
-    newContainer.className = dockPhotosContainer.className;
-    dockPhotosContainer.parentNode.replaceChild(newContainer, dockPhotosContainer);
-    dockPhotosContainer = newContainer;
-
-    // Create a reusable function to set up a photo container
-    const setupPhotoContainer = (container, photo) => {
-        const photoImage = document.createElement('img');
-        photoImage.setAttribute('data-element', 'dockPhotos_image');
-        photoImage.style.borderRadius = '5px';
-        container.appendChild(photoImage);
-
-        // Create number element with all styles applied directly
-        const numberEl = document.createElement('div');
-        numberEl.setAttribute('data-element', 'dockPhotos_number');
-        numberEl.className = 'dockPhotos_number';
-        numberEl.style.display = 'none';
-        numberEl.style.position = 'absolute';
-        numberEl.style.top = '8px';
-        numberEl.style.right = '8px';
-        numberEl.style.width = '30px';
-        numberEl.style.height = '30px';
-        numberEl.style.borderRadius = '100%';
-        numberEl.style.backgroundColor = 'white';
-        numberEl.style.border = '2px solid black';
-        numberEl.style.alignItems = 'center';
-        numberEl.style.fontFamily = '"Tt Fors", sans-serif';
-        numberEl.style.fontSize = '15px';
-        numberEl.style.fontWeight = 'bold';
-        numberEl.style.color = 'black';
-        numberEl.style.justifyContent = 'center';
-
-        container.appendChild(numberEl);
-
-        // Set photo source
-        photoImage.src = photo.dataUrl;
-
-        // Add click handler
-        container.addEventListener('click', () => {
-            const existingIndex = listingData.dockPhotos.findIndex(p => p === photo);
-
-            if (existingIndex !== -1) {
-                // Remove photo if already selected
-                listingData.dockPhotos.splice(existingIndex, 1);
-                numberEl.style.display = 'none';
-                container.style.outline = 'none';
-                container.style.border = '1px solid #e2e2e2';
-            } else if (listingData.dockPhotos.length < 2) {
-                // Add photo if less than 2 selected
-                listingData.dockPhotos.push(photo);
-                numberEl.style.display = 'flex';
-                numberEl.textContent = listingData.dockPhotos.length.toString();
-                container.style.outline = '2px solid black';
-                container.style.outlineOffset = '-1px';
-                container.style.border = 'none';
-            }
-
-            // Update number colors
-            const updateNumberColors = () => {
-                document.querySelectorAll('[data-element="dockPhotos_number"]').forEach(num => {
-                    if (num.style.display === 'flex') {
-                        num.style.backgroundColor = listingData.dockPhotos.length === 2 ? '#90EE90' : 'white';
-                    }
-                });
-            };
-            updateNumberColors();
-        });
-
-        // Check if this photo is already selected and restore its state
-        const existingIndex = listingData.dockPhotos.findIndex(p => p === photo);
-        if (existingIndex !== -1) {
-            numberEl.style.display = 'flex';
-            numberEl.textContent = (existingIndex + 1).toString();
-            container.style.outline = '2px solid black';
-            container.style.outlineOffset = '-1px';
-            container.style.border = 'none';
-            numberEl.style.backgroundColor = listingData.dockPhotos.length === 2 ? '#90EE90' : 'white';
-        }
-    };
-
-    // Display all photos by iterating through them once
-    listingData.photos.forEach((photo, index) => {
-        let currentContainer;
-        if (index === 0) {
-            currentContainer = dockPhotosContainer;
-        } else {
-            currentContainer = dockPhotosContainer.cloneNode(true);
-            currentContainer.innerHTML = '';
-            dockPhotosContainer.parentNode.appendChild(currentContainer);
-        }
-
-        setupPhotoContainer(currentContainer, photo);
-    });
-
-    // Hide error initially 
-    if (dockPhotosError) {
-        dockPhotosError.style.display = 'none';
-    }
-    if (dockPhotosSubText) {
-        dockPhotosSubText.style.display = 'block';
-    }
-}
-
-// Function to initialize cover photos section
-function initializeCoverPhotosStep() {
-    console.log(listingData.photos);
-    let coverPhotosContainer = document.querySelector('[data-element="coverPhotos_photoContainer"]');
-    const coverPhotosError = document.getElementById('coverPhotos-error');
-    const coverPhotosSubText = document.getElementById('coverPhotos-subText');
-
-    if (!coverPhotosContainer) {
-        return;
-    }
-
-    // Remove any existing photo containers first
-    const existingContainers = document.querySelectorAll('[data-element="coverPhotos_photoContainer"]');
-    existingContainers.forEach((container, index) => {
-        if (index > 0) { // Keep the first container
-            container.remove();
-        }
-    });
-
-    // Create a fresh container to replace the original one
-    const newContainer = document.createElement('div');
-    newContainer.setAttribute('data-element', 'coverPhotos_photoContainer');
-    // Copy any existing styles or attributes from the original container
-    newContainer.className = coverPhotosContainer.className;
-    coverPhotosContainer.parentNode.replaceChild(newContainer, coverPhotosContainer);
-    coverPhotosContainer = newContainer;
-
-    // Create a reusable function to set up a photo container
-    const setupPhotoContainer = (container, photo) => {
-        const photoImage = document.createElement('img');
-        photoImage.setAttribute('data-element', 'coverPhotos_image');
-        photoImage.style.borderRadius = '5px';
-        container.appendChild(photoImage);
-
-        // Create number element with all styles applied directly
-        const numberEl = document.createElement('div');
-        numberEl.setAttribute('data-element', 'coverPhotos_number');
-        numberEl.className = 'coverPhotos_number';
-        numberEl.style.display = 'none';
-        numberEl.style.position = 'absolute';
-        numberEl.style.top = '8px';
-        numberEl.style.right = '8px';
-        numberEl.style.width = '30px';
-        numberEl.style.height = '30px';
-        numberEl.style.borderRadius = '100%';
-        numberEl.style.backgroundColor = 'white';
-        numberEl.style.border = '2px solid black';
-        numberEl.style.alignItems = 'center';
-        numberEl.style.justifyContent = 'center';
-        numberEl.style.fontSize = '15px';
-        numberEl.style.fontWeight = 'bold';
-        numberEl.style.color = 'black';
-        numberEl.style.fontFamily = 'Tt Fors, sans-serif';
-        numberEl.style.transition = 'all 0.3s ease';
-        numberEl.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
-        container.appendChild(numberEl);
-
-        const photoUrl = photo.dataUrl;
-
-        if (!photoUrl.startsWith('data:')) {
-            const timestamp = new Date().getTime();
-            photoImage.src = photoUrl + '?' + timestamp;
-        } else {
-            photoImage.src = photoUrl;
-        }
-
-        photoImage.style.display = 'block';
-        photoImage.style.visibility = 'visible';
-        photoImage.style.opacity = '1';
-
-        photoImage.addEventListener('load', () => { });
-        photoImage.addEventListener('error', () => { });
-
-        // Make container clickable
-        container.style.cursor = 'pointer';
-        container.style.position = 'relative';
-
-        // Function to update all number colors based on total selected
-        const updateNumberColors = () => {
-            const allNumberElements = document.querySelectorAll('[data-element="coverPhotos_number"]');
-            allNumberElements.forEach(el => {
-                if (el.style.display === 'flex') {
-                    el.style.backgroundColor = listingData.coverPhotos.length === 5 ? '#90EE90' : 'white';
-                }
-            });
-        };
-
-        // Add click handler for photo selection
-        container.addEventListener('click', () => {
-            const numberEl = container.querySelector('[data-element="coverPhotos_number"]');
-
-            // If already selected, remove from selection
-            if (numberEl.style.display === 'flex') {
-                const currentNumber = parseInt(numberEl.textContent);
-                numberEl.style.display = 'none';
-                numberEl.textContent = '';
-
-                // Remove this specific photo from coverPhotos array
-                const photoIndex = listingData.coverPhotos.findIndex(p => p === photo);
-                if (photoIndex !== -1) {
-                    listingData.coverPhotos.splice(photoIndex, 1);
-
-                    // Update numbers for remaining selected photos
-                    document.querySelectorAll('[data-element="coverPhotos_number"]').forEach(el => {
-                        if (el.style.display === 'flex') {
-                            const num = parseInt(el.textContent);
-                            if (num > currentNumber) {
-                                el.textContent = (num - 1).toString();
-                            }
-                        }
-                    });
-                }
-
-                // Reset container border styles when unselected
-                container.style.outline = 'none';
-                container.style.border = '1px solid #e2e2e2';
-
-                // Update colors for all numbers
-                updateNumberColors();
-            }
-            // Add to selection if less than 5 photos are selected
-            else if (listingData.coverPhotos.length < 5) {
-                numberEl.style.display = 'flex';
-                numberEl.textContent = (listingData.coverPhotos.length + 1).toString();
-                container.style.outline = '2px solid black';
-                container.style.outlineOffset = '-1px';
-                container.style.border = 'none';
-                listingData.coverPhotos.push(photo);
-
-                // Update colors for all numbers
-                updateNumberColors();
-            }
-        });
-
-        // Check if this photo is already selected and restore its state
-        const existingIndex = listingData.coverPhotos.findIndex(p => p === photo);
-        if (existingIndex !== -1) {
-            numberEl.style.display = 'flex';
-            numberEl.textContent = (existingIndex + 1).toString();
-            container.style.outline = '2px solid black';
-            container.style.outlineOffset = '-1px';
-            container.style.border = 'none';
-            numberEl.style.backgroundColor = listingData.coverPhotos.length === 5 ? '#90EE90' : 'white';
-        }
-    };
-
-    // Display all photos by iterating through them once
-    listingData.photos.forEach((photo, index) => {
-        // For first photo, use existing container
-        // For subsequent photos, clone the container
-        let currentContainer;
-        if (index === 0) {
-            currentContainer = coverPhotosContainer;
-        } else {
-            currentContainer = coverPhotosContainer.cloneNode(true);
-            currentContainer.innerHTML = '';
-            coverPhotosContainer.parentNode.appendChild(currentContainer);
-        }
-
-        setupPhotoContainer(currentContainer, photo);
-    });
-
-    // Hide error initially 
-    if (coverPhotosError) {
-        coverPhotosError.style.display = 'none';
-    }
-    if (coverPhotosSubText) {
-        coverPhotosSubText.style.display = 'block';
-    }
-}
-
-
-
-
-
-
 // Function to validate cancellation policy selection
 function validateCancellationPolicy() {
     const cancellationPolicyError = document.getElementById('cancellationPolicy-error');
@@ -2571,169 +3701,6 @@ function validateCancellationPolicy() {
     return true;
 }
 
-// Function to initialize cancellation policy step
-function initializeCancellationPolicyStep() {
-    const cancellationPolicies = {
-        relaxed: document.querySelector('[data-element="cancellationPolicy_relaxed"]'),
-        standard: document.querySelector('[data-element="cancellationPolicy_standard"]'),
-        firm: document.querySelector('[data-element="cancellationPolicy_firm"]'),
-        graceWindow: document.querySelector('[data-element="cancellationPolicy_graceWindow"]'),
-        noRefund: document.querySelector('[data-element="cancellationPolicy_noRefund"]')
-    };
-
-    const policyValues = {
-        relaxed: "Relaxed",
-        standard: "Standard",
-        firm: "Firm",
-        graceWindow: "Grace window",
-        noRefund: "No refund"
-    };
-
-    const cancellationPolicyError = document.getElementById('cancellationPolicy-error');
-    const cancellationPolicySubText = document.getElementById('cancellationPolicy-subText');
-
-    // Hide error message initially
-    if (cancellationPolicyError) cancellationPolicyError.style.display = 'none';
-    if (cancellationPolicySubText) cancellationPolicySubText.style.display = 'block';
-
-    // Set up click handlers for all policy options
-    Object.entries(cancellationPolicies).forEach(([policy, button]) => {
-        if (button) {
-            button.style.cursor = 'pointer';
-
-            button.addEventListener('click', () => {
-                // Clear selection styling from all buttons
-                Object.values(cancellationPolicies).forEach(btn => {
-                    if (btn) {
-                        btn.style.outline = '';
-                        btn.style.outlineOffset = '';
-                    }
-                });
-
-                // Set selected policy
-                listingData.cancellationPolicy = policyValues[policy];
-                button.style.outline = '2px solid black';
-                button.style.outlineOffset = '-1px';
-
-                if (hasAttemptedToLeave.cancellationPolicy) {
-                    validateCancellationPolicy();
-                }
-            });
-
-            // Set initial state if policy was previously selected
-            if (listingData.cancellationPolicy === policyValues[policy]) {
-                button.style.outline = '2px solid black';
-                button.style.outlineOffset = '-1px';
-            }
-        }
-    });
-}
-
-// Function to initialize safety step
-function initializeSafetyStep() {
-    // Remove any existing event listeners first
-    const existingButtons = document.querySelectorAll('[data-element^="safety_"]');
-    existingButtons.forEach(button => {
-        const clone = button.cloneNode(true);
-        button.parentNode.replaceChild(clone, button);
-    });
-
-    const safetyFeatures = {
-        securityCamera: document.querySelector('[data-element="safety_securityCamera"]'),
-        doorbellCamera: document.querySelector('[data-element="safety_doorbellCamera"]'),
-        fireExtinguisher: document.querySelector('[data-element="safety_fireExtinguisher"]'),
-        smokeAlarm: document.querySelector('[data-element="safety_smokeAlarm"]'),
-        carbonMonoxideAlarm: document.querySelector('[data-element="safety_carbonMonoxideAlarm"]'),
-        firstAidKit: document.querySelector('[data-element="safety_firstAidKit"]')
-    };
-
-    const safetyError = document.getElementById('safety-error');
-    const safetySubText = document.getElementById('safety-subText');
-
-    // Hide error message initially
-    if (safetyError) safetyError.style.display = 'none';
-    if (safetySubText) safetySubText.style.display = 'block';
-
-    // Initialize safetyFeatures array if undefined
-    if (!listingData.safetyFeatures) {
-        listingData.safetyFeatures = [];
-    }
-
-    // Set up safety features
-    Object.entries(safetyFeatures).forEach(([feature, button]) => {
-        if (button) {
-            // Add button-like styles
-            button.style.cursor = 'pointer';
-            button.style.userSelect = 'none'; // Prevent text selection
-            button.style.WebkitUserSelect = 'none';
-
-            // Add click handlers for all safety features
-            button.addEventListener('click', (e) => {
-                e.preventDefault(); // Prevent any default behavior
-
-                const featureIndex = listingData.safetyFeatures.findIndex(f => f.type === feature);
-                if (featureIndex === -1) {
-                    // Feature not in array, add it with text from button
-                    listingData.safetyFeatures.push({
-                        type: feature,
-                        text: button.textContent.trim()
-                    });
-
-                    // If adding carbonMonoxideAlarm, remove the "no alarm" entry
-                    if (feature === 'carbonMonoxideAlarm') {
-                        const noAlarmIndex = listingData.safetyFeatures.findIndex(f => f.type === 'noCarbonMonoxideAlarm');
-                        if (noAlarmIndex !== -1) {
-                            listingData.safetyFeatures.splice(noAlarmIndex, 1);
-                        }
-                    }
-
-                    button.style.outline = '2px solid black';
-                    button.style.outlineOffset = '-1px';
-                } else {
-                    // Feature in array, remove it
-                    listingData.safetyFeatures.splice(featureIndex, 1);
-
-                    button.style.outline = '';
-                    button.style.outlineOffset = '';
-                }
-
-                // After any change, ensure noCarbonMonoxideAlarm is in the list if carbonMonoxideAlarm is not
-                const hasCarbonMonoxideAlarm = listingData.safetyFeatures.some(f => f.type === 'carbonMonoxideAlarm');
-                const hasNoCarbonMonoxideAlarm = listingData.safetyFeatures.some(f => f.type === 'noCarbonMonoxideAlarm');
-
-                if (!hasCarbonMonoxideAlarm && !hasNoCarbonMonoxideAlarm) {
-                    listingData.safetyFeatures.push({
-                        type: 'noCarbonMonoxideAlarm',
-                        text: 'No carbon monoxide alarm'
-                    });
-                }
-
-                if (hasAttemptedToLeave.safety) {
-                    validateSafety();
-                }
-            });
-
-            // Set initial state based on existing features
-            const existingFeature = listingData.safetyFeatures.find(f => f.type === feature);
-            if (existingFeature) {
-                button.style.outline = '2px solid black';
-                button.style.outlineOffset = '-1px';
-            }
-        }
-    });
-
-    // Ensure noCarbonMonoxideAlarm is in the list if carbonMonoxideAlarm is not selected
-    const hasCarbonMonoxideAlarm = listingData.safetyFeatures.some(f => f.type === 'carbonMonoxideAlarm');
-    const hasNoCarbonMonoxideAlarm = listingData.safetyFeatures.some(f => f.type === 'noCarbonMonoxideAlarm');
-
-    if (!hasCarbonMonoxideAlarm && !hasNoCarbonMonoxideAlarm) {
-        listingData.safetyFeatures.push({
-            type: 'noCarbonMonoxideAlarm',
-            text: 'No carbon monoxide alarm'
-        });
-    }
-}
-
 // Function to validate safety features
 function validateSafety() {
     // Safety features are optional, so always valid
@@ -2747,8 +3714,6 @@ function validateSafety() {
 
     return true;
 }
-
-
 
 function validateBasics() {
     const requiredFields = ["guests", "bedrooms", "baths", "beds"];
@@ -2818,90 +3783,6 @@ function validateBasics() {
 
     return isValid;
 }
-
-
-
-
-
-// Function to setup delete button for a photo
-function setupPhotoAddedDeleteButton(containerParent, photoIndex) {
-    const deleteButton = containerParent.querySelector('[data-element="deletePhotoAdded"]');
-    if (!deleteButton) return;
-
-    deleteButton.style.cursor = 'pointer';
-    deleteButton.onclick = (e) => {
-        e.stopPropagation();
-
-        // Remove photo from listingData array
-        listingData.photos.splice(photoIndex, 1);
-
-        // If no photos left, reset the UI
-        if (listingData.photos.length === 0) {
-            resetPhotoUI();
-        } else {
-            // Rerender all photos
-            renderPhotos();
-        }
-
-        // Revalidate if user has attempted to leave
-        if (hasAttemptedToLeave.photos) {
-            validatePhotos();
-        }
-    };
-}
-
-// Function to reset photo UI to initial state
-function resetPhotoUI() {
-    const addPhotosContainer = document.getElementById('addPhotosButton_Container');
-    const addPhotosButton2 = document.getElementById('addPhotosButton2');
-    const photoContainerParent = document.querySelector('[data-element="photo_container_parent"]');
-    const photoContainer = document.querySelector('[data-element="photo_container"]');
-
-    if (addPhotosContainer) {
-        addPhotosContainer.style.display = 'flex';
-        addPhotosContainer.style.flexDirection = 'column';
-        addPhotosContainer.style.gap = '15px';
-    }
-
-    if (addPhotosButton2) {
-        addPhotosButton2.style.display = 'none';
-    }
-
-    if (photoContainerParent) {
-        photoContainerParent.style.display = 'none';
-    }
-
-    if (photoContainer) {
-        photoContainer.src = '';
-    }
-}
-
-// Function to validate photos
-function validatePhotos() {
-    const photosError = document.getElementById('photos-error');
-    const photosSubText = document.getElementById('photos-subText');
-    const minPhotos = 5;
-    const currentPhotoCount = listingData.photos.length;
-    const isValid = currentPhotoCount >= minPhotos;
-
-    if (!isValid && hasAttemptedToLeave.photos) {
-        const remainingPhotos = minPhotos - currentPhotoCount;
-        if (photosError && photosSubText) {
-            photosError.textContent = `Please add ${remainingPhotos} more photo${remainingPhotos > 1 ? 's' : ''} to continue`;
-            photosError.style.display = 'block';
-            photosSubText.style.display = 'none';
-        }
-    } else {
-        if (photosError && photosSubText) {
-            photosError.style.display = 'none';
-            photosSubText.style.display = 'block';
-        }
-    }
-
-    return isValid;
-}
-
-
 
 function validateTitle() {
     const titleInput = document.querySelector('[data-element="title_input"]');
@@ -3062,7 +3943,6 @@ function validateAmenities() {
     return isValid;
 }
 
-
 function highlightInvalidInputs(inputs) {
     inputs.forEach(input => {
         if (input) {
@@ -3082,435 +3962,6 @@ function resetInputStyles(inputs) {
         }
     });
 }
-
-// Function to initialize min nights step
-function initializeMinNightsStep() {
-    const minNightsButtons = {
-        'noMinimum': document.getElementById('minNights_noMinimum'),
-        '3': document.getElementById('minNights_3'),
-        '5': document.getElementById('minNights_5'),
-        '7': document.getElementById('minNights_7'),
-        '14': document.getElementById('minNights_14'),
-        '30': document.getElementById('minNights_30'),
-        '60': document.getElementById('minNights_60'),
-        '90': document.getElementById('minNights_90')
-    };
-
-    // Function to update button styles
-    function updateButtonStyles(selectedButton) {
-        Object.values(minNightsButtons).forEach(button => {
-            if (button) {
-                if (button === selectedButton) {
-                    button.style.outline = '2px solid black';
-                    button.style.outlineOffset = '-1px';
-                } else {
-                    button.style.outline = '';
-                    button.style.outlineOffset = '';
-                }
-            }
-        });
-    }
-
-    // Add click handlers for all buttons
-    Object.entries(minNightsButtons).forEach(([value, button]) => {
-        if (button) {
-            button.addEventListener('click', () => {
-                // Update listingData
-                listingData.minNights = value === 'noMinimum' ? 1 : parseInt(value);
-
-                // Update button styles
-                updateButtonStyles(button);
-
-                // Revalidate if user has attempted to leave
-                if (hasAttemptedToLeave.minNights) {
-                    validateMinNights();
-                }
-            });
-        }
-    });
-
-    // Set initial selection if exists in listingData
-    if (listingData.minNights !== null) {
-        const value = listingData.minNights === 1 ? 'noMinimum' : listingData.minNights.toString();
-        const button = minNightsButtons[value];
-        if (button) {
-            updateButtonStyles(button);
-        }
-    }
-}
-
-// Function to initialize title step
-function initializeTitleStep() {
-    const descriptionInputField = document.querySelector('[data-element="title_input"]');
-    const characterCount = document.getElementById('titleInputField_characterCount');
-    const titleError = document.getElementById('title-error');
-    const titleSubText = document.getElementById('title-subText');
-    const maxChars = 35;
-
-    if (descriptionInputField) {
-        // Set the contentEditable attribute to true
-        descriptionInputField.contentEditable = true;
-
-        // Set styles to ensure text wraps and aligns correctly
-        descriptionInputField.style.whiteSpace = 'pre-wrap';
-        descriptionInputField.style.textAlign = 'left';
-        descriptionInputField.style.height = '250px';
-        descriptionInputField.style.overflowY = 'auto';
-        descriptionInputField.style.boxSizing = 'border-box';
-        descriptionInputField.style.padding = '10px';
-        descriptionInputField.style.outline = 'none';
-        descriptionInputField.style.caretColor = 'auto'; // Ensure cursor is always visible
-
-        // Initialize character count display with existing text if any
-        const existingText = listingData.title || '';
-        if (characterCount) {
-            characterCount.textContent = `${existingText.length}/${maxChars}`;
-        }
-
-        // Set existing text if any and place cursor at end
-        if (existingText) {
-            descriptionInputField.innerText = existingText;
-            // Create a range at the end of the content
-            const range = document.createRange();
-            const selection = window.getSelection();
-            range.selectNodeContents(descriptionInputField);
-            range.collapse(false); // false means collapse to end
-            selection.removeAllRanges();
-            selection.addRange(range);
-        }
-
-        // Add an event listener to handle input changes
-        descriptionInputField.addEventListener('input', () => {
-            // Get text content without trimming to preserve spaces
-            const text = descriptionInputField.innerText;
-            const currentLength = text.trim().length;
-
-            // Update character count display and input styling
-            if (characterCount) {
-                characterCount.textContent = `${currentLength}/${maxChars}`; // Update character count
-                const isOverLimit = currentLength > maxChars;
-                characterCount.style.color = isOverLimit ? 'red' : 'grey'; // Change color if over limit
-
-                // Update input field styling when over limit
-                descriptionInputField.style.color = isOverLimit ? 'red' : ''; // Make text red if over limit
-                descriptionInputField.style.border = isOverLimit ? '1px solid red' : ''; // Add red border if over limit
-            }
-
-            // Store the title in listingData
-            listingData.title = text.trim();
-        });
-
-        // Always set initial focus to make cursor visible
-        descriptionInputField.focus();
-
-        // Ensure cursor is always visible by adding click handler
-        descriptionInputField.addEventListener('click', () => {
-            descriptionInputField.focus();
-        });
-
-        // Keep focus when field is empty
-        descriptionInputField.addEventListener('blur', () => {
-            if (!descriptionInputField.innerText.trim()) {
-                descriptionInputField.focus();
-            }
-        });
-    }
-}
-
-// Function to initialize description step
-function initializeDescriptionStep() {
-    const descriptionInputField = document.querySelector('[data-element="description_input"]');
-    const characterCount = document.getElementById('descriptionInputField_characterCount');
-    const descriptionError = document.getElementById('description-error');
-    const descriptionSubText = document.getElementById('description-subText');
-    const maxChars = 4000;
-
-    if (descriptionInputField) {
-        // Set the contentEditable attribute to true
-        descriptionInputField.contentEditable = true;
-
-        // Set styles to ensure text wraps and aligns correctly
-        descriptionInputField.style.whiteSpace = 'pre-wrap';
-        descriptionInputField.style.textAlign = 'left';
-        descriptionInputField.style.height = '250px';
-        descriptionInputField.style.overflowY = 'auto';
-        descriptionInputField.style.boxSizing = 'border-box';
-        descriptionInputField.style.padding = '10px';
-        descriptionInputField.style.outline = 'none';
-        descriptionInputField.style.caretColor = 'auto'; // Ensure cursor is always visible
-
-        // Initialize character count display with existing text if any
-        const existingText = listingData.description || '';
-        if (characterCount) {
-            characterCount.textContent = `${existingText.length}/${maxChars}`;
-        }
-        // Set existing text if any and place cursor at end
-        if (existingText) {
-            descriptionInputField.innerText = existingText;
-            // Create a range at the end of the content
-            const range = document.createRange();
-            const selection = window.getSelection();
-            range.selectNodeContents(descriptionInputField);
-            range.collapse(false); // false means collapse to end
-            selection.removeAllRanges();
-            selection.addRange(range);
-        }
-
-        // Add an event listener to handle input changes
-        descriptionInputField.addEventListener('input', () => {
-            // Get text content without trimming to preserve spaces
-            const text = descriptionInputField.innerText;
-            const currentLength = text.trim().length;
-
-            // Update character count display and input styling
-            if (characterCount) {
-                characterCount.textContent = `${currentLength}/${maxChars}`; // Update character count
-                const isOverLimit = currentLength > maxChars;
-                characterCount.style.color = isOverLimit ? 'red' : 'grey'; // Change color if over limit
-
-                // Update input field styling when over limit
-                descriptionInputField.style.color = isOverLimit ? 'red' : ''; // Make text red if over limit
-                descriptionInputField.style.border = isOverLimit ? '1px solid red' : ''; // Add red border if over limit
-            }
-
-            // Store the description in listingData
-            listingData.description = text.trim();
-        });
-
-        // Always set initial focus to make cursor visible
-        descriptionInputField.focus();
-
-        // Ensure cursor is always visible by adding click handler
-        descriptionInputField.addEventListener('click', () => {
-            descriptionInputField.focus();
-        });
-
-        // Keep focus when field is empty
-        descriptionInputField.addEventListener('blur', () => {
-            if (!descriptionInputField.innerText.trim()) {
-                descriptionInputField.focus();
-            }
-        });
-    }
-}
-
-// Function to initialize pricing step
-function initializePricingStep() {
-    const priceInput = document.querySelector('[data-element="setPriceInput"]');
-    if (priceInput) {
-        // Remove default focus outline/border for all browsers
-        priceInput.style.outline = 'none';
-        priceInput.style.border = 'none';
-        priceInput.style['-webkit-appearance'] = 'none';
-        priceInput.style['-moz-appearance'] = 'none';
-        priceInput.style['-ms-appearance'] = 'none';
-        priceInput.style.appearance = 'none';
-
-        // Set initial value if exists in listingData
-        if (listingData.price) {
-            priceInput.value = `$${listingData.price}`;
-        }
-
-        priceInput.addEventListener('focus', () => {
-            if (!priceInput.value.startsWith('$')) {
-                priceInput.value = '$' + priceInput.value;
-            }
-        });
-
-        priceInput.addEventListener('input', (e) => {
-            let value = e.target.value;
-
-            // Ensure $ is always at start
-            if (!value.startsWith('$')) {
-                value = '$' + value;
-            }
-
-            // Remove non-numeric characters except leading $
-            value = '$' + value.replace(/[^\d]/g, '');
-
-            e.target.value = value;
-
-            // Store numeric value without $ in listingData
-            listingData.price = value.substring(1);
-
-            if (hasAttemptedToLeave.pricing) {
-                validatePricing();
-            }
-        });
-
-        // Prevent backspace/delete from removing $
-        priceInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Backspace' || e.key === 'Delete') {
-                const cursorPosition = priceInput.selectionStart;
-                if (cursorPosition <= 1) {
-                    e.preventDefault();
-                }
-            }
-        });
-    }
-}
-
-// Function to initialize cleaning fee step
-function initializeCleaningFeeStep() {
-    const cleaningFeeInput = document.querySelector('[data-element="setCleaningFeeInput"]');
-    if (cleaningFeeInput) {
-        // Remove default focus outline/border for all browsers
-        cleaningFeeInput.style.outline = 'none';
-        cleaningFeeInput.style.border = 'none';
-        cleaningFeeInput.style['-webkit-appearance'] = 'none';
-        cleaningFeeInput.style['-moz-appearance'] = 'none';
-        cleaningFeeInput.style['-ms-appearance'] = 'none';
-        cleaningFeeInput.style.appearance = 'none';
-
-        // Set initial value if exists in listingData
-        if (listingData.cleaningFee) {
-            cleaningFeeInput.value = `$${listingData.cleaningFee}`;
-        }
-
-        cleaningFeeInput.addEventListener('focus', () => {
-            if (!cleaningFeeInput.value.startsWith('$')) {
-                cleaningFeeInput.value = '$' + cleaningFeeInput.value;
-            }
-        });
-
-        cleaningFeeInput.addEventListener('input', (e) => {
-            let value = e.target.value;
-
-            // Ensure $ is always at start
-            if (!value.startsWith('$')) {
-                value = '$' + value;
-            }
-
-            // Remove non-numeric characters except leading $
-            value = '$' + value.replace(/[^\d]/g, '');
-
-            e.target.value = value;
-
-            // Store numeric value without $ in listingData
-            listingData.cleaningFee = value.substring(1);
-
-            if (hasAttemptedToLeave.cleaningFee) {
-                validateCleaningFee();
-            }
-        });
-
-        // Prevent backspace/delete from removing $
-        cleaningFeeInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Backspace' || e.key === 'Delete') {
-                const cursorPosition = cleaningFeeInput.selectionStart;
-                if (cursorPosition <= 1) {
-                    e.preventDefault();
-                }
-            }
-        });
-    }
-}
-
-
-// Counter logic for the "basics" step
-function initializeCounters() {
-    let counters = {
-        guests: listingData.basics.guests || 0,
-        bedrooms: listingData.basics.bedrooms || 0,
-        baths: listingData.basics.baths || 0,
-        beds: listingData.basics.beds || 0
-    };
-
-    const plusButtons = {
-        guests: document.getElementById('plus-button1'),
-        bedrooms: document.getElementById('plus-button2'),
-        baths: document.getElementById('plus-button3'),
-        beds: document.getElementById('plus-button4')
-    };
-
-    const minusButtons = {
-        guests: document.getElementById('minus-button1'),
-        bedrooms: document.getElementById('minus-button2'),
-        baths: document.getElementById('minus-button3'),
-        beds: document.getElementById('minus-button4')
-    };
-
-    const textFields = {
-        guests: document.getElementById('guests-text'),
-        bedrooms: document.getElementById('bedrooms-text'),
-        baths: document.getElementById('baths-text'),
-        beds: document.getElementById('beds-text')
-    };
-
-    setupSVGButtons();
-    updateAllButtonStates();
-
-    // Add event listeners for plus and minus buttons
-    Object.keys(plusButtons).forEach(type => {
-        plusButtons[type].addEventListener('click', () => handleIncrement(type));
-    });
-
-    Object.keys(minusButtons).forEach(type => {
-        minusButtons[type].addEventListener('click', () => handleDecrement(type));
-    });
-
-    function handleIncrement(type) {
-        counters[type]++;
-        listingData.basics[type] = counters[type]; // Save to basics object
-        updateCounterDisplay(type);
-        updateAllButtonStates();
-        if (hasAttemptedToLeave.basics) {
-            validateBasics();
-        }
-    }
-
-    function handleDecrement(type) {
-        if (counters[type] > 0) {
-            counters[type]--;
-            listingData.basics[type] = counters[type]; // Save to basics object
-            updateCounterDisplay(type);
-            updateAllButtonStates();
-            if (hasAttemptedToLeave.basics) {
-                validateBasics();
-            }
-        }
-    }
-
-    function updateCounterDisplay(type) {
-        textFields[type].textContent = counters[type];
-    }
-
-    function updateAllButtonStates() {
-        Object.keys(counters).forEach(type => {
-            // Disable minus button if the counter is 0
-            if (counters[type] <= 0) {
-                minusButtons[type].disabled = true;
-                minusButtons[type].style.opacity = '0.3';
-            } else {
-                minusButtons[type].disabled = false;
-                minusButtons[type].style.opacity = '1';
-            }
-
-            // Plus buttons will always be enabled since there's no max limit
-            plusButtons[type].style.opacity = '1';
-        });
-    }
-
-    function setupSVGButtons() {
-        const svgPlus = `
-            <svg width="30" height="30" xmlns="http://www.w3.org/2000/svg">
-                <circle cx="15" cy="15" r="14" fill="none" stroke="#808080" stroke-width="1"></circle>
-                <rect x="9" y="14" width="12" height="2" rx="2" fill="#808080"></rect>
-                <rect x="14" y="9" width="2" height="12" rx="2" fill="#808080"></rect>
-            </svg>
-        `;
-        const svgMinus = `
-            <svg width="30" height="30" xmlns="http://www.w3.org/2000/svg">
-                <circle cx="15" cy="15" r="14" fill="none" stroke="#808080" stroke-width="1"></circle>
-                <rect x="9" y="14" width="12" height="2" rx="2" fill="#808080"></rect>
-            </svg>
-        `;
-
-        Object.values(plusButtons).forEach(button => button.innerHTML = svgPlus);
-        Object.values(minusButtons).forEach(button => button.innerHTML = svgMinus);
-    }
-}
-
 
 // Add input event listeners for address fields
 document.addEventListener('DOMContentLoaded', () => {
