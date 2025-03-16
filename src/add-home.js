@@ -56,10 +56,53 @@ let listingData = {
 document.addEventListener('DOMContentLoaded', function () {
     const saveAndExitButton = document.querySelector('[data-element="addHome_saveAndExit"]');
     const submitButton = document.getElementById('submitButton');
+    const saveAndExitText = document.querySelector('[data-element="addHome_saveAndExit_text"]');
+    const submitButtonText = document.querySelector('[data-element="submitButton_text"]');
+    const saveExitLoader = document.querySelector('[data-element="Login_Button_Loader"]');
+    const submitLoader = document.querySelector('[data-element="Submit_Button_Loader"]');
+
+    saveExitLoader.style.display = 'none';
+    submitLoader.style.display = 'none';
+
+    // Hide save and exit button on manageAddHome and get-started steps
+    function updateSaveAndExitVisibility() {
+        const manageAddHomeStep = document.getElementById('manageAddHome');
+        const getStartedStep = document.getElementById('get-started');
+        const hash = window.location.hash;
+
+        if (!saveAndExitButton) return;
+
+        const isOnInitialSteps = (manageAddHomeStep && window.getComputedStyle(manageAddHomeStep).display !== 'none') ||
+            (getStartedStep && window.getComputedStyle(getStartedStep).display !== 'none');
+
+        // Use opacity and transition for smooth visibility changes
+        saveAndExitButton.style.transition = 'opacity 0.3s ease-in-out';
+        saveAndExitButton.style.opacity = (isOnInitialSteps || !hash) ? '0' : '1';
+
+        // After fade out completes, update display property
+        setTimeout(() => {
+            saveAndExitButton.style.display = (isOnInitialSteps || !hash) ? 'none' : 'flex';
+        }, (isOnInitialSteps || !hash) ? 300 : 0);
+    }
+
+    // Call initially
+    updateSaveAndExitVisibility();
 
     // Function to handle saving property data
-    async function handlePropertySave() {
+    async function handlePropertySave(isFinalSubmit = false) {
         try {
+            // Show appropriate loader and hide text based on which button was clicked
+            if (isFinalSubmit) {
+                if (submitLoader) submitLoader.style.display = 'flex';
+                if (submitButtonText) submitButtonText.style.display = 'none';
+            } else {
+                if (saveExitLoader) saveExitLoader.style.display = 'flex';
+                if (saveAndExitText) saveAndExitText.style.display = 'none';
+            }
+
+            // Track pending requests
+            const pendingRequests = [];
+
             // Check if userId is set before proceeding
             if (!listingData.userId) {
                 console.log('Cannot save property: User ID is not set');
@@ -101,8 +144,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
             // Only add check in/out if method is selected
             if (listingData.checkIn.method) {
-                propertyData.check_in_time = `${listingData.checkIn.time} ${listingData.checkIn.period}`;
-                propertyData.check_out_time = `${listingData.checkOut.time} ${listingData.checkOut.period}`;
+                propertyData.check_in_time = `${listingData.checkIn.time} ${listingData.checkIn.period.toUpperCase()}`;
+                propertyData.check_out_time = `${listingData.checkOut.time} ${listingData.checkOut.period.toUpperCase()}`;
                 propertyData.check_in_method = listingData.checkIn.method.text;
             }
 
@@ -178,16 +221,17 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (listingData.dock.selectedButtons.includes('Shore power')) propertyData.dock_shorePower = true;
             }
 
-
             // Send POST request to property API
-            const propertyResponse = await fetch('https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/property', {
+            const propertyPromise = fetch('https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/property', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify(propertyData)
             });
+            pendingRequests.push(propertyPromise);
 
+            const propertyResponse = await propertyPromise;
             if (!propertyResponse.ok) {
                 throw new Error('Failed to save property data');
             }
@@ -202,25 +246,18 @@ document.addEventListener('DOMContentLoaded', function () {
                     selectedAmenities: listingData.selectedAmenities.map(id => ({ amenity_id: id }))
                 };
 
-                // Add unfinishedListing flag if continuing an existing listing
                 if (listingData.unfinishedPropertyId) {
                     amenityData.unfinishedListing = true;
                 }
 
-                const amenityResponse = await fetch('https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/property_add_home_attribute', {
+                const amenityPromise = fetch('https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/property_addOrEdit_home_attribute', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify(amenityData)
                 });
-
-                if (!amenityResponse.ok) {
-                    throw new Error('Failed to save amenity data');
-                }
-
-                const amenityResult = await amenityResponse.json();
-                console.log('Amenities saved successfully:', amenityResult);
+                pendingRequests.push(amenityPromise);
             }
 
             // Make the property_rules_add_home request with all rules data
@@ -230,8 +267,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 listingData.duringStayRules.length > 0) {
                 const rulesData = {
                     property_id: propertyResult.id,
-                    checkIn: "Check in after " + listingData.checkIn.time + ":00" + listingData.checkIn.period,
-                    checkOut: "Check out before " + listingData.checkOut.time + ":00" + listingData.checkOut.period,
+                    checkIn: "Check in after " + listingData.checkIn.time + " " + listingData.checkIn.period.toUpperCase(),
+                    checkOut: "Check out before " + listingData.checkOut.time + " " + listingData.checkOut.period.toUpperCase(),
                     checkInMethod: listingData.checkIn.method.text,
                     guestMax: listingData.basics.guests,
                     duringStay: listingData.duringStayRules.map(rule => ({
@@ -242,52 +279,73 @@ document.addEventListener('DOMContentLoaded', function () {
                     }))
                 };
 
-                const rulesResponse = await fetch('https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/property_add_home_rules', {
+                if (listingData.unfinishedPropertyId) {
+                    rulesData.unfinishedListing = true;
+                }
+
+                const rulesPromise = fetch('https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/property_add_home_rules', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify(rulesData)
                 });
-
-                if (!rulesResponse.ok) {
-                    throw new Error('Failed to save rules data');
-                }
-
-                const rulesResult = await rulesResponse.json();
-                console.log('Rules saved successfully:', rulesResult);
+                pendingRequests.push(rulesPromise);
             }
 
             // If photos or cover photos were added, make the property_photos_add_home request
             if (listingData.photos.length > 0) {
+                const coverPhotos = listingData.photos.filter(p => p.isCoverPhoto);
+                const hasValidCoverPhotos = coverPhotos.length === 5 &&
+                    [1, 2, 3, 4, 5].every(num =>
+                        coverPhotos.some(p => p.coverPhotoOrder === num)
+                    );
+
+                let processedPhotos = [...listingData.photos];
+
+                if (hasValidCoverPhotos) {
+                    let nextOrder = 6;
+                    processedPhotos = processedPhotos.map(photo => {
+                        if (photo.coverPhotoOrder >= 1 && photo.coverPhotoOrder <= 5) {
+                            return {
+                                ...photo,
+                                isCoverPhoto: true
+                            };
+                        } else {
+                            return {
+                                ...photo,
+                                isCoverPhoto: false,
+                                coverPhotoOrder: nextOrder++
+                            };
+                        }
+                    });
+                }
+
                 const photoData = {
                     property_id: propertyResult.id,
-                    addedPhotos: listingData.photos.map(photo => ({
+                    addedPhotos: processedPhotos.map(photo => ({
                         image: photo.dataUrl,
                         isCoverPhoto: photo.isCoverPhoto,
                         coverPhotoOrder: photo.coverPhotoOrder,
-                        isDockPhoto: photo.isDockPhoto
+                        isDockPhoto: photo.isDockPhoto,
+                        in_dock_section_order: photo.in_dock_section_order
                     })),
                 };
 
+                if (listingData.unfinishedPropertyId) {
+                    photoData.unfinishedListing = true;
+                }
+
                 console.log(photoData);
 
-                const photoResponse = await fetch('https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/property_add_home_photos', {
+                const photoPromise = fetch('https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/property_add_home_photos', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify(photoData)
                 });
-
-                if (!photoResponse.ok) {
-                    const errorData = await photoResponse.json();
-                    console.error('Photo upload error:', errorData);
-                    throw new Error('Failed to save photo data: ' + (errorData.message || ''));
-                }
-
-                const photoResult = await photoResponse.json();
-                console.log('Photos saved successfully:', photoResult);
+                pendingRequests.push(photoPromise);
             }
 
             // If safety features were added, make the property_add_home_safety request
@@ -299,41 +357,74 @@ document.addEventListener('DOMContentLoaded', function () {
                     }))
                 };
 
-                const safetyResponse = await fetch('https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/property_add_home_safety', {
+                if (listingData.unfinishedPropertyId) {
+                    safetyData.unfinishedListing = true;
+                }
+
+                const safetyPromise = fetch('https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/property_addOrEdit_home_safety', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify(safetyData)
                 });
-
-                if (!safetyResponse.ok) {
-                    throw new Error('Failed to save safety features data');
-                }
-
-                const safetyResult = await safetyResponse.json();
-                console.log('Safety features saved successfully:', safetyResult);
+                pendingRequests.push(safetyPromise);
             }
 
-            // Optionally redirect or show success message
-            // window.location.href = '/success-page';
+            // Wait for all requests to complete
+            await Promise.all(pendingRequests);
+
+            // Only redirect after all requests are successful
+            window.location.href = '/host/dashboard';
 
         } catch (error) {
             console.error('Error saving property:', error);
+            // Hide loader and show text on error
+            if (isFinalSubmit) {
+                if (submitLoader) submitLoader.style.display = 'none';
+                if (submitButtonText) submitButtonText.style.display = 'block';
+            } else {
+                if (saveExitLoader) saveExitLoader.style.display = 'none';
+                if (saveAndExitText) saveAndExitText.style.display = 'block';
+            }
             // Handle error - show error message to user
         }
     }
 
     // Add click handler for save and exit button
     if (saveAndExitButton) {
-        saveAndExitButton.addEventListener('click', handlePropertySave);
+        saveAndExitButton.addEventListener('click', () => handlePropertySave(false));
     }
 
     // Add click handler for submit button
     if (submitButton) {
-        submitButton.addEventListener('click', handlePropertySave);
+        submitButton.addEventListener('click', () => handlePropertySave(true));
+    }
+
+    // Add mutation observer to watch for display changes
+    const observer = new MutationObserver(mutations => {
+        mutations.forEach(mutation => {
+            if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
+                updateSaveAndExitVisibility();
+            }
+        });
+    });
+
+    // Observe both steps for style changes
+    const manageAddHomeStep = document.getElementById('manageAddHome');
+    const getStartedStep = document.getElementById('get-started');
+
+    if (manageAddHomeStep) {
+        observer.observe(manageAddHomeStep, { attributes: true });
+    }
+    if (getStartedStep) {
+        observer.observe(getStartedStep, { attributes: true });
     }
 });
+
+
+
+
 
 // Set up Wized to get user ID and check for unfinished listings
 document.addEventListener('DOMContentLoaded', async function () {
@@ -468,7 +559,8 @@ document.addEventListener('DOMContentLoaded', async function () {
                                 dataUrl: pic.property_image.url,
                                 isCoverPhoto: pic.inHeaderPreview || false,
                                 coverPhotoOrder: pic.inPreviewOrder || null,
-                                isDockPhoto: pic.in_dock_section || false
+                                isDockPhoto: pic.in_dock_section || false,
+                                in_dock_section_order: pic.in_dock_section_order || null
                             }));
                         }
 
@@ -495,7 +587,7 @@ document.addEventListener('DOMContentLoaded', async function () {
                                 if (methodText.includes('keypad')) methodType = 'keypad';
                                 else if (methodText.includes('lockbox')) methodType = 'lockbox';
                                 else if (methodText.includes('person')) methodType = 'inPerson';
-                                else if (methodText.includes('digital card')) methodType = 'digitalCard';
+                                else if (methodText.includes('digital key')) methodType = 'digitalCard';
 
                                 listingData.checkIn.method = {
                                     type: methodType,
@@ -926,6 +1018,708 @@ document.addEventListener('DOMContentLoaded', async function () {
     }));
 });
 
+
+// Function to initialize photos step
+function initializePhotosStep() {
+    const addPhotosButton = document.getElementById('addPhotosButton');
+    const addPhotosButton2 = document.getElementById('addPhotosButton2');
+    const addPhotosContainer = document.getElementById('addPhotosButton_Container');
+    const photoContainerParent = document.querySelector('[data-element="photo_container_parent"]');
+    const photoContainer = document.querySelector('[data-element="photo_container"]');
+    const photosError = document.getElementById('photos-error');
+    const photosSubText = document.getElementById('photos-subText');
+
+    // Remove existing event listeners to prevent multiple triggers
+    const removeEventListeners = (button) => {
+        const newButton = button.cloneNode(true);
+        button.parentNode.replaceChild(newButton, button);
+        return newButton;
+    };
+
+    // Show/hide elements based on whether photos exist
+    if (listingData.photos.length > 0) {
+        if (addPhotosContainer) addPhotosContainer.style.display = 'none';
+        if (addPhotosButton2) addPhotosButton2.style.display = 'flex';
+        if (photoContainerParent) {
+            photoContainerParent.style.display = 'grid';
+            // Clear existing photos first
+            const existingPhotos = document.querySelectorAll('[data-element="photo_container_parent"]');
+            existingPhotos.forEach((container, index) => {
+                if (index > 0) { // Keep the first container
+                    container.remove();
+                }
+            });
+
+            // Update first photo container
+            const firstPhotoContainer = photoContainerParent.querySelector('[data-element="photo_container"]');
+            if (firstPhotoContainer) {
+                firstPhotoContainer.src = listingData.photos[0].url || listingData.photos[0].dataUrl;
+                setupPhotoAddedDeleteButton(photoContainerParent, 0); // Add delete button to first photo
+            }
+
+            // Add remaining photos
+            for (let i = 1; i < listingData.photos.length; i++) {
+                const newParent = photoContainerParent.cloneNode(true);
+                const newImg = newParent.querySelector('[data-element="photo_container"]');
+                if (newImg) {
+                    newImg.src = listingData.photos[i].url || listingData.photos[i].dataUrl;
+                    setupPhotoAddedDeleteButton(newParent, i); // Add delete button to each photo
+                }
+                photoContainerParent.parentNode.appendChild(newParent);
+            }
+        }
+    } else {
+        if (addPhotosContainer) {
+            addPhotosContainer.style.display = 'flex';
+            addPhotosContainer.style.flexDirection = 'column';
+            addPhotosContainer.style.gap = '15px';
+        }
+        if (addPhotosButton2) addPhotosButton2.style.display = 'none';
+        if (photoContainerParent) photoContainerParent.style.display = 'none';
+        if (photoContainer) photoContainer.src = '';
+    }
+
+    // Hide error message initially
+    if (photosError) photosError.style.display = 'none';
+    if (photosSubText) photosSubText.style.display = 'block';
+
+    // Add click handler to both add photos buttons
+    const setupPhotoButton = (button) => {
+        if (button) {
+            const newButton = removeEventListeners(button);
+            newButton.addEventListener('click', () => {
+                const fileInput = document.createElement('input');
+                fileInput.type = 'file';
+                fileInput.multiple = true;
+                fileInput.accept = 'image/jpeg,image/png,image/jpg,image/gif,image/webp';
+                fileInput.addEventListener('change', handlePhotoSelection);
+                fileInput.click();
+            });
+        }
+    };
+
+    setupPhotoButton(addPhotosButton);
+    setupPhotoButton(addPhotosButton2);
+}
+
+// Function to handle photo selection
+function handlePhotoSelection(event) {
+    const files = event.target.files;
+    const addPhotosContainer = document.getElementById('addPhotosButton_Container');
+    const addPhotosButton2 = document.getElementById('addPhotosButton2');
+
+    if (!files.length) return;
+
+    // Hide the add photos button container once photos are selected
+    if (addPhotosContainer) {
+        addPhotosContainer.style.display = 'none';
+    }
+
+    // Show the second add photos button
+    if (addPhotosButton2) {
+        addPhotosButton2.style.display = 'flex';
+    }
+
+    // Process each selected file
+    Array.from(files).forEach(file => {
+        const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/gif', 'image/webp'];
+        if (!allowedTypes.includes(file.type)) return;
+
+        const reader = new FileReader();
+        reader.onload = function (e) {
+            // Extract file extension from file type
+            const fileExtension = file.type.split('/')[1];
+
+            // Create object URL for the file
+            const url = URL.createObjectURL(file);
+
+            // Store photo data
+            listingData.photos.push({
+                dataUrl: e.target.result,
+                url: url,
+                fileExtension: fileExtension,
+                isCoverPhoto: false,
+                coverPhotoOrder: null,
+                isDockPhoto: false
+            });
+
+            // Render all photos after adding new one
+            renderPhotos();
+
+            // Check photo count and update error message if needed
+            if (hasAttemptedToLeave.photos) {
+                validatePhotos();
+            }
+        };
+        reader.readAsDataURL(file);
+    });
+
+    // Clear the file input value to prevent auto-reopening
+    event.target.value = '';
+}
+
+// Function to setup delete button for a photo
+function setupPhotoAddedDeleteButton(containerParent, photoIndex) {
+    const deleteButton = containerParent.querySelector('[data-element="deletePhotoAdded"]');
+    if (!deleteButton) return;
+
+    deleteButton.style.cursor = 'pointer';
+
+    // Remove any existing click handlers
+    const newDeleteButton = deleteButton.cloneNode(true);
+    deleteButton.parentNode.replaceChild(newDeleteButton, deleteButton);
+
+    newDeleteButton.onclick = (e) => {
+        e.stopPropagation();
+
+        // Remove photo from listingData array
+        listingData.photos.splice(photoIndex, 1);
+
+        // If no photos left, reset the UI
+        if (listingData.photos.length === 0) {
+            resetPhotoUI();
+        } else {
+            // Rerender all photos
+            renderPhotos();
+        }
+
+        // Revalidate if user has attempted to leave
+        if (hasAttemptedToLeave.photos) {
+            validatePhotos();
+        }
+    };
+}
+
+// Function to render all photos
+function renderPhotos() {
+    const photoContainerParent = document.querySelector('[data-element="photo_container_parent"]');
+    if (!photoContainerParent) return;
+
+    // Only show photo container when we have photos
+    photoContainerParent.style.display = listingData.photos.length ? 'grid' : 'none';
+
+    // Log photos array
+    console.log('Current photos:', listingData.photos);
+
+    // Clear existing photos
+    const allContainers = document.querySelectorAll('[data-element="photo_container_parent"]');
+    allContainers.forEach((container, idx) => {
+        if (idx > 0) container.remove();
+    });
+
+    // Render each photo
+    listingData.photos.forEach((photo, idx) => {
+        if (idx === 0) {
+            const firstImg = photoContainerParent.querySelector('[data-element="photo_container"]');
+            if (firstImg) {
+                firstImg.src = photo.url || photo.dataUrl;
+                setupPhotoAddedDeleteButton(photoContainerParent, 0);
+            }
+        } else {
+            const newParent = photoContainerParent.cloneNode(true);
+            const newImg = newParent.querySelector('[data-element="photo_container"]');
+            if (newImg) {
+                newImg.src = photo.url || photo.dataUrl;
+                setupPhotoAddedDeleteButton(newParent, idx);
+            }
+            photoContainerParent.parentNode.appendChild(newParent);
+        }
+    });
+}
+
+// Function to reset photo UI to initial state
+function resetPhotoUI() {
+    const addPhotosContainer = document.getElementById('addPhotosButton_Container');
+    const addPhotosButton2 = document.getElementById('addPhotosButton2');
+    const photoContainerParent = document.querySelector('[data-element="photo_container_parent"]');
+    const photoContainer = document.querySelector('[data-element="photo_container"]');
+
+    if (addPhotosContainer) {
+        addPhotosContainer.style.display = 'flex';
+        addPhotosContainer.style.flexDirection = 'column';
+        addPhotosContainer.style.gap = '15px';
+    }
+
+    if (addPhotosButton2) {
+        addPhotosButton2.style.display = 'none';
+    }
+
+    if (photoContainerParent) {
+        photoContainerParent.style.display = 'none';
+    }
+
+    if (photoContainer) {
+        photoContainer.src = '';
+    }
+}
+
+// Function to initialize cover photos section
+function initializeCoverPhotosStep() {
+    console.log(listingData.photos);
+    let coverPhotosContainer = document.querySelector('[data-element="coverPhotos_photoContainer"]');
+    const coverPhotosError = document.getElementById('coverPhotos-error');
+    const coverPhotosSubText = document.getElementById('coverPhotos-subText');
+
+    if (!coverPhotosContainer) {
+        return;
+    }
+
+    // Remove any existing photo containers first
+    const existingContainers = document.querySelectorAll('[data-element="coverPhotos_photoContainer"]');
+    existingContainers.forEach((container, index) => {
+        if (index > 0) { // Keep the first container
+            container.remove();
+        }
+    });
+
+    // Create a fresh container to replace the original one
+    const newContainer = document.createElement('div');
+    newContainer.setAttribute('data-element', 'coverPhotos_photoContainer');
+    // Copy any existing styles or attributes from the original container
+    newContainer.className = coverPhotosContainer.className;
+    coverPhotosContainer.parentNode.replaceChild(newContainer, coverPhotosContainer);
+    coverPhotosContainer = newContainer;
+
+    // Create a reusable function to set up a photo container
+    const setupPhotoContainer = (container, photo, photoIndex) => {
+        const photoImage = document.createElement('img');
+        photoImage.setAttribute('data-element', 'coverPhotos_image');
+        photoImage.style.borderRadius = '5px';
+        container.appendChild(photoImage);
+
+        // Create number element with all styles applied directly
+        const numberEl = document.createElement('div');
+        numberEl.setAttribute('data-element', 'coverPhotos_number');
+        numberEl.className = 'coverPhotos_number';
+        numberEl.style.display = 'none';
+        numberEl.style.position = 'absolute';
+        numberEl.style.top = '8px';
+        numberEl.style.right = '8px';
+        numberEl.style.width = '30px';
+        numberEl.style.height = '30px';
+        numberEl.style.borderRadius = '100%';
+        numberEl.style.backgroundColor = 'white';
+        numberEl.style.border = '2px solid black';
+        numberEl.style.alignItems = 'center';
+        numberEl.style.justifyContent = 'center';
+        numberEl.style.fontSize = '15px';
+        numberEl.style.fontWeight = 'bold';
+        numberEl.style.color = 'black';
+        numberEl.style.fontFamily = 'Tt Fors, sans-serif';
+        numberEl.style.transition = 'all 0.3s ease';
+        numberEl.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+        container.appendChild(numberEl);
+
+        const photoUrl = photo.dataUrl;
+
+        if (!photoUrl.startsWith('data:')) {
+            const timestamp = new Date().getTime();
+            photoImage.src = photoUrl + '?' + timestamp;
+        } else {
+            photoImage.src = photoUrl;
+        }
+
+        photoImage.style.display = 'block';
+        photoImage.style.visibility = 'visible';
+        photoImage.style.opacity = '1';
+
+        photoImage.addEventListener('load', () => { });
+        photoImage.addEventListener('error', () => { });
+
+        // Make container clickable
+        container.style.cursor = 'pointer';
+        container.style.position = 'relative';
+
+        // Function to update all number colors based on total selected
+        const updateNumberColors = () => {
+            const selectedCoverPhotos = listingData.photos.filter(p => p.isCoverPhoto).length;
+            const allNumberElements = document.querySelectorAll('[data-element="coverPhotos_number"]');
+            allNumberElements.forEach(el => {
+                if (el.style.display === 'flex') {
+                    el.style.backgroundColor = selectedCoverPhotos === 5 ? '#90EE90' : 'white';
+                }
+            });
+        };
+
+        // Add click handler for photo selection
+        container.addEventListener('click', () => {
+            const numberEl = container.querySelector('[data-element="coverPhotos_number"]');
+
+            // If already selected, remove from selection
+            if (numberEl.style.display === 'flex') {
+                const currentOrder = listingData.photos[photoIndex].coverPhotoOrder;
+                numberEl.style.display = 'none';
+                numberEl.textContent = '';
+
+                // Remove cover photo properties from the photo in listingData
+                delete listingData.photos[photoIndex].isCoverPhoto;
+                delete listingData.photos[photoIndex].coverPhotoOrder;
+
+                // Update order numbers for remaining photos
+                listingData.photos.forEach(p => {
+                    if (p.isCoverPhoto && p.coverPhotoOrder > currentOrder) {
+                        p.coverPhotoOrder--;
+                    }
+                });
+
+                // Update displayed numbers
+                document.querySelectorAll('[data-element="coverPhotos_number"]').forEach(el => {
+                    if (el.style.display === 'flex') {
+                        const num = parseInt(el.textContent);
+                        if (num > currentOrder) {
+                            el.textContent = (num - 1).toString();
+                        }
+                    }
+                });
+
+                // Reset container border styles when unselected
+                container.style.outline = 'none';
+                container.style.border = '1px solid #e2e2e2';
+
+                // Update colors for all numbers
+                updateNumberColors();
+            }
+            // Add to selection if less than 5 photos are selected
+            else if (listingData.photos.filter(p => p.isCoverPhoto).length < 5) {
+                const order = listingData.photos.filter(p => p.isCoverPhoto).length + 1;
+                numberEl.style.display = 'flex';
+                numberEl.textContent = order.toString();
+                container.style.outline = '2px solid black';
+                container.style.outlineOffset = '-1px';
+                container.style.border = 'none';
+
+                // Add cover photo properties to the photo in listingData
+                listingData.photos[photoIndex].isCoverPhoto = true;
+                listingData.photos[photoIndex].coverPhotoOrder = order;
+
+                // Update colors for all numbers
+                updateNumberColors();
+            }
+        });
+
+        // Check if this photo is already a cover photo and restore its state
+        if (listingData.photos[photoIndex].isCoverPhoto) {
+            numberEl.style.display = 'flex';
+            numberEl.textContent = listingData.photos[photoIndex].coverPhotoOrder.toString();
+            container.style.outline = '2px solid black';
+            container.style.outlineOffset = '-1px';
+            container.style.border = 'none';
+            numberEl.style.backgroundColor = listingData.photos.filter(p => p.isCoverPhoto).length === 5 ? '#90EE90' : 'white';
+        }
+    };
+
+    // Check if we have any photos with coverPhotoOrder
+    const hasCoverPhotos = listingData.photos.some(photo => photo.coverPhotoOrder);
+
+    let photosToDisplay = listingData.photos;
+    if (hasCoverPhotos) {
+        // Sort photos by coverPhotoOrder, with non-cover photos at the end
+        photosToDisplay = [...listingData.photos].sort((a, b) => {
+            if (!a.coverPhotoOrder && !b.coverPhotoOrder) return 0;
+            if (!a.coverPhotoOrder) return 1;
+            if (!b.coverPhotoOrder) return -1;
+            return a.coverPhotoOrder - b.coverPhotoOrder;
+        });
+    }
+
+    // Display photos
+    photosToDisplay.forEach((photo, index) => {
+        let currentContainer;
+        if (index === 0) {
+            currentContainer = coverPhotosContainer;
+        } else {
+            currentContainer = coverPhotosContainer.cloneNode(true);
+            currentContainer.innerHTML = '';
+            coverPhotosContainer.parentNode.appendChild(currentContainer);
+        }
+
+        // Find original index in listingData.photos to maintain correct reference
+        const originalIndex = listingData.photos.indexOf(photo);
+        setupPhotoContainer(currentContainer, photo, originalIndex);
+    });
+
+    // Hide error initially 
+    if (coverPhotosError) {
+        coverPhotosError.style.display = 'none';
+    }
+    if (coverPhotosSubText) {
+        coverPhotosSubText.style.display = 'block';
+    }
+}
+
+// Function to initialize dock photos section
+function initializeDockPhotosStep() {
+    // Skip this step if no private dock
+    if (!listingData.dock.hasPrivateDock) {
+        const titleStepIndex = steps.indexOf('title');
+        if (titleStepIndex !== -1) {
+            goToStep(titleStepIndex + 1);
+        }
+        return;
+    }
+
+    let dockPhotosContainer = document.querySelector('[data-element="dockPhotos_photoContainer"]');
+    const dockPhotosError = document.getElementById('dockPhotos-error');
+    const dockPhotosSubText = document.getElementById('dockPhotos-subText');
+
+    if (!dockPhotosContainer) {
+        return;
+    }
+
+    // Remove any existing photo containers first
+    const existingContainers = document.querySelectorAll('[data-element="dockPhotos_photoContainer"]');
+    existingContainers.forEach((container, index) => {
+        if (index > 0) { // Keep the first container
+            container.remove();
+        }
+    });
+
+    // Create a fresh container to replace the original one
+    const newContainer = document.createElement('div');
+    newContainer.setAttribute('data-element', 'dockPhotos_photoContainer');
+    // Copy any existing styles or attributes from the original container
+    newContainer.className = dockPhotosContainer.className;
+    dockPhotosContainer.parentNode.replaceChild(newContainer, dockPhotosContainer);
+    dockPhotosContainer = newContainer;
+
+    // Create a reusable function to set up a photo container
+    const setupPhotoContainer = (container, photo, photoIndex) => {
+        const photoImage = document.createElement('img');
+        photoImage.setAttribute('data-element', 'dockPhotos_image');
+        photoImage.style.borderRadius = '5px';
+        container.appendChild(photoImage);
+
+        // Create number element with all styles applied directly
+        const numberEl = document.createElement('div');
+        numberEl.setAttribute('data-element', 'dockPhotos_number');
+        numberEl.className = 'dockPhotos_number';
+        numberEl.style.display = 'none';
+        numberEl.style.position = 'absolute';
+        numberEl.style.top = '8px';
+        numberEl.style.right = '8px';
+        numberEl.style.width = '30px';
+        numberEl.style.height = '30px';
+        numberEl.style.borderRadius = '100%';
+        numberEl.style.backgroundColor = 'white';
+        numberEl.style.border = '2px solid black';
+        numberEl.style.alignItems = 'center';
+        numberEl.style.justifyContent = 'center';
+        numberEl.style.fontSize = '15px';
+        numberEl.style.fontWeight = 'bold';
+        numberEl.style.color = 'black';
+        numberEl.style.fontFamily = 'Tt Fors, sans-serif';
+        numberEl.style.transition = 'all 0.3s ease';
+        numberEl.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+        container.appendChild(numberEl);
+
+        // Set photo source
+        photoImage.src = photo.dataUrl;
+
+        // Make container clickable
+        container.style.cursor = 'pointer';
+        container.style.position = 'relative';
+
+        // Function to update all number colors based on total selected
+        const updateNumberColors = () => {
+            const selectedDockPhotos = listingData.photos.filter(p => p.isDockPhoto).length;
+            const allNumberElements = document.querySelectorAll('[data-element="dockPhotos_number"]');
+            allNumberElements.forEach(el => {
+                if (el.style.display === 'flex') {
+                    el.style.backgroundColor = selectedDockPhotos === 2 ? '#90EE90' : 'white';
+                }
+            });
+        };
+
+        // Add click handler
+        container.addEventListener('click', () => {
+            const numberEl = container.querySelector('[data-element="dockPhotos_number"]');
+
+            // If already selected, remove from selection
+            if (numberEl.style.display === 'flex') {
+                numberEl.style.display = 'none';
+                numberEl.textContent = '';
+
+                // Remove dock photo properties
+                delete listingData.photos[photoIndex].isDockPhoto;
+                delete listingData.photos[photoIndex].in_dock_section_order;
+
+                // Update displayed numbers and orders
+                const selectedPhotos = listingData.photos.filter(p => p.isDockPhoto);
+                selectedPhotos.forEach((photo, idx) => {
+                    photo.in_dock_section_order = idx + 1;
+                    const selectedContainer = document.querySelector(`[data-element="dockPhotos_number"][style*="display: flex"]:nth-of-type(${idx + 1})`);
+                    if (selectedContainer) {
+                        selectedContainer.textContent = (idx + 1).toString();
+                    }
+                });
+
+                // Reset container border styles
+                container.style.outline = 'none';
+                container.style.border = '1px solid #e2e2e2';
+
+                // Update colors for all numbers
+                updateNumberColors();
+            }
+            // Add to selection if less than 2 photos selected
+            else if (listingData.photos.filter(p => p.isDockPhoto).length < 2) {
+                const selectedCount = listingData.photos.filter(p => p.isDockPhoto).length + 1;
+                numberEl.style.display = 'flex';
+                numberEl.textContent = selectedCount.toString();
+                container.style.outline = '2px solid black';
+                container.style.outlineOffset = '-1px';
+                container.style.border = 'none';
+
+                // Add dock photo properties
+                listingData.photos[photoIndex].isDockPhoto = true;
+                listingData.photos[photoIndex].in_dock_section_order = selectedCount;
+
+                // Update colors for all numbers
+                updateNumberColors();
+            }
+        });
+
+        // Check if this photo is already a dock photo and restore its state
+        if (listingData.photos[photoIndex].isDockPhoto) {
+            numberEl.style.display = 'flex';
+            numberEl.textContent = listingData.photos[photoIndex].in_dock_section_order.toString();
+            container.style.outline = '2px solid black';
+            container.style.outlineOffset = '-1px';
+            container.style.border = 'none';
+            numberEl.style.backgroundColor = listingData.photos.filter(p => p.isDockPhoto).length === 2 ? '#90EE90' : 'white';
+        }
+    };
+
+    // Display all photos
+    listingData.photos.forEach((photo, index) => {
+        let currentContainer;
+        if (index === 0) {
+            currentContainer = dockPhotosContainer;
+        } else {
+            currentContainer = dockPhotosContainer.cloneNode(true);
+            currentContainer.innerHTML = '';
+            dockPhotosContainer.parentNode.appendChild(currentContainer);
+        }
+
+        setupPhotoContainer(currentContainer, photo, index);
+    });
+
+    // Hide error initially 
+    if (dockPhotosError) {
+        dockPhotosError.style.display = 'none';
+    }
+    if (dockPhotosSubText) {
+        dockPhotosSubText.style.display = 'block';
+    }
+}
+
+// Function to validate dock photos selection
+function validateDockPhotos() {
+    const dockPhotosError = document.getElementById('dockPhotos-error');
+    const dockPhotosSubText = document.getElementById('dockPhotos-subText');
+
+    // Skip validation if dock photos not required
+    if (!listingData.dock.hasPrivateDock) {
+        return true;
+    }
+
+    // Only validate if user has attempted to leave
+    if (!hasAttemptedToLeave.dockPhotos) {
+        return true;
+    }
+
+    // Count photos marked as dock photos
+    const dockPhotoCount = listingData.photos.filter(photo => photo.isDockPhoto).length;
+
+    // Hide error and show subtext if 2 photos selected
+    if (dockPhotoCount === 2) {
+        if (dockPhotosError) {
+            dockPhotosError.style.display = 'none';
+        }
+        if (dockPhotosSubText) {
+            dockPhotosSubText.style.display = 'block';
+        }
+        return true;
+    }
+
+    // Show error and hide subtext if less than 2 photos
+    if (dockPhotosError) {
+        const remainingPhotos = 2 - dockPhotoCount;
+        const photoText = remainingPhotos === 1 ? 'photo' : 'photos';
+        dockPhotosError.textContent = `Please select ${remainingPhotos} more ${photoText} to continue`;
+        dockPhotosError.style.display = 'block';
+        if (dockPhotosSubText) {
+            dockPhotosSubText.style.display = 'none';
+        }
+    }
+    return false;
+}
+
+// Function to validate cover photos selection
+function validateCoverPhotos() {
+    const coverPhotosError = document.getElementById('coverPhotos-error');
+    const coverPhotosSubText = document.getElementById('coverPhotos-subText');
+
+    // Only validate if user has attempted to leave
+    if (!hasAttemptedToLeave.coverPhotos) {
+        return true;
+    }
+
+    // Count photos marked as cover photos with valid order 1-5
+    const coverPhotoCount = listingData.photos.filter(photo =>
+        photo.isCoverPhoto &&
+        photo.coverPhotoOrder >= 1 &&
+        photo.coverPhotoOrder <= 5
+    ).length;
+
+    // Hide error and show subtext if 5 cover photos selected
+    if (coverPhotoCount === 5) {
+        if (coverPhotosError) {
+            coverPhotosError.style.display = 'none';
+        }
+        if (coverPhotosSubText) {
+            coverPhotosSubText.style.display = 'block';
+        }
+        return true;
+    }
+
+    // Show error and hide subtext if less than 5 cover photos
+    if (coverPhotosError) {
+        const remainingPhotos = 5 - coverPhotoCount;
+        const photoText = remainingPhotos === 1 ? 'photo' : 'photos';
+        coverPhotosError.textContent = `Please select ${remainingPhotos} more ${photoText} to continue`;
+        coverPhotosError.style.display = 'block';
+        if (coverPhotosSubText) {
+            coverPhotosSubText.style.display = 'none';
+        }
+    }
+    return false;
+}
+
+// Function to validate photos
+function validatePhotos() {
+    const photosError = document.getElementById('photos-error');
+    const photosSubText = document.getElementById('photos-subText');
+    const minPhotos = 5;
+    const currentPhotoCount = listingData.photos.length;
+    const isValid = currentPhotoCount >= minPhotos;
+
+    if (!isValid && hasAttemptedToLeave.photos) {
+        const remainingPhotos = minPhotos - currentPhotoCount;
+        if (photosError && photosSubText) {
+            photosError.textContent = `Please add ${remainingPhotos} more photo${remainingPhotos > 1 ? 's' : ''} to continue`;
+            photosError.style.display = 'block';
+            photosSubText.style.display = 'none';
+        }
+    } else {
+        if (photosError && photosSubText) {
+            photosError.style.display = 'none';
+            photosSubText.style.display = 'block';
+        }
+    }
+
+    return isValid;
+}
+
 // Initial step on page load
 document.addEventListener('DOMContentLoaded', () => {
     //console.log("Page loaded, initializing steps");
@@ -1167,8 +1961,6 @@ function goToStep(stepNumber, direction = 'forward') {
         updateButtonStates();
     }
 }
-
-
 
 // Function to enable/disable buttons based on the current step
 function updateButtonStates() {
@@ -1845,681 +2637,6 @@ function initializeSafetyStep() {
     }
 }
 
-// Function to initialize photos step
-function initializePhotosStep() {
-    const addPhotosButton = document.getElementById('addPhotosButton');
-    const addPhotosButton2 = document.getElementById('addPhotosButton2');
-    const addPhotosContainer = document.getElementById('addPhotosButton_Container');
-    const photoContainerParent = document.querySelector('[data-element="photo_container_parent"]');
-    const photoContainer = document.querySelector('[data-element="photo_container"]');
-    const photosError = document.getElementById('photos-error');
-    const photosSubText = document.getElementById('photos-subText');
-
-    // Remove existing event listeners to prevent multiple triggers
-    const removeEventListeners = (button) => {
-        const newButton = button.cloneNode(true);
-        button.parentNode.replaceChild(newButton, button);
-        return newButton;
-    };
-
-    // Show/hide elements based on whether photos exist
-    if (listingData.photos.length > 0) {
-        if (addPhotosContainer) addPhotosContainer.style.display = 'none';
-        if (addPhotosButton2) addPhotosButton2.style.display = 'flex';
-        if (photoContainerParent) {
-            photoContainerParent.style.display = 'grid';
-            // Clear existing photos first
-            const existingPhotos = document.querySelectorAll('[data-element="photo_container_parent"]');
-            existingPhotos.forEach((container, index) => {
-                if (index > 0) { // Keep the first container
-                    container.remove();
-                }
-            });
-
-            // Update first photo container
-            const firstPhotoContainer = photoContainerParent.querySelector('[data-element="photo_container"]');
-            if (firstPhotoContainer) {
-                firstPhotoContainer.src = listingData.photos[0].url || listingData.photos[0].dataUrl;
-            }
-
-            // Add remaining photos
-            for (let i = 1; i < listingData.photos.length; i++) {
-                const newParent = photoContainerParent.cloneNode(true);
-                const newImg = newParent.querySelector('[data-element="photo_container"]');
-                if (newImg) {
-                    newImg.src = listingData.photos[i].url || listingData.photos[i].dataUrl;
-                }
-                photoContainerParent.parentNode.appendChild(newParent);
-            }
-        }
-    } else {
-        if (addPhotosContainer) {
-            addPhotosContainer.style.display = 'flex';
-            addPhotosContainer.style.flexDirection = 'column';
-            addPhotosContainer.style.gap = '15px';
-        }
-        if (addPhotosButton2) addPhotosButton2.style.display = 'none';
-        if (photoContainerParent) photoContainerParent.style.display = 'none';
-        if (photoContainer) photoContainer.src = '';
-    }
-
-    // Hide error message initially
-    if (photosError) photosError.style.display = 'none';
-    if (photosSubText) photosSubText.style.display = 'block';
-
-    // Add click handler to both add photos buttons
-    const setupPhotoButton = (button) => {
-        if (button) {
-            const newButton = removeEventListeners(button);
-            newButton.addEventListener('click', () => {
-                const fileInput = document.createElement('input');
-                fileInput.type = 'file';
-                fileInput.multiple = true;
-                fileInput.accept = 'image/jpeg,image/png,image/jpg,image/gif,image/webp';
-                fileInput.addEventListener('change', handlePhotoSelection);
-                fileInput.click();
-            });
-        }
-    };
-
-    setupPhotoButton(addPhotosButton);
-    setupPhotoButton(addPhotosButton2);
-}
-
-// Function to initialize cover photos section
-function initializeCoverPhotosStep() {
-    console.log(listingData.photos);
-    let coverPhotosContainer = document.querySelector('[data-element="coverPhotos_photoContainer"]');
-    const coverPhotosError = document.getElementById('coverPhotos-error');
-    const coverPhotosSubText = document.getElementById('coverPhotos-subText');
-
-    if (!coverPhotosContainer) {
-        return;
-    }
-
-    // Remove any existing photo containers first
-    const existingContainers = document.querySelectorAll('[data-element="coverPhotos_photoContainer"]');
-    existingContainers.forEach((container, index) => {
-        if (index > 0) { // Keep the first container
-            container.remove();
-        }
-    });
-
-    // Create a fresh container to replace the original one
-    const newContainer = document.createElement('div');
-    newContainer.setAttribute('data-element', 'coverPhotos_photoContainer');
-    // Copy any existing styles or attributes from the original container
-    newContainer.className = coverPhotosContainer.className;
-    coverPhotosContainer.parentNode.replaceChild(newContainer, coverPhotosContainer);
-    coverPhotosContainer = newContainer;
-
-    // Create a reusable function to set up a photo container
-    const setupPhotoContainer = (container, photo, photoIndex) => {
-        const photoImage = document.createElement('img');
-        photoImage.setAttribute('data-element', 'coverPhotos_image');
-        photoImage.style.borderRadius = '5px';
-        container.appendChild(photoImage);
-
-        // Create number element with all styles applied directly
-        const numberEl = document.createElement('div');
-        numberEl.setAttribute('data-element', 'coverPhotos_number');
-        numberEl.className = 'coverPhotos_number';
-        numberEl.style.display = 'none';
-        numberEl.style.position = 'absolute';
-        numberEl.style.top = '8px';
-        numberEl.style.right = '8px';
-        numberEl.style.width = '30px';
-        numberEl.style.height = '30px';
-        numberEl.style.borderRadius = '100%';
-        numberEl.style.backgroundColor = 'white';
-        numberEl.style.border = '2px solid black';
-        numberEl.style.alignItems = 'center';
-        numberEl.style.justifyContent = 'center';
-        numberEl.style.fontSize = '15px';
-        numberEl.style.fontWeight = 'bold';
-        numberEl.style.color = 'black';
-        numberEl.style.fontFamily = 'Tt Fors, sans-serif';
-        numberEl.style.transition = 'all 0.3s ease';
-        numberEl.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
-        container.appendChild(numberEl);
-
-        const photoUrl = photo.dataUrl;
-
-        if (!photoUrl.startsWith('data:')) {
-            const timestamp = new Date().getTime();
-            photoImage.src = photoUrl + '?' + timestamp;
-        } else {
-            photoImage.src = photoUrl;
-        }
-
-        photoImage.style.display = 'block';
-        photoImage.style.visibility = 'visible';
-        photoImage.style.opacity = '1';
-
-        photoImage.addEventListener('load', () => { });
-        photoImage.addEventListener('error', () => { });
-
-        // Make container clickable
-        container.style.cursor = 'pointer';
-        container.style.position = 'relative';
-
-        // Function to update all number colors based on total selected
-        const updateNumberColors = () => {
-            const selectedCoverPhotos = listingData.photos.filter(p => p.isCoverPhoto).length;
-            const allNumberElements = document.querySelectorAll('[data-element="coverPhotos_number"]');
-            allNumberElements.forEach(el => {
-                if (el.style.display === 'flex') {
-                    el.style.backgroundColor = selectedCoverPhotos === 5 ? '#90EE90' : 'white';
-                }
-            });
-        };
-
-        // Add click handler for photo selection
-        container.addEventListener('click', () => {
-            const numberEl = container.querySelector('[data-element="coverPhotos_number"]');
-
-            // If already selected, remove from selection
-            if (numberEl.style.display === 'flex') {
-                const currentOrder = listingData.photos[photoIndex].coverPhotoOrder;
-                numberEl.style.display = 'none';
-                numberEl.textContent = '';
-
-                // Remove cover photo properties from the photo in listingData
-                delete listingData.photos[photoIndex].isCoverPhoto;
-                delete listingData.photos[photoIndex].coverPhotoOrder;
-
-                // Update order numbers for remaining photos
-                listingData.photos.forEach(p => {
-                    if (p.isCoverPhoto && p.coverPhotoOrder > currentOrder) {
-                        p.coverPhotoOrder--;
-                    }
-                });
-
-                // Update displayed numbers
-                document.querySelectorAll('[data-element="coverPhotos_number"]').forEach(el => {
-                    if (el.style.display === 'flex') {
-                        const num = parseInt(el.textContent);
-                        if (num > currentOrder) {
-                            el.textContent = (num - 1).toString();
-                        }
-                    }
-                });
-
-                // Reset container border styles when unselected
-                container.style.outline = 'none';
-                container.style.border = '1px solid #e2e2e2';
-
-                // Update colors for all numbers
-                updateNumberColors();
-            }
-            // Add to selection if less than 5 photos are selected
-            else if (listingData.photos.filter(p => p.isCoverPhoto).length < 5) {
-                const order = listingData.photos.filter(p => p.isCoverPhoto).length + 1;
-                numberEl.style.display = 'flex';
-                numberEl.textContent = order.toString();
-                container.style.outline = '2px solid black';
-                container.style.outlineOffset = '-1px';
-                container.style.border = 'none';
-
-                // Add cover photo properties to the photo in listingData
-                listingData.photos[photoIndex].isCoverPhoto = true;
-                listingData.photos[photoIndex].coverPhotoOrder = order;
-
-                // Update colors for all numbers
-                updateNumberColors();
-            }
-        });
-
-        // Check if this photo is already a cover photo and restore its state
-        if (listingData.photos[photoIndex].isCoverPhoto) {
-            numberEl.style.display = 'flex';
-            numberEl.textContent = listingData.photos[photoIndex].coverPhotoOrder.toString();
-            container.style.outline = '2px solid black';
-            container.style.outlineOffset = '-1px';
-            container.style.border = 'none';
-            numberEl.style.backgroundColor = listingData.photos.filter(p => p.isCoverPhoto).length === 5 ? '#90EE90' : 'white';
-        }
-    };
-
-    // Display all photos by iterating through them once
-    listingData.photos.forEach((photo, index) => {
-        let currentContainer;
-        if (index === 0) {
-            currentContainer = coverPhotosContainer;
-        } else {
-            currentContainer = coverPhotosContainer.cloneNode(true);
-            currentContainer.innerHTML = '';
-            coverPhotosContainer.parentNode.appendChild(currentContainer);
-        }
-
-        setupPhotoContainer(currentContainer, photo, index);
-    });
-
-    // Hide error initially 
-    if (coverPhotosError) {
-        coverPhotosError.style.display = 'none';
-    }
-    if (coverPhotosSubText) {
-        coverPhotosSubText.style.display = 'block';
-    }
-}
-
-// Function to initialize dock photos section
-function initializeDockPhotosStep() {
-    // Skip this step if no private dock
-    if (!listingData.dock.hasPrivateDock) {
-        const titleStepIndex = steps.indexOf('title');
-        if (titleStepIndex !== -1) {
-            goToStep(titleStepIndex + 1);
-        }
-        return;
-    }
-
-    let dockPhotosContainer = document.querySelector('[data-element="dockPhotos_photoContainer"]');
-    const dockPhotosError = document.getElementById('dockPhotos-error');
-    const dockPhotosSubText = document.getElementById('dockPhotos-subText');
-
-    if (!dockPhotosContainer) {
-        return;
-    }
-
-    // Remove any existing photo containers first
-    const existingContainers = document.querySelectorAll('[data-element="dockPhotos_photoContainer"]');
-    existingContainers.forEach((container, index) => {
-        if (index > 0) { // Keep the first container
-            container.remove();
-        }
-    });
-
-    // Create a fresh container to replace the original one
-    const newContainer = document.createElement('div');
-    newContainer.setAttribute('data-element', 'dockPhotos_photoContainer');
-    // Copy any existing styles or attributes from the original container
-    newContainer.className = dockPhotosContainer.className;
-    dockPhotosContainer.parentNode.replaceChild(newContainer, dockPhotosContainer);
-    dockPhotosContainer = newContainer;
-
-    // Create a reusable function to set up a photo container
-    const setupPhotoContainer = (container, photo, photoIndex) => {
-        const photoImage = document.createElement('img');
-        photoImage.setAttribute('data-element', 'dockPhotos_image');
-        photoImage.style.borderRadius = '5px';
-        container.appendChild(photoImage);
-
-        // Create number element with all styles applied directly
-        const numberEl = document.createElement('div');
-        numberEl.setAttribute('data-element', 'dockPhotos_number');
-        numberEl.className = 'dockPhotos_number';
-        numberEl.style.display = 'none';
-        numberEl.style.position = 'absolute';
-        numberEl.style.top = '8px';
-        numberEl.style.right = '8px';
-        numberEl.style.width = '30px';
-        numberEl.style.height = '30px';
-        numberEl.style.borderRadius = '100%';
-        numberEl.style.backgroundColor = 'white';
-        numberEl.style.border = '2px solid black';
-        numberEl.style.alignItems = 'center';
-        numberEl.style.justifyContent = 'center';
-        numberEl.style.fontSize = '15px';
-        numberEl.style.fontWeight = 'bold';
-        numberEl.style.color = 'black';
-        numberEl.style.fontFamily = 'Tt Fors, sans-serif';
-        numberEl.style.transition = 'all 0.3s ease';
-        numberEl.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
-        container.appendChild(numberEl);
-
-        // Set photo source
-        photoImage.src = photo.dataUrl;
-
-        // Make container clickable
-        container.style.cursor = 'pointer';
-        container.style.position = 'relative';
-
-        // Function to update all number colors based on total selected
-        const updateNumberColors = () => {
-            const selectedDockPhotos = listingData.photos.filter(p => p.isDockPhoto).length;
-            const allNumberElements = document.querySelectorAll('[data-element="dockPhotos_number"]');
-            allNumberElements.forEach(el => {
-                if (el.style.display === 'flex') {
-                    el.style.backgroundColor = selectedDockPhotos === 2 ? '#90EE90' : 'white';
-                }
-            });
-        };
-
-        // Add click handler
-        container.addEventListener('click', () => {
-            const numberEl = container.querySelector('[data-element="dockPhotos_number"]');
-
-            // If already selected, remove from selection
-            if (numberEl.style.display === 'flex') {
-                numberEl.style.display = 'none';
-                numberEl.textContent = '';
-
-                // Remove dock photo property
-                delete listingData.photos[photoIndex].isDockPhoto;
-
-                // Update displayed numbers
-                const selectedPhotos = listingData.photos.filter(p => p.isDockPhoto);
-                selectedPhotos.forEach((_, idx) => {
-                    const selectedContainer = document.querySelector(`[data-element="dockPhotos_number"][style*="display: flex"]:nth-of-type(${idx + 1})`);
-                    if (selectedContainer) {
-                        selectedContainer.textContent = (idx + 1).toString();
-                    }
-                });
-
-                // Reset container border styles
-                container.style.outline = 'none';
-                container.style.border = '1px solid #e2e2e2';
-
-                // Update colors for all numbers
-                updateNumberColors();
-            }
-            // Add to selection if less than 2 photos selected
-            else if (listingData.photos.filter(p => p.isDockPhoto).length < 2) {
-                const selectedCount = listingData.photos.filter(p => p.isDockPhoto).length + 1;
-                numberEl.style.display = 'flex';
-                numberEl.textContent = selectedCount.toString();
-                container.style.outline = '2px solid black';
-                container.style.outlineOffset = '-1px';
-                container.style.border = 'none';
-
-                // Add dock photo property
-                listingData.photos[photoIndex].isDockPhoto = true;
-
-                // Update colors for all numbers
-                updateNumberColors();
-            }
-        });
-
-        // Check if this photo is already a dock photo and restore its state
-        if (listingData.photos[photoIndex].isDockPhoto) {
-            const selectedCount = listingData.photos.slice(0, photoIndex).filter(p => p.isDockPhoto).length + 1;
-            numberEl.style.display = 'flex';
-            numberEl.textContent = selectedCount.toString();
-            container.style.outline = '2px solid black';
-            container.style.outlineOffset = '-1px';
-            container.style.border = 'none';
-            numberEl.style.backgroundColor = listingData.photos.filter(p => p.isDockPhoto).length === 2 ? '#90EE90' : 'white';
-        }
-    };
-
-    // Display all photos by iterating through them once
-    listingData.photos.forEach((photo, index) => {
-        let currentContainer;
-        if (index === 0) {
-            currentContainer = dockPhotosContainer;
-        } else {
-            currentContainer = dockPhotosContainer.cloneNode(true);
-            currentContainer.innerHTML = '';
-            dockPhotosContainer.parentNode.appendChild(currentContainer);
-        }
-
-        setupPhotoContainer(currentContainer, photo, index);
-    });
-
-    // Hide error initially 
-    if (dockPhotosError) {
-        dockPhotosError.style.display = 'none';
-    }
-    if (dockPhotosSubText) {
-        dockPhotosSubText.style.display = 'block';
-    }
-}
-
-// Function to render all photos
-function renderPhotos() {
-    const photoContainerParent = document.querySelector('[data-element="photo_container_parent"]');
-    if (!photoContainerParent) return;
-
-    // Only show photo container when we have photos
-    photoContainerParent.style.display = listingData.photos.length ? 'grid' : 'none';
-
-    // Log photos array
-    console.log('Current photos:', listingData.photos);
-
-    // Clear existing photos
-    const allContainers = document.querySelectorAll('[data-element="photo_container_parent"]');
-    allContainers.forEach((container, idx) => {
-        if (idx > 0) container.remove();
-    });
-
-    // Render each photo
-    listingData.photos.forEach((photo, idx) => {
-        if (idx === 0) {
-            const firstImg = photoContainerParent.querySelector('[data-element="photo_container"]');
-            if (firstImg) {
-                firstImg.src = photo.url || photo.dataUrl;
-                setupPhotoAddedDeleteButton(photoContainerParent, 0);
-            }
-        } else {
-            const newParent = photoContainerParent.cloneNode(true);
-            const newImg = newParent.querySelector('[data-element="photo_container"]');
-            if (newImg) {
-                newImg.src = photo.url || photo.dataUrl;
-                setupPhotoAddedDeleteButton(newParent, idx);
-            }
-            photoContainerParent.parentNode.appendChild(newParent);
-        }
-    });
-}
-
-// Function to handle photo selection
-function handlePhotoSelection(event) {
-    const files = event.target.files;
-    const addPhotosContainer = document.getElementById('addPhotosButton_Container');
-    const addPhotosButton2 = document.getElementById('addPhotosButton2');
-
-    if (!files.length) return;
-
-    // Hide the add photos button container once photos are selected
-    if (addPhotosContainer) {
-        addPhotosContainer.style.display = 'none';
-    }
-
-    // Show the second add photos button
-    if (addPhotosButton2) {
-        addPhotosButton2.style.display = 'flex';
-    }
-
-    // Process each selected file
-    Array.from(files).forEach(file => {
-        const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/gif', 'image/webp'];
-        if (!allowedTypes.includes(file.type)) return;
-
-        const reader = new FileReader();
-        reader.onload = function (e) {
-            // Extract file extension from file type
-            const fileExtension = file.type.split('/')[1];
-
-            // Create object URL for the file
-            const url = URL.createObjectURL(file);
-
-            // Store photo data
-            listingData.photos.push({
-                dataUrl: e.target.result,
-                url: url,
-                fileExtension: fileExtension,
-                isCoverPhoto: false,
-                coverPhotoOrder: null,
-                isDockPhoto: false
-            });
-
-            // Render all photos after adding new one
-            renderPhotos();
-
-            // Check photo count and update error message if needed
-            if (hasAttemptedToLeave.photos) {
-                validatePhotos();
-            }
-        };
-        reader.readAsDataURL(file);
-    });
-
-    // Clear the file input value to prevent auto-reopening
-    event.target.value = '';
-}
-
-// Function to validate dock photos selection
-function validateDockPhotos() {
-    const dockPhotosError = document.getElementById('dockPhotos-error');
-    const dockPhotosSubText = document.getElementById('dockPhotos-subText');
-
-    // Skip validation if dock photos not required
-    if (!listingData.dock.hasPrivateDock) {
-        return true;
-    }
-
-    // Only validate if user has attempted to leave
-    if (!hasAttemptedToLeave.dockPhotos) {
-        return true;
-    }
-
-    // Count photos marked as dock photos
-    const dockPhotoCount = listingData.photos.filter(photo => photo.isDockPhoto).length;
-
-    // Hide error and show subtext if 2 photos selected
-    if (dockPhotoCount === 2) {
-        if (dockPhotosError) {
-            dockPhotosError.style.display = 'none';
-        }
-        if (dockPhotosSubText) {
-            dockPhotosSubText.style.display = 'block';
-        }
-        return true;
-    }
-
-    // Show error and hide subtext if less than 2 photos
-    if (dockPhotosError) {
-        const remainingPhotos = 2 - dockPhotoCount;
-        const photoText = remainingPhotos === 1 ? 'photo' : 'photos';
-        dockPhotosError.textContent = `Please select ${remainingPhotos} more ${photoText} to continue`;
-        dockPhotosError.style.display = 'block';
-        if (dockPhotosSubText) {
-            dockPhotosSubText.style.display = 'none';
-        }
-    }
-    return false;
-}
-
-// Function to validate cover photos selection
-function validateCoverPhotos() {
-    const coverPhotosError = document.getElementById('coverPhotos-error');
-    const coverPhotosSubText = document.getElementById('coverPhotos-subText');
-
-    // Only validate if user has attempted to leave
-    if (!hasAttemptedToLeave.coverPhotos) {
-        return true;
-    }
-
-    // Count photos marked as cover photos with valid order 1-5
-    const coverPhotoCount = listingData.photos.filter(photo =>
-        photo.isCoverPhoto &&
-        photo.coverPhotoOrder >= 1 &&
-        photo.coverPhotoOrder <= 5
-    ).length;
-
-    // Hide error and show subtext if 5 cover photos selected
-    if (coverPhotoCount === 5) {
-        if (coverPhotosError) {
-            coverPhotosError.style.display = 'none';
-        }
-        if (coverPhotosSubText) {
-            coverPhotosSubText.style.display = 'block';
-        }
-        return true;
-    }
-
-    // Show error and hide subtext if less than 5 cover photos
-    if (coverPhotosError) {
-        const remainingPhotos = 5 - coverPhotoCount;
-        const photoText = remainingPhotos === 1 ? 'photo' : 'photos';
-        coverPhotosError.textContent = `Please select ${remainingPhotos} more ${photoText} to continue`;
-        coverPhotosError.style.display = 'block';
-        if (coverPhotosSubText) {
-            coverPhotosSubText.style.display = 'none';
-        }
-    }
-    return false;
-}
-
-// Function to setup delete button for a photo
-function setupPhotoAddedDeleteButton(containerParent, photoIndex) {
-    const deleteButton = containerParent.querySelector('[data-element="deletePhotoAdded"]');
-    if (!deleteButton) return;
-
-    deleteButton.style.cursor = 'pointer';
-    deleteButton.onclick = (e) => {
-        e.stopPropagation();
-
-        // Remove photo from listingData array
-        listingData.photos.splice(photoIndex, 1);
-
-        // If no photos left, reset the UI
-        if (listingData.photos.length === 0) {
-            resetPhotoUI();
-        } else {
-            // Rerender all photos
-            renderPhotos();
-        }
-
-        // Revalidate if user has attempted to leave
-        if (hasAttemptedToLeave.photos) {
-            validatePhotos();
-        }
-    };
-}
-
-// Function to reset photo UI to initial state
-function resetPhotoUI() {
-    const addPhotosContainer = document.getElementById('addPhotosButton_Container');
-    const addPhotosButton2 = document.getElementById('addPhotosButton2');
-    const photoContainerParent = document.querySelector('[data-element="photo_container_parent"]');
-    const photoContainer = document.querySelector('[data-element="photo_container"]');
-
-    if (addPhotosContainer) {
-        addPhotosContainer.style.display = 'flex';
-        addPhotosContainer.style.flexDirection = 'column';
-        addPhotosContainer.style.gap = '15px';
-    }
-
-    if (addPhotosButton2) {
-        addPhotosButton2.style.display = 'none';
-    }
-
-    if (photoContainerParent) {
-        photoContainerParent.style.display = 'none';
-    }
-
-    if (photoContainer) {
-        photoContainer.src = '';
-    }
-}
-
-// Function to validate photos
-function validatePhotos() {
-    const photosError = document.getElementById('photos-error');
-    const photosSubText = document.getElementById('photos-subText');
-    const minPhotos = 5;
-    const currentPhotoCount = listingData.photos.length;
-    const isValid = currentPhotoCount >= minPhotos;
-
-    if (!isValid && hasAttemptedToLeave.photos) {
-        const remainingPhotos = minPhotos - currentPhotoCount;
-        if (photosError && photosSubText) {
-            photosError.textContent = `Please add ${remainingPhotos} more photo${remainingPhotos > 1 ? 's' : ''} to continue`;
-            photosError.style.display = 'block';
-            photosSubText.style.display = 'none';
-        }
-    } else {
-        if (photosError && photosSubText) {
-            photosError.style.display = 'none';
-            photosSubText.style.display = 'block';
-        }
-    }
-
-    return isValid;
-}
 
 // Counter logic for the "basics" step
 function initializeCounters() {
@@ -3984,3 +4101,44 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
+// for background 2nd click modal - mirror click
+var script = document.createElement('script');
+script.src = 'https://cdn.jsdelivr.net/npm/@finsweet/attributes-mirrorclick@1/mirrorclick.js';
+document.body.appendChild(script);
+
+
+//copy email and phone number to clipboard
+document.addEventListener('DOMContentLoaded', () => {
+    // Function to copy text to the clipboard
+    function copyToClipboard(text) {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+    }
+
+    // Select the email and phone number buttons
+    const copyEmailButton = document.querySelector('[data-element="help_copyEmail"]');
+    const copyPhoneButton = document.querySelector('[data-element="help_copyPhone"]');
+
+    // Email and phone number to copy
+    const email = 'support@keysbooking.com';
+    const phoneNumber = '+13053011952';
+
+    // Add click event listeners
+    if (copyEmailButton) {
+        copyEmailButton.addEventListener('click', () => {
+            copyToClipboard(email);
+            alert('Email copied to clipboard!');
+        });
+    }
+
+    if (copyPhoneButton) {
+        copyPhoneButton.addEventListener('click', () => {
+            copyToClipboard(phoneNumber);
+            alert('Phone number copied to clipboard!');
+        });
+    }
+});

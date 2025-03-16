@@ -7,7 +7,7 @@ const BUILD_DIRECTORY = 'dist';
 const PRODUCTION = process.env.NODE_ENV === 'production';
 
 // Config entrypoint files
-const ENTRY_POINTS = ['src/index.js', 'src/listing.js', 'src/payment.js', 'src/reservation_confirmation.js', 'src/trips.js', 'src/trip_details.js', 'src/trip_change.js', 'src/trip_cancel.js', 'src/trip_payments.js', 'src/trip_cancelled.js', 'src/help.js', 'src/account.js', 'src/messaging.js', 'src/create_stripe_account_host.js', 'src/terms_policy_pages.js', 'src/reset_password.js', 'src/add-home.js', 'src/host-home.js'];
+const ENTRY_POINTS = ['src/index.js', 'src/listing.js', 'src/payment.js', 'src/reservation_confirmation.js', 'src/trips.js', 'src/trip_details.js', 'src/trip_change.js', 'src/trip_cancel.js', 'src/trip_payments.js', 'src/trip_cancelled.js', 'src/help.js', 'src/account.js', 'src/messaging.js', 'src/create_stripe_account_host.js', 'src/terms_policy_pages.js', 'src/reset_password.js', 'src/add-home.js', 'src/host-home.js', 'src/edit-home.js'];
 
 //const ENTRY_POINTS = ['src/index.js', 'src/listing.js', 'src/payment.js', 'src/reservation_confirmation.js', 'src/trips.js', 'src/trip_details.js', 'src/trip_change.js', 'src/trip_cancel.js', 'src/trip_payments.js', 'src/trip_cancelled.js', 'src/help.js', 'src/account.js', 'src/messaging.js', 'src/create_stripe_account_host.js', 'src/terms_policy_pages.js', 'src/reset_password.js'];
 
