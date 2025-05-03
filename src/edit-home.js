@@ -3,13 +3,278 @@ var script = document.createElement('script');
 script.src = 'https://cdn.jsdelivr.net/npm/@finsweet/attributes-mirrorclick@1/mirrorclick.js';
 document.body.appendChild(script);
 
+
+
+// for no scroll background when modal is open
+// when DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+    // on .open-modal click
+    document.querySelectorAll('.open_modal').forEach(trigger => {
+        trigger.addEventListener('click', function () {
+            // on every click
+            document.querySelectorAll('body').forEach(target => target.classList.add('no-scroll'));
+        });
+    });
+
+    // on .close-modal click
+    document.querySelectorAll('.close_modal').forEach(trigger => {
+        trigger.addEventListener('click', function () {
+            // on every click
+            document.querySelectorAll('body').forEach(target => target.classList.remove('no-scroll'));
+        });
+    });
+});
+
+
+
+(async function () {
+    try {
+        const profileButton = document.querySelector('[data-element="profile_button"]');
+        const profileButtonDropdown = document.querySelector('[data-element="profile_button_dropdown"]');
+        let isPopupOpen = false;
+
+        // Close the dropdown initially
+        profileButtonDropdown.style.display = 'none';
+
+        // Function to toggle the dropdown
+        const togglePopup = () => {
+            isPopupOpen = !isPopupOpen;
+            profileButtonDropdown.style.display = isPopupOpen ? 'flex' : 'none';
+        };
+
+        // Event listener for profile button click and toggling the dropdown
+        profileButton.addEventListener('click', function () {
+            togglePopup();
+        });
+
+        // Event listener for body click to close the dropdown
+        document.body.addEventListener('click', function (evt) {
+            if (!profileButton.contains(evt.target) && !profileButtonDropdown.contains(evt.target)) {
+                isPopupOpen = false;
+                profileButtonDropdown.style.display = 'none';
+            }
+        });
+
+        // Event listeners to close the popup when buttons inside are clicked
+        const popupButtons = profileButtonDropdown.querySelectorAll('[data-element*="Button"]');
+        popupButtons.forEach(button => {
+            button.addEventListener('click', function () {
+                isPopupOpen = false;
+                profileButtonDropdown.style.display = 'none';
+            });
+        });
+
+    } catch (err) {
+    }
+})();
+
+// Include jQuery first
+var jQueryScript = document.createElement('script');
+jQueryScript.src = 'https://code.jquery.com/jquery-3.6.0.min.js';
+document.head.appendChild(jQueryScript);
+
+// Include jQuery UI after jQuery loads
+jQueryScript.onload = function () {
+    var jQueryUIScript = document.createElement('script');
+    jQueryUIScript.src = 'https://code.jquery.com/ui/1.13.2/jquery-ui.min.js';
+    document.head.appendChild(jQueryUIScript);
+
+    // Include jQuery UI Sortable after jQuery UI loads
+    jQueryUIScript.onload = function () {
+        var jQueryUISortableScript = document.createElement('script');
+        jQueryUISortableScript.src = 'https://code.jquery.com/ui/1.13.2/jquery-ui.js';
+        document.head.appendChild(jQueryUISortableScript);
+    };
+};
+
+// for background 2nd click modal - mirror click
+var script = document.createElement('script');
+script.src = 'https://cdn.jsdelivr.net/npm/@finsweet/attributes-mirrorclick@1/mirrorclick.js';
+document.body.appendChild(script);
+
 document.addEventListener('DOMContentLoaded', function () {
+
     // Get property ID from URL parameters
     const urlParams = new URLSearchParams(window.location.search);
     const propertyId = urlParams.get('id');
 
+    // Function to initialize color status monitoring
+    function initializeColorStatusMonitoring(data) {
+        const colorStatusElement = document.getElementById('editListingColorStatus');
+        if (!colorStatusElement) return;
+
+        // Keep a reference to the latest data
+        let currentData = data;
+
+        // Create tooltip element
+        const tooltip = document.createElement('div');
+        tooltip.style.cssText = `
+            position: absolute;
+            background: white;
+            border: 1.2px solid #e2e2e2;
+            padding: 12px;
+            border-radius: 4px;
+            font-size: 14px;
+            font-family: 'Tt Fors';
+            font-weight: 400;
+            font-color: #000000;
+            max-width: 250px;
+            display: none;
+            z-index: 1000;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            flex-direction: column;
+            gap: 20px;
+        `;
+        document.body.appendChild(tooltip);
+
+        // Function to update tooltip content
+        function updateTooltipContent() {
+            // Create two separate divs for the sections
+            const suggestedSection = document.createElement('div');
+            const listingStatusSection = document.createElement('div');
+
+            // Only show suggested section if there are errors
+            if (hasSuggestedSectionErrors) {
+                const titleSpan = document.createElement('span');
+                titleSpan.textContent = 'Suggested Information\n';
+                titleSpan.style.fontWeight = '500';
+
+                const messageSpan = document.createElement('span');
+                messageSpan.textContent = 'Missing in: ';
+                messageSpan.textContent += errorSections.map(section => `${section} section`).join(', ');
+
+                suggestedSection.appendChild(titleSpan);
+                suggestedSection.appendChild(messageSpan);
+            }
+
+            // Listing status message
+            const titleSpan = document.createElement('span');
+            titleSpan.textContent = 'Listing Status\n';
+            titleSpan.style.fontWeight = '500';
+
+            const messageSpan = document.createElement('span');
+            messageSpan.textContent = currentData.is_active ?
+                'Listing is active!' :
+                'Listing is currently inactive.\nVisit the Listing Status section to activate.';
+
+            listingStatusSection.appendChild(titleSpan);
+            listingStatusSection.appendChild(messageSpan);
+
+            // Clear tooltip and append sections
+            tooltip.innerHTML = '';
+            if (hasSuggestedSectionErrors) {
+                tooltip.appendChild(suggestedSection);
+            }
+            tooltip.appendChild(listingStatusSection);
+        }
+
+        let hasSuggestedSectionErrors = false;
+        let errorSections = [];
+
+        // Function to check for validation errors and update status color
+        function updateColorStatus(newData) {
+            // Update current data if new data is provided
+            if (newData) {
+                currentData = { ...currentData, ...newData };
+            }
+
+            // Use currentData for validation checks
+            if (!currentData) return;
+
+            hasSuggestedSectionErrors = false;
+            errorSections = [];
+
+            // Get relevant sections
+            const photosSection = document.querySelector('[data-element="edit_photos"]');
+            const hostSection = document.querySelector('[data-element="edit_host"]');
+            const locationSection = document.querySelector('[data-element="edit_location"]');
+
+            // Setup interval to continuously check background colors
+            setInterval(() => {
+                // Check photos section
+                if (photosSection) {
+                    const photosColor = window.getComputedStyle(photosSection).backgroundColor;
+                    if (photosColor === 'rgb(255, 229, 229)') { // #FFE5E5
+                        hasSuggestedSectionErrors = true;
+                        if (!errorSections.includes('Photos')) {
+                            errorSections.push('Photos');
+                        }
+                    }
+                }
+
+                // Check host section
+                if (hostSection) {
+                    const hostColor = window.getComputedStyle(hostSection).backgroundColor;
+                    if (hostColor === 'rgb(255, 229, 229)') { // #FFE5E5
+                        hasSuggestedSectionErrors = true;
+                        if (!errorSections.includes('Host')) {
+                            errorSections.push('Host');
+                        }
+                    }
+                }
+
+                // Check location section
+                if (locationSection) {
+                    const locationColor = window.getComputedStyle(locationSection).backgroundColor;
+                    if (locationColor === 'rgb(255, 229, 229)') { // #FFE5E5
+                        hasSuggestedSectionErrors = true;
+                        if (!errorSections.includes('Location')) {
+                            errorSections.push('Location');
+                        }
+                    }
+                }
+
+                // Update color status based on errors and listing status
+                if (!currentData.is_active) {
+                    colorStatusElement.style.backgroundColor = 'rgba(255, 0, 0, 0.18)';
+                } else if (hasSuggestedSectionErrors) {
+                    colorStatusElement.style.backgroundColor = 'rgba(255, 0, 0, 0.18)';
+                } else {
+                    colorStatusElement.style.backgroundColor = 'rgba(0, 255, 0, 0.18)';
+                }
+
+                // Update tooltip content regardless of visibility
+                updateTooltipContent();
+            }, 1000); // Check every second
+        }
+
+        // Add hover events for tooltip
+        colorStatusElement.addEventListener('mouseenter', (e) => {
+            const rect = colorStatusElement.getBoundingClientRect();
+            tooltip.style.left = `${rect.left}px`;
+            tooltip.style.top = `${rect.bottom + 5}px`;
+            tooltip.style.display = 'block';
+        });
+
+        colorStatusElement.addEventListener('mouseleave', () => {
+            tooltip.style.display = 'none';
+        });
+
+        // Initial check
+        updateColorStatus();
+
+        // Re-check status after any API request completes
+        const originalFetch = window.fetch;
+        window.fetch = async function (...args) {
+            const response = await originalFetch.apply(this, args);
+            const url = args[0];
+
+            if (typeof url === 'string' && url.includes('xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX')) {
+                const clonedResponse = response.clone();
+                try {
+                    const responseData = await clonedResponse.json();
+                    updateColorStatus(responseData);
+                } catch (e) {
+                    console.error('Error updating color status:', e);
+                }
+            }
+
+            return response;
+        };
+    }
+
     // Initialize delete listing section functionality
-    function initializeDeleteListingSection() {
+    function initializeDeleteListingSection(data) {
         const deleteButton = document.querySelector('[data-element="deleteListing_delete"]');
         const editButton = document.getElementById('editListing_editButton_deleteListing');
         const buttonContainer = document.getElementById('editListing_cancelAndSaveButtonContainer_deleteListing');
@@ -21,6 +286,32 @@ document.addEventListener('DOMContentLoaded', function () {
         let isDeleted = false;
         let originalState = false;
         let originalBackgroundColor = container.style.backgroundColor;
+        let hasFutureReservations = false;
+
+        // Function to check for future reservations
+        async function checkFutureReservations() {
+            try {
+                const response = await fetch(`https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/property_reservations?property_id=${propertyId}`);
+                if (!response.ok) {
+                    throw new Error('Failed to fetch reservations');
+                }
+
+                const reservations = await response.json();
+                const today = new Date();
+                today.setHours(0, 0, 0, 0); // Set to start of day
+
+                // Check if any reservation has checkout date today or in the future
+                hasFutureReservations = reservations.some(reservation => {
+                    const checkoutDate = new Date(reservation.check_out);
+                    return checkoutDate >= today;
+                });
+
+                return hasFutureReservations;
+            } catch (error) {
+                console.error('Error checking reservations:', error);
+                return false;
+            }
+        }
 
         if (deleteButton && editButton && buttonContainer && container) {
             // Initial state
@@ -28,8 +319,14 @@ document.addEventListener('DOMContentLoaded', function () {
             deleteButton.style.opacity = '0.5';
             if (deleteListingError) deleteListingError.style.display = 'none';
 
+            // Check for future reservations when initializing
+            checkFutureReservations();
+
             // Edit button click handler
-            editButton.addEventListener('click', () => {
+            editButton.addEventListener('click', async () => {
+                // Re-check for future reservations when edit is clicked
+                await checkFutureReservations();
+
                 originalState = isDeleted;
                 editButton.style.display = 'none';
                 buttonContainer.style.display = 'flex';
@@ -37,15 +334,33 @@ document.addEventListener('DOMContentLoaded', function () {
                 container.style.backgroundColor = '#FFFFFF';
                 deleteButton.style.cursor = 'pointer';
                 deleteButton.style.opacity = '1';
-                if (deleteListingError) deleteListingError.style.display = 'none';
+
+                if (deleteListingError) {
+                    // Show warning if there are future reservations
+                    if (hasFutureReservations) {
+                        deleteListingError.textContent = "Unable to delete listing with future reservations. All guest stays must be completed first.";
+                        deleteListingError.style.display = 'block';
+                        // Disable the delete button
+                        deleteButton.style.opacity = '0.5';
+                        deleteButton.style.cursor = 'not-allowed';
+                    } else {
+                        deleteListingError.style.display = 'none';
+                    }
+                }
             });
 
             // Delete button click handler
             deleteButton.addEventListener('click', () => {
-                if (buttonContainer.style.display === 'flex') {
+                if (buttonContainer.style.display === 'flex' && !hasFutureReservations) {
                     isDeleted = !isDeleted;
                     deleteButton.style.outline = isDeleted ? '2px solid black' : 'none';
                     deleteButton.style.outlineOffset = isDeleted ? '-1px' : '0';
+                } else if (hasFutureReservations) {
+                    // If user tries to click with future reservations, show error
+                    if (deleteListingError) {
+                        deleteListingError.textContent = "Unable to delete listing with future reservations. All guest stays must be completed first.";
+                        deleteListingError.style.display = 'block';
+                    }
                 }
             });
 
@@ -65,6 +380,17 @@ document.addEventListener('DOMContentLoaded', function () {
 
             // Save button click handler
             saveButton.addEventListener('click', async () => {
+                // Check again for future reservations before saving
+                await checkFutureReservations();
+
+                if (hasFutureReservations) {
+                    if (deleteListingError) {
+                        deleteListingError.textContent = "Unable to delete listing with future reservations. All guest stays must be completed first.";
+                        deleteListingError.style.display = 'block';
+                    }
+                    return;
+                }
+
                 try {
                     // Wait for user ID to be available
                     window.Wized = window.Wized || [];
@@ -138,6 +464,10 @@ document.addEventListener('DOMContentLoaded', function () {
         const arrangePhotosImage = document.querySelector('[data-element="edit_photos_arrangePhotos_image"]');
         const arrangePhotosModal = document.getElementById('arrangePhotos-modal');
         const arrangeCancelButton = document.getElementById('editListing_cancelButton_arrangePhotos');
+        const arrangeSaveButton = document.getElementById('editListing_saveButton_arrangePhotos');
+        const arrangePhotosGrid = document.getElementById('arrangePhotos_gridContainer');
+        const arrangePhotosError = document.getElementById('arrangePhotos-error');
+        const arrangePhotosSubText = document.getElementById('arrangePhotos-subText');
 
         // Store photos data locally
         let localPhotos = [];
@@ -154,8 +484,231 @@ document.addEventListener('DOMContentLoaded', function () {
         // Bed types available
         const bedTypes = ['single', 'double', 'queen', 'king', 'twin', 'bunkBed', 'sofaBed', 'crib'];
 
+        function initializeArrangePhotos() {
+            if (arrangePhotosButton && arrangePhotosModal) {
+                arrangePhotosButton.addEventListener('click', () => {
+                    // Create a deep copy of localPhotos for temporary changes
+                    const tempPhotos = localPhotos.map(photo => ({ ...photo }));
+
+                    arrangePhotosModal.style.display = 'flex';
+                    initializeArrangePhotosModal(tempPhotos);
+                });
+            }
+
+            if (arrangePhotosImage && localPhotos.length > 0) {
+                // Show first photo in preview
+                const firstPhoto = localPhotos.find(photo => photo.coverPhotoOrder === 1);
+                if (firstPhoto) {
+                    arrangePhotosImage.src = firstPhoto.url || firstPhoto.image;
+                }
+            }
+        }
+
+        function initializeArrangePhotosModal(tempPhotos) {
+            const gridContainer = document.getElementById('arrangePhotos_gridContainer');
+
+            if (!gridContainer || !tempPhotos.length) return;
+
+            // Clear existing content
+            gridContainer.innerHTML = '';
+
+            // Add CSS styles to constrain photo sizes
+            gridContainer.style.display = 'grid';
+            gridContainer.style.gridTemplateColumns = 'repeat(auto-fill, 220px)';
+            gridContainer.style.gap = '10px';
+            gridContainer.style.padding = '10px';
+
+            // Sort photos by inPreviewOrder before creating grid
+            tempPhotos.sort((a, b) => (a.coverPhotoOrder || 999) - (b.coverPhotoOrder || 999));
+
+            // Create and append image elements to grid
+            tempPhotos.forEach(photo => {
+                const imageWrapper = document.createElement('div');
+                imageWrapper.className = 'photo-item';
+                imageWrapper.style.width = '220px';
+                imageWrapper.style.height = '220px';
+                imageWrapper.style.aspectRatio = '1 / 1';
+                imageWrapper.style.maxWidth = '220px';
+                imageWrapper.style.maxHeight = '220px';
+                imageWrapper.style.borderRadius = '5px';
+                imageWrapper.style.cursor = 'move';
+
+                const img = document.createElement('img');
+                img.src = photo.url;
+                img.alt = photo.description || '';
+                img.style.width = '100%';
+                img.style.height = '100%';
+                img.style.borderRadius = '5px';
+                img.style.objectFit = 'cover';
+                img.draggable = false;
+
+                imageWrapper.appendChild(img);
+                gridContainer.appendChild(imageWrapper);
+            });
+
+            // Initialize jQuery UI sortable
+            $(gridContainer).sortable({
+                swapThreshold: 0.5,
+                animation: 150,
+                items: '.photo-item',
+                containment: 'parent',
+                cursor: 'move',
+                tolerance: 'pointer',
+                revert: true,
+                helper: 'clone',
+                opacity: 1,
+                zIndex: 9999,
+                stop: function (event, ui) {
+                    const items = gridContainer.getElementsByClassName('photo-item');
+
+                    Array.from(items).forEach((item, i) => {
+                        const imgSrc = item.querySelector('img').src;
+                        const photo = tempPhotos.find(p => p.url === imgSrc);
+                        if (photo) {
+                            photo.coverPhotoOrder = i + 1;
+                            photo.isCoverPhoto = i < 5;
+                        }
+                    });
+                }
+            });
+
+            const closeModal = () => {
+                arrangePhotosModal.style.display = 'none';
+            };
+
+            // Close modal when clicking cancel button
+            if (arrangeCancelButton) {
+                arrangeCancelButton.removeEventListener('click', closeModal);
+                arrangeCancelButton.addEventListener('click', closeModal);
+            }
+
+            // Close modal when clicking outside
+            if (arrangePhotosModal) {
+                arrangePhotosModal.removeEventListener('click', closeModal);
+                arrangePhotosModal.addEventListener('click', (e) => {
+                    if (e.target === arrangePhotosModal) {
+                        closeModal();
+                    }
+                });
+            }
+
+            // Hide error message initially
+            if (arrangePhotosError) {
+                arrangePhotosError.style.display = 'none';
+            }
+
+            // Remove any existing click handlers from save button
+            if (arrangeSaveButton) {
+                const oldClickHandlers = $._data(arrangeSaveButton, "events");
+                if (oldClickHandlers && oldClickHandlers.click) {
+                    $(arrangeSaveButton).off('click');
+                }
+
+                // Get text and loader elements
+                const saveButtonText = document.getElementById('editListing_saveButton_arrangePhotos_text');
+                const saveButtonLoader = document.getElementById('editListing_saveButton_arrangePhotos_loader');
+
+                // Initially hide loader
+                if (saveButtonLoader) {
+                    saveButtonLoader.style.display = 'none';
+                }
+
+                // Add new click handler
+                arrangeSaveButton.addEventListener('click', async () => {
+                    if (arrangeSaveButton.dataset.saving === 'true') return;
+                    arrangeSaveButton.dataset.saving = 'true';
+
+                    // Show loader and hide text while requesting
+                    if (saveButtonLoader && saveButtonText) {
+                        saveButtonLoader.style.display = 'block';
+                        saveButtonText.style.display = 'none';
+                    }
+
+                    try {
+                        // Get current order from DOM to ensure latest changes
+                        const currentItems = gridContainer.getElementsByClassName('photo-item');
+                        Array.from(currentItems).forEach((item, i) => {
+                            const imgSrc = item.querySelector('img').src;
+                            const photo = tempPhotos.find(p => p.url === imgSrc);
+                            if (photo) {
+                                photo.coverPhotoOrder = i + 1;
+                                photo.isCoverPhoto = i < 5;
+                            }
+                        });
+
+                        const requestData = {
+                            property_id: data.id,
+                            host_id: data.host_user_id,
+                            addedPhotos: tempPhotos.map(photo => ({
+                                image: photo.id ? photo.url : photo.image,
+                                isCoverPhoto: photo.isCoverPhoto,
+                                coverPhotoOrder: photo.coverPhotoOrder,
+                                isDockPhoto: photo.isDockPhoto,
+                                dockPhotoOrder: photo.dockPhotoOrder,
+                                isBedroomPhoto: photo.isBedroomPhoto,
+                                bedroomOrder: photo.bedroomOrder,
+                                description: photo.description,
+                                description_header: photo.bedroomOrder ? `Bedroom ${photo.bedroomOrder}` : null
+                            }))
+                        };
+
+                        const response = await fetch('https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/edit_property_photos', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify(requestData)
+                        });
+
+                        if (!response.ok) {
+                            const errorData = await response.json();
+                            throw new Error(errorData.message || 'Failed to save photos');
+                        }
+
+                        // Update localPhotos with the new arrangement
+                        localPhotos = JSON.parse(JSON.stringify(tempPhotos)); // Deep copy to ensure complete separation
+
+                        // Update arrange photos preview image with new first photo
+                        if (arrangePhotosImage) {
+                            const firstPhoto = localPhotos.find(photo => photo.coverPhotoOrder === 1);
+                            if (firstPhoto) {
+                                arrangePhotosImage.src = firstPhoto.url;
+                                if (previewImage) {
+                                    previewImage.src = firstPhoto.url;
+                                }
+                            }
+                        }
+
+                        // Hide error and show subtext on success
+                        if (arrangePhotosError) arrangePhotosError.style.display = 'none';
+                        if (arrangePhotosSubText) arrangePhotosSubText.style.display = 'block';
+
+                        closeModal();
+
+                        // Reload the page after everything else is done
+                        window.location.reload();
+
+                    } catch (error) {
+                        console.error('Error saving photos:', error);
+                        if (arrangePhotosError) {
+                            arrangePhotosError.textContent = "Request failed. Please try again later.";
+                            arrangePhotosError.style.display = 'block';
+                        }
+                        if (arrangePhotosSubText) arrangePhotosSubText.style.display = 'none';
+                    } finally {
+                        arrangeSaveButton.dataset.saving = 'false';
+                        // Show text and hide loader after request completes
+                        if (saveButtonLoader && saveButtonText) {
+                            saveButtonLoader.style.display = 'none';
+                            saveButtonText.style.display = 'block';
+                        }
+                    }
+                });
+            }
+        }
+
         // Function to check if all bedrooms have photos and beds assigned and dock photos
-        function checkBedroomPhotosAndBeds() {
+        function checkMissingBedroomAndDockData() {
             let hasErrors = false;
             let errorMessages = [];
 
@@ -188,10 +741,14 @@ document.addEventListener('DOMContentLoaded', function () {
 
             // Check dock photos only if property has a private dock
             if (data.private_dock) {
-                const dockPhotoCount = localPhotos.filter(photo => photo.isDockPhoto).length;
-                if (dockPhotoCount !== 2) {
+                const dockPhotos = localPhotos.filter(photo => photo.isDockPhoto);
+                if (dockPhotos.length !== 2) {
                     errorMessages.push('Please select two dock photos');
                     hasErrors = true;
+                } else {
+                    // Clear dock photos error if exactly 2 dock photos are present
+                    if (dockPhotosError) dockPhotosError.style.display = 'none';
+                    if (dockPhotosSubText) dockPhotosSubText.style.display = 'block';
                 }
             }
 
@@ -204,12 +761,20 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (photosSubText) {
                     photosSubText.style.display = 'none';
                 }
+                const editPhotosElement = document.querySelector('[data-element="edit_photos"]');
+                if (editPhotosElement) {
+                    editPhotosElement.style.backgroundColor = '#FFE5E5';
+                }
                 return false;
             }
 
             // If we get here, everything is properly configured
             if (photosError) photosError.style.display = 'none';
             if (photosSubText) photosSubText.style.display = 'block';
+            const editPhotosElement = document.querySelector('[data-element="edit_photos"]');
+            if (editPhotosElement) {
+                editPhotosElement.style.backgroundColor = '#FFFFFF';
+            }
             return true;
         }
 
@@ -273,68 +838,6 @@ document.addEventListener('DOMContentLoaded', function () {
             if (editPhotosText) {
                 editPhotosText.textContent = `${savedPhotosCount} photos`;
             }
-        }
-
-        function initializeArrangePhotos() {
-            if (arrangePhotosButton && arrangePhotosModal) {
-                arrangePhotosButton.addEventListener('click', () => {
-                    arrangePhotosModal.style.display = 'flex';
-                    initializeArrangePhotosModal();
-                });
-            }
-
-            if (arrangePhotosImage && localPhotos.length > 0) {
-                arrangePhotosImage.src = localPhotos[0].url;
-            }
-        }
-
-        function initializeArrangePhotosModal() {
-            const gridContainer = document.getElementById('arrangePhotos_gridContainer');
-
-            if (!gridContainer || !localPhotos.length) return;
-
-            // Clear existing content
-            gridContainer.innerHTML = '';
-
-            // Create and append image elements to grid
-            localPhotos.forEach(photo => {
-                const imageWrapper = document.createElement('div');
-                imageWrapper.className = 'photo-item';
-
-                const img = document.createElement('img');
-                img.src = photo.url;
-                img.alt = photo.description || '';
-
-                imageWrapper.appendChild(img);
-                gridContainer.appendChild(imageWrapper);
-            });
-
-            // Initialize Sortable
-            new Sortable(gridContainer, {
-                animation: 150,
-                ghostClass: 'photo-ghost',
-                onEnd: function (evt) {
-                    // Update localPhotos array to match new order
-                    const items = gridContainer.getElementsByClassName('photo-item');
-                    const newPhotos = [];
-
-                    for (let i = 0; i < items.length; i++) {
-                        const imgSrc = items[i].querySelector('img').src;
-                        const photo = localPhotos.find(p => p.url === imgSrc);
-                        if (photo) {
-                            photo.coverPhotoOrder = i;
-                            newPhotos.push(photo);
-                        }
-                    }
-
-                    localPhotos = newPhotos;
-
-                    // Update preview image to show first photo
-                    if (previewImage && localPhotos.length > 0) {
-                        previewImage.src = localPhotos[0].url;
-                    }
-                }
-            });
         }
 
 
@@ -461,65 +964,6 @@ document.addEventListener('DOMContentLoaded', function () {
                     bedroomParentContainer.appendChild(container);
                 }
             }
-        }
-
-        // Initialize dock photos section
-        function initializeDockPhotos() {
-            // Check if property has private dock
-            const dockSectionContainer = document.querySelector('[data-element="dockPhotos_sectionContainer"]');
-            if (!dockSectionContainer) return;
-
-            // Show/hide dock section based on private_dock value
-            if (!data.private_dock) {
-                dockSectionContainer.style.display = 'none';
-                return;
-            }
-            dockSectionContainer.style.display = 'flex';
-
-            const dockContainer = document.querySelector('[data-element="dockPhotos_container"]');
-            if (!dockContainer) return;
-
-            // Find assigned dock photos
-            const assignedPhotos = localPhotos.filter(photo => photo.isDockPhoto)
-                .sort((a, b) => a.dockPhotoOrder - b.dockPhotoOrder);
-
-            const addImageElement = dockContainer.querySelector('[data-element="dockPhotos_addImage"]');
-            const imageElement = dockContainer.querySelector('[data-element="dockPhotos_image"]');
-
-            // Hide imageElement by default
-            if (imageElement) imageElement.style.display = 'none';
-
-            if (assignedPhotos.length > 0) {
-                // Hide add image button
-                if (addImageElement) addImageElement.style.display = 'none';
-
-                // Remove any existing image elements
-                const existingImages = dockContainer.querySelectorAll('[data-element="dockPhotos_image"]');
-                existingImages.forEach(img => img.remove());
-
-                // Create and append image elements for each assigned photo
-                assignedPhotos.forEach((photo, index) => {
-                    const newImageElement = imageElement.cloneNode(true);
-                    newImageElement.style.display = 'flex';
-                    newImageElement.src = photo.url;
-                    dockContainer.appendChild(newImageElement);
-                });
-            } else {
-                // Show add image button if no photos assigned
-                if (addImageElement) addImageElement.style.display = 'flex';
-            }
-
-            // Add click handler for dock container
-            dockContainer.addEventListener('click', () => {
-                if (dockPhotosModal) {
-                    dockPhotosModal.style.display = 'flex';
-                    initializeDockPhotosModal();
-
-                    // Hide error and show subtext initially
-                    if (dockPhotosError) dockPhotosError.style.display = 'none';
-                    if (dockPhotosSubText) dockPhotosSubText.style.display = 'block';
-                }
-            });
         }
 
         // Initialize dock photos modal
@@ -796,7 +1240,145 @@ document.addEventListener('DOMContentLoaded', function () {
             });
         }
 
+        // Initialize dock photos section
+        function initializeDockPhotos() {
+            // Check if property has private dock
+            const dockSectionContainer = document.querySelector('[data-element="dockPhotos_sectionContainer"]');
+            if (!dockSectionContainer) return;
 
+            // Show/hide dock section based on private_dock value
+            if (!data.private_dock) {
+                dockSectionContainer.style.display = 'none';
+                return;
+            }
+            dockSectionContainer.style.display = 'flex';
+
+            const dockContainer = document.querySelector('[data-element="dockPhotos_container"]');
+            if (!dockContainer) return;
+
+            // Find assigned dock photos
+            let assignedPhotos = localPhotos.filter(photo => photo.isDockPhoto)
+                .sort((a, b) => a.dockPhotoOrder - b.dockPhotoOrder);
+
+            // If there's only 1 photo and its order is 2, change it to 1
+            if (assignedPhotos.length === 1 && assignedPhotos[0].dockPhotoOrder === 2) {
+                assignedPhotos[0].dockPhotoOrder = 1;
+                // Update the photo in localPhotos as well
+                const photoIndex = localPhotos.findIndex(p => p.id === assignedPhotos[0].id);
+                if (photoIndex !== -1) {
+                    localPhotos[photoIndex].dockPhotoOrder = 1;
+                }
+            }
+
+            const addImageElement = dockContainer.querySelector('[data-element="dockPhotos_addImage"]');
+            const imageElement = dockContainer.querySelector('[data-element="dockPhotos_image"]');
+
+            // Hide imageElement by default
+            if (imageElement) imageElement.style.display = 'none';
+
+            if (assignedPhotos.length > 0) {
+                // Hide add image button
+                if (addImageElement) addImageElement.style.display = 'none';
+
+                // Remove any existing image elements
+                const existingImages = dockContainer.querySelectorAll('[data-element="dockPhotos_image"]');
+                existingImages.forEach(img => img.remove());
+
+                // Create and append image elements for each assigned photo
+                assignedPhotos.forEach((photo, index) => {
+                    const newImageElement = imageElement.cloneNode(true);
+                    newImageElement.style.display = 'flex';
+                    newImageElement.src = photo.url;
+                    dockContainer.appendChild(newImageElement);
+                });
+            } else {
+                // Show add image button if no photos assigned
+                if (addImageElement) addImageElement.style.display = 'flex';
+            }
+
+            // Add click handler for dock container
+            dockContainer.addEventListener('click', () => {
+                if (dockPhotosModal) {
+                    dockPhotosModal.style.display = 'flex';
+                    initializeDockPhotosModal();
+
+                    // Hide error and show subtext initially
+                    if (dockPhotosError) dockPhotosError.style.display = 'none';
+                    if (dockPhotosSubText) dockPhotosSubText.style.display = 'block';
+                }
+            });
+        }
+
+        if (dockSaveButton) {
+            dockSaveButton.addEventListener('click', async () => {
+                try {
+                    // Check if exactly 2 photos are selected
+                    const selectedPhotos = Object.values(tempDockSelections)
+                        .sort((a, b) => a.dockPhotoOrder - b.dockPhotoOrder);
+
+                    if (selectedPhotos.length !== 2) {
+                        if (dockPhotosError) {
+                            dockPhotosError.textContent = "Please select exactly two photos for the dock section.";
+                            dockPhotosError.style.display = 'block';
+                            if (dockPhotosSubText) dockPhotosSubText.style.display = 'none';
+                        }
+                        return;
+                    }
+
+                    const requestData = {
+                        property_id: data.id,
+                        user_id: data.host_user_id,
+                        photos: selectedPhotos.map(selection => ({
+                            photo_id: selection.photoId,
+                            dock_photo_order: selection.dockPhotoOrder
+                        }))
+                    };
+
+                    const response = await fetch('https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/edit_property_photos_dock', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(requestData)
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+
+                    // Update localPhotos with the new selections
+                    localPhotos.forEach(photo => {
+                        photo.isDockPhoto = false;
+                        photo.dockPhotoOrder = null;
+
+                        const selection = tempDockSelections[photo.id];
+                        if (selection) {
+                            photo.isDockPhoto = true;
+                            photo.dockPhotoOrder = selection.dockPhotoOrder;
+                        }
+                    });
+
+                    // Clear temporary selections after successful save
+                    tempDockSelections = {};
+
+                    dockPhotosModal.style.display = 'none';
+                    if (dockPhotosError) dockPhotosError.style.display = 'none';
+                    if (dockPhotosSubText) dockPhotosSubText.style.display = 'block';
+
+                    initializeDockPhotos();
+
+                    checkMissingBedroomAndDockData();
+
+                } catch (error) {
+                    console.error('Error saving dock photos:', error);
+                    if (dockPhotosError) {
+                        dockPhotosError.textContent = "Unable to save dock photos. Please reload page and try again.";
+                        dockPhotosError.style.display = 'block';
+                        if (dockPhotosSubText) dockPhotosSubText.style.display = 'none';
+                    }
+                }
+            });
+        }
 
         // Handle modal open/close
         if (addRemovePhotosButton && addRemovePhotosModal) {
@@ -983,12 +1565,14 @@ document.addEventListener('DOMContentLoaded', function () {
                     initializeBedroomPhotos();
 
                     // Check bedroom photos and beds after successful save
-                    checkBedroomPhotosAndBeds();
+                    checkMissingBedroomAndDockData();
+
+
 
                 } catch (error) {
                     console.error('Error saving bedroom configuration:', error);
                     if (bedroomPhotosError) {
-                        bedroomPhotosError.textContent = "Unable to save bedroom configuration. Please try again later.";
+                        bedroomPhotosError.textContent = "Unable to save bedroom configuration. Please reload page and try again.";
                         bedroomPhotosError.style.display = 'block';
                         if (bedroomPhotosSubText) bedroomPhotosSubText.style.display = 'none';
                     }
@@ -996,76 +1580,18 @@ document.addEventListener('DOMContentLoaded', function () {
             });
         }
 
-        if (dockSaveButton) {
-            dockSaveButton.addEventListener('click', async () => {
-                try {
-                    // Check if exactly 2 photos are selected
-                    const selectedPhotos = Object.values(tempDockSelections)
-                        .sort((a, b) => a.dockPhotoOrder - b.dockPhotoOrder);
 
-                    if (selectedPhotos.length !== 2) {
-                        if (dockPhotosError) {
-                            dockPhotosError.textContent = "Please select exactly two photos for the dock section.";
-                            dockPhotosError.style.display = 'block';
-                            if (dockPhotosSubText) dockPhotosSubText.style.display = 'none';
-                        }
-                        return;
-                    }
-
-                    const requestData = {
-                        property_id: data.id,
-                        user_id: data.host_user_id,
-                        photos: selectedPhotos.map(selection => ({
-                            photo_id: selection.photoId,
-                            dock_photo_order: selection.dockPhotoOrder
-                        }))
-                    };
-
-                    const response = await fetch('https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/edit_property_photos_dock', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify(requestData)
-                    });
-
-                    if (!response.ok) {
-                        throw new Error('Network response was not ok');
-                    }
-
-                    // Update localPhotos with the new selections
-                    localPhotos.forEach(photo => {
-                        photo.isDockPhoto = false;
-                        photo.dockPhotoOrder = null;
-
-                        const selection = tempDockSelections[photo.id];
-                        if (selection) {
-                            photo.isDockPhoto = true;
-                            photo.dockPhotoOrder = selection.dockPhotoOrder;
-                        }
-                    });
-
-                    // Clear temporary selections after successful save
-                    tempDockSelections = {};
-
-                    dockPhotosModal.style.display = 'none';
-                    if (dockPhotosError) dockPhotosError.style.display = 'none';
-                    if (dockPhotosSubText) dockPhotosSubText.style.display = 'block';
-
-                    initializeDockPhotos();
-
-                } catch (error) {
-                    console.error('Error saving dock photos:', error);
-                    if (dockPhotosError) {
-                        dockPhotosError.textContent = "Unable to save dock photos. Please try again later.";
-                        dockPhotosError.style.display = 'block';
-                        if (dockPhotosSubText) dockPhotosSubText.style.display = 'none';
-                    }
-                }
-            });
-        }
 
         if (saveButton) {
+            // Get text and loader elements
+            const saveButtonText = document.getElementById('editListing_saveButton_addPhotos_text');
+            const saveButtonLoader = document.getElementById('editListing_saveButton_addPhotos_loader');
+
+            // Initially hide loader
+            if (saveButtonLoader) {
+                saveButtonLoader.style.display = 'none';
+            }
+
             saveButton.addEventListener('click', async () => {
                 const addRemovePhotosError = document.getElementById('addRemovePhotos-error');
                 const addRemovePhotosSubText = document.getElementById('addRemovePhotos-subText');
@@ -1083,11 +1609,35 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
 
                 try {
+                    // Show loader and hide text while requesting
+                    if (saveButtonLoader && saveButtonText) {
+                        saveButtonLoader.style.display = 'block';
+                        saveButtonText.style.display = 'none';
+                    }
+
+                    // Separate existing and new photos
+                    const existingPhotos = localPhotos.filter(photo => photo.coverPhotoOrder);
+                    const newPhotos = localPhotos.filter(photo => !photo.coverPhotoOrder);
+
+                    // Sort existing photos by current order
+                    existingPhotos.sort((a, b) => a.coverPhotoOrder - b.coverPhotoOrder);
+
+                    // Combine arrays with new photos at the end
+                    const orderedPhotos = [...existingPhotos, ...newPhotos];
+
+                    // Reassign consecutive order numbers starting from 1
+                    orderedPhotos.forEach((photo, index) => {
+                        photo.coverPhotoOrder = index + 1;
+                        photo.isCoverPhoto = index < 5;
+                    });
+
+                    // Update localPhotos with new ordering
+                    localPhotos = orderedPhotos;
+
                     const requestData = {
                         property_id: data.id,
                         host_id: data.host_user_id,
                         addedPhotos: localPhotos.map(photo => ({
-                            // For existing photos, use url, for new photos use image (base64)
                             image: photo.id ? photo.url : photo.image,
                             isCoverPhoto: photo.isCoverPhoto,
                             coverPhotoOrder: photo.coverPhotoOrder,
@@ -1095,7 +1645,8 @@ document.addEventListener('DOMContentLoaded', function () {
                             dockPhotoOrder: photo.dockPhotoOrder,
                             isBedroomPhoto: photo.isBedroomPhoto,
                             bedroomOrder: photo.bedroomOrder,
-                            description: photo.description || null
+                            description: photo.description,
+                            description_header: photo.bedroomOrder ? `Bedroom ${photo.bedroomOrder}` : null
                         }))
                     };
 
@@ -1152,6 +1703,9 @@ document.addEventListener('DOMContentLoaded', function () {
                         }
                     });
 
+                    // Reload the page after everything else is done
+                    window.location.reload();
+
                 } catch (error) {
                     console.error('Error saving photos:', error);
                     // Show error and hide subtext
@@ -1161,6 +1715,12 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
                     if (addRemovePhotosSubText) {
                         addRemovePhotosSubText.style.display = 'none';
+                    }
+                } finally {
+                    // Show text and hide loader after request completes
+                    if (saveButtonLoader && saveButtonText) {
+                        saveButtonLoader.style.display = 'none';
+                        saveButtonText.style.display = 'block';
                     }
                 }
             });
@@ -1239,7 +1799,7 @@ document.addEventListener('DOMContentLoaded', function () {
         initializeBedroomPhotos();
         initializeDockPhotos();
         initializeArrangePhotos();
-        checkBedroomPhotosAndBeds();
+        checkMissingBedroomAndDockData();
 
         // Setup photo upload buttons
         const setupPhotoButton = (button) => {
@@ -1316,7 +1876,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 initializeBedroomPhotos();
                 initializeDockPhotos();
                 initializeArrangePhotos();
-                checkBedroomPhotosAndBeds();
+                checkMissingBedroomAndDockData();
             };
         }
     }
@@ -1864,11 +2424,27 @@ document.addEventListener('DOMContentLoaded', function () {
         const cancelButton = document.getElementById('editListing_cancelButton_description');
         const saveButton = document.getElementById('editListing_saveButton_description');
         const maxChars = 4000;
+        const maxDisplayChars = 300;
 
         // Always show subtext if error is not visible
         if (descriptionError && descriptionSubText) {
             descriptionError.style.display = 'none';
             descriptionSubText.style.display = 'block';
+        }
+
+        // Function to truncate text for display
+        function truncateText(text, maxLength) {
+            if (text.length <= maxLength) return text;
+
+            // Truncate to max length
+            let truncated = text.substring(0, maxLength);
+
+            // Remove trailing space if it exists
+            if (truncated.charAt(truncated.length - 1) === ' ') {
+                truncated = truncated.substring(0, truncated.length - 1);
+            }
+
+            return truncated + '...';
         }
 
         // Validation function
@@ -1927,7 +2503,7 @@ document.addEventListener('DOMContentLoaded', function () {
             if (existingText) {
                 descriptionInput.innerText = existingText;
                 if (descriptionText) {
-                    descriptionText.textContent = existingText;
+                    descriptionText.textContent = truncateText(existingText, maxDisplayChars);
                 }
             }
 
@@ -2022,7 +2598,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
                         // Update description text element after successful save
                         if (descriptionText) {
-                            descriptionText.textContent = originalText;
+                            descriptionText.textContent = truncateText(originalText, maxDisplayChars);
                         }
 
                     } catch (error) {
@@ -3241,6 +3817,15 @@ document.addEventListener('DOMContentLoaded', function () {
         const locationError = document.getElementById('location-error');
         const locationSubText = document.getElementById('location-subText');
         const locationText = document.querySelector('[data-element="edit_location_text"]');
+        const locationDescriptionInput = document.getElementById('locationDescription_input');
+        const characterCount = document.getElementById('locationDescriptionInputField_characterCount');
+        const maxChars = 4000; // Maximum characters for location description
+        const editLocationElement = document.querySelector('[data-element="edit_location"]');
+
+        // Hide error text initially
+        if (locationError) {
+            locationError.style.display = 'none';
+        }
 
         // Get input elements
         const addressLine1Input = document.getElementById('addressLine1-input');
@@ -3249,17 +3834,13 @@ document.addEventListener('DOMContentLoaded', function () {
         const addressStateInput = document.getElementById('addressState-input');
         const addressZipcodeInput = document.getElementById('addressZipcode-input');
 
-        // Hide error text initially
-        if (locationError) {
-            locationError.style.display = 'none';
-        }
-
         let initialState = {
             addressLine1: '',
             addressLine2: '',
             city: '',
             state: '',
-            zipcode: ''
+            zipcode: '',
+            locationDescription: ''
         };
 
         // Store the original unit prefix (if any)
@@ -3313,9 +3894,21 @@ document.addEventListener('DOMContentLoaded', function () {
             const stateValue = addressStateInput.value.trim().toLowerCase();
             const isFloridaState = stateValue === 'fl' || stateValue === 'florida';
 
+            // Check if location description is filled
+            const hasLocationDescription = locationDescriptionInput && locationDescriptionInput.innerText.trim().length > 0;
+
             if (hasEmptyFields) {
                 if (locationError) {
                     locationError.textContent = "Please fill in all required fields";
+                    locationError.style.display = 'block';
+                    if (locationSubText) locationSubText.style.display = 'none';
+                }
+                return false;
+            }
+
+            if (!hasLocationDescription) {
+                if (locationError) {
+                    locationError.textContent = "Please provide a location description";
                     locationError.style.display = 'block';
                     if (locationSubText) locationSubText.style.display = 'none';
                 }
@@ -3345,6 +3938,44 @@ document.addEventListener('DOMContentLoaded', function () {
             return true;
         }
 
+        // Function to update character count for location description
+        function updateCharacterCount() {
+            if (locationDescriptionInput && characterCount) {
+                const currentLength = locationDescriptionInput.innerText.length;
+                characterCount.textContent = `${currentLength}/${maxChars}`;
+
+                // Change color if approaching limit
+                if (currentLength > maxChars * 0.9) {
+                    characterCount.style.color = '#FF5C5C';
+                } else {
+                    characterCount.style.color = '';
+                }
+            }
+        }
+
+        // Function to validate location description
+        function validateLocationDescription() {
+            if (locationDescriptionInput) {
+                const currentLength = locationDescriptionInput.innerText.length;
+                if (currentLength > maxChars) {
+                    locationDescriptionInput.innerText = locationDescriptionInput.innerText.substring(0, maxChars);
+                    updateCharacterCount();
+                }
+
+                // Check if description is empty
+                if (currentLength === 0) {
+                    if (locationError) {
+                        locationError.textContent = "Please provide a location description";
+                        locationError.style.display = 'block';
+                        if (locationSubText) locationSubText.style.display = 'none';
+                    }
+                } else {
+                    if (locationError) locationError.style.display = 'none';
+                    if (locationSubText) locationSubText.style.display = 'block';
+                }
+            }
+        }
+
         // Set initial values and disable inputs
         if (addressLine1Input && data.address_line_1) {
             addressLine1Input.value = data.address_line_1;
@@ -3361,6 +3992,29 @@ document.addEventListener('DOMContentLoaded', function () {
                 initialState.addressLine2 = number;
             }
             addressLine2Input.disabled = true;
+        }
+
+        // Set location description if available
+        if (locationDescriptionInput) {
+            if (data.location_description) {
+                locationDescriptionInput.innerText = data.location_description;
+                initialState.locationDescription = data.location_description;
+            } else {
+                locationDescriptionInput.innerText = '';
+                initialState.locationDescription = '';
+
+                // Show error on load if location description is missing
+                if (locationError) {
+                    locationError.textContent = "Please provide a location description";
+                    locationError.style.display = 'block';
+                    if (locationSubText) locationSubText.style.display = 'none';
+                }
+                if (editLocationElement) {
+                    editLocationElement.style.backgroundColor = '#FFE5E5';
+                }
+            }
+            locationDescriptionInput.contentEditable = "false"; // Make it not editable initially
+            updateCharacterCount();
         }
 
         // Parse city, state, zip from address_line_2
@@ -3399,6 +4053,14 @@ document.addEventListener('DOMContentLoaded', function () {
             locationText.textContent = fullAddress;
         }
 
+        // Add input event listener for location description
+        if (locationDescriptionInput) {
+            locationDescriptionInput.addEventListener('input', () => {
+                updateCharacterCount();
+                validateLocationDescription();
+            });
+        }
+
         // Add click handler for edit button
         if (editButton) {
             editButton.addEventListener('click', () => {
@@ -3415,6 +4077,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (addressCityInput) addressCityInput.disabled = false;
                 if (addressStateInput) addressStateInput.disabled = false;
                 if (addressZipcodeInput) addressZipcodeInput.disabled = false;
+                if (locationDescriptionInput) {
+                    locationDescriptionInput.contentEditable = "true";
+                    locationDescriptionInput.style.backgroundColor = 'white';
+                    locationDescriptionInput.focus(); // Focus on the input to make it active
+                }
             });
         }
 
@@ -3442,6 +4109,24 @@ document.addEventListener('DOMContentLoaded', function () {
                     addressZipcodeInput.value = initialState.zipcode;
                     addressZipcodeInput.disabled = true;
                 }
+                if (locationDescriptionInput) {
+                    locationDescriptionInput.innerText = initialState.locationDescription;
+                    locationDescriptionInput.contentEditable = "false";
+                    locationDescriptionInput.style.backgroundColor = '';
+                    updateCharacterCount();
+
+                    // Show error if location description is still empty after cancel
+                    if (!initialState.locationDescription.trim()) {
+                        if (locationError) {
+                            locationError.textContent = "Please provide a location description";
+                            locationError.style.display = 'block';
+                            if (locationSubText) locationSubText.style.display = 'none';
+                        }
+                    } else {
+                        if (locationError) locationError.style.display = 'none';
+                        if (locationSubText) locationSubText.style.display = 'block';
+                    }
+                }
 
                 // Reset UI state
                 editButton.style.display = 'flex';
@@ -3450,10 +4135,10 @@ document.addEventListener('DOMContentLoaded', function () {
                     container.style.backgroundColor = '';
                     container.style.border = '';
                 }
-                if (locationError) {
+                if (locationError && initialState.locationDescription.trim()) {
                     locationError.style.display = 'none';
                 }
-                if (locationSubText) {
+                if (locationSubText && initialState.locationDescription.trim()) {
                     locationSubText.style.display = 'block';
                 }
             });
@@ -3478,6 +4163,8 @@ document.addEventListener('DOMContentLoaded', function () {
                     const cleanedUnitNumber = addressLine2Input.value ? cleanUnitNumber(addressLine2Input.value) : '';
                     const formattedUnit = cleanedUnitNumber ? formatUnitWithPrefix(unitPrefix, cleanedUnitNumber) : '';
 
+                    const locationDescriptionValue = locationDescriptionInput ? locationDescriptionInput.innerText : '';
+
                     const updatedData = {
                         property_id: data.id,
                         user_id: userId,
@@ -3487,7 +4174,8 @@ document.addEventListener('DOMContentLoaded', function () {
                         listing_city_state: cityState,
                         listing_city: addressCityInput.value,
                         listing_state: addressStateInput.value,
-                        listing_zipcode: addressZipcodeInput.value
+                        listing_zipcode: addressZipcodeInput.value,
+                        location_description: locationDescriptionValue
                     };
 
                     const response = await fetch('https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/edit_property_location', {
@@ -3508,7 +4196,8 @@ document.addEventListener('DOMContentLoaded', function () {
                         addressLine2: cleanedUnitNumber,
                         city: addressCityInput.value,
                         state: addressStateInput.value,
-                        zipcode: addressZipcodeInput.value
+                        zipcode: addressZipcodeInput.value,
+                        locationDescription: locationDescriptionValue
                     };
 
                     // Update location text after successful save
@@ -3528,11 +4217,27 @@ document.addEventListener('DOMContentLoaded', function () {
                         container.style.backgroundColor = '';
                         container.style.border = '';
                     }
-                    if (locationError) {
-                        locationError.style.display = 'none';
-                    }
-                    if (locationSubText) {
-                        locationSubText.style.display = 'block';
+
+                    // Check if there's an error after save (e.g., missing location description)
+                    if (!locationDescriptionValue.trim()) {
+                        if (locationError) {
+                            locationError.textContent = "Please provide a location description";
+                            locationError.style.display = 'block';
+                            if (locationSubText) locationSubText.style.display = 'none';
+                        }
+                        if (editLocationElement) {
+                            editLocationElement.style.backgroundColor = '#FFE5E5';
+                        }
+                    } else {
+                        if (locationError) {
+                            locationError.style.display = 'none';
+                        }
+                        if (locationSubText) {
+                            locationSubText.style.display = 'block';
+                        }
+                        if (editLocationElement) {
+                            editLocationElement.style.backgroundColor = '';
+                        }
                     }
 
                     // Disable inputs
@@ -3541,6 +4246,10 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (addressCityInput) addressCityInput.disabled = true;
                     if (addressStateInput) addressStateInput.disabled = true;
                     if (addressZipcodeInput) addressZipcodeInput.disabled = true;
+                    if (locationDescriptionInput) {
+                        locationDescriptionInput.contentEditable = "false";
+                        locationDescriptionInput.style.backgroundColor = '';
+                    }
 
                 } catch (error) {
                     console.error('Error updating location:', error);
@@ -3560,6 +4269,10 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (addressCityInput) addressCityInput.disabled = false;
                     if (addressStateInput) addressStateInput.disabled = false;
                     if (addressZipcodeInput) addressZipcodeInput.disabled = false;
+                    if (locationDescriptionInput) {
+                        locationDescriptionInput.contentEditable = "true";
+                        locationDescriptionInput.style.backgroundColor = 'white';
+                    }
                     editButton.style.display = 'none';
                     if (cancelSaveContainer) cancelSaveContainer.style.display = 'flex';
                 }
@@ -3876,6 +4589,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
                         // Update background state after successful save
                         updateBackgroundState();
+
+
 
                     } catch (error) {
                         console.error('Error updating host description:', error);
@@ -4802,29 +5517,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         const minNightsInput = container.querySelector('[data-element="minimumNights"]');
         const maxNightsInput = container.querySelector('[data-element="maximumNights"]');
-        const advanceNoticeWrapper = container.querySelector('[data-element="advanceNoticeDropdown"]').parentElement;
-
-        // Create select element to replace div
-        const advanceNoticeSelect = document.createElement('select');
-        advanceNoticeSelect.classList.add('advance-notice-select');
-        advanceNoticeSelect.style.width = '100%';
-        advanceNoticeSelect.style.padding = '18px';
-        advanceNoticeSelect.style.borderRadius = '4px';
-        advanceNoticeSelect.style.border = '1px solid #E2E2E2';
-        advanceNoticeSelect.style.fontSize = '17px';
-        advanceNoticeSelect.style.font = 'TT Fors'
-
-        // Add options 1-7 days
-        for (let i = 1; i <= 7; i++) {
-            const option = document.createElement('option');
-            option.value = i;
-            option.textContent = `${i} day${i > 1 ? 's' : ''}`;
-            advanceNoticeSelect.appendChild(option);
-        }
-
-        // Replace div with select
-        const oldDropdown = container.querySelector('[data-element="advanceNoticeDropdown"]');
-        advanceNoticeWrapper.replaceChild(advanceNoticeSelect, oldDropdown);
+        const advanceNoticeInput = container.querySelector('[data-element="advanceNoticeInput"]');
 
         // Store original background color
         const originalBackgroundColor = container.style.backgroundColor;
@@ -4846,19 +5539,69 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         };
 
+        // Function to format advance notice input
+        const formatAdvanceNotice = (value) => {
+            const numValue = parseInt(value) || 1;
+            return `${numValue} Day${numValue > 1 ? 's' : ''}`;
+        };
+
         // Set initial values and display texts
         if (minNightsInput) minNightsInput.value = initialState.minNights;
         if (maxNightsInput) maxNightsInput.value = initialState.maxNights;
-        advanceNoticeSelect.value = initialState.advanceNotice;
-        advanceNoticeSelect.disabled = true;
-        advanceNoticeSelect.style.opacity = '1'; // Keep text opacity at 1 even when disabled
-        advanceNoticeSelect.style.color = '#000000';
+        if (advanceNoticeInput) {
+            advanceNoticeInput.value = formatAdvanceNotice(initialState.advanceNotice);
+            advanceNoticeInput.disabled = true;
+            advanceNoticeInput.style.opacity = '1'; // Keep text opacity at 1 even when disabled
+            advanceNoticeInput.style.color = '#000000';
+        }
 
         // Set initial display texts
         updateDisplayTexts(initialState.minNights, initialState.maxNights, initialState.advanceNotice);
 
         // Initially hide error text
         if (availabilityError) availabilityError.style.display = 'none';
+
+        // Add event listener for advance notice input to handle formatting
+        if (advanceNoticeInput) {
+            advanceNoticeInput.addEventListener('focus', function () {
+                if (!this.disabled) {
+                    // Extract just the number when focused
+                    const numValue = parseInt(this.value) || 1;
+                    this.value = numValue;
+                }
+            });
+
+            advanceNoticeInput.addEventListener('blur', function () {
+                if (!this.disabled) {
+                    // Format the value when focus is lost
+                    this.value = formatAdvanceNotice(this.value);
+                }
+            });
+
+            advanceNoticeInput.addEventListener('input', function () {
+                // Allow only numbers
+                this.value = this.value.replace(/[^0-9]/g, '');
+
+
+                // Limit to maximum of 99 days
+                if (parseInt(this.value) > 99) {
+                    this.value = '99';
+                }
+            });
+        }
+
+        // Add event listener for max nights input to limit to 999
+        if (maxNightsInput) {
+            maxNightsInput.addEventListener('input', function () {
+                // Allow only numbers
+                this.value = this.value.replace(/[^0-9]/g, '');
+
+                // Limit to maximum of 999 nights
+                if (parseInt(this.value) > 999) {
+                    this.value = '999';
+                }
+            });
+        }
 
         if (editButton) {
             editButton.addEventListener('click', () => {
@@ -4875,7 +5618,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Enable inputs
                 if (minNightsInput) minNightsInput.disabled = false;
                 if (maxNightsInput) maxNightsInput.disabled = false;
-                advanceNoticeSelect.disabled = false;
+                if (advanceNoticeInput) {
+                    advanceNoticeInput.disabled = false;
+                    // Show just the number for editing
+                    const numValue = parseInt(advanceNoticeInput.value) || 1;
+                    advanceNoticeInput.value = numValue;
+                }
             });
         }
 
@@ -4896,8 +5644,10 @@ document.addEventListener('DOMContentLoaded', function () {
                     maxNightsInput.value = initialState.maxNights;
                     maxNightsInput.disabled = true;
                 }
-                advanceNoticeSelect.value = initialState.advanceNotice;
-                advanceNoticeSelect.disabled = true;
+                if (advanceNoticeInput) {
+                    advanceNoticeInput.value = formatAdvanceNotice(initialState.advanceNotice);
+                    advanceNoticeInput.disabled = true;
+                }
 
                 // Reset display texts
                 updateDisplayTexts(initialState.minNights, initialState.maxNights, initialState.advanceNotice);
@@ -4914,10 +5664,29 @@ document.addEventListener('DOMContentLoaded', function () {
                     const minNights = minNightsInput ? parseInt(minNightsInput.value) : null;
                     const maxNights = maxNightsInput ? parseInt(maxNightsInput.value) : null;
 
+                    // Extract just the number from advance notice input
+                    let advanceNotice = 1;
+                    if (advanceNoticeInput) {
+                        // If in edit mode, the value might be just a number
+                        // If not in edit mode, we need to extract the number from "X Days"
+                        const value = advanceNoticeInput.value;
+                        advanceNotice = parseInt(value) || 1;
+                    }
+
                     // Validate min/max nights
                     if (minNights && maxNights && minNights > maxNights) {
                         if (availabilityError) {
                             availabilityError.textContent = "Minimum nights cannot be greater than maximum nights.";
+                            availabilityError.style.display = 'block';
+                        }
+                        if (availabilitySubText) availabilitySubText.style.display = 'none';
+                        return;
+                    }
+
+                    // Validate max nights doesn't exceed 999
+                    if (maxNights && maxNights > 999) {
+                        if (availabilityError) {
+                            availabilityError.textContent = "Maximum nights cannot exceed 999 nights.";
                             availabilityError.style.display = 'block';
                         }
                         if (availabilitySubText) availabilitySubText.style.display = 'none';
@@ -4939,7 +5708,7 @@ document.addEventListener('DOMContentLoaded', function () {
                             user_id: userId,
                             min_nights: minNights,
                             max_nights: maxNights,
-                            advanceNotice: parseInt(advanceNoticeSelect.value)
+                            advanceNotice: advanceNotice
                         })
                     });
 
@@ -4955,7 +5724,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     // Update initial state
                     initialState.minNights = minNightsInput ? minNightsInput.value : '';
                     initialState.maxNights = maxNightsInput ? maxNightsInput.value : '';
-                    initialState.advanceNotice = parseInt(advanceNoticeSelect.value);
+                    initialState.advanceNotice = advanceNotice;
 
                     // Update display texts after successful save
                     updateDisplayTexts(initialState.minNights, initialState.maxNights, initialState.advanceNotice);
@@ -4966,10 +5735,13 @@ document.addEventListener('DOMContentLoaded', function () {
                     editButton.style.display = 'flex';
                     if (cancelSaveContainer) cancelSaveContainer.style.display = 'none';
 
-                    // Disable inputs
+                    // Disable inputs and format advance notice
                     if (minNightsInput) minNightsInput.disabled = true;
                     if (maxNightsInput) maxNightsInput.disabled = true;
-                    advanceNoticeSelect.disabled = true;
+                    if (advanceNoticeInput) {
+                        advanceNoticeInput.value = formatAdvanceNotice(advanceNotice);
+                        advanceNoticeInput.disabled = true;
+                    }
 
                     // Hide error and show subtext
                     if (availabilityError) availabilityError.style.display = 'none';
@@ -5002,9 +5774,19 @@ document.addEventListener('DOMContentLoaded', function () {
         const errorElement = document.getElementById('listingStatus-error');
         const editListingStatus = document.querySelector('[data-element="edit_listingStatus"]');
         const editListingStatusDetailsSection = document.querySelector('[data-element="edit_listingStatus_detalsSection"]');
+        const editPhotosText = document.querySelector('[data-element="edit_photos_text"]');
+
+        function updateListingStatusText(isActive) {
+            if (editPhotosText) {
+                editPhotosText.textContent = isActive ? 'Active' : 'Inactive';
+            }
+        }
 
         function initializeListingStatus() {
             if (!listingStatusSection || !data) return;
+
+            // Set initial listing status text
+            updateListingStatusText(data.is_active);
 
             // Set background color based on is_active
             if (editListingStatus) {
@@ -5014,8 +5796,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 editListingStatusDetailsSection.style.backgroundColor = data.is_active ? '' : '#FFE5E5';
             }
 
-            // Set initial state based on is_complete and is_active
-            if (!data.is_complete) {
+            // Check if host taxes data exists and has at least one entry
+            const hasTaxData = data._host_taxes && data._host_taxes.length > 0;
+            console.log(hasTaxData);
+
+            // Set initial state based on tax data and is_active
+            if (!hasTaxData) {
                 initialListingStatus = 'not_listed';
                 currentListingStatus = 'not_listed';
                 notListedOption.style.outline = '2px solid black';
@@ -5086,7 +5872,7 @@ document.addEventListener('DOMContentLoaded', function () {
             });
 
             listedOption?.addEventListener('click', () => {
-                if (!data.is_complete || buttonContainer.style.display === 'none') return;
+                if (!hasTaxData || buttonContainer.style.display === 'none') return;
 
                 listedOption.style.outline = '2px solid black';
                 listedOption.style.outlineOffset = '-1px';
@@ -5096,7 +5882,7 @@ document.addEventListener('DOMContentLoaded', function () {
             });
 
             notListedOption?.addEventListener('click', () => {
-                if (!data.is_complete || buttonContainer.style.display === 'none') return;
+                if (!hasTaxData || buttonContainer.style.display === 'none') return;
 
                 notListedOption.style.outline = '2px solid black';
                 notListedOption.style.outlineOffset = '-1px';
@@ -5128,6 +5914,9 @@ document.addEventListener('DOMContentLoaded', function () {
                     initialListingStatus = currentListingStatus;
                     data.is_active = currentListingStatus === 'listed';
 
+                    // Update listing status text
+                    updateListingStatusText(data.is_active);
+
                     // Update background color based on new is_active state
                     if (editListingStatus) {
                         editListingStatus.style.backgroundColor = data.is_active ? '' : '#FFE5E5';
@@ -5145,6 +5934,9 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (errorElement) {
                         errorElement.style.display = 'none';
                     }
+
+
+
                 } catch (error) {
                     console.error('Error updating listing status:', error);
                     if (errorElement) {
@@ -5157,17 +5949,48 @@ document.addEventListener('DOMContentLoaded', function () {
 
         initializeListingStatus();
     }
+
     // Fetch property data
     if (propertyId) {
-        fetch(`https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/edit_property?property_id=${propertyId}`, {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        })
+        // Show loader and hide main content container at the beginning of the fetch process
+        const loader = document.querySelector('[data-element="loader"]');
+        const contentContainer = document.querySelector('[data-element="editListing_bodyContainer"]');
+
+        if (loader) {
+            loader.style.display = 'flex';
+        }
+
+        if (contentContainer) {
+            contentContainer.style.display = 'none';
+        }
+
+        // Wait for user ID to be available first
+        window.Wized = window.Wized || [];
+        window.Wized.requests.waitFor('Load_user')
+            .then(() => {
+                const userId = window.Wized.data.r.Load_user.data.id;
+
+                // Include user_id in the request
+                return fetch(`https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/edit_property?property_id=${propertyId}&user_id=${userId}`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+            })
             .then(response => response.json())
             .then(data => {
                 console.log('Property Data:', data);
+
+                const userId = window.Wized.data.r.Load_user.data.id;
+
+                // Check if user is authorized to edit this property
+                if (data.host_user_id !== userId) {
+                    window.location.href = '/host/listings';
+                    return;
+                }
+
+                // Initialize all sections one by one
                 initializePhotosSection(data);
                 initializeBasicsSection(data);
                 initializeCheckInOutSection(data);
@@ -5183,9 +6006,29 @@ document.addEventListener('DOMContentLoaded', function () {
                 initializeDeleteListingSection(data);
                 initializeAvailabilitySection(data);
                 initializeListingStatusSection(data);
+                initializeColorStatusMonitoring(data);
+
+                // Hide loader and show content container after all sections are initialized
+                if (loader) {
+                    loader.style.display = 'none';
+                }
+                if (contentContainer) {
+                    contentContainer.style.display = 'flex';
+                }
             })
             .catch(error => {
                 console.error('Error fetching property data:', error);
+
+                // Hide loader if there's an error
+                if (loader) {
+                    loader.style.display = 'none';
+                }
+
+                // Still show the content container even if there's an error
+                // This way users can see something rather than a blank page
+                if (contentContainer) {
+                    contentContainer.style.display = 'flex';
+                }
             });
     }
 
@@ -5200,7 +6043,7 @@ document.addEventListener('DOMContentLoaded', function () {
         'photos', 'basics', 'checkingInOut', 'title', 'description',
         'dock', 'amenities', 'location', 'host', 'rules', 'safety',
         'cancellationPolicy', 'listingStatus', 'propertyManagementSoftware',
-        'taxes', 'deleteListing', 'availability'
+        'deleteListing', 'availability'
     ];
 
     // Function to hide all subsections and reset their styles
@@ -5318,3 +6161,4 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 });
+
