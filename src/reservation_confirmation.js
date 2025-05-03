@@ -1,23 +1,22 @@
+// // for no scroll background when modal is open
+// // when DOM is ready
+// document.addEventListener('DOMContentLoaded', () => {
+//     // on .open-modal click
+//     document.querySelectorAll('.open-modal').forEach(trigger => {
+//         trigger.addEventListener('click', function () {
+//             // on every click
+//             document.querySelectorAll('body').forEach(target => target.classList.add('no-scroll'));
+//         });
+//     });
 
-// for no scroll background when modal is open
-// when DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
-    // on .open-modal click
-    document.querySelectorAll('.open-modal').forEach(trigger => {
-        trigger.addEventListener('click', function () {
-            // on every click
-            document.querySelectorAll('body').forEach(target => target.classList.add('no-scroll'));
-        });
-    });
-
-    // on .close-modal click
-    document.querySelectorAll('.close-modal').forEach(trigger => {
-        trigger.addEventListener('click', function () {
-            // on every click
-            document.querySelectorAll('body').forEach(target => target.classList.remove('no-scroll'));
-        });
-    });
-});
+//     // on .close-modal click
+//     document.querySelectorAll('.close-modal').forEach(trigger => {
+//         trigger.addEventListener('click', function () {
+//             // on every click
+//             document.querySelectorAll('body').forEach(target => target.classList.remove('no-scroll'));
+//         });
+//     });
+// });
 
 (async function () {
     try {
