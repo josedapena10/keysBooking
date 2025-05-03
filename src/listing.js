@@ -1,4 +1,4 @@
-//import { populateSelectOptions } from "@finsweet/ts-utils";
+
 
 // for background 2nd click modal - mirror click
 var script = document.createElement('script');
@@ -6,11 +6,12 @@ script.src = 'https://cdn.jsdelivr.net/npm/@finsweet/attributes-mirrorclick@1/mi
 document.body.appendChild(script);
 
 
+
 // for no scroll background when modal is open
 // when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
   // on .open-modal click
-  document.querySelectorAll('.open-modal').forEach(trigger => {
+  document.querySelectorAll('.open_modal').forEach(trigger => {
     trigger.addEventListener('click', function () {
       // on every click
       document.querySelectorAll('body').forEach(target => target.classList.add('no-scroll'));
@@ -18,94 +19,56 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // on .close-modal click
-  document.querySelectorAll('.close-modal').forEach(trigger => {
+  document.querySelectorAll('.close_modal').forEach(trigger => {
     trigger.addEventListener('click', function () {
       // on every click
       document.querySelectorAll('body').forEach(target => target.classList.remove('no-scroll'));
     });
   });
-
-
-
-  (async function () {
-    try {
-      const profileButton = document.querySelector('[data-element="profile_button"]');
-      const profileButtonDropdown = document.querySelector('[data-element="profile_button_dropdown"]');
-      let isPopupOpen = false;
-
-      // Close the dropdown initially
-      profileButtonDropdown.style.display = 'none';
-
-      // Function to toggle the dropdown
-      const togglePopup = () => {
-        isPopupOpen = !isPopupOpen;
-        profileButtonDropdown.style.display = isPopupOpen ? 'flex' : 'none';
-      };
-
-      // Event listener for profile button click and toggling the dropdown
-      profileButton.addEventListener('click', function () {
-        togglePopup();
-      });
-
-      // Event listeners to close the popup when buttons inside are clicked
-      const popupButtons = profileButtonDropdown.querySelectorAll('[data-element*="Button"]');
-      popupButtons.forEach(button => {
-        button.addEventListener('click', function () {
-          isPopupOpen = false;
-          profileButtonDropdown.style.display = 'none';
-        });
-      });
-
-      let closeButtons = document.querySelectorAll('[data-element="calendarModal_closeButton"]')
-
-      let calendarModal = document.querySelector('[data-element="calendarModal"]');
-      const closeButtonGuest = document.querySelectorAll('[data-element*="Input_Guests_Dropdown_CloseText"]');
-      const guestButtonDropdown = document.querySelector('[data-element="Input_Guests_Dropdown"]');
-      // Handle body clicks for closing both the profile dropdown and calendar modal
-      document.body.addEventListener('click', function (evt) {
-        // Handle profile button and dropdown visibility
-        if (!profileButton.contains(evt.target) && !profileButtonDropdown.contains(evt.target)) {
-          if (isPopupOpen) {
-            isPopupOpen = false;
-            profileButtonDropdown.style.display = 'none';
-          }
-        }
-
-        // Handle clicks outside the calendar modal
-        if (!calendarModal.contains(evt.target)) {
-          if (calendarModal.style.display == 'flex') {
-            closeButtons[0].click();
-
-
-            if (profileButton.contains(evt.target)) {
-              if (!isPopupOpen) {
-                togglePopup()
-              }
-            }
-          }
-        }
-
-        if (!guestButtonDropdown.contains(evt.target)) {
-          if (guestButtonDropdown.style.display == 'flex') {
-            closeButtonGuest[0].click();
-
-            if (profileButton.contains(evt.target)) {
-              if (!isPopupOpen) {
-                togglePopup()
-              }
-            }
-          }
-        }
-
-
-      });
-
-    } catch (err) {
-
-    }
-  })();
-
 });
+
+
+
+(async function () {
+  try {
+    const profileButton = document.querySelector('[data-element="profile_button"]');
+    const profileButtonDropdown = document.querySelector('[data-element="profile_button_dropdown"]');
+    let isPopupOpen = false;
+
+    // Close the dropdown initially
+    profileButtonDropdown.style.display = 'none';
+
+    // Function to toggle the dropdown
+    const togglePopup = () => {
+      isPopupOpen = !isPopupOpen;
+      profileButtonDropdown.style.display = isPopupOpen ? 'flex' : 'none';
+    };
+
+    // Event listener for profile button click and toggling the dropdown
+    profileButton.addEventListener('click', function () {
+      togglePopup();
+    });
+
+    // Event listener for body click to close the dropdown
+    document.body.addEventListener('click', function (evt) {
+      if (!profileButton.contains(evt.target) && !profileButtonDropdown.contains(evt.target)) {
+        isPopupOpen = false;
+        profileButtonDropdown.style.display = 'none';
+      }
+    });
+
+    // Event listeners to close the popup when buttons inside are clicked
+    const popupButtons = profileButtonDropdown.querySelectorAll('[data-element*="Button"]');
+    popupButtons.forEach(button => {
+      button.addEventListener('click', function () {
+        isPopupOpen = false;
+        profileButtonDropdown.style.display = 'none';
+      });
+    });
+
+  } catch (err) {
+  }
+})();
 
 
 
@@ -117,10 +80,10 @@ document.addEventListener('DOMContentLoaded', () => {
       await Wized.requests.waitFor(requestName);
 
       let counters = {
-        adults: parseInt(Wized.data.n.parameter.adults),
-        children: parseInt(Wized.data.n.parameter.children),
-        infants: parseInt(Wized.data.n.parameter.infants),
-        pets: parseInt(Wized.data.n.parameter.pets)
+        adults: parseInt(Wized.data.n.parameter.adults) || 1,
+        children: parseInt(Wized.data.n.parameter.children) || 0,
+        infants: parseInt(Wized.data.n.parameter.infants) || 0,
+        pets: parseInt(Wized.data.n.parameter.pets) || 0
       };
 
       let max_guests = Wized.data.v.max_guests;
@@ -269,6 +232,25 @@ document.addEventListener('DOMContentLoaded', () => {
         Object.values(plusButtons).forEach(button => button.innerHTML = svgPlus);
         Object.values(minusButtons).forEach(button => button.innerHTML = svgMinus);
       }
+
+      function initializeURLParameters() {
+        // Check if any guest parameters were missing from the URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const missingParams = !urlParams.has('adults') || !urlParams.has('children') ||
+          !urlParams.has('infants') || !urlParams.has('pets') || !urlParams.has('guests');
+
+        if (missingParams) {
+          // Initialize all guest parameters in the URL
+          updateURLParameter('adults', counters.adults);
+          updateURLParameter('children', counters.children);
+          updateURLParameter('infants', counters.infants);
+          updateURLParameter('pets', counters.pets);
+          updateURLParameter('guests', counters.adults + counters.children);
+        }
+      }
+
+      // Call initializeURLParameters after counters are set up
+      initializeURLParameters();
 
     } catch (error) {
       //console.error(error);
@@ -1048,4 +1030,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 });
+
+
 
