@@ -1,3 +1,73 @@
+// for background 2nd click modal - mirror click
+var script = document.createElement('script');
+script.src = 'https://cdn.jsdelivr.net/npm/@finsweet/attributes-mirrorclick@1/mirrorclick.js';
+document.body.appendChild(script);
+
+
+
+// for no scroll background when modal is open
+// when DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+    // on .open-modal click
+    document.querySelectorAll('.open_modal').forEach(trigger => {
+        trigger.addEventListener('click', function () {
+            // on every click
+            document.querySelectorAll('body').forEach(target => target.classList.add('no-scroll'));
+        });
+    });
+
+    // on .close-modal click
+    document.querySelectorAll('.close_modal').forEach(trigger => {
+        trigger.addEventListener('click', function () {
+            // on every click
+            document.querySelectorAll('body').forEach(target => target.classList.remove('no-scroll'));
+        });
+    });
+});
+
+
+
+(async function () {
+    try {
+        const profileButton = document.querySelector('[data-element="profile_button"]');
+        const profileButtonDropdown = document.querySelector('[data-element="profile_button_dropdown"]');
+        let isPopupOpen = false;
+
+        // Close the dropdown initially
+        profileButtonDropdown.style.display = 'none';
+
+        // Function to toggle the dropdown
+        const togglePopup = () => {
+            isPopupOpen = !isPopupOpen;
+            profileButtonDropdown.style.display = isPopupOpen ? 'flex' : 'none';
+        };
+
+        // Event listener for profile button click and toggling the dropdown
+        profileButton.addEventListener('click', function () {
+            togglePopup();
+        });
+
+        // Event listener for body click to close the dropdown
+        document.body.addEventListener('click', function (evt) {
+            if (!profileButton.contains(evt.target) && !profileButtonDropdown.contains(evt.target)) {
+                isPopupOpen = false;
+                profileButtonDropdown.style.display = 'none';
+            }
+        });
+
+        // Event listeners to close the popup when buttons inside are clicked
+        const popupButtons = profileButtonDropdown.querySelectorAll('[data-element*="Button"]');
+        popupButtons.forEach(button => {
+            button.addEventListener('click', function () {
+                isPopupOpen = false;
+                profileButtonDropdown.style.display = 'none';
+            });
+        });
+
+    } catch (err) {
+    }
+})();
+
 // Object to store listing data
 let listingData = {
     selectedAmenities: [], // Array to store selected amenity IDs
@@ -39,7 +109,9 @@ let listingData = {
         unit: '', // Store unit number like "201"
         city: '', // Store city like "Marathon"
         state: '', // Store state like "Florida"
-        zipcode: '' // Store zipcode like "33050"
+        zipcode: '', // Store zipcode like "33050"
+        longitude: '', // Store longitude like "-80.9319"
+        latitude: '' // Store latitude like "24.7433"
     },
     addressNotSelected: null,
     addressChosen: null,
@@ -127,6 +199,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const reviewInfoStep = document.getElementById('reviewInfo');
             if (reviewInfoStep && window.getComputedStyle(reviewInfoStep).display !== 'none') {
                 propertyData.addHome_complete = true;
+
             }
 
             // Only add fields that have been filled out
@@ -135,6 +208,9 @@ document.addEventListener('DOMContentLoaded', function () {
             if (listingData.price) propertyData.nightlyPrice = parseFloat(listingData.price);
             if (listingData.cleaningFee) propertyData.cleaning_fee = parseFloat(listingData.cleaningFee);
             if (listingData.minNights) propertyData.min_nights = parseInt(listingData.minNights);
+            if (listingData.minNights) propertyData.max_nights = 365;
+            if (listingData.minNights) propertyData.availabilityWindow_months = 24;
+            if (listingData.minNights) propertyData.advanceNotice = 1;
 
             // Only add basics if they've been modified from default 0
             if (listingData.basics.guests > 0) propertyData.num_guests = listingData.basics.guests;
@@ -170,6 +246,8 @@ document.addEventListener('DOMContentLoaded', function () {
             if (listingData.addressVerified !== null) propertyData.addressVerified = listingData.addressVerified;
             if (listingData.addressNotSelected !== null) propertyData.address_notSelected = listingData.addressNotSelected;
             if (listingData.addressChosen !== null) propertyData.address_chosen = listingData.addressChosen;
+            if (listingData.address.longitude) propertyData.longitude = parseFloat(listingData.address.longitude);
+            if (listingData.address.latitude) propertyData.latitude = parseFloat(listingData.address.latitude);
 
             // Only add cancellation policy if one is selected
             if (listingData.cancellationPolicy) {
@@ -179,22 +257,27 @@ document.addEventListener('DOMContentLoaded', function () {
                     case "Relaxed":
                         propertyData.cancellation_policy = true;
                         propertyData.cancellation_policy_option = 86400;
+                        propertyData.cancellationPolicy_type = "Relaxed";
                         break;
                     case "Standard":
                         propertyData.cancellation_policy = true;
                         propertyData.cancellation_policy_option = 432000;
+                        propertyData.cancellationPolicy_type = "Standard";
                         break;
                     case "Firm":
                         propertyData.cancellation_policy = true;
                         propertyData.cancellation_policy_option = 2592000;
+                        propertyData.cancellationPolicy_type = "Firm";
                         break;
                     case "Grace window":
                         propertyData.cancellation_policy = true;
                         propertyData.strict_cancellation_policy = true;
                         propertyData.strict_cancellation_policy_option = 172800;
+                        propertyData.cancellationPolicy_type = "Grace window";
                         break;
                     case "No refund":
                         propertyData.cancellation_policy = false;
+                        propertyData.cancellationPolicy_type = "No refund";
                         break;
                 }
             }
@@ -443,7 +526,8 @@ document.addEventListener('DOMContentLoaded', async function () {
             });
 
             if (!response.ok) {
-                throw new Error('Failed to fetch unfinished listings');
+                window.location.href = '/host/home';
+                return;
             }
 
             const unfinishedListings = await response.json();
@@ -494,6 +578,8 @@ document.addEventListener('DOMContentLoaded', async function () {
                         if (listing.address_notSelected) listingData.addressNotSelected = listing.address_notSelected;
                         if (listing.address_chosen) listingData.addressChosen = listing.address_chosen;
                         if (listing.addressVerified !== null) listingData.addressVerified = listing.addressVerified;
+                        if (listing.longitude) listingData.address.longitude = listing.longitude;
+                        if (listing.latitude) listingData.address.latitude = listing.latitude;
 
                         if (listing._property_attribute) {
                             // Handle amenities
@@ -994,6 +1080,8 @@ document.addEventListener('DOMContentLoaded', async function () {
 
                 showStep('manageAddHome');
 
+
+
                 // Hide next step button when on manageAddHome step
                 const nextStepButton = document.getElementById('nextStep');
                 if (nextStepButton) {
@@ -1009,11 +1097,7 @@ document.addEventListener('DOMContentLoaded', async function () {
             }
         } catch (error) {
             console.error('Error checking unfinished listings:', error);
-            // On error, default to get-started step
-            const hash = window.location.hash.substring(1);
-            const initialStepId = hash || 'get-started';
-            const initialStepNumber = steps.indexOf(initialStepId) !== -1 ? steps.indexOf(initialStepId) + 1 : 1;
-            goToStep(initialStepNumber);
+            window.location.href = '/host/home';
         }
     }));
 });
@@ -1107,6 +1191,7 @@ function handlePhotoSelection(event) {
     const files = event.target.files;
     const addPhotosContainer = document.getElementById('addPhotosButton_Container');
     const addPhotosButton2 = document.getElementById('addPhotosButton2');
+    const imageSkeletonLoader = document.querySelector('[data-element="addPhotos_imageSkeletonLoader"]');
 
     if (!files.length) return;
 
@@ -1120,12 +1205,39 @@ function handlePhotoSelection(event) {
         addPhotosButton2.style.display = 'flex';
     }
 
+    // Show loader while photos are being processed
+    if (imageSkeletonLoader) {
+        imageSkeletonLoader.style.display = 'block';
+    }
+
+    let filesProcessed = 0;
+    const totalFiles = Array.from(files).filter(file =>
+        ['image/jpeg', 'image/png', 'image/jpg', 'image/gif', 'image/webp'].includes(file.type)
+    ).length;
+
     // Process each selected file
     Array.from(files).forEach(file => {
         const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/gif', 'image/webp'];
-        if (!allowedTypes.includes(file.type)) return;
+        if (!allowedTypes.includes(file.type)) {
+            filesProcessed++;
+            return;
+        }
 
         const reader = new FileReader();
+
+        reader.onloadstart = function () {
+            // File reading has started
+            console.log(`Started loading file: ${file.name}`);
+        };
+
+        reader.onprogress = function (e) {
+            // File reading in progress
+            if (e.lengthComputable) {
+                const percentLoaded = Math.round((e.loaded / e.total) * 100);
+                console.log(`Loading file ${file.name}: ${percentLoaded}%`);
+            }
+        };
+
         reader.onload = function (e) {
             // Extract file extension from file type
             const fileExtension = file.type.split('/')[1];
@@ -1143,14 +1255,35 @@ function handlePhotoSelection(event) {
                 isDockPhoto: false
             });
 
-            // Render all photos after adding new one
-            renderPhotos();
+            filesProcessed++;
 
-            // Check photo count and update error message if needed
-            if (hasAttemptedToLeave.photos) {
-                validatePhotos();
+            // Check if all files have been processed
+            if (filesProcessed === totalFiles) {
+                // Hide loader when all files are processed
+                if (imageSkeletonLoader) {
+                    imageSkeletonLoader.style.display = 'none';
+                }
+
+                // Render all photos after adding new ones
+                renderPhotos();
+
+                // Check photo count and update error message if needed
+                if (hasAttemptedToLeave.photos) {
+                    validatePhotos();
+                }
             }
         };
+
+        reader.onerror = function () {
+            console.error(`Error loading file: ${file.name}`);
+            filesProcessed++;
+
+            // Check if all files have been processed even if there was an error
+            if (filesProcessed === totalFiles && imageSkeletonLoader) {
+                imageSkeletonLoader.style.display = 'none';
+            }
+        };
+
         reader.readAsDataURL(file);
     });
 
@@ -1853,9 +1986,17 @@ function validateStep(stepId) {
     }
 }
 
+// Track last click time for throttling
+let lastClickTime = 0;
+const CLICK_DELAY = 1000; // 1 second delay between clicks
+
 // Handle next button click
 document.getElementById('nextStep').addEventListener('click', function () {
-    //console.log(`Next step clicked: Current step ${currentStepNumber}`);
+    const now = Date.now();
+    if (now - lastClickTime < CLICK_DELAY) {
+        return; // Exit if clicked too soon
+    }
+    lastClickTime = now;
 
     const currentStepId = steps[currentStepNumber - 1];
 
@@ -1870,8 +2011,14 @@ document.getElementById('nextStep').addEventListener('click', function () {
     }
 });
 
-// Handle previous button click
+// Handle previous button click 
 document.getElementById('prevStep').addEventListener('click', function () {
+    const now = Date.now();
+    if (now - lastClickTime < CLICK_DELAY) {
+        return; // Exit if clicked too soon
+    }
+    lastClickTime = now;
+
     console.log(`Previous step clicked: Current step ${currentStepNumber}`);
 
     // Go to the previous step if not the first step
@@ -1961,50 +2108,6 @@ function goToStep(stepNumber, direction = 'forward') {
         updateButtonStates();
     }
 }
-
-// Function to enable/disable buttons based on the current step
-function updateButtonStates() {
-    const nextStepText = document.getElementById('nextStepText');
-    const prevStepButton = document.getElementById('prevStep');
-    const nextStepButton = document.getElementById('nextStep');
-    const submitButton = document.getElementById('submitButton');
-
-    // Update the text content based on the current step
-    if (nextStepText) {
-        if (currentStepNumber === 1) {
-            nextStepText.textContent = "Get Started";
-        } else {
-            nextStepText.textContent = "Next";
-        }
-    }
-
-    // Handle visibility of the "Previous" button
-    if (prevStepButton) {
-        if (currentStepNumber === 1) {
-            prevStepButton.style.display = "none"; // Hide on the first step
-        } else {
-            prevStepButton.style.display = "flex"; // Show on other steps
-        }
-    }
-
-    // Handle visibility of the "Next" and "Submit" buttons
-    if (nextStepButton && submitButton) {
-        if (steps[currentStepNumber - 1] === "manageAddHome") {
-            nextStepButton.style.display = "none";
-            submitButton.style.display = "none";
-        } else if (steps[currentStepNumber - 1] === "reviewInfo") {
-            nextStepButton.style.display = "none";
-            submitButton.style.display = "flex";
-        } else {
-            nextStepButton.style.display = "flex";
-            submitButton.style.display = "none";
-            nextStepButton.disabled = (currentStepNumber === steps.length);
-        }
-    }
-}
-
-// Variable to track selected address type
-let selectedAddressType = 'suggested'; // Default to suggested address
 
 // Function to show the current step with fade-in effect
 function showStep(stepId) {
@@ -2164,6 +2267,50 @@ function showStep(stepId) {
         initializeReviewInfoStep();
     }
 }
+
+// Function to enable/disable buttons based on the current step
+function updateButtonStates() {
+    const nextStepText = document.getElementById('nextStepText');
+    const prevStepButton = document.getElementById('prevStep');
+    const nextStepButton = document.getElementById('nextStep');
+    const submitButton = document.getElementById('submitButton');
+
+    // Update the text content based on the current step
+    if (nextStepText) {
+        if (currentStepNumber === 1) {
+            nextStepText.textContent = "Get Started";
+        } else {
+            nextStepText.textContent = "Next";
+        }
+    }
+
+    // Handle visibility of the "Previous" button
+    if (prevStepButton) {
+        if (currentStepNumber === 1) {
+            prevStepButton.style.display = "none"; // Hide on the first step
+        } else {
+            prevStepButton.style.display = "flex"; // Show on other steps
+        }
+    }
+
+    // Handle visibility of the "Next" and "Submit" buttons
+    if (nextStepButton && submitButton) {
+        if (steps[currentStepNumber - 1] === "manageAddHome") {
+            nextStepButton.style.display = "none";
+            submitButton.style.display = "none";
+        } else if (steps[currentStepNumber - 1] === "reviewInfo") {
+            nextStepButton.style.display = "none";
+            submitButton.style.display = "flex";
+        } else {
+            nextStepButton.style.display = "flex";
+            submitButton.style.display = "none";
+            nextStepButton.disabled = (currentStepNumber === steps.length);
+        }
+    }
+}
+
+// Variable to track selected address type
+let selectedAddressType = 'suggested'; // Default to suggested address
 
 // Function to fetch and render amenities
 async function fetchAndRenderAmenities() {
@@ -2327,7 +2474,9 @@ function validateLocation() {
             unit: addressLine2Input.value.trim(), // Add unit from addressLine2
             city: addressCityInput.value.trim(),
             state: addressStateInput.value.trim(),
-            zipcode: addressZipcodeInput.value.trim()
+            zipcode: addressZipcodeInput.value.trim(),
+            longitude: '',
+            latitude: ''
         };
 
         // Build address object with available data
@@ -2410,16 +2559,19 @@ function validateLocation() {
                             unit: unit,
                             city: addressParts[1],
                             state: addressParts[2].split(' ')[0],
-                            zipcode: addressParts[2].split(' ')[1]
+                            zipcode: addressParts[2].split(' ')[1],
+                            longitude: result.longitude || '',
+                            latitude: result.latitude || ''
                         };
                         listingData.addressNotSelected = enteredAddress;
                         updateAddressSelection();
+                        console.log('Listing data:', listingData);
                     };
 
                     confirmEnteredContainer.onclick = () => {
                         selectedAddressType = 'entered';
                         listingData.addressChosen = 'entered';
-                        // Revert to originally entered address
+                        // Revert to originally entered address but keep coordinates
                         listingData.address = {
                             addressLine1: addressLine1Input.value.trim(),
                             addressLine2: addressCityInput.value.trim() + ', ' + addressStateInput.value.trim() + ' ' + addressZipcodeInput.value.trim(),
@@ -2428,7 +2580,9 @@ function validateLocation() {
                             unit: addressLine2Input.value.trim(),
                             city: addressCityInput.value.trim(),
                             state: addressStateInput.value.trim(),
-                            zipcode: addressZipcodeInput.value.trim()
+                            zipcode: addressZipcodeInput.value.trim(),
+                            longitude: result.longitude || '',
+                            latitude: result.latitude || ''
                         };
                         listingData.addressNotSelected = result.formattedAddress;
                         updateAddressSelection();
@@ -2439,6 +2593,8 @@ function validateLocation() {
                 resetInputStyles([addressLine1Input, addressLine2Input, addressCityInput, addressStateInput, addressZipcodeInput]);
                 if (locationSubText) locationSubText.style.display = 'block';
                 resolve(true);
+
+
             } else {
                 console.log('Address validation failed');
                 if (locationError && hasAttemptedToLeave.location) {
@@ -2468,6 +2624,52 @@ function updateAddressSelection() {
             confirmSuggestedContainer.style.backgroundColor = '';
             confirmSuggestedContainer.style.boxShadow = '';
         }
+    }
+}
+
+async function validateAddressWithGoogle(address) {
+    try {
+        console.log('Making request to Google Address Validation API');
+        const response = await fetch('https://addressvalidation.googleapis.com/v1:validateAddress', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Goog-Api-Key': 'AIzaSyBtTdNYqGeF4GHpw0OA-tasMjY2yEO-4BY'
+            },
+            body: JSON.stringify({
+                address: address.address,
+                enableUspsCass: true
+            })
+        });
+
+        const data = await response.json();
+        console.log('Google API Response:', data);
+
+        if (!data.result) {
+            console.log('No result from Google API');
+            return { isValid: false };
+        }
+
+        // Extract coordinates from the API response
+        const geocode = data.result.geocode;
+        const longitude = geocode?.location?.longitude || '';
+        const latitude = geocode?.location?.latitude || '';
+
+        // Update listingData with coordinates immediately after receiving them
+        if (listingData.address) {
+            listingData.address.longitude = longitude;
+            listingData.address.latitude = latitude;
+        }
+
+        return {
+            isValid: true,
+            formattedAddress: data.result.address.formattedAddress,
+            longitude: longitude,
+            latitude: latitude
+        };
+    } catch (error) {
+        console.error('Address validation failed:', error);
+        return { isValid: false };
     }
 }
 
@@ -2681,7 +2883,8 @@ function initializeCounters() {
     });
 
     function handleIncrement(type) {
-        counters[type]++;
+        const increment = type === 'baths' ? 0.5 : 1;
+        counters[type] += increment;
         listingData.basics[type] = counters[type]; // Save to basics object
         updateCounterDisplay(type);
         updateAllButtonStates();
@@ -2692,7 +2895,8 @@ function initializeCounters() {
 
     function handleDecrement(type) {
         if (counters[type] > 0) {
-            counters[type]--;
+            const decrement = type === 'baths' ? 0.5 : 1;
+            counters[type] -= decrement;
             listingData.basics[type] = counters[type]; // Save to basics object
             updateCounterDisplay(type);
             updateAllButtonStates();
@@ -2703,7 +2907,12 @@ function initializeCounters() {
     }
 
     function updateCounterDisplay(type) {
-        textFields[type].textContent = counters[type];
+        // Format baths to show decimal point only if it's not a whole number
+        if (type === 'baths') {
+            textFields[type].textContent = counters[type] % 1 === 0 ? counters[type].toFixed(0) : counters[type].toFixed(1);
+        } else {
+            textFields[type].textContent = counters[type];
+        }
     }
 
     function updateAllButtonStates() {
@@ -3684,39 +3893,6 @@ function validateConfirmLocation() {
     return true;
 }
 
-async function validateAddressWithGoogle(address) {
-    try {
-        console.log('Making request to Google Address Validation API');
-        const response = await fetch('https://addressvalidation.googleapis.com/v1:validateAddress', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Goog-Api-Key': 'AIzaSyBtTdNYqGeF4GHpw0OA-tasMjY2yEO-4BY'
-            },
-            body: JSON.stringify({
-                address: address.address,
-                enableUspsCass: true
-            })
-        });
-
-        const data = await response.json();
-        console.log('Google API Response:', data);
-
-        if (!data.result) {
-            console.log('No result from Google API');
-            return { isValid: false };
-        }
-
-        return {
-            isValid: true,
-            formattedAddress: data.result.address.formattedAddress
-        };
-    } catch (error) {
-        console.error('Address validation failed:', error);
-        return { isValid: false };
-    }
-}
-
 
 
 // Function to validate dock selection
@@ -3871,7 +4047,8 @@ function validateBasics() {
             </svg>
         `;
 
-        if (listingData.basics[type] === undefined || listingData.basics[type] < 1) {
+        if (listingData.basics[type] === undefined ||
+            (type === 'baths' ? listingData.basics[type] < 0.5 : listingData.basics[type] < 1)) {
             if (hasAttemptedToLeave.basics) {
                 // Highlight the text fields, titles, and buttons if error is triggered
                 if (textElement) textElement.style.color = 'red';
