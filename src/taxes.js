@@ -154,6 +154,7 @@ window.Wized.push((async (Wized) => {
             if (userW9Element) userW9Element.style.display = 'none';
         }
     } catch (error) {
+        window.location.href = '/404';
         console.error('Error checking W9 status:', error);
         // Default to showing enterW9 on error
         if (enterW9Element) enterW9Element.style.display = 'flex';

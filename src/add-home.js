@@ -526,7 +526,7 @@ document.addEventListener('DOMContentLoaded', async function () {
             });
 
             if (!response.ok) {
-                window.location.href = '/host/home';
+                window.location.href = '/host/dashboarx';
                 return;
             }
 
@@ -1097,7 +1097,7 @@ document.addEventListener('DOMContentLoaded', async function () {
             }
         } catch (error) {
             console.error('Error checking unfinished listings:', error);
-            window.location.href = '/host/home';
+            window.location.href = '/host/dashboard';
         }
     }));
 });

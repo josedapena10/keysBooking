@@ -97,7 +97,8 @@ async function initializeReservations(hostId) {
         });
 
         if (!response.ok) {
-            throw new Error('Failed to fetch reservations');
+            window.location.href = '/404';
+            //throw new Error('Failed to fetch reservations');
         }
 
         const data = await response.json();
@@ -112,6 +113,27 @@ async function initializeReservations(hostId) {
         const cancelledReservations = cancelledReservationsArrays.flat() || [];
 
         processAndDisplayReservations(reservations, cancelledReservations);
+
+        // Check if a reservation_code URL parameter exists and open that reservation modal
+        const urlParams = new URLSearchParams(window.location.search);
+        const reservationCodeParam = urlParams.get('reservation_code');
+
+        if (reservationCodeParam) {
+            // Combine active and cancelled reservations to search through all of them
+            const allReservations = [...reservations, ...cancelledReservations];
+
+            // Find the reservation with the matching code
+            const targetReservation = allReservations.find(res =>
+                res.reservation_code && res.reservation_code.toString() === reservationCodeParam);
+
+            // If found, display the modal for that reservation
+            if (targetReservation) {
+                // Use setTimeout to ensure DOM is fully rendered before showing modal
+                setTimeout(() => {
+                    displayReservationModal(targetReservation);
+                }, 500);
+            }
+        }
 
         // Handle Calendar navigation visibility based on property completion status
         const calendarNavItem = document.querySelector('[data-element="hostDashboardNavBar_Calendar"]');
@@ -343,9 +365,12 @@ function displayReservations(reservations, type) {
         const reservationCode = block.querySelector('[data-element="reservationBlock_reservationCode"]');
         const payout = block.querySelector('[data-element="reservationBlock_payout"]');
 
-        // Set listing name
+        // Set listing name with max 15 characters
         if (reservation._host_property[0]?.property_name) {
-            listingName.textContent = reservation._host_property[0].property_name;
+            const propertyName = reservation._host_property[0].property_name;
+            listingName.textContent = propertyName.length > 16 ?
+                propertyName.substring(0, 14) + '...' :
+                propertyName;
         }
 
         // Set guest name

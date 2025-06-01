@@ -1,9 +1,16 @@
+
+
+
+
 // for background 2nd click modal - mirror click
 var script = document.createElement('script');
 script.src = 'https://cdn.jsdelivr.net/npm/@finsweet/attributes-mirrorclick@1/mirrorclick.js';
 document.body.appendChild(script);
 
-
+// Add a new script element to load your file
+var scriptToAdd = document.createElement('script');
+scriptToAdd.src = 'index-search.js'; // Update this path accordingly
+document.body.appendChild(scriptToAdd);
 
 // for no scroll background when modal is open
 // when DOM is ready

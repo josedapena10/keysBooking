@@ -1,11 +1,27 @@
-
-
 // for background 2nd click modal - mirror click
 var script = document.createElement('script');
 script.src = 'https://cdn.jsdelivr.net/npm/@finsweet/attributes-mirrorclick@1/mirrorclick.js';
 document.body.appendChild(script);
 
-
+// Add calendar styling
+(function addCalendarStyles() {
+  const calendarStyles = document.createElement('style');
+  calendarStyles.textContent = `
+    .lightpick__month-title {
+      font-family: 'TT Fors', sans-serif;
+      font-weight: 500;
+    }
+    .lightpick__day-of-the-week {
+      font-family: 'TT Fors', sans-serif;
+      font-weight: 500;
+    }
+    .lightpick__days {
+      font-family: 'TT Fors', sans-serif;
+      font-weight: 500;
+    }
+  `;
+  document.head.appendChild(calendarStyles);
+})();
 
 // for no scroll background when modal is open
 // when DOM is ready
@@ -26,6 +42,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 });
+
 
 
 
@@ -90,6 +107,14 @@ document.addEventListener('DOMContentLoaded', () => {
       let max_infants = 5;
       let max_pets = 2;
       let pet_policy = Wized.data.v.pets_allowed; // Retrieve pet policy
+
+      // Add guest count display elements
+      let guestCountDisplays = {
+        adults: document.querySelectorAll('[data-element="ReservationGuest_AdultNumber"]'),
+        children: document.querySelectorAll('[data-element="ReservationGuest_ChildrenNumber"]'),
+        infants: document.querySelectorAll('[data-element="ReservationGuest_InfantNumber"]'),
+        pets: document.querySelectorAll('[data-element="ReservationGuest_PetNumber"]')
+      };
 
       // Updated to avoid overwriting the keys
       let plusButtons = {
@@ -176,12 +201,14 @@ document.addEventListener('DOMContentLoaded', () => {
         Wized.data.n.parameter[type] = counters[type];
         updateURLParameter(type, counters[type]);
         updateAllButtonStates();
+        updateGuestCountDisplays();
       }
 
       function updateGuestsParameter() {
         const totalGuests = counters.adults + counters.children;
         Wized.data.n.parameter.guests = totalGuests;
         updateURLParameter('guests', totalGuests);
+        updateGuestCountDisplays();
       }
 
       function updateURLParameter(type, value) {
@@ -247,6 +274,23 @@ document.addEventListener('DOMContentLoaded', () => {
           updateURLParameter('pets', counters.pets);
           updateURLParameter('guests', counters.adults + counters.children);
         }
+
+        // Update displayed guest counts regardless of URL parameters
+        updateGuestCountDisplays();
+      }
+
+      // Add new function to update guest count displays
+      function updateGuestCountDisplays() {
+        // Update all guest count displays with the current counter values
+        Object.keys(counters).forEach(type => {
+          if (guestCountDisplays[type]) {
+            guestCountDisplays[type].forEach(element => {
+              if (element) {
+                element.textContent = counters[type];
+              }
+            });
+          }
+        });
       }
 
       // Call initializeURLParameters after counters are set up
@@ -255,6 +299,20 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (error) {
       //console.error(error);
     }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -688,7 +746,6 @@ window.Webflow.push(() => {
 
 
 
-
 // //calender
 // //calender
 // //calender
@@ -729,7 +786,19 @@ document.addEventListener('DOMContentLoaded', function () {
     var initialCheckIn = urlParams.get('checkin');  // Example: '2024-10-20'
     var initialCheckOut = urlParams.get('checkout'); // Example: '2024-10-23'
 
-
+    // Add empty parameters if they don't exist
+    if (!urlParams.has('checkin') || !urlParams.has('checkout')) {
+      var url = new URL(window.location.href);
+      if (!urlParams.has('checkin')) {
+        url.searchParams.set('checkin', '');
+      }
+      if (!urlParams.has('checkout')) {
+        url.searchParams.set('checkout', '');
+      }
+      window.history.replaceState({}, '', url);
+      // Refresh URL params after update
+      urlParams = new URLSearchParams(window.location.search);
+    }
 
     let today = new Date();
     let twoYearsLater = new Date(today);
@@ -762,12 +831,10 @@ document.addEventListener('DOMContentLoaded', function () {
           other: 'nights'   // Plural form
         }
       },
-      startDate: newCheckIn ? moment(newCheckIn, 'YYYY-MM-DD') : today,  // Open to check-in date if set
+      startDate: newCheckIn ? moment(newCheckIn, 'YYYY-MM-DD') : null,  // Don't set default start date if not in URL
       onSelect: function (start, end) {
-
         // Step 4: When user selects new dates, update the URL parameters
         if (start && end) {
-
           newCheckIn = start.format('YYYY-MM-DD');
           newCheckOut = end.format('YYYY-MM-DD');
 
@@ -786,14 +853,30 @@ document.addEventListener('DOMContentLoaded', function () {
             return
           }
 
-          if (newCheckIn == null || newCheckIn == null) {
+          if (newCheckIn == null || newCheckOut == null) {
             Wized.data.n.parameter.checkin = ""
             Wized.data.n.parameter.checkout = ""
           } else {
             Wized.data.n.parameter.checkin = newCheckIn
             Wized.data.n.parameter.checkout = newCheckOut
           }
-        } else {
+
+          // Add validation before executing the calendar query
+          if (newCheckIn && newCheckOut) {
+            // Trigger calendar query after date selection to update availability status
+            Wized.requests.execute('Load_Property_Calendar_Query').then(() => {
+              // If the availability handler exists, call it to update the UI
+              if (window.updateAvailabilityStatus) {
+                window.updateAvailabilityStatus();
+              }
+            }).catch(error => {
+              // Handle calendar query errors gracefully without page redirect
+              console.error('Calendar query error:', error);
+              if (window.updateAvailabilityStatus) {
+                window.updateAvailabilityStatus();
+              }
+            });
+          }
         }
       }
     });
@@ -832,11 +915,10 @@ document.addEventListener('DOMContentLoaded', function () {
           other: 'nights'   // Plural form
         }
       },
-      startDate: newCheckIn ? moment(newCheckIn, 'YYYY-MM-DD') : today,  // Open to check-in date if set
+      startDate: newCheckIn ? moment(newCheckIn, 'YYYY-MM-DD') : null,  // Don't set default start date if not in URL
       onSelect: function (start, end) {
-
+        // Step 4: When user selects new dates, update the URL parameters
         if (start && end) {
-
           newCheckIn = start.format('YYYY-MM-DD');
           newCheckOut = end.format('YYYY-MM-DD');
 
@@ -855,12 +937,29 @@ document.addEventListener('DOMContentLoaded', function () {
             return
           }
 
-          if (newCheckIn == null || newCheckIn == null) {
+          if (newCheckIn == null || newCheckOut == null) {
             Wized.data.n.parameter.checkin = ""
             Wized.data.n.parameter.checkout = ""
           } else {
             Wized.data.n.parameter.checkin = newCheckIn
             Wized.data.n.parameter.checkout = newCheckOut
+          }
+
+          // Add validation before executing the calendar query
+          if (newCheckIn && newCheckOut) {
+            // Trigger calendar query after date selection to update availability status
+            Wized.requests.execute('Load_Property_Calendar_Query').then(() => {
+              // If the availability handler exists, call it to update the UI
+              if (window.updateAvailabilityStatus) {
+                window.updateAvailabilityStatus();
+              }
+            }).catch(error => {
+              // Handle calendar query errors gracefully without page redirect
+              console.error('Calendar query error:', error);
+              if (window.updateAvailabilityStatus) {
+                window.updateAvailabilityStatus();
+              }
+            });
           }
         }
       }
@@ -893,6 +992,18 @@ document.addEventListener('DOMContentLoaded', function () {
         Wized.data.n.parameter.checkout = ""
         picker.setDateRange(null, null);
         pickerMobile.setDateRange(null, null)
+
+        // Ensure URL has empty parameters
+        var url = new URL(window.location.href);
+        url.searchParams.set('checkin', '');
+        url.searchParams.set('checkout', '');
+        window.history.replaceState({}, '', url);
+
+        // Also trigger calendar query update after clearing dates
+        await Wized.requests.execute('Load_Property_Calendar_Query');
+        if (window.updateAvailabilityStatus) {
+          window.updateAvailabilityStatus();
+        }
       });
     });
 
@@ -901,24 +1012,84 @@ document.addEventListener('DOMContentLoaded', function () {
 
 
     let closeButtons = document.querySelectorAll('[data-element="calendarModal_closeButton"]')
+    let calendarModal = document.querySelector('[data-element="calendarModal"]');
+    const errorContainer = document.querySelector('[data-element="Dates_Error_Container"]');
 
     closeButtons.forEach(button =>
       button.addEventListener('click', async function () {
+        // Close the calendar modal
+        if (calendarModal) {
+          calendarModal.style.display = 'none';
+        }
+
         await Wized.requests.execute('Load_Property_Calendar_Query');
 
-      }))
+        // Get URL parameters to check if dates are selected
+        const urlParams = new URLSearchParams(window.location.search);
+        const hasCheckin = urlParams.has('checkin') && urlParams.get('checkin') !== "";
+        const hasCheckout = urlParams.has('checkout') && urlParams.get('checkout') !== "";
 
+        // Ensure parameters exist in URL even if empty
+        var url = new URL(window.location.href);
+        if (!urlParams.has('checkin')) {
+          url.searchParams.set('checkin', '');
+          window.history.replaceState({}, '', url);
+        }
+        if (!urlParams.has('checkout')) {
+          url.searchParams.set('checkout', '');
+          window.history.replaceState({}, '', url);
+        }
 
-    let calendarModal = document.querySelector('[data-element="calendarModal"]');
+        // Only update availability status if dates are selected
+        if (hasCheckin && hasCheckout) {
+          if (window.updateAvailabilityStatus) {
+            window.updateAvailabilityStatus();
+          }
+        } else {
+          // If no dates selected, ensure error container is hidden
+          if (errorContainer) {
+            errorContainer.style.display = 'none';
+          }
+
+          // Reset input background colors 
+          const checkInElement = document.querySelector('[data-element="Input_CheckIn"]');
+          const checkOutElement = document.querySelector('[data-element="Input_CheckOut"]');
+          if (checkInElement) checkInElement.style.backgroundColor = "";
+          if (checkOutElement) checkOutElement.style.backgroundColor = "";
+
+          // Reset header text colors
+          const checkInHeaderText = document.querySelector('[data-element="Input_CheckIn_HeaderText"]');
+          const checkOutHeaderText = document.querySelector('[data-element="Input_CheckOut_HeaderText"]');
+          if (checkInHeaderText) checkInHeaderText.style.color = "";
+          if (checkOutHeaderText) checkOutHeaderText.style.color = "";
+        }
+      })
+    )
 
     // Add event listener for clicking outside the modal
-    // document.addEventListener('click', function (event) {
-    // Check if the click is outside the calendar modal
-    //  if (!calendarModal.contains(event.target) && !closeButton[0].contains(event.target)) {
-    // If clicked outside the modal, trigger the same action as close button
-    //    closeButton[0].click();
-    //   }
-    // });
+    if (calendarModal) {
+      document.addEventListener('click', function (event) {
+        // Check if modal is currently visible
+        if (calendarModal.style.display !== 'none' && calendarModal.style.display !== '') {
+          // Find the calendar content inside the modal
+          const calendarContent = calendarModal.querySelector('[data-element="calendarModal_content"]');
+
+          // Check if click was outside the content OR directly on the modal background
+          if ((calendarContent && !calendarContent.contains(event.target) &&
+            !event.target.closest('[data-element="calendarModal_content"]')) ||
+            (calendarModal === event.target)) {
+
+            // Get the first close button and trigger its click event
+            if (closeButtons.length > 0) {
+              closeButtons[0].click();
+            } else {
+              // Fallback if close buttons aren't found
+              calendarModal.style.display = 'none';
+            }
+          }
+        }
+      });
+    }
 
 
 
@@ -1028,6 +1199,520 @@ document.addEventListener('DOMContentLoaded', () => {
 
       }
     });
+  });
+});
+
+// Guest dropdown functionality
+document.addEventListener('DOMContentLoaded', () => {
+  const guestInput = document.querySelector('[data-element="Input_Guests"]');
+  const guestDropdown = document.querySelector('[data-element="Input_Guests_Dropdown"]');
+  const closeText = document.querySelector('[data-element="Input_Guests_Dropdown_CloseText"]');
+  const guestHeaderText = document.querySelector('[data-element="Input_Guests_HeaderText"]');
+  const changeGuestsButton = document.querySelector('[data-element="listing_changeGuests_button"]');
+
+  // Handle initial state
+  if (guestDropdown) {
+    guestDropdown.style.display = 'none';
+  }
+
+  // Toggle dropdown when clicking on the input
+  if (guestInput) {
+    guestInput.addEventListener('click', function (e) {
+      e.stopPropagation(); // Prevent the click from bubbling up to document
+      if (guestDropdown) {
+        guestDropdown.style.display = 'flex';
+      }
+    });
+  }
+
+  // Open dropdown when clicking on change button
+  if (changeGuestsButton) {
+    changeGuestsButton.addEventListener('click', function (e) {
+      e.preventDefault(); // Prevent default action (scrolling to top)
+      e.stopPropagation(); // Prevent the click from bubbling up to document
+      if (guestDropdown) {
+        guestDropdown.style.display = 'flex';
+      }
+    });
+  }
+
+  // Close dropdown when clicking on close text
+  if (closeText) {
+    closeText.addEventListener('click', function (e) {
+      e.stopPropagation(); // Prevent the click from bubbling up to document
+      if (guestDropdown) {
+        guestDropdown.style.display = 'none';
+      }
+    });
+  }
+
+  // Close dropdown when clicking outside
+  document.addEventListener('click', function (e) {
+    if (guestDropdown &&
+      !guestDropdown.contains(e.target) &&
+      !guestInput.contains(e.target) &&
+      (!changeGuestsButton || !changeGuestsButton.contains(e.target))) {
+      guestDropdown.style.display = 'none';
+    }
+  });
+
+  // Add validation for guest count
+  window.Wized = window.Wized || [];
+  window.Wized.push((Wized) => {
+    // Function to update guest input background color based on validation
+    function updateGuestInputValidation() {
+      if (Wized.data.n && Wized.data.r &&
+        Wized.data.r.Load_Property_Details &&
+        Wized.data.r.Load_Property_Details.data) {
+
+        const n = Wized.data.n;
+        const r = Wized.data.r;
+
+        // Check if guests exceed max or is less than 1
+        const isInvalid = (n.parameter.guests > r.Load_Property_Details.data.property.num_guests) || (n.parameter.guests < 1);
+
+        // Apply background color based on validation
+        if (guestInput) {
+          guestInput.style.backgroundColor = isInvalid ? "#ffd4d2" : "";
+
+          // Update header text color if element exists
+          if (guestHeaderText) {
+            guestHeaderText.style.color = isInvalid ? "#ff0000" : "";
+          }
+        }
+
+        // After guest validation, update availability status to refresh error messages
+        if (window.updateAvailabilityStatus) {
+          window.updateAvailabilityStatus();
+        }
+      }
+    }
+
+    // Initial validation
+    Wized.requests.waitFor('Load_Property_Details').then(() => {
+      updateGuestInputValidation();
+    });
+
+    // Instead of using Wized.data.listen, we'll use the button click events directly
+    // to trigger validation after the guest count changes
+
+    // Find all plus and minus buttons in the guest dropdown
+    const plusButtonsInDropdown = guestDropdown ? guestDropdown.querySelectorAll('[id^="plus-button"]') : [];
+    const minusButtonsInDropdown = guestDropdown ? guestDropdown.querySelectorAll('[id^="minus-button"]') : [];
+
+    // Add click handler to immediately update validation after guest count changes
+    [...plusButtonsInDropdown, ...minusButtonsInDropdown].forEach(button => {
+      button.addEventListener('click', () => {
+        // Small timeout to allow Wized data to update first
+        setTimeout(() => {
+          updateGuestInputValidation();
+        }, 50);
+      });
+    });
+  });
+});
+
+
+
+// Calendar and date selection handler
+document.addEventListener('DOMContentLoaded', () => {
+  // Elements
+  const checkAvailabilityButton = document.querySelector('[data-element="listing_checkAvailability_button"]');
+  const changeDatesButton = document.querySelector('[data-element="listing_changeDates_button"]');
+  const calendarModal = document.querySelector('[data-element="calendarModal"]');
+
+  // Add this line to get the addDatesHeading element
+  const addDatesHeading = document.querySelector('[data-element="Listing_Reservaton_AddDates_Heading"]');
+
+  // Add error elements
+  const errorContainer = document.querySelector('[data-element="Dates_Error_Container"]');
+  const errorText = document.querySelector('[data-element="Dates_Error_Text"]');
+
+  // Initially hide the error container
+  if (errorContainer) {
+    errorContainer.style.display = 'none';
+  }
+
+  // Add click handlers for availability and change dates buttons
+  if (checkAvailabilityButton && calendarModal) {
+    checkAvailabilityButton.addEventListener('click', function (e) {
+      e.preventDefault(); // Prevent default action (scrolling to top)
+      e.stopPropagation(); // Prevent the click from bubbling up to document
+      calendarModal.style.display = 'flex'; // Show the calendar modal
+    });
+  }
+
+  if (changeDatesButton && calendarModal) {
+    changeDatesButton.addEventListener('click', function (e) {
+      e.preventDefault(); // Prevent default action (scrolling to top)
+      e.stopPropagation(); // Prevent the click from bubbling up to document
+      calendarModal.style.display = 'flex'; // Show the calendar modal
+    });
+  }
+
+  window.Wized = window.Wized || [];
+  window.Wized.push((Wized) => {
+    // Elements
+    const checkInElement = document.querySelector('[data-element="Input_CheckIn"]');
+    const checkOutElement = document.querySelector('[data-element="Input_CheckOut"]');
+
+    // Initialize
+    setupCalendarElements();
+
+    // Wait for both calendar and property details requests to complete
+    Promise.all([
+      Wized.requests.waitFor('Load_Property_Calendar_Query'),
+      Wized.requests.waitFor('Load_Property_Details')
+    ]).then(() => {
+      updateAvailabilityStatus();
+      // Add this line to call updateAddDatesHeading on initial load
+      updateAddDatesHeading();
+    }).catch(error => {
+      console.error('Error waiting for requests:', error);
+    });
+
+    // Set up initial state of calendar elements
+    function setupCalendarElements() {
+
+
+      // Initial check for availability if data is already loaded
+      if (Wized.data.r.Load_Property_Calendar_Query &&
+        Wized.data.r.Load_Property_Calendar_Query.hasRequested &&
+        Wized.data.r.Load_Property_Details &&
+        Wized.data.r.Load_Property_Details.hasRequested) {
+        updateAvailabilityStatus();
+        // Add this line
+        updateAddDatesHeading();
+      }
+    }
+
+    // Update availability status based on calendar data
+    function updateAvailabilityStatus() {
+
+      const r = Wized.data.r;
+      const n = Wized.data.n;
+
+      if (n && n.parameter) {
+      }
+
+      // Get the color for availability status
+      const color = getAvailabilityColor(r);
+
+      // Check for guest count errors
+      let hasGuestError = false;
+      if (r && r.Load_Property_Details && r.Load_Property_Details.data &&
+        r.Load_Property_Details.data.property && n && n.parameter) {
+        const maxGuests = r.Load_Property_Details.data.property.num_guests;
+        const currentGuests = n.parameter.guests;
+        hasGuestError = (currentGuests > maxGuests) || (currentGuests < 1);
+      }
+
+      // Get header text elements
+      const checkInHeaderText = document.querySelector('[data-element="Input_CheckIn_HeaderText"]');
+      const checkOutHeaderText = document.querySelector('[data-element="Input_CheckOut_HeaderText"]');
+
+      // Apply visual feedback based on availability for check-in
+      if (checkInElement) {
+        checkInElement.style.backgroundColor = color;
+
+        // Update header text color if element exists
+        if (checkInHeaderText) {
+          checkInHeaderText.style.color = color === "#ffd4d2" ? "#ff0000" : "";
+        }
+      } else {
+
+      }
+
+      // Apply visual feedback based on availability for checkout element
+      if (checkOutElement) {
+        checkOutElement.style.backgroundColor = color;
+
+        // Update header text color if element exists
+        if (checkOutHeaderText) {
+          checkOutHeaderText.style.color = color === "#ffd4d2" ? "#ff0000" : "";
+        }
+      } else {
+
+      }
+
+      // Update error message display
+      updateErrorDisplay(color === "#ffd4d2", hasGuestError, r);
+
+      // Add this line at the end of the function to update the heading
+      updateAddDatesHeading();
+    }
+
+    // New function to handle error display
+    function updateErrorDisplay(hasDateError, hasGuestError, r) {
+      if (!errorContainer || !errorText) {
+        return;
+      }
+
+      // Check if dates are actually selected before showing date errors
+      const urlParams = new URLSearchParams(window.location.search);
+      const hasCheckin = urlParams.has('checkin') && urlParams.get('checkin') !== "";
+      const hasCheckout = urlParams.has('checkout') && urlParams.get('checkout') !== "";
+
+      // If date error but no dates selected, ignore the date error
+      if (hasDateError && (!hasCheckin || !hasCheckout)) {
+        hasDateError = false;
+      }
+
+      // If no errors, hide the container
+      if (!hasDateError && !hasGuestError) {
+        errorContainer.style.display = 'none';
+        return;
+      }
+
+      // Show the container if there are errors
+      errorContainer.style.display = 'flex';
+
+      // Prioritize date errors over guest errors
+      if (hasDateError) {
+        // Get specific date error message
+        let dateErrorMessage = "Selected dates are not available.";
+
+        // Check if we have min_nights information to give more specific message
+        if (r && r.Load_Property_Details && r.Load_Property_Details.data &&
+          r.Load_Property_Details.data.property &&
+          r.Load_Property_Details.data.property.min_nights) {
+          const minNights = r.Load_Property_Details.data.property.min_nights;
+
+          // Check if calendar data exists to determine if it's a min nights issue
+          if (r.Load_Property_Calendar_Query && r.Load_Property_Calendar_Query.data &&
+            r.Load_Property_Calendar_Query.data.property_calendar_range) {
+
+            const calendarData = r.Load_Property_Calendar_Query.data.property_calendar_range;
+            let unavailableDayFound = false;
+
+            for (let i = 0; i < calendarData.length; i++) {
+              if (calendarData[i].status !== "available") {
+                unavailableDayFound = true;
+                break;
+              }
+            }
+
+            if (unavailableDayFound) {
+              dateErrorMessage = "Selected dates unavailable";
+            } else if (calendarData.length < minNights) {
+              dateErrorMessage = `Minimum stay is ${minNights} nights`;
+            }
+          }
+        }
+
+        errorText.textContent = dateErrorMessage;
+      } else if (hasGuestError) {
+        // Guest error message with more concise wording
+        let guestErrorMessage = "Invalid number of guests";
+
+        // Get property max guests for a more specific message
+        if (r && r.Load_Property_Details && r.Load_Property_Details.data &&
+          r.Load_Property_Details.data.property) {
+          const maxGuests = r.Load_Property_Details.data.property.num_guests;
+          guestErrorMessage = `Maximum number of guests is ${maxGuests}`;
+        }
+
+        errorText.textContent = guestErrorMessage;
+      }
+    }
+
+    // Make updateAvailabilityStatus available globally so other parts of the code can use it
+    window.updateAvailabilityStatus = updateAvailabilityStatus;
+
+    // Calculate availability color based on Wized data
+    function getAvailabilityColor(r) {
+
+
+      // Check if dates are actually selected before showing any error state
+      const urlParams = new URLSearchParams(window.location.search);
+      const hasCheckin = urlParams.has('checkin') && urlParams.get('checkin') !== "";
+      const hasCheckout = urlParams.has('checkout') && urlParams.get('checkout') !== "";
+
+      // If no dates are selected, don't show an error state
+      if (!hasCheckin || !hasCheckout) {
+
+        return ""; // Return empty string for default background when no dates are selected
+      }
+
+      // Also verify the data exists before proceeding with validation
+      if (!r.Load_Property_Calendar_Query ||
+        !r.Load_Property_Calendar_Query.data ||
+        !r.Load_Property_Details ||
+        !r.Load_Property_Details.data) {
+
+        return ""; // Return empty for default background since we can't validate
+      }
+
+      // Check if calendar query exists and completed successfully
+      if (!r.Load_Property_Calendar_Query ||
+        !r.Load_Property_Calendar_Query.hasRequested ||
+        r.Load_Property_Calendar_Query.status != 200 ||
+        !r.Load_Property_Calendar_Query.data ||
+        !r.Load_Property_Calendar_Query.data.property_calendar_range) {
+
+        return ""; // Don't show error if we don't have calendar data yet
+      }
+
+      // Detailed property details inspection
+
+      if (r.Load_Property_Details) {
+
+        if (r.Load_Property_Details.data) {
+
+
+          if (r.Load_Property_Details.data.property) {
+
+          }
+        }
+      }
+
+      // We need to ensure min_nights exists before proceeding
+      if (!r.Load_Property_Details ||
+        !r.Load_Property_Details.data ||
+        !r.Load_Property_Details.data.property ||
+        r.Load_Property_Details.data.property.min_nights === undefined) {
+
+        return "#ffd4d2"; // Light red for error state
+      }
+
+      const propertyCalendarRange = r.Load_Property_Calendar_Query.data.property_calendar_range;
+      const minNights = r.Load_Property_Details.data.property.min_nights;
+
+
+
+      let allAvailable = true;
+      let consecutiveAvailableDays = 0;
+      let meetsMinNights = false;
+
+      for (let i = 0; i < propertyCalendarRange.length; i++) {
+        if (propertyCalendarRange[i].status === "available") {
+          consecutiveAvailableDays++; // Count consecutive available days
+          if (consecutiveAvailableDays >= minNights) {
+            meetsMinNights = true; // If consecutive days meet min nights at any point
+
+          }
+        } else {
+
+          consecutiveAvailableDays = 0; // Reset if a day is not available
+          allAvailable = false; // Set availability to false if any day is not available
+        }
+      }
+
+
+
+      // Determine color based on availability and minimum night conditions
+      const color = !allAvailable || !meetsMinNights ? "#ffd4d2" : "";
+
+      return color;
+    }
+
+    // Update the guest validation function to also update error display
+    const originalUpdateGuestInputValidation = window.updateGuestInputValidation;
+    if (typeof originalUpdateGuestInputValidation === 'function') {
+      window.updateGuestInputValidation = function () {
+        // Call original function first
+        originalUpdateGuestInputValidation();
+
+        // Then update availability status which will update error display
+        if (window.updateAvailabilityStatus) {
+          window.updateAvailabilityStatus();
+        }
+      };
+    }
+
+    // Additional check-in/check-out related functions can be added here
+
+
+    // Instead of using Wized.data.listen which doesn't exist, 
+    // rely on the button click handlers we already set up above
+    // The updateGuestInputValidation function already calls updateAvailabilityStatus
+
+    // After the existing setupCalendarElements() function
+    // Wait for both calendar and property details requests to complete
+    Promise.all([
+      Wized.requests.waitFor('Load_Property_Calendar_Query'),
+      Wized.requests.waitFor('Load_Property_Details')
+    ]).then(() => {
+      updateAvailabilityStatus();
+      // Add this line to call updateAddDatesHeading on initial load
+      updateAddDatesHeading();
+    }).catch(error => {
+      console.error('Error waiting for requests:', error);
+    });
+
+    // Add this entire function for updating the heading
+    function updateAddDatesHeading() {
+      if (!addDatesHeading) return;
+
+      const r = Wized.data.r;
+      if (!r) return;
+
+      // Check if dates are actually selected before showing any error message
+      const urlParams = new URLSearchParams(window.location.search);
+      const hasCheckin = urlParams.has('checkin') && urlParams.get('checkin') !== "";
+      const hasCheckout = urlParams.has('checkout') && urlParams.get('checkout') !== "";
+      const datesSelected = hasCheckin && hasCheckout;
+
+      // Handle visibility logic
+      let shouldBeVisible = true;
+      let headingText = "Add dates for pricing";
+
+      if (r.Load_Property_Calendar_Query && r.Load_Property_Calendar_Query.isRequesting) {
+        shouldBeVisible = false;
+      } else if (!r.Load_Property_Calendar_Query ||
+        !r.Load_Property_Calendar_Query.hasRequested ||
+        (r.Load_Property_Calendar_Query.hasRequested &&
+          r.Load_Property_Calendar_Query.status != 200)) {
+        shouldBeVisible = true;
+        // Only show "Invalid Dates" if dates are actually selected
+        headingText = (datesSelected && r.Load_Property_Calendar_Query && r.Load_Property_Calendar_Query.hasRequested)
+          ? "Invalid Dates"
+          : "Add dates for pricing";
+      } else if (r.Load_Property_Calendar_Query.status == 200 &&
+        r.Load_Property_Details &&
+        r.Load_Property_Details.data) {
+        // Only validate dates if they're actually selected
+        if (datesSelected) {
+          // Check if dates are valid
+          const propertyCalendarRange = r.Load_Property_Calendar_Query.data.property_calendar_range;
+          const minNights = r.Load_Property_Details.data.property.min_nights;
+
+          let allAvailable = true;
+          let consecutiveAvailableDays = 0;
+          let meetsMinNights = false;
+
+          for (let i = 0; i < propertyCalendarRange.length; i++) {
+            if (propertyCalendarRange[i].status === "available") {
+              consecutiveAvailableDays++;
+              if (consecutiveAvailableDays >= minNights) {
+                meetsMinNights = true;
+              }
+            } else {
+              consecutiveAvailableDays = 0;
+              allAvailable = false;
+            }
+          }
+
+          if (!allAvailable || !meetsMinNights) {
+            shouldBeVisible = true;
+            headingText = "Invalid Dates";
+          } else {
+            shouldBeVisible = false;
+          }
+        } else {
+          // If no dates selected, keep default message
+          shouldBeVisible = true;
+          headingText = "Add dates for pricing";
+        }
+      }
+
+      // Apply visibility and text
+      addDatesHeading.style.display = shouldBeVisible ? 'block' : 'none';
+      addDatesHeading.textContent = headingText;
+    }
+
+    // Make updateAddDatesHeading available globally
+    window.updateAddDatesHeading = updateAddDatesHeading;
   });
 });
 

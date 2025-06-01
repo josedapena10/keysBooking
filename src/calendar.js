@@ -7,6 +7,8 @@ var script = document.createElement('script');
 script.src = 'https://cdn.jsdelivr.net/npm/@finsweet/attributes-mirrorclick@1/mirrorclick.js';
 document.body.appendChild(script);
 
+// Add this at the top level of the file (outside any function)
+let isSaving = false;
 
 // for no scroll background when modal is open
 // when DOM is ready
@@ -94,6 +96,7 @@ document.addEventListener('DOMContentLoaded', function () {
     let lastAvailableDate = null; // Track the last available date from API
     let propertiesData = []; // Store all properties data
     let hostReservations = []; // Store host reservations data
+    let blockedDateRanges = []; // Move this to a higher scope
 
     // Initialize all toolbar elements to be hidden by default
     const initializeToolbar = document.querySelector('[data-element="toolbar"]');
@@ -108,7 +111,8 @@ document.addEventListener('DOMContentLoaded', function () {
         document.querySelector('[data-element="toolbarEdit_tripLength"]'),
         document.querySelector('[data-element="toolbarEdit_advanceNotice"]'),
         document.querySelector('[data-element="toolbarEdit_availabilityWindow"]'),
-        document.querySelector('[data-element="toolbarEdit_customDates"]')
+        document.querySelector('[data-element="toolbarEdit_customDates"]'),
+        document.querySelector('[data-element="toolbarEdit_connectCalendar"]')
     ];
 
     toolbarElements.forEach(element => {
@@ -202,7 +206,8 @@ document.addEventListener('DOMContentLoaded', function () {
             });
 
             if (!response.ok) {
-                throw new Error(`HTTP error! Status: ${response.status}`);
+                window.location.href = '/host/dashboard';
+                //throw new Error(`HTTP error! Status: ${response.status}`);
             }
 
             hostReservations = await response.json();
@@ -212,7 +217,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // Function to fetch calendar data from API
-    async function fetchCalendarData(selectedPropertyId = null) {
+    async function fetchCalendarData(selectedPropertyId = null, options = {}) {
         if (!userId) {
             isDataLoading = false;
             initializeCalendar();
@@ -222,7 +227,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Clear any selected dates when switching properties
         if (selectedPropertyId) {
-            clearDateSelections();
+            // Check if we're coming from a calendar connection save
+            const isCalendarConnection = sessionStorage.getItem('calendarConnectionInProgress') === 'true';
+            clearDateSelections({ showMainToolbar: !isCalendarConnection });
         }
 
         let apiUrl = `https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/host_property_calendar?user_id=${userId}`;
@@ -243,7 +250,8 @@ document.addEventListener('DOMContentLoaded', function () {
             });
 
             if (!response.ok) {
-                throw new Error(`HTTP error! Status: ${response.status}`);
+                window.location.href = '/host/dashboard';
+                //throw new Error(`HTTP error! Status: ${response.status}`);
             }
 
             const data = await response.json();
@@ -273,11 +281,96 @@ document.addEventListener('DOMContentLoaded', function () {
             isDataLoading = false;
             initializeCalendar();
             hideLoaderIfReady();
+            // After calendar data is loaded, hide months beyond 2 years
+            setTimeout(hideMonthsBeyondTwoYears, 100);
         } catch (error) {
             isDataLoading = false;
             initializeCalendar(); // Initialize calendar even if there's an error
             hideLoaderIfReady();
         }
+    }
+
+    // Function to merge adjacent or overlapping date ranges
+    function mergeAdjacentRanges(ranges) {
+        if (!ranges || ranges.length <= 1) return ranges;
+
+        // Create a defensive copy to avoid modifying the original
+        const rangesCopy = [...ranges];
+
+        // Sort ranges by start date
+        rangesCopy.sort((a, b) => new Date(a.range_start) - new Date(b.range_start));
+
+        const mergedRanges = [rangesCopy[0]];
+
+        for (let i = 1; i < rangesCopy.length; i++) {
+            const currentRange = rangesCopy[i];
+            const lastMergedRange = mergedRanges[mergedRanges.length - 1];
+
+            // Check if current range overlaps or is adjacent to the last merged range
+            const lastRangeEnd = new Date(lastMergedRange.range_end);
+            lastRangeEnd.setDate(lastRangeEnd.getDate() + 1); // Add one day to check adjacency
+
+            const currentRangeStart = new Date(currentRange.range_start);
+
+            if (currentRangeStart <= lastRangeEnd) {
+                // Ranges overlap or are adjacent, merge them
+                const currentRangeEnd = new Date(currentRange.range_end);
+                const lastMergedRangeEnd = new Date(lastMergedRange.range_end);
+
+                if (currentRangeEnd > lastMergedRangeEnd) {
+                    // Update end date if current range ends later
+                    lastMergedRange.range_end = currentRange.range_end;
+                }
+            } else {
+                // Ranges don't overlap, add as new range
+                mergedRanges.push(currentRange);
+            }
+        }
+
+
+        return mergedRanges;
+    }
+
+    // Move the convertToDateRanges function outside of processCalendarData
+    // Helper function to convert array of dates to array of date ranges
+    function convertToDateRanges(datesArray) {
+        if (!datesArray || datesArray.length === 0) return [];
+
+        const ranges = [];
+        let rangeStart = datesArray[0];
+        let rangeEnd = datesArray[0];
+
+        for (let i = 1; i < datesArray.length; i++) {
+            const currentDate = new Date(datesArray[i]);
+            const previousDate = new Date(datesArray[i - 1]);
+            previousDate.setDate(previousDate.getDate() + 1);
+
+            // Check if current date is consecutive with previous date
+            if (currentDate.toISOString().split('T')[0] === previousDate.toISOString().split('T')[0]) {
+                // Update range end date
+                rangeEnd = datesArray[i];
+            } else {
+                // End current range and start a new one
+                ranges.push({
+                    range_start: rangeStart,
+                    range_end: rangeEnd
+                });
+                rangeStart = datesArray[i];
+                rangeEnd = datesArray[i];
+            }
+        }
+
+        // Add the last range
+        if (datesArray.length > 0) {
+            ranges.push({
+                range_start: rangeStart,
+                range_end: rangeEnd
+            });
+        }
+
+
+
+        return ranges;
     }
 
     // Process the API response data into calendar events
@@ -335,7 +428,6 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
                 });
             });
-        } else {
         }
 
         // Find the current property data based on propertyId
@@ -355,9 +447,36 @@ document.addEventListener('DOMContentLoaded', function () {
             });
         }
 
+
+
+
+
+        // Create a separate list for Keys Booking blocked dates
+        const keysBookingBlockedDates = new Set();
+        // Initialize an array to track blocked date ranges for API submission
+        let blockedDateRanges = [];
+
+        if (data.property_calendar && data.property_calendar.length > 0) {
+            data.property_calendar.forEach(day => {
+                if (day.isKeysBooking_blocked) {
+                    keysBookingBlockedDates.add(day.date);
+                }
+            });
+
+            // Store the blocked date ranges in the window object so they're accessible globally
+            window.blockedDateRanges = convertToDateRanges([...keysBookingBlockedDates].sort());
+            // Keep local variable in sync
+            blockedDateRanges = window.blockedDateRanges;
+
+        }
+
+        // Remove the duplicate convertToDateRanges function from here
+        // since we moved it outside the processCalendarData function
+
         // Create a list of all unavailable periods (both reservations and blocked/reserved dates)
         const unavailablePeriods = [];
 
+        // LB: This may be repetitive 
         // Add reservations to unavailable periods
         if (data.reservations && data.reservations.length > 0) {
             data.reservations.forEach(reservation => {
@@ -368,6 +487,7 @@ document.addEventListener('DOMContentLoaded', function () {
             });
         }
 
+        // LB: This feels weird 
         // Add blocked and reserved dates from property calendar to unavailable periods
         if (data.property_calendar && data.property_calendar.length > 0) {
             // Sort calendar days by date
@@ -380,6 +500,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
             let currentPeriod = null;
 
+            // LB: Should we be adding a day to the end date for reserved dates? 
             // Group consecutive unavailable dates into periods
             sortedCalendar.forEach(day => {
                 if (!day.isAvailable || day.status === 'reserved' || day.status === 'blocked') {
@@ -512,6 +633,14 @@ document.addEventListener('DOMContentLoaded', function () {
                 unavailablePeriods.push(currentPeriod);
             }
         }
+
+
+
+
+
+
+
+
 
         // Sort all unavailable periods by start date
         unavailablePeriods.sort((a, b) => {
@@ -665,6 +794,90 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         }
 
+        for (let i = 0; i < customMinNightsPeriods.length; i++) {
+            const customPeriod = customMinNightsPeriods[i];
+
+            // Check for gaps between this custom period and all unavailable periods
+            for (let j = 0; j < unavailablePeriods.length; j++) {
+                const unavailablePeriod = unavailablePeriods[j];
+
+                // Extract date strings for comparison
+                const customEndStr = customPeriod.end;
+                const unavailableStartStr = unavailablePeriod.start;
+
+                // Parse dates for comparison
+                const customEndParts = customEndStr.split('-').map(part => parseInt(part));
+                const unavailableStartParts = unavailableStartStr.split('-').map(part => parseInt(part));
+
+                // Create dates for calculation only (not for extracting date strings)
+                const customEndDate = new Date(customEndParts[0], customEndParts[1] - 1, customEndParts[2] + 1); // +1 day after end
+                const unavailableStartDate = new Date(unavailableStartParts[0], unavailableStartParts[1] - 1, unavailableStartParts[2]);
+
+
+
+                if (customEndDate < unavailableStartDate) {
+                    // There's a gap between custom period and unavailable period
+                    const gapNights = Math.floor((unavailableStartDate - customEndDate) / (1000 * 60 * 60 * 24));
+
+                    // If gap is shorter than custom period's min nights requirement
+                    if (gapNights > 0 && gapNights < customPeriod.minNights) {
+
+                        // Generate dates in the gap using string manipulation
+                        const tempDate = new Date(customEndDate);
+                        while (tempDate < unavailableStartDate) {
+                            const year = tempDate.getFullYear();
+                            const month = (tempDate.getMonth() + 1).toString().padStart(2, '0');
+                            const day = tempDate.getDate().toString().padStart(2, '0');
+                            const dateStr = `${year}-${month}-${day}`;
+                            shortGaps.push(dateStr);
+                            tempDate.setDate(tempDate.getDate() + 1);
+                        }
+                    } else {
+
+                    }
+                } else {
+
+                }
+
+                // Extract date strings for the second comparison
+                const unavailableEndStr = unavailablePeriod.end;
+                const customStartStr = customPeriod.start;
+
+                // Parse dates for comparison
+                const unavailableEndParts = unavailableEndStr.split('-').map(part => parseInt(part));
+                const customStartParts = customStartStr.split('-').map(part => parseInt(part));
+
+                // Create dates for calculation only
+                const unavailableEndDate = new Date(unavailableEndParts[0], unavailableEndParts[1] - 1, unavailableEndParts[2] + 1); // +1 day after end
+                const customStartDate = new Date(customStartParts[0], customStartParts[1] - 1, customStartParts[2]);
+
+                if (unavailableEndDate < customStartDate) {
+                    // There's a gap between unavailable period and custom period
+                    const gapNights = Math.floor((customStartDate - unavailableEndDate) / (1000 * 60 * 60 * 24));
+                    if (gapNights > 0 && gapNights < customPeriod.minNights) {
+
+                        // Use the actual unavailable period end date string
+                        const startDateParts = unavailableEndStr.split('-').map(part => parseInt(part));
+                        const tempDate = new Date(startDateParts[0], startDateParts[1] - 1, startDateParts[2]);
+
+                        while (tempDate < customStartDate) {
+                            const year = tempDate.getFullYear();
+                            const month = (tempDate.getMonth() + 1).toString().padStart(2, '0');
+                            const day = tempDate.getDate().toString().padStart(2, '0');
+                            const dateStr = `${year}-${month}-${day}`;
+                            shortGaps.push(dateStr);
+                            tempDate.setDate(tempDate.getDate() + 1);
+                        }
+                    } else {
+
+                    }
+                } else {
+
+                }
+            }
+        }
+
+
         // Process property calendar data for available dates
         if (data.property_calendar && data.property_calendar.length > 0) {
             let availableDaysCount = 0;
@@ -713,7 +926,42 @@ document.addEventListener('DOMContentLoaded', function () {
                                 minNights: minNights
                             }
                         });
+                    } else if (day.status === 'blocked') {
+                        // Process blocked days - Make sure to include the last day of each blocked range
+                        blockedDaysCount++;
+                        calendarEvents.push({
+                            title: day.price ? `$${day.price}` : 'Blocked',
+                            start: day.date,
+                            allDay: true,
+                            display: 'background',
+                            backgroundColor: '#d0d0d0',
+                            borderColor: '#d0d0d0',
+                            textColor: '#000000',
+                            extendedProps: {
+                                type: 'blocked',
+                                isKeysBookingBlocked: day.isKeysBooking_blocked === true,
+                                price: day.price
+                            }
+                        });
+                    } else if (day.status === 'reserved') {
+                        reservedDaysCount++;
+                        calendarEvents.push({
+                            title: day.price ? `$${day.price}` : 'Reserved',
+                            start: day.date,
+                            allDay: true,
+                            display: 'background',
+                            backgroundColor: '#d0d0d0',
+                            borderColor: '#d0d0d0',
+                            textColor: '#000000',
+                            extendedProps: {
+                                type: 'reserved',
+                                price: day.price,
+                                reservationArrivalDate: day.reservation_arrivalDate
+                            },
+                            classNames: ['reserved-day']
+                        });
                     } else if (day.isAvailable) {
+                        // Only mark as available if it's not blocked
                         availableDaysCount++;
                         calendarEvents.push({
                             title: `$${day.price}`,
@@ -727,44 +975,6 @@ document.addEventListener('DOMContentLoaded', function () {
                                 price: day.price
                             }
                         });
-                    } else if (day.status === 'reserved') {
-                        reservedDaysCount++;
-                        // Treat reserved days as regular events
-                        calendarEvents.push({
-                            title: day.price ? `$${day.price}` : 'Reserved',
-                            start: day.date,
-                            allDay: true,
-                            display: 'background',
-                            backgroundColor: '#d0d0d0', // Background color for blocked days (lighter grey)
-                            borderColor: '#d0d0d0',
-                            textColor: '#000000',
-                            // Remove display: 'background' to treat as a regular event
-                            extendedProps: {
-                                type: 'reserved',
-                                price: day.price,
-                                reservationArrivalDate: day.reservation_arrivalDate
-                            },
-                            classNames: ['reserved-day'] // Add a class for custom styling
-                        });
-                    } else if (day.status === 'blocked') {
-                        blockedDaysCount++;
-                        // Treat blocked days as regular events
-                        calendarEvents.push({
-                            title: day.price ? `$${day.price}` : 'Blocked',
-                            start: day.date,
-                            allDay: true,
-                            display: 'background',
-                            backgroundColor: '#d0d0d0', // Background color for blocked days (lighter grey)
-                            borderColor: '#d0d0d0',
-                            textColor: '#000000',
-                            // Remove display: 'background' to treat as a regular event
-                            extendedProps: {
-                                type: 'blocked',
-                                price: day.price
-                            }
-                        });
-                    } else {
-                        otherStatusCount++;
                     }
                 }
             });
@@ -788,6 +998,56 @@ document.addEventListener('DOMContentLoaded', function () {
     let selectedDateTypes = {}; // Map of date strings to their types (e.g., "available", "blocked")
     let propertiesDataRef = null; // Add a global reference to property data
 
+    // Replace the existing showExternalBlockNotification function with this more flexible version
+    function showCalendarNotification(message) {
+        // Check if a notification is already showing
+        if (document.querySelector('.calendar-notification')) {
+            return; // Don't show another one if one already exists
+        }
+
+        // Create notification element
+        const notificationDiv = document.createElement('div');
+        notificationDiv.classList.add('calendar-notification');
+        notificationDiv.innerHTML = `
+        <div class="notification-content">
+            <p>${message}</p>
+            <button class="close-notification">Close</button>
+        </div>
+    `;
+
+        // Style the notification (using the same styles)
+        notificationDiv.style.position = 'fixed';
+        notificationDiv.style.bottom = '20px';
+        notificationDiv.style.left = '50%';
+        notificationDiv.style.transform = 'translateX(-50%)';
+        notificationDiv.style.backgroundColor = '#fff';
+        notificationDiv.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+        notificationDiv.style.border = '1px solid #000000';
+        notificationDiv.style.fontFamily = 'TT Fors, sans-serif';
+        notificationDiv.style.fontSize = '15px';
+        notificationDiv.style.fontWeight = 'normal';
+        notificationDiv.style.color = '#000000';
+        notificationDiv.style.backgroundColor = '#ffffff';
+        notificationDiv.style.alignItems = 'center';
+        notificationDiv.style.borderRadius = '8px';
+        notificationDiv.style.padding = '16px 24px';
+        notificationDiv.style.zIndex = '9999';
+        notificationDiv.style.maxWidth = '400px';
+
+        // Add close button functionality
+        document.body.appendChild(notificationDiv);
+        const closeButton = notificationDiv.querySelector('.close-notification');
+        closeButton.addEventListener('click', function () {
+            document.body.removeChild(notificationDiv);
+        });
+
+        // Auto-remove after 5 seconds
+        setTimeout(() => {
+            if (document.body.contains(notificationDiv)) {
+                document.body.removeChild(notificationDiv);
+            }
+        }, 5000);
+    }
 
 
     // Initialize and render the calendar
@@ -873,6 +1133,9 @@ document.addEventListener('DOMContentLoaded', function () {
         // Add custom CSS for calendar cell formatting
         const customStyles = document.createElement('style');
         customStyles.textContent = `
+                .fc-day-blocked-external {
+                    cursor: not-allowed !important;
+                }
                 .fc .fc-daygrid-day-top {
                     display: flex;
                     flex-direction: row;
@@ -881,12 +1144,190 @@ document.addEventListener('DOMContentLoaded', function () {
                     padding-right: 5px;
                     height: 60%;
                 }
+                .fc-daygrid-block-event .fc-event-time, 
+                .fc-daygrid-block-event .fc-event-title {
+                    padding: 1px 2px !important;
+                }
+                /* Base styles for fc-bg-event */
+                .fc .fc-bg-event {
+                    padding-bottom: 1vh !important;
+                    padding-left: 13px !important;
+                }
+                .fc-daygrid-event {
+                    margin-top: auto !important;
+                    display: flex !important;
+                    flex-direction: row !important;
+                    justify-content: flex-start !important;
+                    align-items: center !important;
+                    height: 100% !important;
+                    border-radius: 20px !important;
+                    padding-left: 5px !important;
+                    padding-right: 5px !important;
+                }
+                @media screen and (max-width: 530px) {
+                    .fc .fc-daygrid-day-top {
+                        padding-left: 3px !important;
+                        padding-top: 0px !important;
+                        height: 45% !important;
+                    }
+                    .fc .fc-daygrid-day-frame {
+                        padding-left: 3px !important;
+                        padding-top: 3px !important;
+                        padding-right: 3px !important;
+                        padding-bottom: 0px !important;
+                    }
+                    .fc .fc-bg-event {
+                        padding-left: 3px !important;
+                    }
+                    .fc .fc-daygrid-day-frame {
+                        padding-left: 0px !important;
+                    }
+                    .fc-daygrid-event {
+                        padding-left: 0px !important;
+                    }
+                    .fc-col-header-cell.fc-day {
+                        padding-left: 10px !important;
+                    }
+                    .fc .fc-daygrid-body-balanced .fc-daygrid-day-events {
+                        height: 55% !important;
+                    }
+                }
                 .fc-event-past .fc-event-title {
                     opacity: 0.3 !important;
                 }
-                .fc .fc-bg-event {
-                    padding-bottom: 13% !important;
-                    padding-left: 12px !important
+                
+                /* Small screens (700px and below) */
+                @media screen and (max-width: 700px) {
+                    .fc .fc-bg-event {
+                        padding-bottom: 0.8vh !important;
+                    }
+                }
+                @media screen and (max-width: 650px) {
+                    .fc .fc-bg-event {
+                        padding-bottom: 0.7vh !important;
+                    }
+                }
+                @media screen and (max-width: 600px) {
+                    .fc .fc-bg-event {
+                        padding-bottom: 0.5vh !important;
+                    }
+                }
+                @media screen and (max-width: 550px) {
+                    .fc .fc-bg-event {
+                        padding-bottom: 0.4vh !important;
+                    }
+                }
+                @media screen and (max-width: 500px) {
+                    .fc .fc-bg-event {
+                        padding-bottom: 0.3vh !important;
+                    }
+                }
+                @media screen and (max-width: 450px) {
+                    .fc .fc-bg-event {
+                        padding-bottom: 0.2vh !important;
+                    }
+                }
+                @media screen and (max-width: 400px) {
+                    .fc .fc-bg-event {
+                        padding-bottom: 0.1vh !important;
+                    }
+                }
+                @media screen and (max-width: 350px) {
+                    .fc .fc-bg-event {
+                        padding-bottom: 0.0vh !important;
+                    }
+                }
+                @media screen and (max-width: 300px) {
+                    .fc .fc-bg-event {
+                        padding-bottom: 0.0vh !important;
+                    }
+                }
+                
+                /* Larger screens (1000px and above) - existing code */
+                @media screen and (min-width: 1000px) {
+                    .fc .fc-bg-event {
+                        padding-bottom: 1.12vh !important;
+                    }
+                }
+                @media screen and (min-width: 1025px) {
+                    .fc .fc-bg-event {
+                        padding-bottom: 1.2vh !important;
+                    }
+                }
+                @media screen and (min-width: 1050px) {
+                    .fc .fc-bg-event {
+                        padding-bottom: 1.25vh !important;
+                    }
+                }
+                @media screen and (min-width: 1075px) {
+                    .fc .fc-bg-event {
+                        padding-bottom: 1.35vh !important;
+                    }
+                }
+                @media screen and (min-width: 1100px) {
+                    .fc .fc-bg-event {
+                        padding-bottom: 1.4vh !important;
+                    }
+                }
+                @media screen and (min-width: 1125px) {
+                    .fc .fc-bg-event {
+                        padding-bottom: 1.5vh !important;
+                    }
+                }
+                @media screen and (min-width: 1150px) {
+                    .fc .fc-bg-event {
+                        padding-bottom: 1.675vh !important;
+                    }
+                }
+                @media screen and (min-width: 1175px) {
+                    .fc .fc-bg-event {
+                        padding-bottom: 1.75vh !important;
+                    }
+                }
+                @media screen and (min-width: 1200px) {
+                    .fc .fc-bg-event {
+                        padding-bottom: 1.85vh !important;
+                    }
+                }
+                @media screen and (min-width: 1225px) {
+                    .fc .fc-bg-event {
+                        padding-bottom: 1.9375vh !important;
+                    }
+                }
+                @media screen and (min-width: 1250px) {
+                    .fc .fc-bg-event {
+                        padding-bottom: 2.025vh !important;
+                    }
+                }
+                @media screen and (min-width: 1275px) {
+                    .fc .fc-bg-event {
+                        padding-bottom: 2.1125vh !important;
+                    }
+                }
+                @media screen and (min-width: 1300px) {
+                    .fc .fc-bg-event {
+                        padding-bottom: 2.2vh !important;
+                    }
+                }
+                @media screen and (min-width: 1325px) {
+                    .fc .fc-bg-event {
+                        padding-bottom: 2.275vh !important;
+                    }
+                }
+                @media screen and (min-width: 1350px) {
+                    .fc .fc-bg-event {
+                        padding-bottom: 2.35vh !important;
+                    }
+                }
+                @media screen and (min-width: 1375px) {
+                    .fc .fc-bg-event {
+                        padding-bottom: 2.475vh !important;
+                    }
+                }
+                @media screen and (min-width: 1400px) {
+                    .fc .fc-bg-event {
+                        padding-bottom: 2.6vh !important;
+                    }
                 }
                 .fc .fc-multimonth {
                     border: none !important;
@@ -902,6 +1343,16 @@ document.addEventListener('DOMContentLoaded', function () {
                     font-size: 16px;
                     font-weight: 500;
                 }
+                @media screen and (max-width: 600px) {
+                    .fc .fc-daygrid-day-number {
+                        font-size: 14px !important;
+                    }
+                }
+                 @media screen and (max-width: 450px) {
+                .fc .fc-daygrid-day-number {
+                font-size: 12px !important;
+                    }
+                }
                 .fc .fc-daygrid-day-number {
                     text-align: left;
                 }
@@ -911,7 +1362,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
                 .fc .fc-daygrid-body-balanced .fc-daygrid-day-events {
                     position: relative !important;
-                    min-height: 2em;
+                    min-height: 0em;
                     text-align: left;
                     height: 40%;
                     display: flex;
@@ -940,19 +1391,45 @@ document.addEventListener('DOMContentLoaded', function () {
                     padding-right: 10px !important;
                     padding-top: 10px !important;
                     padding-bottom: 50px !important;
+                    position: absolute !important;
+                }
+                @media screen and (max-width: 600px) {
+                    .fc-daygrid-bg-harness {
+                        padding-bottom: 0px !important;
+                        padding-left: 0px !important;
+                        padding-right: 0px !important;
+                        padding-top: 0px !important;
+                    }
                 }
                 .fc-event {
                     display: flex;
                     flex-direction: column;
                     justify-content: flex-end;
                     align-items: left;
-                    min-height: 55px !important;
+                    
                     cursor: pointer;    
                 }
                 .fc-event-title {
                     text-align: left !important;
                     font-size: 17px !important;
                     font-weight: 400 !important;
+                }
+                @media screen and (max-width: 600px) {
+                    .fc-event-title {
+                        font-size: 14px !important;
+                    }
+                }
+                @media screen and (max-width: 450px) {
+                    .fc-event-title {
+                        font-size: 12px !important;
+                        margin-top: 5px !important;
+                        margin-left: 3px !important;
+                        margin-right: 0px !important;
+                        margin-bottom: 5px !important;
+                    }
+                    .fc-event-title {
+                        padding: 1px 0px !important;
+                    }
                 }
                 .fc .fc-daygrid-day-frame {
                     display: flex;
@@ -970,9 +1447,9 @@ document.addEventListener('DOMContentLoaded', function () {
                     z-index: 2;
                 }
                 .fc-daygrid-day-frame.fc-scrollgrid-sync-inner {
-                    aspect-ratio: 1.5 !important;
-                    height: 155px !important; /* Fixed height for all day cells */
-                    max-height: 155px !important;
+                    aspect-ratio: 1 !important;
+                    aspect-ratio: 1 !important; /* Using aspect-ratio instead of fixed height */
+                    max-height: none !important;
                 }
                 .fc-event-title {
                     text-align: left;
@@ -980,17 +1457,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 .fc-daygrid-event-harness {
                     height: 100% !important;
                 }
-                .fc-daygrid-event {
-                    margin-top: auto !important;
-                    display: flex !important;
-                    flex-direction: row !important;
-                    justify-content: flex-start !important;
-                    align-items: center !important;
-                    height: 100% !important;
-                    border-radius: 20px !important;
-                    padding-left: 10px !important;
-                    padding-right: 10px !important;
-                }
+
                 /* Styles for multi-week events */
                 .fc-event-start:not(.fc-event-end) {
                     border-top-right-radius: 0 !important;
@@ -1008,10 +1475,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
                 .multi-day-reservation {
                     z-index: 5;
-                }
-                .fc-daygrid-block-event .fc-event-time, 
-                .fc-daygrid-block-event .fc-event-title {
-                    padding: 1px 5px !important;
                 }
                 .fc-col-header-cell.fc-day.fc-day-sun,
                 .fc-col-header-cell.fc-day.fc-day-mon,
@@ -1046,9 +1509,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 .fc-day fc-day-fri fc-day-today fc-daygrid-day,
                 .fc-day fc-day-sat fc-day-today fc-daygrid-day
                 {
-                    aspect-ratio: 1.5 !important;
-                    height: 155px !important; /* Fixed height for all day cells */
-                    max-height: 155px !important;
+                    aspect-ratio: 1 !important;
+                    aspect-ratio: 1 !important; /* Using aspect-ratio instead of fixed height */
+                    max-height: none !important;
                 }
                 /* Ensure all month tables have the same cell heights */
                 .fc-multimonth-month {
@@ -1063,8 +1526,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
                 /* Force all rows to have the same height */
                 .fc-daygrid-body table tbody tr {
-                    height: 155px !important;
-                    max-height: 155px !important;
+                    aspect-ratio: 1 !important; /* Using aspect-ratio instead of fixed height */
+                    max-height: none !important;
                 }
                 .fc-col-header-cell-cushion {
                     font-size: 14px;
@@ -1080,7 +1543,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 /* Allow only the view harness to scroll */
                 .fc-view-harness.fc-view-harness-active {
                     overflow-y: auto;
-                    max-height: 100%;
+                    max-height: 100% !important;
+                    height: 100% !important;
                 }
                 .fc-header-toolbar.fc-toolbar.fc-toolbar-ltr {
                     padding-top: 20px;
@@ -1127,11 +1591,15 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
                 /* Custom cursor for past days without events */
                 .fc-day-past {
-                    cursor: not-allowed;
+                    cursor: not-allowed !important;
+                }
+                .fc-day-past .fc-event {
+                    cursor: not-allowed !important;
+                    background-color: transparent !important;
                 }
                 /* Custom cursor for reserved days */
                 .reserved-day {
-                    cursor: not-allowed;
+                    cursor: not-allowed !important;
                 }
                 /* Selected day styling */
                 .selected-day {
@@ -1139,6 +1607,9 @@ document.addEventListener('DOMContentLoaded', function () {
                     outline: 3px solid black !important;
                     outline-offset: -6px !important;
                     background-color: transparent !important;
+                }
+                .fc-view-harness.fc-view-harness-active  {
+                    max-height: 80vh !important;
                 }
             `;
         document.head.appendChild(customStyles);
@@ -1169,14 +1640,22 @@ document.addEventListener('DOMContentLoaded', function () {
                 minute: '2-digit',
                 meridiem: 'short'
             },
-            // validRange: {
-            //     start: startDate,
-            //     end: endDate
-            // },
+
             eventClick: function (info) {
                 // Handle event click
                 info.jsEvent.preventDefault();
 
+                // Check if the clicked date is in the past
+                const clickedDate = info.event.start;
+                const today = new Date();
+                today.setHours(0, 0, 0, 0); // Set to beginning of day for accurate comparison
+
+                // Prevent clicks on past dates
+                if (clickedDate < today) {
+                    return;
+                }
+
+                // Rest of the original eventClick handler...
                 // Check if the clicked event is a reservation
                 if (info.event.extendedProps.type === 'reservation') {
                     // Get the reservation ID from the event
@@ -1223,21 +1702,29 @@ document.addEventListener('DOMContentLoaded', function () {
                         } else {
                         }
                     }
-                } else if (['unavailablePeriod', 'short_gap', 'blocked', 'available'].includes(info.event.extendedProps.type)) {
-                    // Handle click on unavailable period, short gap, blocked, or available dates
+                } // In the eventClick handler
+                else if (['unavailablePeriod', 'short_gap', 'blocked', 'available', 'reserved'].includes(info.event.extendedProps.type)) {
+                    // Check for reserved dates
+                    if (info.event.extendedProps.type === 'reserved') {
+                        showCalendarNotification('This date is reserved by an external calendar. Please edit it in the source calendar.');
+                    }
+                    // Check for externally blocked dates
+                    else if (info.event.extendedProps.type === 'blocked' &&
+                        info.event.extendedProps.isKeysBookingBlocked !== true) {
+                        showCalendarNotification('This date is blocked by an external calendar. Please edit it in the source calendar.');
+                    }
+                    // Process editable dates
+                    else {
+                        // Prevent double-click handling
+                        if (!isProcessingClick) {
+                            isProcessingClick = true;
+                            handleNonReservationDateClick(clickedDate);
 
-                    // Use the event's start date directly
-                    const clickedDate = info.event.start;
-
-                    // Prevent double-click handling
-                    if (!isProcessingClick) {
-                        isProcessingClick = true;
-                        handleNonReservationDateClick(clickedDate);
-
-                        // Reset the flag after a short delay
-                        setTimeout(() => {
-                            isProcessingClick = false;
-                        }, 300);
+                            // Reset the flag after a short delay
+                            setTimeout(() => {
+                                isProcessingClick = false;
+                            }, 300);
+                        }
                     }
                 }
             },
@@ -1248,6 +1735,16 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Handle date click
                 const clickedDate = new Date(info.dateStr);
 
+                // Check if the clicked date is in the past
+                const today = new Date();
+                today.setHours(0, 0, 0, 0); // Set to beginning of day for accurate comparison
+
+                // Prevent clicks on past dates
+                if (clickedDate < today) {
+                    return;
+                }
+
+                // Rest of the original dateClick handler...
                 // Find any reservation events that span this date
                 const reservationOnDate = calendarEvents.find(event => {
                     if (event.extendedProps?.type === 'reservation') {
@@ -1296,7 +1793,8 @@ document.addEventListener('DOMContentLoaded', function () {
                         }
                     }
                 } else {
-                    // Check if the clicked date has a non-reservation event
+                    // In the dateClick handler (around line 1250)
+                    // When checking for non-reservation events
                     const nonReservationEvent = calendarEvents.find(event => {
                         if (['unavailablePeriod', 'short_gap', 'blocked', 'available'].includes(event.extendedProps?.type)) {
                             const eventDate = new Date(event.start);
@@ -1305,18 +1803,29 @@ document.addEventListener('DOMContentLoaded', function () {
                         return false;
                     });
 
+                    // In the dateClick handler where we check for non-reservation events
                     if (nonReservationEvent) {
+                        // Check if it's a reserved date
+                        if (nonReservationEvent.extendedProps.type === 'reserved') {
+                            showCalendarNotification('This date is reserved by an external calendar. Please edit it in the source calendar.');
+                        }
+                        // Check if it's an externally blocked date
+                        else if (nonReservationEvent.extendedProps.type === 'blocked' &&
+                            nonReservationEvent.extendedProps.isKeysBookingBlocked !== true) {
+                            showCalendarNotification('This date is blocked by an external calendar. Please edit it in the source calendar.');
+                        }
+                        else {
+                            // Set the flag to prevent double handling
+                            isProcessingClick = true;
 
-                        // Set the flag to prevent double handling
-                        isProcessingClick = true;
+                            // Pass the actual event object instead of just the date string
+                            handleNonReservationDateClick(clickedDate);
 
-                        // Pass the actual event object instead of just the date string
-                        handleNonReservationDateClick(clickedDate);
-
-                        // Reset the flag after a short delay
-                        setTimeout(() => {
-                            isProcessingClick = false;
-                        }, 300);
+                            // Reset the flag after a short delay
+                            setTimeout(() => {
+                                isProcessingClick = false;
+                            }, 300);
+                        }
                     }
                 }
             },
@@ -1327,6 +1836,19 @@ document.addEventListener('DOMContentLoaded', function () {
                     // Remove and re-add events to force refresh
                     calendar.removeAllEvents();
                     calendar.addEventSource(calendarEvents);
+
+                    // ADDED: Re-apply selected-day classes to dates that are selected
+                    // Wait a bit for the DOM to update
+                    setTimeout(() => {
+                        if (selectedDates && selectedDates.length > 0) {
+                            selectedDates.forEach(dateStr => {
+                                const dateElement = document.querySelector(`.fc-daygrid-day[data-date="${dateStr}"]`);
+                                if (dateElement) {
+                                    dateElement.classList.add('selected-day');
+                                }
+                            });
+                        }
+                    }, 100);
                 }, 100);
 
                 // Check if there are events in the current view range
@@ -1357,6 +1879,15 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
 
                 return { html: innerHtml };
+            },
+            // Add the eventDidMount callback here
+            eventDidMount: function (info) {
+                // Add special class for externally blocked dates and reserved dates
+                if ((info.event.extendedProps.type === 'blocked' &&
+                    info.event.extendedProps.isKeysBookingBlocked !== true) ||
+                    info.event.extendedProps.type === 'reserved') {
+                    info.el.classList.add('fc-day-blocked-external');
+                }
             }
         });
 
@@ -1365,6 +1896,147 @@ document.addEventListener('DOMContentLoaded', function () {
         calendarEl.style.fontFamily = "'TT Fors', sans-serif";
 
         calendar.render();
+
+        addNextYearButtonListener();
+
+        addNavigationButtonListeners();
+
+        // Function to handle responsive behavior
+        function setupResponsiveCalendar() {
+            const toolbarContainer = document.querySelector('[data-element="calendarToolbarContainer"]');
+            let mobileNoticePopup;
+
+            // Create mobile notice popup if it doesn't exist
+            function createMobileNoticePopup() {
+                // Check if popup already exists
+                if (document.querySelector('#mobile-notice-popup')) {
+                    return document.querySelector('#mobile-notice-popup');
+                }
+
+                // Create popup element
+                const popup = document.createElement('div');
+                popup.id = 'mobile-notice-popup';
+                popup.style.position = 'fixed';
+                popup.style.bottom = '20px';
+                popup.style.left = '50%';
+                popup.style.transform = 'translateX(-50%)';
+                popup.style.backgroundColor = '#333';
+                popup.style.color = 'white';
+                popup.style.padding = '12px 20px';
+                popup.style.borderRadius = '8px';
+                popup.style.boxShadow = '0 2px 10px rgba(0,0,0,0.2)';
+                popup.style.zIndex = '9999';
+                popup.style.maxWidth = '90%';
+                popup.style.textAlign = 'center';
+                popup.style.fontSize = '14px';
+                popup.style.display = 'none';
+
+                // Add message
+                popup.innerHTML = 'Please use a laptop or desktop to edit calendar settings <button id="close-mobile-notice" style="background:none;border:none;color:white;margin-left:10px;font-size:16px;cursor:pointer">×</button>';
+
+                // Add to document
+                document.body.appendChild(popup);
+
+                // Add close button functionality
+                document.getElementById('close-mobile-notice').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    popup.style.display = 'none';
+                });
+
+                return popup;
+            }
+
+            // Function to show mobile notice
+            function showMobileNotice() {
+                if (!mobileNoticePopup) {
+                    mobileNoticePopup = createMobileNoticePopup();
+                }
+                mobileNoticePopup.style.display = 'block';
+
+                // Auto-hide after 5 seconds
+                setTimeout(() => {
+                    mobileNoticePopup.style.display = 'none';
+                }, 5000);
+            }
+
+            // Function to check screen width and apply restrictions
+            function applyMobileRestrictions() {
+                if (window.innerWidth < 992) {
+                    // Hide toolbar container on mobile
+                    if (toolbarContainer) {
+                        toolbarContainer.style.display = 'none';
+                    }
+
+                    // Show mobile notice
+                    showMobileNotice();
+
+                    // If calendar is initialized, modify its click handling
+                    if (calendar) {
+                        // Store the original eventClick function
+                        if (!calendar._originalEventClick && calendar.getOption('eventClick')) {
+                            calendar._originalEventClick = calendar.getOption('eventClick');
+
+                            // Replace with restricted version that only allows reservation clicks
+                            calendar.setOption('eventClick', function (info) {
+                                // Only allow clicks on reservation type events
+                                if (info.event.extendedProps.type === 'reservation') {
+                                    // Call the original handler for reservations
+                                    calendar._originalEventClick(info);
+                                } else {
+                                    // Show notice for other event types
+                                    showMobileNotice();
+                                }
+                            });
+
+                        }
+
+                        // Store original dateClick and replace with notice
+                        if (!calendar._originalDateClick && calendar.getOption('dateClick')) {
+                            calendar._originalDateClick = calendar.getOption('dateClick');
+
+                            // Show notice when clicking on dates
+                            calendar.setOption('dateClick', function () {
+                                showMobileNotice();
+                            });
+                        } else if (!calendar.getOption('dateClick')) {
+                            // If no dateClick handler exists, add one to show notice
+                            calendar.setOption('dateClick', function () {
+                                showMobileNotice();
+                            });
+                        }
+                    }
+                } else {
+                    // Restore normal functionality on desktop
+                    if (toolbarContainer) {
+                        toolbarContainer.style.display = 'flex';
+                    }
+
+                    // Hide mobile notice if visible
+                    if (mobileNoticePopup) {
+                        mobileNoticePopup.style.display = 'none';
+                    }
+
+                    // Restore original click handlers if they exist
+                    if (calendar && calendar._originalEventClick) {
+                        calendar.setOption('eventClick', calendar._originalEventClick);
+
+                        // Restore date click functionality if needed
+                        if (calendar._originalDateClick) {
+                            calendar.setOption('dateClick', calendar._originalDateClick);
+                        }
+                    }
+                }
+            }
+
+            // Apply restrictions on load
+            applyMobileRestrictions();
+
+            // Update on window resize
+            window.addEventListener('resize', applyMobileRestrictions);
+        }
+
+        // Call the responsive setup function
+        setupResponsiveCalendar();
     }
 
 
@@ -1378,6 +2050,16 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Ensure date is a Date object
         const dateObj = date instanceof Date ? date : new Date(date);
+
+        // Check if the clicked date is in the past
+        const today = new Date();
+        today.setHours(0, 0, 0, 0); // Set to beginning of day for accurate comparison
+
+        // Prevent clicks on past dates
+        if (dateObj < today) {
+            return;
+        }
+
         // Format as YYYY-MM-DD for consistent comparison
         const dateStr = dateObj.toISOString().split('T')[0];
 
@@ -1391,8 +2073,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Find the event for this date to check its type
         const eventOnDate = calendarEvents.find(event => {
-            const eventDate = new Date(event.start);
-            return eventDate.toDateString() === dateObj.toDateString();
+            const eventDate = event.start
+            return eventDate === dateStr
         });
 
         if (!eventOnDate) {
@@ -1401,7 +2083,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Get the event type and log it
         const eventType = eventOnDate.extendedProps.type;
-        console.log(`Clicked date: ${dateStr}, Type: ${eventType}`);
 
         // Get the event price
         const eventPrice = eventOnDate.extendedProps.price;
@@ -1652,28 +2333,97 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Calculate number of nights in this range
                 const nightsCount = calculateNightsInRange(dateRanges.blocked[0].startDate, dateRanges.blocked[0].endDate);
 
-                // Cap the minimum nights at property's min_nights if available
-                const propertyMinNights = propertiesDataRef && propertiesDataRef.min_nights ? propertiesDataRef.min_nights : nightsCount;
+                // Check for adjacent available days
+                const startDate = new Date(dateRanges.blocked[0].startDate);
+                const endDate = new Date(dateRanges.blocked[0].endDate);
 
-                const cappedNightsCount = Math.min(nightsCount, propertyMinNights);
+                // Count available days before the range start
+                let availableDaysBefore = 0;
+                let checkDate = new Date(startDate);
+                checkDate.setDate(checkDate.getDate() - 1); // Start with day before range
 
-                minNightsInput.value = cappedNightsCount;
+                while (true) {
+                    const dateStr = checkDate.toISOString().split('T')[0];
+                    const event = calendarEvents.find(event => {
+                        const eventDateStr = event.start.split('T')[0];
+                        return eventDateStr === dateStr;
+                    });
+
+                    if (event && event.extendedProps.type === 'available' && !selectedDates.includes(dateStr)) {
+                        availableDaysBefore++;
+                        checkDate.setDate(checkDate.getDate() - 1);
+                    } else {
+                        break; // Stop when we hit a non-available day
+                    }
+                }
+
+                // Count available days after the range end
+                let availableDaysAfter = 0;
+                checkDate = new Date(endDate);
+                checkDate.setDate(checkDate.getDate() + 1); // Start with day after range
+
+                while (true) {
+                    const dateStr = checkDate.toISOString().split('T')[0];
+                    const event = calendarEvents.find(event => {
+                        const eventDateStr = event.start.split('T')[0];
+                        return eventDateStr === dateStr;
+                    });
+
+                    if (event && event.extendedProps.type === 'available' && !selectedDates.includes(dateStr)) {
+                        availableDaysAfter++;
+                        checkDate.setDate(checkDate.getDate() + 1);
+                    } else {
+                        break; // Stop when we hit a non-available day
+                    }
+                }
+
+                // Calculate maximum possible min nights based on range + adjacent available days
+                const maxPossibleMinNights = nightsCount + availableDaysBefore + availableDaysAfter;
+
+                // Get property's min_nights value (default to 1 if not available)
+                const propertyMinNights = propertiesDataRef && propertiesDataRef.min_nights ? propertiesDataRef.min_nights : 1;
+
+                // Set initial value: if enough adjacent days, use property min nights, otherwise cap at range length
+                let initialValue = propertyMinNights;
+                if (initialValue > maxPossibleMinNights) {
+                    initialValue = nightsCount; // Cap at range length if property min nights is too high
+                }
+
+                minNightsInput.value = initialValue;
+
+                // Store max value as a data attribute for validation
+                minNightsInput.setAttribute('data-max-nights', maxPossibleMinNights.toString());
 
                 // Update the label next to the input
                 const minNightsLabel = originalOpenBlock.querySelector('[data-element="toolbarEdit_customDates_openNights_minNights_label"]');
                 if (minNightsLabel) {
-                    minNightsLabel.textContent = cappedNightsCount === 1 ? 'night' : 'nights';
+                    minNightsLabel.textContent = initialValue === 1 ? 'night' : 'nights';
                 }
 
                 // Update the descriptive text
                 const minNightsText = originalOpenBlock.querySelector('[data-element="toolbarEdit_customDates_openNights_minNights_text"]');
                 if (minNightsText) {
-                    minNightsText.textContent = `To open these nights, the minimum trip length should be ${cappedNightsCount} ${cappedNightsCount === 1 ? 'night' : 'nights'}.`;
+                    minNightsText.textContent = `To open these nights, the minimum trip length should be ${initialValue} ${initialValue === 1 ? 'night' : 'nights'}.`;
                 }
 
-                // Add input event listener to update text when input changes
+                // Add input event listener to update text when input changes and enforce max value
                 minNightsInput.addEventListener('input', function () {
-                    const value = parseInt(this.value) || 1;
+                    let value = parseInt(this.value) || 1;
+                    const maxNights = parseInt(this.getAttribute('data-max-nights')) || nightsCount;
+
+                    // Enforce minimum of 1
+                    if (value < 1) {
+                        value = 1;
+                        this.value = value;
+                    }
+
+                    // Enforce maximum based on range + adjacent available days
+                    if (value > maxNights) {
+                        value = maxNights;
+                        this.value = value;
+                    }
+
+                    // Update text
                     const minNightsText = originalOpenBlock.querySelector('[data-element="toolbarEdit_customDates_openNights_minNights_text"]');
                     if (minNightsText) {
                         minNightsText.textContent = `To open these nights, the minimum trip length should be ${value} ${value === 1 ? 'night' : 'nights'}.`;
@@ -1683,6 +2433,30 @@ document.addEventListener('DOMContentLoaded', function () {
                     const minNightsLabel = originalOpenBlock.querySelector('[data-element="toolbarEdit_customDates_openNights_minNights_label"]');
                     if (minNightsLabel) {
                         minNightsLabel.textContent = value === 1 ? 'night' : 'nights';
+                    }
+                });
+
+                // Add blur event listener to enforce minimum when clicking out
+                minNightsInput.addEventListener('blur', function () {
+                    let value = parseInt(this.value);
+                    const maxNights = parseInt(this.getAttribute('data-max-nights')) || nightsCount;
+
+                    // If value is 0, NaN, or less than 1, force it to 1
+                    if (isNaN(value) || value < 1) {
+                        value = 1;
+                        this.value = value;
+
+                        // Force update text
+                        const minNightsText = originalOpenBlock.querySelector('[data-element="toolbarEdit_customDates_openNights_minNights_text"]');
+                        if (minNightsText) {
+                            minNightsText.textContent = `To open these nights, the minimum trip length should be ${value} ${value === 1 ? 'night' : 'nights'}.`;
+                        }
+
+                        // Force update label
+                        const minNightsLabel = originalOpenBlock.querySelector('[data-element="toolbarEdit_customDates_openNights_minNights_label"]');
+                        if (minNightsLabel) {
+                            minNightsLabel.textContent = value === 1 ? 'night' : 'nights';
+                        }
                     }
                 });
             }
@@ -1711,28 +2485,97 @@ document.addEventListener('DOMContentLoaded', function () {
                     // Calculate number of nights in this range
                     const nightsCount = calculateNightsInRange(dateRanges.blocked[i].startDate, dateRanges.blocked[i].endDate);
 
-                    // Cap the minimum nights at property's min_nights if available
-                    const propertyMinNights = propertiesDataRef && propertiesDataRef.min_nights ? propertiesDataRef.min_nights : nightsCount;
+                    // Check for adjacent available days
+                    const startDate = new Date(dateRanges.blocked[i].startDate);
+                    const endDate = new Date(dateRanges.blocked[i].endDate);
 
-                    const cappedNightsCount = Math.min(nightsCount, propertyMinNights);
+                    // Count available days before the range start
+                    let availableDaysBefore = 0;
+                    let checkDate = new Date(startDate);
+                    checkDate.setDate(checkDate.getDate() - 1); // Start with day before range
 
-                    minNightsInput.value = cappedNightsCount;
+                    while (true) {
+                        const dateStr = checkDate.toISOString().split('T')[0];
+                        const event = calendarEvents.find(event => {
+                            const eventDateStr = event.start.split('T')[0];
+                            return eventDateStr === dateStr;
+                        });
+
+                        if (event && event.extendedProps.type === 'available') {
+                            availableDaysBefore++;
+                            checkDate.setDate(checkDate.getDate() - 1);
+                        } else {
+                            break; // Stop when we hit a non-available day
+                        }
+                    }
+
+                    // Count available days after the range end
+                    let availableDaysAfter = 0;
+                    checkDate = new Date(endDate);
+                    checkDate.setDate(checkDate.getDate() + 1); // Start with day after range
+
+                    while (true) {
+                        const dateStr = checkDate.toISOString().split('T')[0];
+                        const event = calendarEvents.find(event => {
+                            const eventDateStr = event.start.split('T')[0];
+                            return eventDateStr === dateStr;
+                        });
+
+                        if (event && event.extendedProps.type === 'available') {
+                            availableDaysAfter++;
+                            checkDate.setDate(checkDate.getDate() + 1);
+                        } else {
+                            break; // Stop when we hit a non-available day
+                        }
+                    }
+
+                    // Calculate maximum possible min nights based on range + adjacent available days
+                    const maxPossibleMinNights = nightsCount + availableDaysBefore + availableDaysAfter;
+
+                    // Get property's min_nights value (default to 1 if not available)
+                    const propertyMinNights = propertiesDataRef && propertiesDataRef.min_nights ? propertiesDataRef.min_nights : 1;
+
+                    // Set initial value: if enough adjacent days, use property min nights, otherwise cap at range length
+                    let initialValue = propertyMinNights;
+                    if (initialValue > maxPossibleMinNights) {
+                        initialValue = nightsCount; // Cap at range length if property min nights is too high
+                    }
+
+                    minNightsInput.value = initialValue;
+
+                    // Store max value as a data attribute for validation
+                    minNightsInput.setAttribute('data-max-nights', maxPossibleMinNights.toString());
 
                     // Update the label next to the input
                     const minNightsLabel = clonedBlock.querySelector('[data-element="toolbarEdit_customDates_openNights_minNights_label"]');
                     if (minNightsLabel) {
-                        minNightsLabel.textContent = cappedNightsCount === 1 ? 'night' : 'nights';
+                        minNightsLabel.textContent = initialValue === 1 ? 'night' : 'nights';
                     }
 
                     // Update the descriptive text
                     const minNightsText = clonedBlock.querySelector('[data-element="toolbarEdit_customDates_openNights_minNights_text"]');
                     if (minNightsText) {
-                        minNightsText.textContent = `To open these nights, the minimum trip length should be ${cappedNightsCount} ${cappedNightsCount === 1 ? 'night' : 'nights'}.`;
+                        minNightsText.textContent = `To open these nights, the minimum trip length should be ${initialValue} ${initialValue === 1 ? 'night' : 'nights'}.`;
                     }
 
-                    // Add input event listener to update text when input changes
+                    // Add input event listener to update text when input changes and enforce max value
                     minNightsInput.addEventListener('input', function () {
-                        const value = parseInt(this.value) || 1;
+                        let value = parseInt(this.value) || 1;
+                        const maxNights = parseInt(this.getAttribute('data-max-nights')) || nightsCount;
+
+                        // Enforce minimum of 1
+                        if (value < 1) {
+                            value = 1;
+                            this.value = value;
+                        }
+
+                        // Enforce maximum based on range + adjacent available days
+                        if (value > maxNights) {
+                            value = maxNights;
+                            this.value = value;
+                        }
+
+                        // Update text
                         const minNightsText = clonedBlock.querySelector('[data-element="toolbarEdit_customDates_openNights_minNights_text"]');
                         if (minNightsText) {
                             minNightsText.textContent = `To open these nights, the minimum trip length should be ${value} ${value === 1 ? 'night' : 'nights'}.`;
@@ -1742,6 +2585,30 @@ document.addEventListener('DOMContentLoaded', function () {
                         const minNightsLabel = clonedBlock.querySelector('[data-element="toolbarEdit_customDates_openNights_minNights_label"]');
                         if (minNightsLabel) {
                             minNightsLabel.textContent = value === 1 ? 'night' : 'nights';
+                        }
+                    });
+
+                    // Add blur event listener to enforce minimum when clicking out
+                    minNightsInput.addEventListener('blur', function () {
+                        let value = parseInt(this.value);
+                        const maxNights = parseInt(this.getAttribute('data-max-nights')) || nightsCount;
+
+                        // If value is 0, NaN, or less than 1, force it to 1
+                        if (isNaN(value) || value < 1) {
+                            value = 1;
+                            this.value = value;
+
+                            // Force update text
+                            const minNightsText = clonedBlock.querySelector('[data-element="toolbarEdit_customDates_openNights_minNights_text"]');
+                            if (minNightsText) {
+                                minNightsText.textContent = `To open these nights, the minimum trip length should be ${value} ${value === 1 ? 'night' : 'nights'}.`;
+                            }
+
+                            // Force update label
+                            const minNightsLabel = clonedBlock.querySelector('[data-element="toolbarEdit_customDates_openNights_minNights_label"]');
+                            if (minNightsLabel) {
+                                minNightsLabel.textContent = value === 1 ? 'night' : 'nights';
+                            }
                         }
                     });
                 }
@@ -1810,26 +2677,46 @@ document.addEventListener('DOMContentLoaded', function () {
         const checkbox = blockElement.querySelector(checkboxSelector);
         if (!checkbox) return;
 
-        // Set initial state
-        checkbox.isChecked = false;
+        // Set initial state - use data attribute instead of custom property
+        checkbox.setAttribute('data-checked', 'false');
+
+        // Clear any existing listeners if this is a cloned element
+        checkbox.replaceWith(checkbox.cloneNode(true));
+
+        // Re-select the checkbox after replacement
+        const updatedCheckbox = blockElement.querySelector(checkboxSelector);
 
         // Set checkbox style to unchecked initially
-        checkbox.style.backgroundColor = 'transparent';
-        checkbox.style.border = '2px solid #000';
-        checkbox.style.borderRadius = '5px';
-        checkbox.style.padding = '5px'; // Added padding all around
+        updatedCheckbox.style.backgroundColor = 'transparent';
+        updatedCheckbox.style.border = '2px solid #000';
+        updatedCheckbox.style.borderRadius = '5px';
+        updatedCheckbox.style.padding = '5px';
 
-        // Store date range data as attributes
-        checkbox.dateRange = dateRange;
+        // Store date range data as JSON attributes for reliable serialization
+        updatedCheckbox.setAttribute('data-start-date', dateRange.startDate.toISOString());
+        updatedCheckbox.setAttribute('data-end-date', dateRange.endDate.toISOString());
+        updatedCheckbox.setAttribute('data-type', type);
 
         // Add click event handler
-        checkbox.addEventListener('click', function () {
-            this.isChecked = !this.isChecked;
+        updatedCheckbox.addEventListener('click', function (e) {
+            // Prevent event bubbling
+            e.stopPropagation();
+
+            const isCurrentlyChecked = this.getAttribute('data-checked') === 'true';
+            const newState = !isCurrentlyChecked;
+
+            this.setAttribute('data-checked', newState.toString());
+
+            // Get date range from attributes
+            const startDate = new Date(this.getAttribute('data-start-date'));
+            const endDate = new Date(this.getAttribute('data-end-date'));
+            const dateRange = { startDate, endDate };
 
             // Update visual appearance
-            if (this.isChecked) {
+            if (newState) {
                 this.style.backgroundColor = '#000';
-                // Create and append checkmark
+
+                // Create checkmark element
                 const checkmark = document.createElement('div');
                 checkmark.className = 'checkbox-checkmark';
                 checkmark.style.color = 'white';
@@ -1838,46 +2725,65 @@ document.addEventListener('DOMContentLoaded', function () {
                 checkmark.style.display = 'flex';
                 checkmark.style.justifyContent = 'center';
                 checkmark.style.alignItems = 'center';
-                checkmark.textContent = '✓'; // Using textContent instead of innerHTML for security
-                this.innerHTML = '';
-                this.appendChild(checkmark);
-
-                // Ensure the checkmark is visible by setting explicit dimensions and position
                 checkmark.style.width = '100%';
                 checkmark.style.height = '100%';
                 checkmark.style.position = 'relative';
                 checkmark.style.top = '0';
                 checkmark.style.left = '0';
 
+                // Clear the checkbox content safely
+                while (this.firstChild) {
+                    this.removeChild(this.firstChild);
+                }
+
+                // Add checkmark
+                checkmark.textContent = '✓';
+                this.appendChild(checkmark);
+
                 // Add to appropriate tracking array
-                if (type === 'open') {
+                const checkType = this.getAttribute('data-type');
+                if (checkType === 'open') {
+                    window.checkedOpenRanges = window.checkedOpenRanges || [];
                     window.checkedOpenRanges.push({
-                        dateRange: this.dateRange,
+                        dateRange: dateRange,
                         minNights: getMinNightsForRange(blockElement)
                     });
                 } else {
+                    window.checkedBlockedRanges = window.checkedBlockedRanges || [];
                     window.checkedBlockedRanges.push({
-                        dateRange: this.dateRange
+                        dateRange: dateRange
                     });
                 }
             } else {
                 this.style.backgroundColor = 'transparent';
-                this.innerHTML = '';
+
+                // Clear the checkbox content safely
+                while (this.firstChild) {
+                    this.removeChild(this.firstChild);
+                }
 
                 // Remove from tracking array
-                if (type === 'open') {
-                    window.checkedOpenRanges = window.checkedOpenRanges.filter(item =>
-                        !(areSameDates(item.dateRange.startDate, this.dateRange.startDate) &&
-                            areSameDates(item.dateRange.endDate, this.dateRange.endDate))
+                const checkType = this.getAttribute('data-type');
+                if (checkType === 'open') {
+                    window.checkedOpenRanges = (window.checkedOpenRanges || []).filter(item =>
+                        !(isSameDay(item.dateRange.startDate, startDate) &&
+                            isSameDay(item.dateRange.endDate, endDate))
                     );
                 } else {
-                    window.checkedBlockedRanges = window.checkedBlockedRanges.filter(item =>
-                        !(areSameDates(item.dateRange.startDate, this.dateRange.startDate) &&
-                            areSameDates(item.dateRange.endDate, this.dateRange.endDate))
+                    window.checkedBlockedRanges = (window.checkedBlockedRanges || []).filter(item =>
+                        !(isSameDay(item.dateRange.startDate, startDate) &&
+                            isSameDay(item.dateRange.endDate, endDate))
                     );
                 }
             }
         });
+    }
+
+    // More reliable date comparison function
+    function isSameDay(date1, date2) {
+        return date1.getFullYear() === date2.getFullYear() &&
+            date1.getMonth() === date2.getMonth() &&
+            date1.getDate() === date2.getDate();
     }
 
     // Helper function to get min nights value from a range block
@@ -1937,6 +2843,8 @@ document.addEventListener('DOMContentLoaded', function () {
         const availabilityToggle = document.querySelector('[data-element="toolbarEdit_customDates_availability_toggle"]');
         const priceContainer = document.querySelector('[data-element="toolbarEdit_customDates_priceContainer"]');
         const availabilityContainer = document.querySelector('[data-element="toolbarEdit_customDates_availabilityContainer"]');
+        const editDatesContainer = document.querySelector('[data-element="toolbarEdit_customDates_editDates"]');
+        const bodyContainer = document.querySelector('[data-element="toolbarEdit_customDates_bodyContainer"]');
 
         if (!pricingToggle || !availabilityToggle || !priceContainer || !availabilityContainer) {
             return;
@@ -1952,6 +2860,11 @@ document.addEventListener('DOMContentLoaded', function () {
             // Force container visibility
             priceContainer.style.display = 'flex';
             availabilityContainer.style.display = 'none';
+
+            // Hide editDates and show bodyContainer when switching to availability view
+            if (editDatesContainer) editDatesContainer.style.display = 'none';
+            if (bodyContainer) bodyContainer.style.display = 'flex';
+
         } else { // viewName === 'availability'
             // Update toggle buttons
             availabilityToggle.classList.add('selected');
@@ -1960,6 +2873,10 @@ document.addEventListener('DOMContentLoaded', function () {
             // Force container visibility
             availabilityContainer.style.display = 'flex';
             priceContainer.style.display = 'none';
+
+            // Hide editDates and show bodyContainer when switching to availability view
+            if (editDatesContainer) editDatesContainer.style.display = 'none';
+            if (bodyContainer) bodyContainer.style.display = 'flex';
 
             // Update availability containers when switching to availability view
             updateAvailabilityContainers();
@@ -1991,7 +2908,6 @@ document.addEventListener('DOMContentLoaded', function () {
         // Hide custom dates toolbar and show regular toolbar
         customDates.style.display = 'none';
         toolbar.style.display = 'flex';
-
     }
 
     // Function to update the custom dates text based on selection
@@ -2275,7 +3191,17 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Setup save button functionality
         if (saveButton) {
-            saveButton.addEventListener('click', function () {
+            saveButton.addEventListener('click', async function () {
+                // Check if we're already processing a save
+                if (isSaving) {
+
+                    return;
+                }
+
+                // Set flag to prevent duplicate saves
+                isSaving = true;
+
+                // Original pricing logic
                 if (currentView === 'pricing') {
                     // Original pricing logic
                     if (!priceInput || selectedDates.length === 0) return;
@@ -2348,86 +3274,178 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (saveButtonText) saveButtonText.style.display = 'none';
                     if (saveButtonLoader) saveButtonLoader.style.display = 'flex';
 
-                    // Prepare data arrays for API
-                    const openDates = [];
-                    const blockedDates = [];
+                    try {
+                        // Only proceed if checkboxes are selected
+                        if (window.checkedOpenRanges.length > 0 || window.checkedBlockedRanges.length > 0) {
+                            // Prepare data arrays for API
+                            const openDates = [];
+                            const blockedDates = [];
 
-                    // Process open ranges (dates to be made available)
-                    window.checkedOpenRanges.forEach(item => {
-                        const startDate = item.dateRange.startDate;
-                        const endDate = item.dateRange.endDate;
-                        const minNights = item.minNights;
+                            // Process open ranges (dates to be made available)
+                            window.checkedOpenRanges.forEach(item => {
+                                const startDate = item.dateRange.startDate;
+                                const endDate = item.dateRange.endDate;
+                                const minNights = item.minNights;
 
-                        // Add all dates in this range
-                        const currentDate = new Date(startDate);
-                        while (currentDate <= endDate) {
-                            openDates.push({
-                                Date: formatDateYYYYMMDD(currentDate),
-                                minNights: minNights
-                            });
-                            currentDate.setDate(currentDate.getDate() + 1);
-                        }
-                    });
-
-                    // Process blocked ranges (dates to be blocked)
-                    window.checkedBlockedRanges.forEach(item => {
-                        const startDate = item.dateRange.startDate;
-                        const endDate = item.dateRange.endDate;
-
-                        // Add all dates in this range
-                        const currentDate = new Date(startDate);
-                        while (currentDate <= endDate) {
-                            blockedDates.push({
-                                Date: formatDateYYYYMMDD(currentDate)
-                            });
-                            currentDate.setDate(currentDate.getDate() + 1);
-                        }
-                    });
-
-                    console.log('openDates', openDates);
-                    console.log('blockedDates', blockedDates);
-
-                    // Only make the API call if there are selected dates
-                    if (openDates.length > 0 || blockedDates.length > 0) {
-                        fetch('https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/edit_property_customAvailability', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify({
-                                property_id: propertyId,
-                                openDates: openDates,
-                                blockedDates: blockedDates
-                            })
-                        })
-                            .then(response => {
-                                if (!response.ok) {
-                                    throw new Error('Network response was not ok');
+                                // Add all dates in this range
+                                const currentDate = new Date(startDate);
+                                while (currentDate <= endDate) {
+                                    openDates.push({
+                                        Date: formatDateYYYYMMDD(currentDate),
+                                        minNights: minNights
+                                    });
+                                    currentDate.setDate(currentDate.getDate() + 1);
                                 }
-                                return response.json();
-                            })
-                            .then(data => {
-                                // Hide loader and show text again
-                                if (saveButtonText) saveButtonText.style.display = 'block';
-                                if (saveButtonLoader) saveButtonLoader.style.display = 'none';
-                                exitCustomDatesToolbar();
-
-                                // Refresh calendar data after successful update
-                                fetchCalendarData(propertyId);
-                            })
-                            .catch(error => {
-                                console.error('Error:', error);
-                                alert('Failed to update availability. Please try again.');
-                                // Hide loader and show text again
-                                if (saveButtonText) saveButtonText.style.display = 'block';
-                                if (saveButtonLoader) saveButtonLoader.style.display = 'none';
                             });
-                    } else {
-                        // No dates selected for update
-                        alert('Please select at least one date range to update.');
+
+                            // Process blocked ranges (dates to be blocked)
+                            window.checkedBlockedRanges.forEach(item => {
+                                const startDate = item.dateRange.startDate;
+                                const endDate = item.dateRange.endDate;
+
+                                // Add all dates in this range
+                                const currentDate = new Date(startDate);
+                                while (currentDate <= endDate) {
+                                    blockedDates.push({
+                                        Date: formatDateYYYYMMDD(currentDate)
+                                    });
+                                    currentDate.setDate(currentDate.getDate() + 1);
+                                }
+                            });
+
+
+                            // First API call - update availability
+                            if (openDates.length > 0 || blockedDates.length > 0) {
+                                const availabilityResponse = await fetch('https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/edit_property_customAvailability', {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json'
+                                    },
+                                    body: JSON.stringify({
+                                        property_id: propertyId,
+                                        openDates: openDates,
+                                        blockedDates: blockedDates
+                                    })
+                                });
+
+                                if (!availabilityResponse.ok) {
+                                    throw new Error('Failed to update availability');
+                                }
+                                await availabilityResponse.json();
+                            }
+
+                            // Process blocked date ranges for second API call
+                            // Use the globally stored ranges
+                            let blockedDateRanges = window.blockedDateRanges || [];
+
+                            // Initialize new ranges to add
+                            let newBlockedRanges = [];
+
+                            // Add user-selected blocked dates to the array
+                            if (window.checkedBlockedRanges && window.checkedBlockedRanges.length > 0) {
+                                window.checkedBlockedRanges.forEach(item => {
+                                    const startDate = formatDateYYYYMMDD(item.dateRange.startDate);
+                                    const endDate = formatDateYYYYMMDD(item.dateRange.endDate);
+                                    newBlockedRanges.push({
+                                        range_start: startDate,
+                                        range_end: endDate
+                                    });
+                                });
+                            }
+
+                            // Process dates to be made available (unblocked)
+                            if (window.checkedOpenRanges && window.checkedOpenRanges.length > 0) {
+                                // Convert ranges to individual dates for easier filtering
+                                const datesToRemove = new Set();
+                                window.checkedOpenRanges.forEach(item => {
+                                    const start = item.dateRange.startDate;
+                                    const end = item.dateRange.endDate;
+
+                                    // Add all dates in the range to the set
+                                    const currentDate = new Date(start);
+                                    while (currentDate <= end) {
+                                        datesToRemove.add(formatDateYYYYMMDD(currentDate));
+                                        currentDate.setDate(currentDate.getDate() + 1);
+                                    }
+                                });
+
+                                // Remove these dates from existing blocked dates
+                                const remainingBlockedDates = [];
+                                blockedDateRanges.forEach(range => {
+                                    const start = new Date(range.range_start);
+                                    const end = new Date(range.range_end);
+
+                                    // Check all dates in the range
+                                    const currentDate = new Date(start);
+                                    while (currentDate <= end) {
+                                        const dateStr = formatDateYYYYMMDD(currentDate);
+                                        if (!datesToRemove.has(dateStr)) {
+                                            remainingBlockedDates.push(dateStr);
+                                        }
+                                        currentDate.setDate(currentDate.getDate() + 1);
+                                    }
+                                });
+
+                                // Convert remaining dates back to ranges
+                                const sortedDates = remainingBlockedDates.sort();
+                                blockedDateRanges = convertToDateRanges(sortedDates);
+                            }
+
+                            // Add new blocked ranges
+                            blockedDateRanges = [...blockedDateRanges, ...newBlockedRanges];
+
+                            // Merge adjacent ranges
+                            blockedDateRanges = mergeAdjacentRanges(blockedDateRanges);
+
+                            // Only make the blocked dates request if there are dates to block
+                            if (blockedDateRanges.length > 0) {
+                                // Second API call - update blocked dates
+                                const blockedResponse = await fetch('https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/blocked_dates', {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json'
+                                    },
+                                    body: JSON.stringify({
+                                        property_id: propertyId,
+                                        dateRanges: blockedDateRanges
+                                    })
+                                });
+
+                                if (!blockedResponse.ok) {
+                                    throw new Error('Failed to update blocked dates');
+                                }
+
+                                const blockedResult = await blockedResponse.json();
+                            } else {
+                            }
+                        } else {
+
+                        }
+
+                        // Refresh calendar data only once after all API calls
+                        await fetchCalendarData(propertyId);
+
+                        // Hide loader and show text again
                         if (saveButtonText) saveButtonText.style.display = 'block';
                         if (saveButtonLoader) saveButtonLoader.style.display = 'none';
+
+                        // Exit toolbar only after all operations are complete
+                        exitCustomDatesToolbar();
+                    } catch (error) {
+                        console.error('Error:', error);
+                        alert('Failed to update availability. Please try again.');
+                        // Hide loader and show text again
+                        if (saveButtonText) saveButtonText.style.display = 'block';
+                        if (saveButtonLoader) saveButtonLoader.style.display = 'none';
+                    } finally {
+                        // Reset the saving flag so future saves can proceed
+                        isSaving = false;
                     }
+                }
+
+                // Reset the saving flag when price view completes too
+                if (currentView === 'pricing') {
+                    isSaving = false;
                 }
             });
         }
@@ -2435,6 +3453,8 @@ document.addEventListener('DOMContentLoaded', function () {
         // Variables to store selected dates
         let selectedStartDate = null;
         let selectedEndDate = null;
+
+
 
         // Create input fields for date entry
         function createDateInput(container, isStartDate) {
@@ -2780,6 +3800,18 @@ document.addEventListener('DOMContentLoaded', function () {
                 const dateStr = currentDate.toISOString().split('T')[0];
                 selectedDates.push(dateStr);
 
+                // Determine and store the date type
+                const event = calendarEvents.find(event => {
+                    const eventDateStr = event.start.split('T')[0];
+                    return eventDateStr === dateStr;
+                });
+
+                if (event) {
+                    selectedDateTypes[dateStr] = event.extendedProps.type;
+                } else {
+                    selectedDateTypes[dateStr] = 'available'; // Default to available if no event
+                }
+
                 // Add selected styling to the day
                 const dateElement = document.querySelector(`.fc-daygrid-day[data-date="${dateStr}"]`);
                 if (dateElement) {
@@ -2792,6 +3824,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
             // Update the custom dates text
             updateCustomDatesText();
+
+            // Call updatePriceInput and updateAvailabilityContainers
+            updatePriceInput();
 
             // Hide edit dates container and show body container
             if (editDatesContainer) editDatesContainer.style.display = 'none';
@@ -3475,7 +4510,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
 
 
-
     // Function to setup the toolbar with property data
     function setupToolbar(propertyData) {
         if (!propertyData) return;
@@ -3512,10 +4546,13 @@ document.addEventListener('DOMContentLoaded', function () {
         // Setup availability window edit functionality
         setupAvailabilityWindowEdit(propertyData.availabilityWindow_months, propertyData.id);
 
+        // Setup connect calendar display
+        updateToolbarConnectCalendar(propertyData.is_synced, propertyData.calendar_url);
+
+        // Setup connect calendar edit functionality
+        setupConnectCalendarEdit(propertyData.is_synced, propertyData.calendar_sync_endpoint, propertyData.id, propertyData._property_icals);
+
         setupEditDatesFeature(propertyId, propertyData);
-
-
-
 
     }
 
@@ -4175,7 +5212,6 @@ document.addEventListener('DOMContentLoaded', function () {
                         fetchCalendarData(propertyId);
 
                     } catch (error) {
-                        console.error('Error saving advance notice:', error);
                         alert('Failed to save the new advance notice. Please try again.');
                     } finally {
                         // Hide loader and show text regardless of outcome
@@ -4209,6 +5245,685 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
+    // Function to update the connect calendar display in the toolbar
+    function updateToolbarConnectCalendar(isSynced, calendarUrl) {
+        const connectCalendarElement = document.querySelector('[data-element="toolbar_connectCalendar_text"]');
+        if (connectCalendarElement) {
+            connectCalendarElement.textContent = isSynced ? 'Connected' : 'Not Connected';
+        }
+
+        // If we have additional elements to display calendar URL, update them here
+        const calendarUrlElement = document.querySelector('[data-element="toolbar_connectCalendar_url"]');
+        if (calendarUrlElement && isSynced && calendarUrl) {
+            calendarUrlElement.textContent = calendarUrl;
+            calendarUrlElement.style.display = 'block';
+        } else if (calendarUrlElement) {
+            calendarUrlElement.style.display = 'none';
+        }
+    }
+
+    // Function to setup the connect calendar edit functionality
+    function setupConnectCalendarEdit(isSynced, calendarUrl, propertyId, propertyIcals) {
+
+        const connectCalendarContainer = document.querySelector('[data-element="toolbar_connectCalendar"]');
+        const toolbar = document.querySelector('[data-element="toolbar"]');
+        const connectCalendarEditContainer = document.querySelector('[data-element="toolbarEdit_connectCalendar"]');
+        const connectCalendarExitButton = document.querySelector('[data-element="toolbarEdit_connectCalendar_exit"]');
+        const connectCalendarCancelButton = document.querySelector('[data-element="toolbarEdit_connectCalendar_cancel"]');
+        const connectCalendarSubmitButton = document.querySelector('[data-element="toolbarEdit_connectCalendar_submit"]');
+        const connectCalendarSubmitText = document.querySelector('[data-element="toolbarEdit_connectCalendar_submit_text"]');
+        const connectCalendarSubmitLoader = document.querySelector('[data-element="toolbarEdit_connectCalendar_submit_loader"]');
+        const connectCalendarAddSyncButton = document.querySelector('[data-element="toolbarEdit_connectCalender_addSync_button"]');
+        const connectCalendarAddSyncContainer = document.querySelector('[data-element="toolbarEdit_connectCalender_addSync"]');
+        const connectCalendarInputContainer = document.querySelector('[data-element="toolbarEdit_connectCalendar_inputContainer"]');
+        const copyLinkContainer = document.querySelector('[data-element="toolbarEdit_connectCalendar_copyLinkContainer"]');
+        const copyLinkText = document.querySelector('[data-element="toolbarEdit_connectCalendar_copyLinkContainer_text"]');
+        const copyLinkButton = document.querySelector('[data-element="toolbarEdit_connectCalendar_copyLinkContainer_copyUrl"]');
+        const syncedContainer = document.querySelector('[data-element="toolbarEdit_connectCalender_syncedContainer"]');
+        const syncedContainerSection = document.querySelector('[data-element="toolbarEdit_connectCalender_syncedContainerSection"]');
+        const connectCalendarBody = document.querySelector('[data-element="toolbarEdit_connectCalender_body"]');
+
+        if (!connectCalendarContainer || !toolbar || !connectCalendarEditContainer) {
+            console.error('Missing required elements for connect calendar edit');
+            return;
+        }
+
+        // Set placeholders for input fields
+        const calendarNameInput = document.querySelector('[data-element="toolbarEdit_connectCalendar_name_inputContainer"]');
+        if (calendarNameInput) {
+            calendarNameInput.placeholder = "Calendar name";
+        }
+
+        if (connectCalendarInputContainer) {
+            connectCalendarInputContainer.placeholder = "External website link";
+        }
+
+        // Handle synced calendars container based on propertyIcals length
+        if (syncedContainer && syncedContainerSection) {
+            // First, remove all existing synced containers
+            const existingSyncedContainers = document.querySelectorAll('[data-element="toolbarEdit_connectCalender_syncedContainer"]');
+            existingSyncedContainers.forEach(container => {
+                if (container !== syncedContainer) { // Keep the original for cloning
+                    container.remove();
+                }
+            });
+
+            // If there are no synced calendars, hide the original container
+            if (!propertyIcals || propertyIcals.length === 0) {
+                syncedContainer.style.display = 'none';
+            } else {
+                // Show the original for the first calendar
+                syncedContainer.style.display = 'flex';
+
+                // Clone and append additional containers for each additional calendar
+                if (propertyIcals.length > 1) {
+                    for (let i = 1; i < propertyIcals.length; i++) {
+                        const clonedContainer = syncedContainer.cloneNode(true);
+                        syncedContainerSection.appendChild(clonedContainer);
+                    }
+                }
+
+                // Now populate all containers with data
+                const allSyncedContainers = document.querySelectorAll('[data-element="toolbarEdit_connectCalender_syncedContainer"]');
+                propertyIcals.forEach((ical, index) => {
+                    if (index < allSyncedContainers.length) {
+                        const container = allSyncedContainers[index];
+
+                        // Add data attributes for edit functionality and set up edit button
+                        container.setAttribute('data-calendar-id', ical.id || '');
+                        container.setAttribute('data-calendar-name', ical.calendar_name || '');
+                        container.setAttribute('data-calendar-url', ical.calendar_url || '');
+
+                        // Setup edit button click handler
+                        const editButton = container.querySelector('[data-element="toolbarEdit_connectCalender_synced_editButton"]');
+                        if (editButton) {
+                            // Remove any existing click handler by cloning the button
+                            const newEditButton = editButton.cloneNode(true);
+                            editButton.parentNode.replaceChild(newEditButton, editButton);
+
+                            // Add click handler to the new button
+                            newEditButton.addEventListener('click', function (e) {
+                                e.stopPropagation(); // Prevent event bubbling
+
+                                // Get the edit sync container and body container
+                                const editSyncContainer = document.querySelector('[data-element="toolbarEdit_connectCalender_editSync"]');
+                                const bodyContainer = document.querySelector('[data-element="toolbarEdit_connectCalender_body"]');
+
+                                if (editSyncContainer && bodyContainer) {
+                                    // Get calendar data from container attributes
+                                    const calendarId = container.getAttribute('data-calendar-id');
+                                    const calendarName = container.getAttribute('data-calendar-name');
+                                    const calendarUrl = container.getAttribute('data-calendar-url');
+
+                                    // Fill in the edit form with calendar data
+                                    const nameInput = editSyncContainer.querySelector('[data-element="toolbarEdit_connectCalender_editSync_name"]');
+                                    const linkInput = editSyncContainer.querySelector('[data-element="toolbarEdit_connectCalender_editSync_link"]');
+
+                                    if (nameInput) nameInput.value = calendarName || '';
+                                    if (linkInput) linkInput.value = calendarUrl || '';
+
+                                    // Store the calendar ID in a data attribute for later use
+                                    editSyncContainer.setAttribute('data-editing-calendar-id', calendarId || '');
+
+                                    // Hide body and show edit form
+                                    bodyContainer.style.display = 'none';
+                                    editSyncContainer.style.display = 'flex';
+                                }
+                            });
+                        }
+
+                        // Add calendar name to the synced container
+                        const nameElement = container.querySelector('[data-element="toolbarEdit_connectCalender_synced_name"]');
+                        if (nameElement && ical.calendar_name) {
+                            nameElement.textContent = ical.calendar_name;
+                        } else {
+                            console.warn(`Could not set calendar name for container ${index}. nameElement:`, !!nameElement, 'ical.calendar_name:', ical.calendar_name);
+                        }
+
+                        // Add last updated date to the synced container
+                        const lastUpdatedElement = container.querySelector('[data-element="toolbarEdit_connectCalender_synced_lastUpdated"]');
+                        if (lastUpdatedElement) {
+                            // First check if last_updated exists
+                            if (ical.last_updated) {
+                                // Parse the date from the ical data
+                                const lastSyncedDate = new Date(ical.last_updated);
+
+                                // Format the date as "Last updated on Month Day, Year at Hour:Minute AM/PM"
+                                const formattedDate = lastSyncedDate.toLocaleDateString('en-US', {
+                                    month: 'long',
+                                    day: 'numeric',
+                                    year: '2-digit'
+                                });
+
+                                const formattedTime = lastSyncedDate.toLocaleTimeString('en-US', {
+                                    hour: 'numeric',
+                                    minute: 'numeric',
+                                    hour12: true
+                                });
+
+                                lastUpdatedElement.textContent = `Last updated ${formattedDate} at ${formattedTime}`;
+                            } else {
+                                // Display a fallback message when last_updated is missing
+                                lastUpdatedElement.textContent = "Initial sync pending";
+                            }
+
+                        }
+                    }
+                });
+            }
+        } else {
+            console.error('Missing synced container elements');
+        }
+
+        // Get the edit sync container and setup its functionality
+        const editSyncContainer = document.querySelector('[data-element="toolbarEdit_connectCalender_editSync"]');
+        const editSyncCancelButton = document.querySelector('[data-element="toolbarEdit_connectCalender_editSync_cancel"]');
+        const editSyncSubmitButton = document.querySelector('[data-element="toolbarEdit_connectCalender_editSync_submit"]');
+        const editSyncSubmitText = document.querySelector('[data-element="toolbarEdit_connectCalender_editSync_submit_text"]');
+        const editSyncSubmitLoader = document.querySelector('[data-element="toolbarEdit_connectCalender_editSync_submit_loader"]');
+        const editSyncDeleteButton = document.querySelector('[data-element="toolbarEdit_connectCalender_editSync_delete"]');
+
+        // Hide edit sync container initially
+        if (editSyncContainer) {
+            editSyncContainer.style.display = 'none';
+        }
+
+        // Hide loader initially
+        if (editSyncSubmitLoader) {
+            editSyncSubmitLoader.style.display = 'none';
+        }
+
+        // Clone and replace the edit sync delete button to remove existing event listeners
+        if (editSyncDeleteButton) {
+            const newEditSyncDeleteButton = editSyncDeleteButton.cloneNode(true);
+            editSyncDeleteButton.parentNode.replaceChild(newEditSyncDeleteButton, editSyncDeleteButton);
+
+            // Add click handler to the new delete button
+            newEditSyncDeleteButton.addEventListener('click', async function () {
+
+                // Get calendar ID from the container's data attribute
+                const calendarId = editSyncContainer.getAttribute('data-editing-calendar-id');
+
+
+                if (!calendarId) {
+                    console.error('No calendar ID found for deletion');
+                    alert('Could not delete calendar: Missing calendar ID');
+                    return;
+                }
+
+                // Show confirmation dialog
+                const confirmDelete = confirm('Are you sure you want to delete this calendar connection? This action cannot be undone.');
+                if (!confirmDelete) {
+                    return;
+                }
+
+                try {
+                    // Set a flag to indicate we're in the middle of a calendar operation
+                    sessionStorage.setItem('calendarConnectionInProgress', 'true');
+
+
+                    // Make API call to delete the calendar
+                    const response = await fetch('https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/property_ical/delete', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            cal_id: calendarId
+                        })
+                    });
+
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! Status: ${response.status}`);
+                    }
+
+                    const responseData = await response.json();
+
+                    // Hide edit sync container and show body container
+                    if (editSyncContainer) editSyncContainer.style.display = 'none';
+                    if (connectCalendarBody) connectCalendarBody.style.display = 'flex';
+
+                    // Re-fetch calendar data to update the UI without showing the main toolbar
+                    await fetchCalendarData(propertyId, { showMainToolbar: false });
+
+                    // After fetching data, update the connected calendars display with new data
+                    if (responseData && responseData.property && responseData.property._property_icals) {
+                        // Update the UI with the latest calendar data
+                        setupConnectCalendarEdit(true, calendarUrl, propertyId, responseData.property._property_icals);
+
+                        // Ensure edit container remains visible and toolbar remains hidden
+                        if (connectCalendarEditContainer) connectCalendarEditContainer.style.display = 'flex';
+                        if (toolbar) toolbar.style.display = 'none';
+                    }
+
+                } catch (error) {
+                    console.error('Error deleting calendar:', error);
+                    alert('Failed to delete calendar. Please try again.');
+                } finally {
+                    // Clear the flag when done
+                    sessionStorage.removeItem('calendarConnectionInProgress');
+                }
+            });
+        }
+
+        // Clone and replace the edit sync cancel button to remove existing event listeners
+        if (editSyncCancelButton) {
+            const newEditSyncCancelButton = editSyncCancelButton.cloneNode(true);
+            editSyncCancelButton.parentNode.replaceChild(newEditSyncCancelButton, editSyncCancelButton);
+
+            // Add click handler to the new cancel button
+            newEditSyncCancelButton.addEventListener('click', function () {
+                // Hide edit sync container and show body container
+                if (editSyncContainer) editSyncContainer.style.display = 'none';
+                if (connectCalendarBody) connectCalendarBody.style.display = 'flex';
+            });
+        }
+
+        // Clone and replace the edit sync submit button to remove existing event listeners
+        if (editSyncSubmitButton) {
+            const newEditSyncSubmitButton = editSyncSubmitButton.cloneNode(true);
+            editSyncSubmitButton.parentNode.replaceChild(newEditSyncSubmitButton, editSyncSubmitButton);
+
+            // Add click handler to the new submit button
+            newEditSyncSubmitButton.addEventListener('click', async function () {
+                // Get calendar data from inputs
+                const nameInput = editSyncContainer.querySelector('[data-element="toolbarEdit_connectCalender_editSync_name"]');
+                const linkInput = editSyncContainer.querySelector('[data-element="toolbarEdit_connectCalender_editSync_link"]');
+                const calendarId = editSyncContainer.getAttribute('data-editing-calendar-id');
+
+
+
+
+                const newName = nameInput ? nameInput.value.trim() : '';
+                const newUrl = linkInput ? linkInput.value.trim() : '';
+
+                // Validate inputs
+                if (!newName) {
+                    alert('Please enter a calendar name');
+                    return;
+                }
+
+                if (!newUrl) {
+                    alert('Please enter a calendar URL');
+                    return;
+                }
+
+
+                // Show loader and hide text
+                if (editSyncSubmitLoader) editSyncSubmitLoader.style.display = 'flex';
+                if (editSyncSubmitText) editSyncSubmitText.style.display = 'none';
+
+
+                try {
+                    // Set a flag to indicate we're in the middle of a calendar connection
+                    sessionStorage.setItem('calendarConnectionInProgress', 'true');
+
+
+
+                    // Make API call to update the calendar
+                    const response = await fetch('https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/property_ical/edit', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            property_id: propertyId,
+                            ical_id: calendarId,
+                            calendar_name: newName,
+                            calendar_url: newUrl
+                        })
+                    });
+
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! Status: ${response.status}`);
+                    }
+
+                    const responseData = await response.json();
+
+                    // Hide edit sync container and show body container
+                    if (editSyncContainer) editSyncContainer.style.display = 'none';
+                    if (connectCalendarBody) connectCalendarBody.style.display = 'flex';
+
+                    // Re-fetch calendar data to update the UI without showing the main toolbar
+                    fetchCalendarData(propertyId, { showMainToolbar: false }).then(() => {
+                        // After fetching data, update the connected calendars display with new data
+                        if (responseData && responseData.property && responseData.property._property_icals) {
+                            // Update the UI with the latest calendar data
+                            setupConnectCalendarEdit(true, calendarUrl, propertyId, responseData.property._property_icals);
+
+                            // Ensure the edit container stays visible and toolbar stays hidden
+                            if (connectCalendarEditContainer) connectCalendarEditContainer.style.display = 'flex';
+                            if (toolbar) toolbar.style.display = 'none';
+                        } else {
+
+                        }
+
+                        // Clear the flag when done
+                        sessionStorage.removeItem('calendarConnectionInProgress');
+                    });
+
+                } catch (error) {
+                    console.error('Error updating calendar:', error);
+                    alert('Failed to update calendar. Please try again.');
+                } finally {
+                    // Hide loader and show text regardless of outcome
+                    if (editSyncSubmitLoader) editSyncSubmitLoader.style.display = 'none';
+                    if (editSyncSubmitText) editSyncSubmitText.style.display = 'flex';
+                    // Reset saving flag
+                    isSaving = false;
+                    // Clear the flag on error too
+                    sessionStorage.removeItem('calendarConnectionInProgress');
+                }
+            });
+        }
+
+        // Remove any existing event listeners by cloning and replacing elements
+        const newConnectCalendarContainer = connectCalendarContainer.cloneNode(true);
+        connectCalendarContainer.parentNode.replaceChild(newConnectCalendarContainer, connectCalendarContainer);
+
+        const newConnectCalendarSubmitButton = connectCalendarSubmitButton ? connectCalendarSubmitButton.cloneNode(true) : null;
+        if (connectCalendarSubmitButton && newConnectCalendarSubmitButton) {
+            connectCalendarSubmitButton.parentNode.replaceChild(newConnectCalendarSubmitButton, connectCalendarSubmitButton);
+        }
+
+        const newConnectCalendarCancelButton = connectCalendarCancelButton ? connectCalendarCancelButton.cloneNode(true) : null;
+        if (connectCalendarCancelButton && newConnectCalendarCancelButton) {
+            connectCalendarCancelButton.parentNode.replaceChild(newConnectCalendarCancelButton, connectCalendarCancelButton);
+        }
+
+        const newConnectCalendarExitButton = connectCalendarExitButton ? connectCalendarExitButton.cloneNode(true) : null;
+        if (connectCalendarExitButton && newConnectCalendarExitButton) {
+            connectCalendarExitButton.parentNode.replaceChild(newConnectCalendarExitButton, connectCalendarExitButton);
+        }
+
+        const newConnectCalendarAddSyncButton = connectCalendarAddSyncButton ? connectCalendarAddSyncButton.cloneNode(true) : null;
+        if (connectCalendarAddSyncButton && newConnectCalendarAddSyncButton) {
+            connectCalendarAddSyncButton.parentNode.replaceChild(newConnectCalendarAddSyncButton, connectCalendarAddSyncButton);
+        }
+
+        const newCopyLinkButton = copyLinkButton ? copyLinkButton.cloneNode(true) : null;
+        if (copyLinkButton && newCopyLinkButton) {
+            copyLinkButton.parentNode.replaceChild(newCopyLinkButton, copyLinkButton);
+        }
+
+        // Get updated references to elements after DOM replacements
+        const updatedConnectCalendarSubmitLoader = document.querySelector('[data-element="toolbarEdit_connectCalendar_submit_loader"]');
+        const updatedConnectCalendarSubmitText = document.querySelector('[data-element="toolbarEdit_connectCalendar_submit_text"]');
+        const updatedConnectCalendarAddSyncContainer = document.querySelector('[data-element="toolbarEdit_connectCalender_addSync"]');
+        const updatedCopyLinkText = document.querySelector('[data-element="toolbarEdit_connectCalendar_copyLinkContainer_text"]');
+        const updatedConnectCalendarBody = document.querySelector('[data-element="toolbarEdit_connectCalender_body"]');
+
+        // Hide loader initially
+        if (updatedConnectCalendarSubmitLoader) updatedConnectCalendarSubmitLoader.style.display = 'none';
+
+        // Hide the add sync container initially
+        if (updatedConnectCalendarAddSyncContainer) updatedConnectCalendarAddSyncContainer.style.display = 'none';
+
+        // Show edit container when connect calendar is clicked
+        newConnectCalendarContainer.addEventListener('click', function () {
+            toolbar.style.display = 'none';
+            connectCalendarEditContainer.style.display = 'flex';
+
+            // Check synced containers visibility after container is shown
+            const visibleSyncedContainers = document.querySelectorAll('[data-element="toolbarEdit_connectCalender_syncedContainer"]:not([style*="display: none"])');
+
+            // Clear the input field for new syncing
+            if (connectCalendarInputContainer) {
+                connectCalendarInputContainer.value = "";
+            }
+
+            // Populate the copy link text with the calendar URL
+            const copyLinkTextInput = document.querySelector('[data-element="toolbarEdit_connectCalendar_copyLinkContainer_text"]');
+            if (copyLinkTextInput && calendarUrl) {
+                copyLinkTextInput.value = calendarUrl;
+                copyLinkTextInput.setAttribute('readonly', 'readonly');
+                copyLinkTextInput.style.cursor = 'text';
+            } else if (copyLinkTextInput) {
+                copyLinkTextInput.value = '';
+                copyLinkTextInput.setAttribute('readonly', 'readonly');
+                copyLinkTextInput.style.cursor = 'text';
+            }
+        });
+
+        // Handle add sync button click
+        if (newConnectCalendarAddSyncButton) {
+            newConnectCalendarAddSyncButton.addEventListener('click', function () {
+                if (updatedConnectCalendarAddSyncContainer) {
+                    updatedConnectCalendarAddSyncContainer.style.display = 'flex';
+                }
+                if (updatedConnectCalendarBody) {
+                    updatedConnectCalendarBody.style.display = 'none';
+                }
+            });
+        }
+
+        // Handle copy link button click
+        if (newCopyLinkButton) {
+            newCopyLinkButton.addEventListener('click', function () {
+                const copyLinkTextInput = document.querySelector('[data-element="toolbarEdit_connectCalendar_copyLinkContainer_text"]');
+                const linkText = copyLinkTextInput ? copyLinkTextInput.value : '';
+                if (linkText) {
+                    // Select the text in the input field
+                    copyLinkTextInput.select();
+
+                    navigator.clipboard.writeText(linkText)
+                        .then(() => {
+                            // Show a temporary "Copied!" message
+                            const originalText = newCopyLinkButton.textContent;
+                            newCopyLinkButton.textContent = "Copied!";
+
+                            // Create and show a tooltip/notification
+                            const notification = document.createElement('div');
+                            notification.textContent = "Link copied to clipboard!";
+                            notification.style.position = 'absolute';
+                            notification.style.backgroundColor = 'white';
+                            notification.style.color = 'black';
+                            notification.style.border = '1px solid black';
+                            notification.style.fontFamily = 'TT Fors';
+                            notification.style.fontSize = '14px';
+                            notification.style.padding = '8px 12px';
+                            notification.style.borderRadius = '4px';
+                            notification.style.zIndex = '1000';
+                            notification.style.opacity = '0';
+                            notification.style.transition = 'opacity 0.3s';
+
+                            // Position near the button
+                            const buttonRect = newCopyLinkButton.getBoundingClientRect();
+                            notification.style.top = `${buttonRect.bottom + 10}px`;
+                            notification.style.left = `${buttonRect.left}px`;
+
+                            document.body.appendChild(notification);
+
+                            // Fade in
+                            setTimeout(() => {
+                                notification.style.opacity = '1';
+                            }, 10);
+
+                            // Remove after delay
+                            setTimeout(() => {
+                                notification.style.opacity = '0';
+                                setTimeout(() => {
+                                    document.body.removeChild(notification);
+                                    newCopyLinkButton.textContent = originalText;
+                                }, 300);
+                            }, 2000);
+                        })
+                        .catch(err => {
+                            console.error('Failed to copy text: ', err);
+                            alert('Failed to copy link. Please try again.');
+                        });
+                }
+            });
+        }
+
+        // Handle submit button click
+        if (newConnectCalendarSubmitButton) {
+            // Flag to prevent multiple simultaneous save requests
+            let isSaving = false;
+
+            newConnectCalendarSubmitButton.addEventListener('click', async function () {
+                // Prevent multiple clicks while saving
+                if (isSaving) return;
+
+                // Get the URL from input
+                const newCalendarUrl = connectCalendarInputContainer ? connectCalendarInputContainer.value.trim() : '';
+
+                // Get the calendar name from input
+                const calendarNameInput = document.querySelector('[data-element="toolbarEdit_connectCalendar_name_inputContainer"]');
+                const newCalendarName = calendarNameInput ? calendarNameInput.value.trim() : '';
+
+                // Basic validation for calendar URL
+                if (!newCalendarUrl) {
+                    alert('Please enter a calendar URL');
+                    return;
+                }
+
+                // Basic validation for calendar name
+                if (!newCalendarName) {
+                    alert('Please enter a calendar name');
+                    return;
+                }
+
+                // Check if URL has a valid calendar format (basic check)
+                const isValidCalendarUrl = newCalendarUrl.endsWith('.ics') ||
+                    newCalendarUrl.includes('calendar') ||
+                    newCalendarUrl.includes('ical');
+
+                if (!isValidCalendarUrl) {
+                    const confirmContinue = confirm('The URL does not appear to be a standard calendar format. Are you sure you want to continue?');
+                    if (!confirmContinue) return;
+                }
+
+                // Set saving flag to true
+                isSaving = true;
+
+                // Show loader and hide text
+                if (updatedConnectCalendarSubmitLoader) updatedConnectCalendarSubmitLoader.style.display = 'flex';
+                if (updatedConnectCalendarSubmitText) updatedConnectCalendarSubmitText.style.display = 'none';
+
+                try {
+                    // Set a flag to indicate we're in the middle of a calendar connection
+                    sessionStorage.setItem('calendarConnectionInProgress', 'true');
+
+                    // Make API call to save the calendar connection
+                    const response = await fetch('https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/property_ical', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            property_id: propertyId,
+                            calendar_url: newCalendarUrl,
+                            calendar_name: newCalendarName
+                        })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! Status: ${response.status}`);
+                    }
+
+                    const responseData = await response.json();
+
+                    // Update the displayed connect calendar status
+                    updateToolbarConnectCalendar(true, newCalendarUrl);
+
+                    // Clear the input fields after successful save
+                    if (connectCalendarInputContainer) {
+                        connectCalendarInputContainer.value = "";
+                    }
+                    if (calendarNameInput) {
+                        calendarNameInput.value = "";
+                    }
+
+                    // Explicitly keep toolbar hidden
+                    if (toolbar) {
+                        toolbar.style.display = 'none';
+                    }
+
+                    // Hide add sync container if it was open
+                    if (updatedConnectCalendarAddSyncContainer) {
+                        updatedConnectCalendarAddSyncContainer.style.display = 'none';
+                    }
+
+                    // Show the main body again if it was hidden
+                    if (updatedConnectCalendarBody) {
+                        updatedConnectCalendarBody.style.display = 'flex';
+                    }
+
+                    // Re-fetch calendar data using await instead of promise chain
+                    // Explicitly specify not to show the main toolbar
+                    await fetchCalendarData(propertyId, { showMainToolbar: false });
+
+                    // After fetching data, update the connected calendars display with new data
+                    if (responseData && responseData.property && responseData.property._property_icals) {
+                        // Update the UI with the latest calendar data
+                        setupConnectCalendarEdit(true, newCalendarUrl, propertyId, responseData.property._property_icals);
+
+                        // Ensure edit container remains visible and toolbar remains hidden
+                        if (connectCalendarEditContainer) connectCalendarEditContainer.style.display = 'flex';
+                        if (toolbar) toolbar.style.display = 'none';
+                    }
+
+                    // Clear the flag when done
+                    sessionStorage.removeItem('calendarConnectionInProgress');
+
+                } catch (error) {
+                    console.error('Error connecting calendar:', error);
+                    alert('Failed to connect calendar. Please try again.');
+                } finally {
+                    // Hide loader and show text regardless of outcome
+                    if (updatedConnectCalendarSubmitLoader) updatedConnectCalendarSubmitLoader.style.display = 'none';
+                    if (updatedConnectCalendarSubmitText) updatedConnectCalendarSubmitText.style.display = 'flex';
+                    // Reset saving flag
+                    isSaving = false;
+                    // Clear the flag on error too
+                    sessionStorage.removeItem('calendarConnectionInProgress');
+                }
+            });
+        }
+
+        // Handle cancel button click
+        if (newConnectCalendarCancelButton) {
+            newConnectCalendarCancelButton.addEventListener('click', function () {
+                // Hide add sync container if it was open
+                if (updatedConnectCalendarAddSyncContainer) {
+                    updatedConnectCalendarAddSyncContainer.style.display = 'none';
+                }
+
+                // Show the main body again if it was hidden
+                if (updatedConnectCalendarBody) {
+                    updatedConnectCalendarBody.style.display = 'flex';
+                }
+
+                // Do NOT close the entire edit container - just return to the main view
+                // The following lines are removed:
+                // connectCalendarEditContainer.style.display = 'none';
+                // toolbar.style.display = 'flex';
+            });
+        }
+
+        // Handle exit button click
+        if (newConnectCalendarExitButton) {
+            newConnectCalendarExitButton.addEventListener('click', function () {
+                // Hide add sync container if it was open
+                if (updatedConnectCalendarAddSyncContainer) {
+                    updatedConnectCalendarAddSyncContainer.style.display = 'none';
+                }
+
+                // Show the main body again if it was hidden
+                if (updatedConnectCalendarBody) {
+                    updatedConnectCalendarBody.style.display = 'flex';
+                }
+
+                // Exit should still close the entire edit container and show the toolbar
+                connectCalendarEditContainer.style.display = 'none';
+                toolbar.style.display = 'flex';
+            });
+        }
+    }
+
     // Function to update the availability window display in the toolbar
     function updateToolbarAvailabilityWindow(months) {
         const availabilityWindowElement = document.querySelector('[data-element="toolbar_availabilityWindow_text"]');
@@ -4216,6 +5931,8 @@ document.addEventListener('DOMContentLoaded', function () {
             availabilityWindowElement.textContent = months === 1 ? `${months} Month` : `${months} Months`;
         }
     }
+
+
 
     // Function to setup the availability window edit functionality
     function setupAvailabilityWindowEdit(currentMonths, propertyId) {
@@ -4382,7 +6099,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // Function to close all edit toolbars
-    function closeAllEditToolbars() {
+    function closeAllEditToolbars(options = {}) {
         const toolbar = document.querySelector('[data-element="toolbar"]');
         const editToolbars = [
             document.querySelector('[data-element="toolbarEdit_basePrice"]'),
@@ -4390,15 +6107,19 @@ document.addEventListener('DOMContentLoaded', function () {
             document.querySelector('[data-element="toolbarEdit_tripLength"]'),
             document.querySelector('[data-element="toolbarEdit_advanceNotice"]'),
             document.querySelector('[data-element="toolbarEdit_availabilityWindow"]'),
-            document.querySelector('[data-element="toolbarEdit_customDates"]')
+            document.querySelector('[data-element="toolbarEdit_customDates"]'),
+            document.querySelector('[data-element="toolbarEdit_connectCalendar"]')
         ];
 
-        // Hide all edit toolbars and show the main toolbar
+        // Hide all edit toolbars
         editToolbars.forEach(editToolbar => {
             if (editToolbar) editToolbar.style.display = 'none';
         });
 
-        if (toolbar) toolbar.style.display = 'flex';
+        // Only show the main toolbar if not explicitly prevented
+        if (toolbar && options.showMainToolbar !== false) {
+            toolbar.style.display = 'flex';
+        }
     }
 
 
@@ -4407,10 +6128,49 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Function to update the current listing name in the UI
     function updateCurrentListingName(propertyName) {
+        const listingBlock = document.querySelector('[data-element="hostCalendar_listingBlock"]');
         const listingNameElement = document.querySelector('[data-element="hostCalendar_listingBlock_text"]');
         if (listingNameElement) {
-            listingNameElement.textContent = propertyName;
+            // Apply responsive truncation
+            truncateListingName(listingNameElement, propertyName);
+
         }
+    }
+
+
+
+    // Function to truncate listing name based on screen width
+    function truncateListingName(element, fullName) {
+        const truncate = (text, maxLength) =>
+            text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
+
+        function applyTruncation() {
+            const width = window.innerWidth;
+
+            // For smaller screens, apply truncation
+            let maxChars = 15; // Default for screens below 1100px
+
+            // if (width < 580) maxChars = 8; // Mobile
+            // else if (width < 768) maxChars = 15; // Small tablets
+            // else if (width < 992) maxChars = 20; // Large tablets
+            // else if (width < 1100) maxChars = 25; // Small desktops
+
+            element.textContent = truncate(fullName, maxChars);
+        }
+
+        // Initial application
+        applyTruncation();
+
+
+
+        // Always remove previous listener before adding a new one
+        window.removeEventListener('resize', window.listingNameResizeHandler);
+
+        // Store the handler function for future removal
+        window.listingNameResizeHandler = applyTruncation;
+
+        // Add the event listener
+        window.addEventListener('resize', window.listingNameResizeHandler);
     }
 
     // Function to setup the listing block click handler
@@ -4420,6 +6180,11 @@ document.addEventListener('DOMContentLoaded', function () {
         const listingsPopUp = document.querySelector('[data-element="hostCalendar_listingsPopUp"]');
         const cancelButton = document.querySelector('[data-element="hostCalendar_listingsPopUp_cancel"]');
         const submitButton = document.querySelector('[data-element="hostCalendar_listingsPopUp_submit"]');
+
+        listingBlock.style.border = '2px solid black';
+
+        // Declare this variable in the outer scope
+        let newListingNameElement = null;
 
         // Remove any existing arrow elements first to prevent duplicates
         const existingArrows = listingBlock.querySelectorAll('div[data-arrow="true"]');
@@ -4469,7 +6234,8 @@ document.addEventListener('DOMContentLoaded', function () {
             listingBlock.parentNode.replaceChild(newListingBlock, listingBlock);
 
             // Show/hide popup when listing block is clicked
-            newListingBlock.addEventListener('click', function () {
+            newListingBlock.addEventListener('click', function (e) {
+                e.stopPropagation(); // Prevent triggering the listingNameElement click event
                 if (listingsPopUp.style.display === 'flex') {
                     hidePopup();
                 } else {
@@ -4479,7 +6245,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
             // Also show/hide popup when listing name is clicked
             if (listingNameElement) {
-                const newListingNameElement = listingNameElement.cloneNode(true);
+                newListingNameElement = listingNameElement.cloneNode(true);
                 listingNameElement.parentNode.replaceChild(newListingNameElement, listingNameElement);
 
                 newListingNameElement.addEventListener('click', function (e) {
@@ -4492,14 +6258,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 });
             }
 
-            // Close popup when cancel button is clicked
-            if (cancelButton) {
-                cancelButton.addEventListener('click', function () {
-                    hidePopup();
-                });
-            }
-
-            // Close popup when clicking outside
+            // This event handler will now work correctly
             document.addEventListener('click', function (event) {
                 if (listingsPopUp.style.display === 'flex' &&
                     !listingsPopUp.contains(event.target) &&
@@ -4508,6 +6267,13 @@ document.addEventListener('DOMContentLoaded', function () {
                     hidePopup();
                 }
             });
+
+            // Close popup when cancel button is clicked
+            if (cancelButton) {
+                cancelButton.addEventListener('click', function () {
+                    hidePopup();
+                });
+            }
 
             // Handle submit button click
             if (submitButton) {
@@ -4540,8 +6306,6 @@ document.addEventListener('DOMContentLoaded', function () {
                                     setupToolbar(selectedProperty);
 
                                     closeAllEditToolbars();
-
-                                    handleNonReservationDateClick();
 
                                     exitCustomDatesToolbar();
                                 });
@@ -4626,6 +6390,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Check if property_image and url exist before accessing
                 if (property._property_pic[0].property_image && property._property_pic[0].property_image.url) {
                     imageElement.src = property._property_pic[0].property_image.url;
+                    imageElement.loading = 'eager';
                 } else {
                     // Set a default/placeholder image if needed
                     // imageElement.src = 'path/to/default/image.jpg';
@@ -4668,7 +6433,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
 
 
-
     // Initialize with empty calendar (will be updated after API call)
     initializeCalendar();
 
@@ -4682,67 +6446,67 @@ document.addEventListener('DOMContentLoaded', function () {
         // Create a style element for custom input styles
         const inputStyles = document.createElement('style');
         inputStyles.textContent = `
-            /* Remove default focus styles for all input elements */
-            input:focus,
-            textarea:focus,
-            select:focus,
-            button:focus {
-                outline: none !important;
-                box-shadow: none !important;
-                -webkit-box-shadow: none !important;
-                -moz-box-shadow: none !important;
-            }
-
-            /* Remove default blue border on Chrome/Safari */
-            input:focus-visible,
-            textarea:focus-visible,
-            select:focus-visible,
-            button:focus-visible {
-                outline: none !important;
-                outline-offset: 0 !important;
-            }
-
-            /* Remove default blue highlight on mobile tap */
-            input,
-            textarea,
-            select,
-            button {
-                -webkit-tap-highlight-color: transparent !important;
-                -webkit-appearance: none !important;
-            }
-
-            /* Remove default styling for number inputs */
-            input[type=number]::-webkit-inner-spin-button, 
-            input[type=number]::-webkit-outer-spin-button { 
-                -webkit-appearance: none !important;
-                margin: 0 !important;
-            }
-            input[type=number] {
-                -moz-appearance: textfield !important;
-            }
-
-            /* Remove default styling for search inputs */
-            input[type=search]::-webkit-search-decoration,
-            input[type=search]::-webkit-search-cancel-button,
-            input[type=search]::-webkit-search-results-button,
-            input[type=search]::-webkit-search-results-decoration {
-                -webkit-appearance: none !important;
-            }
-
-            /* Remove default autocomplete highlight */
-            input:-webkit-autofill,
-            input:-webkit-autofill:hover,
-            input:-webkit-autofill:focus,
-            textarea:-webkit-autofill,
-            textarea:-webkit-autofill:hover,
-            textarea:-webkit-autofill:focus,
-            select:-webkit-autofill,
-            select:-webkit-autofill:hover,
-            select:-webkit-autofill:focus {
-                -webkit-box-shadow: 0 0 0px 1000px white inset !important;
-                transition: background-color 5000s ease-in-out 0s !important;
-            }
-        `;
+                                    /* Remove default focus styles for all input elements */
+                                    input:focus,
+                                    textarea:focus,
+                                    select:focus,
+                                    button:focus {
+                                        outline: none !important;
+                                        box-shadow: none !important;
+                                        -webkit-box-shadow: none !important;
+                                        -moz-box-shadow: none !important;
+                                    }
+                        
+                                    /* Remove default blue border on Chrome/Safari */
+                                    input:focus-visible,
+                                    textarea:focus-visible,
+                                    select:focus-visible,
+                                    button:focus-visible {
+                                        outline: none !important;
+                                        outline-offset: 0 !important;
+                                    }
+                        
+                                    /* Remove default blue highlight on mobile tap */
+                                    input,
+                                    textarea,
+                                    select,
+                                    button {
+                                        -webkit-tap-highlight-color: transparent !important;
+                                        -webkit-appearance: none !important;
+                                    }
+                        
+                                    /* Remove default styling for number inputs */
+                                    input[type=number]::-webkit-inner-spin-button, 
+                                    input[type=number]::-webkit-outer-spin-button { 
+                                        -webkit-appearance: none !important;
+                                        margin: 0 !important;
+                                    }
+                                    input[type=number] {
+                                        -moz-appearance: textfield !important;
+                                    }
+                        
+                                    /* Remove default styling for search inputs */
+                                    input[type=search]::-webkit-search-decoration,
+                                    input[type=search]::-webkit-search-cancel-button,
+                                    input[type=search]::-webkit-search-results-button,
+                                    input[type=search]::-webkit-search-results-decoration {
+                                        -webkit-appearance: none !important;
+                                    }
+                        
+                                    /* Remove default autocomplete highlight */
+                                    input:-webkit-autofill,
+                                    input:-webkit-autofill:hover,
+                                    input:-webkit-autofill:focus,
+                                    textarea:-webkit-autofill,
+                                    textarea:-webkit-autofill:hover,
+                                    textarea:-webkit-autofill:focus,
+                                    select:-webkit-autofill,
+                                    select:-webkit-autofill:hover,
+                                    select:-webkit-autofill:focus {
+                                        -webkit-box-shadow: 0 0 0px 1000px white inset !important;
+                                        transition: background-color 5000s ease-in-out 0s !important;
+                                    }
+                                `;
         document.head.appendChild(inputStyles);
     }
 
@@ -4750,7 +6514,7 @@ document.addEventListener('DOMContentLoaded', function () {
     disableBrowserDefaultInputStyles();
 
     // Function to clear all date selections
-    function clearDateSelections() {
+    function clearDateSelections(options = {}) {
         // Clear the selectedDates array
         selectedDates = [];
 
@@ -4765,7 +6529,10 @@ document.addEventListener('DOMContentLoaded', function () {
         const customDates = document.querySelector('[data-element="toolbarEdit_customDates"]');
 
         if (toolbar && customDates) {
-            toolbar.style.display = 'flex';
+            // Only show the toolbar if not explicitly prevented
+            if (options.showMainToolbar !== false) {
+                toolbar.style.display = 'flex';
+            }
             customDates.style.display = 'none';
         }
 
@@ -4794,5 +6561,166 @@ document.addEventListener('DOMContentLoaded', function () {
         const day = date.getDate().toString().padStart(2, '0');
         return `${year}-${month}-${day}`;
     }
+
+    // Function to hide months beyond 2 years from current date
+    function hideMonthsBeyondTwoYears() {
+        // Get current date
+        const currentDate = new Date();
+
+        // Calculate date 2 years from now
+        const twoYearsFromNow = new Date(currentDate);
+        twoYearsFromNow.setFullYear(currentDate.getFullYear() + 2);
+
+        // Find the end of the month (to include the full month)
+        const cutoffYear = twoYearsFromNow.getFullYear();
+        const cutoffMonth = twoYearsFromNow.getMonth() + 1; // JavaScript months are 0-based
+
+        // Format as YYYY-MM string for comparison
+        const cutoffDateStr = `${cutoffYear}-${String(cutoffMonth).padStart(2, '0')}`;
+
+        // Select all month elements in the calendar
+        const monthElements = document.querySelectorAll('.fc-multimonth-month[data-date]');
+
+        // Loop through month elements and hide those beyond the cutoff
+        monthElements.forEach(monthElement => {
+            const monthDate = monthElement.getAttribute('data-date');
+
+            // If this month is beyond our cutoff, hide it
+            if (monthDate > cutoffDateStr) {
+                monthElement.style.display = 'none';
+            }
+        });
+    }
+
+    // Function to add event listener to the next year button
+    function addNextYearButtonListener() {
+        // Find the next year button
+        const nextYearButton = document.querySelector('.fc-next-button');
+
+        if (nextYearButton) {
+            // Add our listener without removing FullCalendar's listener
+            nextYearButton.addEventListener('click', function () {
+                // Use setTimeout to ensure the calendar has updated before we check
+                setTimeout(() => {
+                    checkAndDisableNextButton();
+
+                    // Check if we're showing any months that are 2+ years in the future
+                    const visibleMonths = document.querySelectorAll('.fc-multimonth-month[data-date]');
+                    const currentDate = new Date();
+                    const cutoffYear = currentDate.getFullYear() + 2;
+
+                    // Check if any visible month is in or beyond the cutoff year
+                    const needsHiding = Array.from(visibleMonths).some(monthEl => {
+                        const monthDate = monthEl.getAttribute('data-date');
+                        const monthYear = parseInt(monthDate.split('-')[0]);
+                        return monthYear >= cutoffYear;
+                    });
+
+                    // If any months are beyond the cutoff, hide them
+                    if (needsHiding) {
+                        hideMonthsBeyondTwoYears();
+                    }
+                }, 100); // Small delay to ensure calendar has updated
+            });
+
+            // Initial check to see if button should be disabled
+            checkAndDisableNextButton();
+        }
+    }
+
+    // Function to check if we're at max year and disable the next button if needed
+    function checkAndDisableNextButton() {
+        const nextYearButton = document.querySelector('.fc-next-button');
+        if (!nextYearButton) return;
+
+        // Get visible months and extract the year from the latest visible month
+        const visibleMonths = document.querySelectorAll('.fc-multimonth-month[data-date]');
+        if (visibleMonths.length === 0) return;
+
+        // Find the latest month shown
+        let latestYearShown = 0;
+        visibleMonths.forEach(monthEl => {
+            const monthDate = monthEl.getAttribute('data-date');
+            const monthYear = parseInt(monthDate.split('-')[0]);
+            if (monthYear > latestYearShown) {
+                latestYearShown = monthYear;
+            }
+        });
+
+        // Calculate max allowed year (2 years from now)
+        const currentDate = new Date();
+        const maxAllowedYear = currentDate.getFullYear() + 2;
+
+        // If we're at or beyond max year, disable the button
+        if (latestYearShown >= maxAllowedYear) {
+            // Disable the button
+            nextYearButton.disabled = true;
+            nextYearButton.setAttribute('aria-disabled', 'true');
+
+            // Add greyed out styling
+            nextYearButton.style.opacity = '0.5';
+            nextYearButton.style.cursor = 'not-allowed';
+            nextYearButton.style.backgroundColor = '#e9e9e9';
+            nextYearButton.style.borderColor = '#d3d3d3';
+        } else {
+            // Enable the button
+            nextYearButton.disabled = false;
+            nextYearButton.setAttribute('aria-disabled', 'false');
+
+            // Reset styling
+            nextYearButton.style.opacity = '1';
+            nextYearButton.style.cursor = 'pointer';
+            nextYearButton.style.backgroundColor = '';
+            nextYearButton.style.borderColor = '';
+        }
+    }
+
+    // Function to add event listeners to navigation buttons
+    function addNavigationButtonListeners() {
+        // Add listener for next button
+        const nextYearButton = document.querySelector('.fc-next-button');
+        if (nextYearButton) {
+            nextYearButton.addEventListener('click', function () {
+                // Use setTimeout to ensure the calendar has updated before we check
+                setTimeout(() => {
+                    checkAndDisableNextButton();
+
+                    // Check if we're showing any months that are 2+ years in the future
+                    const visibleMonths = document.querySelectorAll('.fc-multimonth-month[data-date]');
+                    const currentDate = new Date();
+                    const cutoffYear = currentDate.getFullYear() + 2;
+
+                    // Check if any visible month is in or beyond the cutoff year
+                    const needsHiding = Array.from(visibleMonths).some(monthEl => {
+                        const monthDate = monthEl.getAttribute('data-date');
+                        const monthYear = parseInt(monthDate.split('-')[0]);
+                        return monthYear >= cutoffYear;
+                    });
+
+                    // If any months are beyond the cutoff, hide them
+                    if (needsHiding) {
+                        hideMonthsBeyondTwoYears();
+                    }
+                }, 100); // Small delay to ensure calendar has updated
+            });
+        }
+
+        // Add listener for prev button
+        const prevYearButton = document.querySelector('.fc-prev-button');
+        if (prevYearButton) {
+            prevYearButton.addEventListener('click', function () {
+                // Use setTimeout to ensure the calendar has updated before we check
+                setTimeout(() => {
+                    // Re-check if next button should be enabled or disabled
+                    checkAndDisableNextButton();
+                }, 100); // Small delay to ensure calendar has updated
+            });
+        }
+
+        // Initial check to see if button should be disabled
+        checkAndDisableNextButton();
+    }
+
+
 });
 

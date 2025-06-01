@@ -8,6 +8,26 @@ document.body.appendChild(script);
 // for no scroll background when modal is open
 // when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
+    // Add responsive behavior for different screen sizes
+    function handleResponsiveLayout() {
+        const editContainer = document.querySelector('[data-element="editListing_bodyContainer"]');
+        const cantEditContainer = document.querySelector('[data-element="cantEditListing_bodyContainer"]');
+
+        if (window.innerWidth <= 768) {
+            // For tablet and mobile: show the "can't edit" container
+            if (cantEditContainer) cantEditContainer.style.display = 'flex';
+            if (editContainer) editContainer.style.display = 'none';
+        } else {
+            // For desktop: show the edit container
+            if (cantEditContainer) cantEditContainer.style.display = 'none';
+            if (editContainer) editContainer.style.display = 'flex';
+        }
+    }
+
+    // Run initially and add window resize event listener
+    handleResponsiveLayout();
+    window.addEventListener('resize', handleResponsiveLayout);
+
     // on .open-modal click
     document.querySelectorAll('.open_modal').forEach(trigger => {
         trigger.addEventListener('click', function () {
@@ -4072,11 +4092,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
 
                 // Enable inputs
-                if (addressLine1Input) addressLine1Input.disabled = false;
-                if (addressLine2Input) addressLine2Input.disabled = false;
-                if (addressCityInput) addressCityInput.disabled = false;
-                if (addressStateInput) addressStateInput.disabled = false;
-                if (addressZipcodeInput) addressZipcodeInput.disabled = false;
+                if (addressLine1Input) addressLine1Input.disabled = true;
+                if (addressLine2Input) addressLine2Input.disabled = true;
+                if (addressCityInput) addressCityInput.disabled = true;
+                if (addressStateInput) addressStateInput.disabled = true;
+                if (addressZipcodeInput) addressZipcodeInput.disabled = true;
                 if (locationDescriptionInput) {
                     locationDescriptionInput.contentEditable = "true";
                     locationDescriptionInput.style.backgroundColor = 'white';

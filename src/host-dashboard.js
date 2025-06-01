@@ -101,7 +101,8 @@ async function initializeReservations(hostId) {
         });
 
         if (!response.ok) {
-            throw new Error('Failed to fetch reservations');
+            window.location.href = '/404';
+            //throw new Error('Failed to fetch reservations');
         }
 
         const data = await response.json();
@@ -856,6 +857,11 @@ async function initializeNotifications(hostId) {
     try {
         const response = await fetch(`https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/host_dashboard_notifications?host_id=${hostId}`);
         const data = await response.json();
+
+        if (!response.ok) {
+            window.location.href = '/404';
+            //throw new Error('Failed to fetch notifications');
+        }
 
         // Hide calendar nav item if host_editListings is null
         const calendarNavItem = document.querySelector('[data-element="hostDashboardNavBar_Calendar"]');

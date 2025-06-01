@@ -468,7 +468,8 @@ async function handlePayments(userId) {
         await new Promise(resolve => setTimeout(resolve, 300));
 
     } catch (error) {
-        console.error('Error fetching payments:', error);
+        window.location.href = '/404';
+        //console.error('Error fetching payments:', error);
     }
 
     // Move loader hiding outside the try/catch block
