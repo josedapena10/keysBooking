@@ -1155,6 +1155,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
                 .fc-daygrid-event {
                     margin-top: auto !important;
+                    margin-left: 6px !important;
                     display: flex !important;
                     flex-direction: row !important;
                     justify-content: flex-start !important;
@@ -1183,7 +1184,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         padding-left: 0px !important;
                     }
                     .fc-daygrid-event {
-                        padding-left: 0px !important;
+                        margin-left: 0px !important;
                     }
                     .fc-col-header-cell.fc-day {
                         padding-left: 10px !important;

@@ -1,4 +1,5 @@
 document.addEventListener('DOMContentLoaded', function () {
+
     // Get all button elements
     const typeButton = document.querySelector('[data-element="navBarSearch_typeButton"]');
     const locationButton = document.querySelector('[data-element="navBarSearch_locationButton"]');
@@ -33,9 +34,18 @@ document.addEventListener('DOMContentLoaded', function () {
         guests: "Add guests"
     };
 
+    // ADD THIS: Flag to track if map has been initialized
+    let isMapInitialized = false;
+
+    // ADD a flag to track when user is manually exploring
+    let isUserExploring = false;
+
+    // ADD a flag to track when we're centering on a marker (to prevent API requests)
+    let isCenteringOnMarker = false;
+
     // ADD THIS: Pagination state variables
     let currentPage = 1;
-    const listingsPerPage = 16;
+    const listingsPerPage = 20;
     let currentListings = []; // Store current listings for pagination
 
     // Filter state object - stores all active filters
@@ -209,10 +219,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Function to get location bounds from Google Maps Geocoding API
     async function getLocationBounds(locationName) {
-        console.log('getLocationBounds called with:', locationName);
 
         if (!locationName || locationName === defaultValues.location) {
-            console.log('Location is empty or default, returning null');
             return null;
         }
 
@@ -237,7 +245,6 @@ document.addEventListener('DOMContentLoaded', function () {
             if (cleanLocation.startsWith(specialName) ||
                 cleanLocation.includes(`, ${specialName}`) ||
                 cleanLocation.toLowerCase().includes(specialName.toLowerCase())) {
-                console.log('Found special location match:', specialName);
                 return data.bounds;
             }
         }
@@ -248,7 +255,6 @@ document.addEventListener('DOMContentLoaded', function () {
             !searchLocation.toLowerCase().includes('fl, usa')) {
             // Ensure we're searching for the location in Florida, USA
             searchLocation = searchLocation.replace(', FL', ', Florida Keys, FL, USA');
-            console.log('Modified search location to:', searchLocation);
         }
 
         try {
@@ -256,13 +262,9 @@ document.addEventListener('DOMContentLoaded', function () {
             const googleMapsApiKey = 'AIzaSyBtTdNYqGeF4GHpw0OA-tasMjY2yEO-4BY';
             const encodedLocation = encodeURIComponent(locationName);
 
-            console.log('Encoded location for API call:', encodedLocation);
-
             const apiUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodedLocation}&key=${googleMapsApiKey}`;
-            console.log('Calling Google Maps API with URL:', apiUrl);
 
             const response = await fetch(apiUrl);
-            console.log('API response status:', response.status);
 
             if (!response.ok) {
                 console.error('API response not OK:', response.status, response.statusText);
@@ -270,18 +272,14 @@ document.addEventListener('DOMContentLoaded', function () {
             }
 
             const data = await response.json();
-            console.log('API response data:', JSON.stringify(data));
 
             if (data.status !== 'OK' || !data.results || !data.results[0]) {
-                console.log('No valid location data found. Status:', data.status);
                 return null;
             }
 
             const location = data.results[0];
-            console.log('Found location:', location.formatted_address);
 
             const viewport = location.geometry.viewport;
-            console.log('Viewport bounds:', JSON.stringify(viewport));
 
             const result = {
                 northeast: {
@@ -298,7 +296,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
             };
 
-            console.log('Returning location bounds:', JSON.stringify(result));
             return result;
         } catch (error) {
             console.error('Error fetching location bounds:', error);
@@ -409,8 +406,6 @@ document.addEventListener('DOMContentLoaded', function () {
             };
         }
 
-        console.log("API-ready formats:", apiFormats);
-
         // Here you would pass apiFormats to your search endpoint
         // You can access it in your search handler with: apiFormats
 
@@ -459,8 +454,31 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Function to open a specific popup
     function openPopup(popupInfo) {
-        // First close all popups
-        closeAllPopups();
+        // Check if we're in mobile view and navBar_Container is visible
+        const navBarContainer = document.querySelector('[data-element="navBar_Container"]');
+        const isMobileView = window.innerWidth <= 991;
+        const isMobilePopupVisible = navBarContainer && navBarContainer.classList.contains('show-mobile-popup');
+
+        if (isMobileView && isMobilePopupVisible) {
+            // In mobile view with container visible, only close the popup elements without hiding the container
+            // Hide all popups
+            allPopups.forEach(popup => {
+                if (popup) popup.style.display = 'none';
+            });
+
+            // Remove selected class from all buttons
+            buttonPopupPairs.forEach(pair => {
+                if (pair.button) pair.button.classList.remove('selected');
+            });
+
+            // Remove selected class from guests container
+            if (guestsSearchContainer) guestsSearchContainer.classList.remove('selected');
+
+            // DON'T call hideMobilePopup() here - keep the container visible
+        } else {
+            // Desktop view or mobile container not visible - use normal closeAllPopups
+            closeAllPopups();
+        }
 
         // Then open the selected popup
         if (popupInfo.popup) {
@@ -1106,6 +1124,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Set input value to current location when popup opens
         if (locationButton) {
+
             locationButton.addEventListener('click', function () {
                 // If current location is "Map area", clear the input
                 if (pendingSelections.location === "Map area") {
@@ -1642,96 +1661,131 @@ document.addEventListener('DOMContentLoaded', function () {
         // Initialize temporary storage for in-progress date selections
         let tempSelectedDates = { ...selectedDates };
 
-        // Create calendar layout
+        // ... existing code ...
         function renderCalendars() {
             calendarContainer.innerHTML = '';
 
-            // Create container for two months
+            // Create container for months
             const monthsContainer = document.createElement('div');
             monthsContainer.className = 'months-container';
-            monthsContainer.style.display = 'flex';
-            monthsContainer.style.justifyContent = 'space-between';
-            monthsContainer.style.gap = '20px';
-            monthsContainer.style.position = 'relative';
 
-            // Add navigation buttons
-            const prevBtn = document.createElement('button');
-            prevBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path d="M15.5 4.5L7.5 12L15.5 19.5" stroke="#323232" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-            </svg>`;
-            prevBtn.className = 'calendar-nav-btn prev-btn';
-            prevBtn.style.background = 'none';
-            prevBtn.style.border = 'none';
-            prevBtn.style.cursor = 'pointer';
-            prevBtn.style.position = 'absolute';
-            prevBtn.style.left = '0';
-            prevBtn.style.top = '5px';
-            prevBtn.style.width = '32px';
-            prevBtn.style.height = '32px';
-            prevBtn.style.display = 'flex';
-            prevBtn.style.alignItems = 'center';
-            prevBtn.style.justifyContent = 'center';
-            prevBtn.style.borderRadius = '50%';
-            prevBtn.style.transition = 'background-color 0.2s ease';
-            prevBtn.addEventListener('click', navigatePrevMonth);
-
-            const nextBtn = document.createElement('button');
-            nextBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path d="M8.5 4.5L16.5 12L8.5 19.5" stroke="#323232" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-            </svg>`;
-            nextBtn.className = 'calendar-nav-btn next-btn';
-            nextBtn.style.background = 'none';
-            nextBtn.style.border = 'none';
-            nextBtn.style.cursor = 'pointer';
-            nextBtn.style.position = 'absolute';
-            nextBtn.style.right = '0';
-            nextBtn.style.top = '5px';
-            nextBtn.style.width = '32px';
-            nextBtn.style.height = '32px';
-            nextBtn.style.display = 'flex';
-            nextBtn.style.alignItems = 'center';
-            nextBtn.style.justifyContent = 'center';
-            nextBtn.style.borderRadius = '50%';
-            nextBtn.style.transition = 'background-color 0.2s ease';
-            nextBtn.addEventListener('click', navigateNextMonth);
-
-            // Add hover effect via style element
-            const navButtonStyle = document.createElement('style');
-            navButtonStyle.textContent = `
-                .calendar-nav-btn:not([disabled]):hover {
-                    background-color: whitesmoke !important;
-                }
-            `;
-            document.head.appendChild(navButtonStyle);
-
-            // Render current month
-            const month1 = createMonthCalendar(currentMonth, currentYear);
-            month1.style.flex = '1';
-
-            // Render next month
-            let nextMonth = currentMonth + 1;
-            let nextYear = currentYear;
-            if (nextMonth > 11) {
-                nextMonth = 0;
-                nextYear++;
+            // Add responsive styles for the months container
+            const responsiveStyles = document.createElement('style');
+            responsiveStyles.textContent = `
+        .months-container {
+            display: flex;
+            justify-content: space-between;
+            gap: 20px;
+            position: relative;
+        }
+        
+        @media screen and (max-width: 650px) {
+            .months-container {
+                flex-direction: column;
+                gap: 20px;
+                overflow-y: auto;
+                max-height: 72vh;
+                padding: 0 10px;
             }
-            const month2 = createMonthCalendar(nextMonth, nextYear);
-            month2.style.flex = '1';
+            
+            .calendar-nav-btn {
+                display: none !important; /* Hide navigation buttons on mobile */
+            }
+        }
+    `;
+            document.head.appendChild(responsiveStyles);
 
-            // Append months to container
-            monthsContainer.appendChild(month1);
-            monthsContainer.appendChild(month2);
+            // Determine how many months to show based on screen width
+            const isMobile = window.innerWidth <= 650;
+            const numberOfMonths = isMobile ? 24 : 2; // Show 12 months for mobile scroll, 2 for desktop
 
-            // Append navigation buttons to the calendar container
-            monthsContainer.appendChild(prevBtn);
-            monthsContainer.appendChild(nextBtn);
+            // Generate multiple months
+            let currentMonthToRender = currentMonth;
+            let currentYearToRender = currentYear;
+
+            for (let i = 0; i < numberOfMonths; i++) {
+                // Create month calendar
+                const monthCalendar = createMonthCalendar(currentMonthToRender, currentYearToRender);
+                monthCalendar.style.flex = '1';
+                monthsContainer.appendChild(monthCalendar);
+
+                // Move to next month
+                currentMonthToRender++;
+                if (currentMonthToRender > 11) {
+                    currentMonthToRender = 0;
+                    currentYearToRender++;
+                }
+            }
+
+            // Only add navigation buttons for desktop view
+            if (!isMobile) {
+                // Add navigation buttons with complete styling
+                const prevBtn = document.createElement('button');
+                prevBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path d="M15.5 4.5L7.5 12L15.5 19.5" stroke="#323232" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        </svg>`;
+                prevBtn.className = 'calendar-nav-btn prev-btn';
+                prevBtn.style.background = 'none';
+                prevBtn.style.border = 'none';
+                prevBtn.style.cursor = 'pointer';
+                prevBtn.style.position = 'absolute';
+                prevBtn.style.left = '0';
+                prevBtn.style.top = '5px';
+                prevBtn.style.width = '32px';
+                prevBtn.style.height = '32px';
+                prevBtn.style.display = 'flex';
+                prevBtn.style.alignItems = 'center';
+                prevBtn.style.justifyContent = 'center';
+                prevBtn.style.borderRadius = '50%';
+                prevBtn.style.transition = 'background-color 0.2s ease';
+                prevBtn.addEventListener('click', navigatePrevMonth);
+
+                const nextBtn = document.createElement('button');
+                nextBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path d="M8.5 4.5L16.5 12L8.5 19.5" stroke="#323232" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        </svg>`;
+                nextBtn.className = 'calendar-nav-btn next-btn';
+                nextBtn.style.background = 'none';
+                nextBtn.style.border = 'none';
+                nextBtn.style.cursor = 'pointer';
+                nextBtn.style.position = 'absolute';
+                nextBtn.style.right = '0';
+                nextBtn.style.top = '5px';
+                nextBtn.style.width = '32px';
+                nextBtn.style.height = '32px';
+                nextBtn.style.display = 'flex';
+                nextBtn.style.alignItems = 'center';
+                nextBtn.style.justifyContent = 'center';
+                nextBtn.style.borderRadius = '50%';
+                nextBtn.style.transition = 'background-color 0.2s ease';
+                nextBtn.addEventListener('click', navigateNextMonth);
+
+                // Add hover effect via style element
+                const navButtonStyle = document.createElement('style');
+                navButtonStyle.textContent = `
+                    .calendar-nav-btn:not([disabled]):hover {
+                        background-color: whitesmoke !important;
+                    }
+                `;
+                document.head.appendChild(navButtonStyle);
+
+                monthsContainer.appendChild(prevBtn);
+                monthsContainer.appendChild(nextBtn);
+            }
 
             // Append the months container to the calendar container
             calendarContainer.appendChild(monthsContainer);
 
-            // Update navigation button states
-            updateNavigationButtons();
+            // Update navigation buttons only for desktop view
+            if (!isMobile) {
+                updateNavigationButtons();
+            }
         }
+
+        // Add a resize listener to handle view changes
+        window.addEventListener('resize', () => {
+            renderCalendars();
+        });
 
         // Function to create a calendar for a specific month
         function createMonthCalendar(month, year) {
@@ -1742,6 +1796,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const monthHeader = document.createElement('div');
             monthHeader.className = 'month-header';
             monthHeader.style.textAlign = 'center';
+            monthHeader.style.color = 'black';
             monthHeader.style.fontFamily = "'TT Fors', sans-serif";
             monthHeader.style.fontSize = '16px';
             monthHeader.style.fontWeight = 'bold';
@@ -1812,10 +1867,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 dayCell.style.height = '42px';
                 dayCell.style.width = '42px';
                 dayCell.style.display = 'flex';
+                dayCell.style.fontSize = '15px';
                 dayCell.style.alignItems = 'center';
                 dayCell.style.justifyContent = 'center';
                 dayCell.style.cursor = 'pointer';
-                dayCell.style.borderRadius = '50%';
+                dayCell.style.borderRadius = '12px';
                 dayCell.style.margin = 'auto';
 
                 // Style for past days - disable selection
@@ -1828,11 +1884,16 @@ document.addEventListener('DOMContentLoaded', function () {
                         dayCell.style.backgroundColor = '#1374E0';
                         dayCell.style.color = 'white';
 
-                        // Apply full border radius if only check-in is selected, otherwise left-side only
+                        // Apply full border radius if only check-in is selected, otherwise extend to full width
                         if (!tempSelectedDates.checkOut) {
-                            dayCell.style.borderRadius = '50%'; // Full circle when only one date selected
+                            dayCell.style.borderRadius = '12px'; // Full circle when only one date selected
+                            dayCell.style.width = '42px';
+                            dayCell.style.margin = 'auto';
                         } else {
-                            dayCell.style.borderRadius = '50% 0 0 50%'; // Rounded on the left side only when range
+                            dayCell.style.borderRadius = '12px 0 0 12px'; // Rounded on the left side only when range
+                            dayCell.style.width = '100%'; // Extend to full width of the cell
+                            dayCell.style.margin = '0'; // Remove margin to extend over padding
+                            dayCell.style.maxWidth = 'none'; // Override any max-width constraints
                         }
                     }
 
@@ -1841,11 +1902,16 @@ document.addEventListener('DOMContentLoaded', function () {
                         dayCell.style.backgroundColor = '#1374E0';
                         dayCell.style.color = 'white';
 
-                        // Apply full border radius if only check-out is selected, otherwise right-side only
+                        // Apply full border radius if only check-out is selected, otherwise extend to full width
                         if (!tempSelectedDates.checkIn) {
-                            dayCell.style.borderRadius = '50%'; // Full circle when only one date selected
+                            dayCell.style.borderRadius = '12px'; // Full circle when only one date selected
+                            dayCell.style.width = '42px';
+                            dayCell.style.margin = 'auto';
                         } else {
-                            dayCell.style.borderRadius = '0 50% 50% 0'; // Rounded on the right side only when range
+                            dayCell.style.borderRadius = '0 12px 12px 0'; // Rounded on the right side only when range
+                            dayCell.style.width = '100%'; // Extend to full width of the cell
+                            dayCell.style.margin = '0'; // Remove margin to extend over padding
+                            dayCell.style.maxWidth = 'none'; // Override any max-width constraints
                         }
                     }
 
@@ -1874,6 +1940,82 @@ document.addEventListener('DOMContentLoaded', function () {
 
             monthDiv.appendChild(calendarGrid);
             return monthDiv;
+        }
+
+        // Add a new function to update calendar styles without re-rendering
+        function updateCalendarStyles() {
+            // Find all calendar day cells
+            const dayElements = calendarContainer.querySelectorAll('.calendar-day');
+
+            dayElements.forEach(dayElement => {
+                const dateStr = dayElement.dataset.date;
+                if (!dateStr) return;
+
+                const date = new Date(dateStr);
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+
+                // Reset styles for all cells first
+                if (date >= today) {
+                    dayElement.style.backgroundColor = '';
+                    dayElement.style.color = '';
+                    dayElement.style.borderRadius = '12px';
+                    dayElement.style.width = '42px';
+                    dayElement.style.margin = 'auto';
+                    dayElement.style.paddingLeft = '';
+                    dayElement.style.paddingRight = '';
+                    dayElement.style.maxWidth = '';
+                }
+
+                // Apply styles for selected dates
+                if (tempSelectedDates.checkIn && date.getTime() === tempSelectedDates.checkIn.getTime()) {
+                    dayElement.style.backgroundColor = '#1374E0';
+                    dayElement.style.color = 'white';
+
+                    if (!tempSelectedDates.checkOut) {
+                        // Only check-in selected - keep it circular
+                        dayElement.style.borderRadius = '12px';
+                        dayElement.style.width = '42px';
+                        dayElement.style.margin = 'auto';
+                    } else {
+                        // Part of a range - extend to full width and round left side only
+                        dayElement.style.borderRadius = '12px 0 0 12px';
+                        dayElement.style.width = '100%';
+                        dayElement.style.margin = '0';
+                        dayElement.style.maxWidth = 'none';
+                    }
+                }
+
+                if (tempSelectedDates.checkOut && date.getTime() === tempSelectedDates.checkOut.getTime()) {
+                    dayElement.style.backgroundColor = '#1374E0';
+                    dayElement.style.color = 'white';
+
+                    if (!tempSelectedDates.checkIn) {
+                        // Only check-out selected - keep it circular
+                        dayElement.style.borderRadius = '12px';
+                        dayElement.style.width = '42px';
+                        dayElement.style.margin = 'auto';
+                    } else {
+                        // Part of a range - extend to full width and round right side only
+                        dayElement.style.borderRadius = '0 12px 12px 0';
+                        dayElement.style.width = '100%';
+                        dayElement.style.margin = '0';
+                        dayElement.style.maxWidth = 'none';
+                    }
+                }
+
+                // Apply styles for dates in between check-in and check-out
+                if (tempSelectedDates.checkIn && tempSelectedDates.checkOut &&
+                    date > tempSelectedDates.checkIn && date < tempSelectedDates.checkOut) {
+                    dayElement.style.backgroundColor = '#E5F2FF';
+                    dayElement.style.borderRadius = '0';
+                    dayElement.style.width = '100%';
+                    dayElement.style.margin = '0';
+                    dayElement.style.maxWidth = 'none';
+                    dayElement.style.paddingLeft = '0';
+                    dayElement.style.paddingRight = '0';
+                }
+            });
         }
 
         // Handle date selection
@@ -1914,8 +2056,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 updateDatesButtonText();
             }
 
-            // Sync the UI with the temporary selection state
-            renderCalendars();
+            // Instead of re-rendering the entire calendar, just update the styles
+            updateCalendarStyles();
         }
 
         // Update the dates button text
@@ -2118,12 +2260,21 @@ document.addEventListener('DOMContentLoaded', function () {
         // When dates popup opens, restore any pending selections
         if (datesButton) {
             datesButton.addEventListener('click', function () {
+                // Reset selection state when opening popup
+                selectingCheckOut = false;
+
                 // Always reset to current month if no dates are selected
                 if (pendingSelections.dates === defaultValues.dates) {
                     // Reset to current month/year
                     const today = new Date();
                     currentMonth = today.getMonth();
                     currentYear = today.getFullYear();
+
+                    // Ensure temp selections are reset
+                    tempSelectedDates = {
+                        checkIn: null,
+                        checkOut: null
+                    };
                 } else {
                     // Parse dates from current selection if not default
                     const dateRangeMatch = pendingSelections.dates.match(/([A-Za-z]+)\s+(\d+)\s+-\s+([A-Za-z]+)\s+(\d+)/);
@@ -2170,14 +2321,12 @@ document.addEventListener('DOMContentLoaded', function () {
         if (searchButton) {
             const originalSearchClickHandler = searchButton.onclick;
             searchButton.onclick = function (e) {
-                console.log("Search button clicked, current selections:", JSON.stringify(currentSelections));
 
                 // Check if dates popup is open and selection is incomplete
                 if (datesPopup && datesPopup.style.display === 'flex' &&
                     ((tempSelectedDates.checkIn && !tempSelectedDates.checkOut) ||
                         (!tempSelectedDates.checkIn && tempSelectedDates.checkOut))) {
 
-                    console.log("Incomplete date selection when search clicked:", JSON.stringify(tempSelectedDates));
 
                     // Reset to default or previously confirmed complete selection
                     if (selectedDates.checkIn && selectedDates.checkOut) {
@@ -2195,7 +2344,6 @@ document.addEventListener('DOMContentLoaded', function () {
                         pendingSelections.dates = formattedDates;
                         updateButtonText(datesButtonText, formattedDates, defaultValues.dates);
 
-                        console.log("Reverted to previous valid selection:", JSON.stringify(selectedDates));
                     } else {
                         // Reset everything to default
                         tempSelectedDates = {
@@ -2206,7 +2354,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         pendingSelections.dates = defaultValues.dates;
                         updateButtonText(datesButtonText, defaultValues.dates, defaultValues.dates);
 
-                        console.log("Reset to default dates");
+
                     }
 
                     // Still close the popup but don't update the currentSelections
@@ -2226,7 +2374,6 @@ document.addEventListener('DOMContentLoaded', function () {
                         currentSelections.dates = pendingSelections.dates;
                     }
 
-                    console.log("After selecting both dates, updated selections:", JSON.stringify(currentSelections));
                 }
 
                 // Always call original handler unless we specifically returned earlier
@@ -2339,6 +2486,676 @@ document.addEventListener('DOMContentLoaded', function () {
             });
         }
     }
+
+    // Add this after the existing variables and before the filter system setup
+
+    // ADD THIS: Responsive navigation setup
+    function setupResponsiveNavigation() {
+        // ADD THIS: Layout styles for map and listings containers
+        // Add this right after the setupResponsiveNavigation function
+
+        // Add layout CSS for map and listings containers
+        const mapListingsLayoutStyles = document.createElement('style');
+        mapListingsLayoutStyles.textContent = `
+    @media screen and (min-width: 992px) {
+        [data-element="map-container"] {
+            display: flex !important;
+            width: 40% !important;
+        }
+
+        [data-element="listings-container-wrapper"] {
+            display: flex !important;
+            width: 60% !important;
+        }
+    }
+    
+`;
+        document.head.appendChild(mapListingsLayoutStyles);
+
+        // Function to ensure layout is applied only when width > 991px
+        function ensureProperLayout() {
+            const mapContainer = document.querySelector('[data-element="map-container"]');
+            const listingsWrapper = document.querySelector('[data-element="listings-container-wrapper"]');
+
+            if (window.innerWidth > 991) {
+                if (mapContainer) {
+                    mapContainer.style.display = 'flex';
+                    mapContainer.style.width = '40%';
+                }
+                if (listingsWrapper) {
+                    listingsWrapper.style.display = 'flex';
+                    listingsWrapper.style.width = '60%';
+                }
+            } else {
+                // Remove our inline styles when width <= 991px to let HTML handle it
+                if (mapContainer) {
+                    mapContainer.style.removeProperty('display');
+                    mapContainer.style.removeProperty('width');
+                }
+                if (listingsWrapper) {
+                    listingsWrapper.style.removeProperty('display');
+                    listingsWrapper.style.removeProperty('width');
+                }
+            }
+        }
+
+        // Apply layout immediately
+        ensureProperLayout();
+
+        // Apply layout on window resize
+        window.addEventListener('resize', ensureProperLayout);
+
+
+
+        // Add responsive CSS
+        const responsiveNavStyles = document.createElement('style');
+        responsiveNavStyles.textContent = `
+        /* Desktop view - show normal nav bar */
+        @media screen and (min-width: 992px) {
+            [data-element="navBar_Container"] {
+                display: flex !important;
+            }
+            
+            [data-element="navBar_PhoneViewContainer"] {
+                display: none !important;
+            }
+        }
+        
+        /* Mobile/Tablet view - show phone view */
+        @media screen and (max-width: 991px) {
+            [data-element="navBar_Container"] {
+                display: none !important;
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                z-index: 10000;
+                background: white;
+                flex-direction: column;
+                padding: 20px;
+                overflow-y: auto;
+            }
+            
+            [data-element="navBar_Container"].show-mobile-popup {
+                display: flex !important;
+            }
+            
+            [data-element="navBar_PhoneViewContainer"] {
+                display: flex !important;
+                cursor: pointer;
+            }
+            
+            /* Make search popups full screen on mobile */
+            [data-element="navBarSearch_typePopup"],
+            [data-element="navBarSearch_locationPopup"],
+            [data-element="navBarSearch_datesPopup"],
+            [data-element="navBarSearch_guestsPopup"] {
+                position: fixed !important;
+                top: 0 !important;
+                left: 0 !important;
+                right: 0 !important;
+                bottom: 0 !important;
+                width: 100% !important;
+                height: 100% !important;
+                z-index: 10001 !important;
+            }
+        }
+    `;
+        document.head.appendChild(responsiveNavStyles);
+
+        // Get phone view elements
+        const phoneViewContainer = document.querySelector('[data-element="navBar_PhoneViewContainer"]');
+        const phoneViewLocation = document.querySelector('[data-element="navBar_PhoneViewLocation"]');
+        const phoneViewDatesGuests = document.querySelector('[data-element="navBar_PhoneViewDatesGuests"]');
+        const navBarContainer = document.querySelector('[data-element="navBar_Container"]');
+
+        if (!phoneViewContainer || !phoneViewLocation || !phoneViewDatesGuests || !navBarContainer) {
+            console.error('Required phone view elements not found');
+            return;
+        }
+
+        // Function to update phone view content
+        function updatePhoneViewContent() {
+            // Update location
+            if (currentSelections.location === defaultValues.location) {
+                phoneViewLocation.textContent = "Where to?";
+            } else {
+                phoneViewLocation.textContent = currentSelections.location;
+            }
+
+            // Update dates and guests
+            const hasCustomDates = currentSelections.dates !== defaultValues.dates;
+            const hasCustomGuests = currentSelections.guests !== defaultValues.guests;
+
+            if (!hasCustomDates && !hasCustomGuests) {
+                // Default search - hide dates/guests
+                phoneViewDatesGuests.style.display = 'none';
+            } else {
+                // Show dates/guests
+                phoneViewDatesGuests.style.display = '';
+
+                let datesGuestsText = '';
+
+                if (hasCustomDates) {
+                    datesGuestsText += currentSelections.dates;
+                }
+
+                if (hasCustomGuests) {
+                    if (datesGuestsText) datesGuestsText += ' • ';
+                    datesGuestsText += currentSelections.guests;
+                }
+
+                phoneViewDatesGuests.textContent = datesGuestsText;
+            }
+        }
+
+        // Function to show mobile popup
+        function showMobilePopup() {
+            navBarContainer.classList.add('show-mobile-popup');
+
+            // Disable body scroll
+            const body = document.querySelector('[data-element="body"]') || document.body;
+            body.style.overflow = 'hidden';
+            body.style.position = 'fixed';
+            body.style.width = '100%';
+            body.style.height = '100%';
+        }
+
+        // Function to hide mobile popup
+        function hideMobilePopup() {
+            navBarContainer.classList.remove('show-mobile-popup');
+
+            // Re-enable body scroll
+            const body = document.querySelector('[data-element="body"]') || document.body;
+            body.style.overflow = '';
+            body.style.position = '';
+            body.style.width = '';
+            body.style.height = '';
+        }
+
+        // Add click handler to phone view container
+        phoneViewContainer.addEventListener('click', (e) => {
+            e.stopPropagation();
+            showMobilePopup();
+        });
+
+        // Add click handler to close mobile popup when clicking outside search elements
+        navBarContainer.addEventListener('click', (e) => {
+            // Don't close if clicking on search buttons or their children
+            if (e.target.closest('[data-element="navBarSearch_typeButton"]') ||
+                e.target.closest('[data-element="navBarSearch_locationButton"]') ||
+                e.target.closest('[data-element="navBarSearch_datesButton"]') ||
+                e.target.closest('[data-element="navBarSearch_guestsButton"]') ||
+                e.target.closest('[data-element="navBarSearch_searchButton"]')) {
+                return;
+            }
+
+            // Close popup if clicking outside search area
+            hideMobilePopup();
+        });
+
+        // Override the existing closeAllPopups function to handle mobile
+        const originalCloseAllPopups = closeAllPopups;
+        closeAllPopups = function () {
+            // Call original function
+            originalCloseAllPopups();
+
+            // Hide mobile popup if on mobile
+            if (window.innerWidth <= 991) {
+                hideMobilePopup();
+            }
+        };
+
+        // Override the search button click to close mobile popup
+        if (searchButton) {
+            const originalSearchClick = searchButton.onclick;
+            searchButton.onclick = function (e) {
+                // Call original handler
+                if (originalSearchClick) {
+                    originalSearchClick.call(this, e);
+                }
+
+                // Close mobile popup after search
+                if (window.innerWidth <= 991) {
+                    hideMobilePopup();
+                }
+
+                // Update phone view content after search
+                updatePhoneViewContent();
+            };
+        }
+
+        // Update phone view content initially and when selections change
+        updatePhoneViewContent();
+
+        // Add resize listener to handle orientation changes
+        window.addEventListener('resize', () => {
+            if (window.innerWidth > 991) {
+                // Desktop view - make sure mobile popup is hidden
+                hideMobilePopup();
+            }
+            updatePhoneViewContent();
+        });
+
+        // Override the existing revertPendingChanges to update phone view
+        const originalRevertPendingChanges = revertPendingChanges;
+        revertPendingChanges = function () {
+            originalRevertPendingChanges();
+            updatePhoneViewContent();
+        };
+
+        // ADD THIS: Enhanced mobile navigation with new buttons
+        // Add this inside the setupResponsiveNavigation function, after the existing code
+
+        // Get the new mobile navigation buttons
+        const navBarCloseButton = document.querySelector('[data-element="navBarSearch_closeButton"]');
+        const navBarClearButton = document.querySelector('[data-element="navBarSearch_clearButton"]');
+
+        // Type popup buttons
+        const typePopupCloseButton = document.querySelector('[data-element="navBarSearch_typePopup_closeButton"]');
+        const typePopupNextButton = document.querySelector('[data-element="navBarSearch_typePopup_nextButton"]');
+
+        // Location popup buttons
+        const locationPopupCloseButton = document.querySelector('[data-element="navBarSearch_locationPopup_closeButton"]');
+        const locationPopupNextButton = document.querySelector('[data-element="navBarSearch_locationPopup_nextButton"]');
+
+        // Dates popup buttons
+        const datesPopupCloseButton = document.querySelector('[data-element="navBarSearch_datesPopup_closeButton"]');
+        const datesPopupNextButton = document.querySelector('[data-element="navBarSearch_datesPopup_nextButton"]');
+
+        // Guests popup buttons
+        const guestsPopupCloseButton = document.querySelector('[data-element="navBarSearch_guestsPopup_closeButton"]');
+        const guestsPopupSearchButton = document.querySelector('[data-element="navBarSearch_guestsPopup_searchButton"]');
+
+        // Function to reset to default values (for clear button)
+        function resetToDefaults() {
+            // Reset pending selections to defaults
+            pendingSelections.type = defaultValues.type;
+            pendingSelections.location = defaultValues.location;
+            pendingSelections.dates = defaultValues.dates;
+            pendingSelections.guests = defaultValues.guests;
+            pendingSelections.selectedDatesObj = { checkIn: null, checkOut: null };
+            pendingSelections.guestDetails = null;
+
+            // Update button texts to show defaults
+            updateButtonText(typeButtonText, defaultValues.type, defaultValues.type);
+            updateButtonText(locationButtonText, defaultValues.location, defaultValues.location);
+            updateButtonText(datesButtonText, defaultValues.dates, defaultValues.dates);
+            updateButtonText(guestsButtonText, defaultValues.guests, defaultValues.guests);
+
+            // Reset type popup visual state
+            if (typeof typePopupHandlers !== 'undefined' && typePopupHandlers.updateTypeSelectionVisual) {
+                const homeBoatOption = document.querySelector('[data-element="navBarSearch_typePopup_homeBoat"]');
+                const privateHomeOption = document.querySelector('[data-element="navBarSearch_typePopup_privateHome"]');
+
+                if (homeBoatOption) homeBoatOption.classList.remove('selected');
+                if (privateHomeOption) privateHomeOption.classList.add('selected');
+            }
+
+            // Reset location input
+            const locationInput = document.querySelector('[data-element="navBarSearch_locationPopup_input"]');
+            if (locationInput) {
+                locationInput.value = '';
+                locationInput.placeholder = "Enter location";
+            }
+
+            // Reset dates calendar if needed
+            const calendarContainer = document.querySelector('[data-element="navBarSearch_datesPopup_calendarContainer"]');
+            if (calendarContainer) {
+                // This will trigger the dates popup reset logic
+                const clearButton = document.querySelector('[data-element="navBarSearch_datesPopup_clearButton_calendarContainer"]');
+                if (clearButton) {
+                    clearButton.click();
+                }
+            }
+
+            // Reset guests popup
+            const guestsClearButton = document.querySelector('[data-element="navBarSearch_guestsPopup_clearButton"]');
+            if (guestsClearButton) {
+                guestsClearButton.click();
+            }
+
+            // Update phone view
+            updatePhoneViewContent();
+        }
+
+        // Function to navigate to next popup in sequence
+        function navigateToNextPopup(currentPopup, nextPopup) {
+            // Hide current popup
+            if (currentPopup) {
+                currentPopup.style.display = 'none';
+            }
+
+            // Show next popup
+            if (nextPopup) {
+                nextPopup.style.display = 'flex';
+
+                // Handle special cases for popup initialization
+                if (nextPopup === locationPopup) {
+                    // Focus on location input when opening location popup
+                    const locationInput = document.querySelector('[data-element="navBarSearch_locationPopup_input"]');
+                    if (locationInput) {
+                        setTimeout(() => {
+                            locationInput.focus();
+                        }, 100);
+                    }
+                }
+            }
+        }
+
+        // Add event handlers for navBar_Container level buttons
+        if (navBarCloseButton) {
+            navBarCloseButton.addEventListener('click', (e) => {
+                e.stopPropagation();
+                hideMobilePopup();
+
+                // Revert any pending changes
+                revertPendingChanges();
+            });
+        }
+
+        if (navBarClearButton) {
+            navBarClearButton.addEventListener('click', (e) => {
+                e.stopPropagation();
+                resetToDefaults();
+            });
+        }
+
+        // Override the main search button to hide container on success
+        if (searchButton) {
+            const existingSearchClick = searchButton.onclick;
+            searchButton.onclick = async function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                // Call the existing search logic
+                if (existingSearchClick) {
+                    await existingSearchClick.call(this, e);
+                }
+
+                // Hide mobile popup after successful search
+                if (window.innerWidth <= 991) {
+                    hideMobilePopup();
+                }
+
+                // Update phone view content
+                updatePhoneViewContent();
+            };
+        }
+
+        // Type popup button handlers
+        if (typePopupCloseButton) {
+            typePopupCloseButton.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation(); // ADD THIS to prevent all other handlers
+
+                // Only hide this specific popup, don't close entire container
+                if (typePopup) typePopup.style.display = 'none';
+
+                // Remove selected class from type button
+                if (typeButton) typeButton.classList.remove('selected');
+
+                // Re-enable body scroll only if no other popups are open
+                const otherPopupsOpen = [locationPopup, datesPopup, guestsPopup].some(popup =>
+                    popup && popup.style.display === 'flex'
+                );
+
+                if (!otherPopupsOpen) {
+                    const body = document.querySelector('[data-element="body"]');
+                    if (body) {
+                        body.style.overflow = '';
+                        body.style.position = '';
+                        body.style.height = '';
+                    }
+                }
+
+                // Don't revert changes - keep temp selections
+                return false; // ADD THIS to prevent further event handling
+            });
+        }
+
+        if (typePopupNextButton) {
+            typePopupNextButton.addEventListener('click', (e) => {
+                e.stopPropagation();
+                navigateToNextPopup(typePopup, locationPopup);
+                // Remove selected class from type button
+            });
+        }
+
+        // Location popup button handlers
+        if (locationPopupCloseButton) {
+            locationPopupCloseButton.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation(); // ADD THIS to prevent all other handlers
+
+                // Only hide this specific popup, don't close entire container
+                if (locationPopup) locationPopup.style.display = 'none';
+
+                // Remove selected class from location button
+                if (locationButton) locationButton.classList.remove('selected');
+
+                // Re-enable body scroll only if no other popups are open
+                const otherPopupsOpen = [typePopup, datesPopup, guestsPopup].some(popup =>
+                    popup && popup.style.display === 'flex'
+                );
+
+                if (!otherPopupsOpen) {
+                    const body = document.querySelector('[data-element="body"]');
+                    if (body) {
+                        body.style.overflow = '';
+                        body.style.position = '';
+                        body.style.height = '';
+                    }
+                }
+
+                // Don't revert changes - keep temp selections
+                return false; // ADD THIS to prevent further event handling
+            });
+        }
+
+        if (locationPopupNextButton) {
+            locationPopupNextButton.addEventListener('click', (e) => {
+                e.stopPropagation();
+                navigateToNextPopup(locationPopup, datesPopup);
+            });
+        }
+
+        // Dates popup button handlers
+        if (datesPopupCloseButton) {
+            datesPopupCloseButton.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation(); // ADD THIS to prevent all other handlers
+
+                // Only hide this specific popup, don't close entire container
+                if (datesPopup) datesPopup.style.display = 'none';
+
+                // Remove selected class from dates button
+                if (datesButton) datesButton.classList.remove('selected');
+
+                // Re-enable body scroll only if no other popups are open
+                const otherPopupsOpen = [typePopup, locationPopup, guestsPopup].some(popup =>
+                    popup && popup.style.display === 'flex'
+                );
+
+                if (!otherPopupsOpen) {
+                    const body = document.querySelector('[data-element="body"]');
+                    if (body) {
+                        body.style.overflow = '';
+                        body.style.position = '';
+                        body.style.height = '';
+                    }
+                }
+
+                // Don't revert changes - keep temp selections
+                return false; // ADD THIS to prevent further event handling
+            });
+        }
+
+        if (datesPopupNextButton) {
+            datesPopupNextButton.addEventListener('click', (e) => {
+                e.stopPropagation();
+                navigateToNextPopup(datesPopup, guestsPopup);
+            });
+        }
+
+        // Guests popup button handlers
+        if (guestsPopupCloseButton) {
+            guestsPopupCloseButton.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation(); // ADD THIS to prevent all other handlers
+
+                // Only hide this specific popup, don't close entire container
+                if (guestsPopup) guestsPopup.style.display = 'none';
+
+                // Remove selected class from guests container
+                if (guestsSearchContainer) guestsSearchContainer.classList.remove('selected');
+
+                // Re-enable body scroll only if no other popups are open
+                const otherPopupsOpen = [typePopup, locationPopup, datesPopup].some(popup =>
+                    popup && popup.style.display === 'flex'
+                );
+
+                if (!otherPopupsOpen) {
+                    const body = document.querySelector('[data-element="body"]');
+                    if (body) {
+                        body.style.overflow = '';
+                        body.style.position = '';
+                        body.style.height = '';
+                    }
+                }
+
+                // Don't revert changes - keep temp selections
+                return false; // ADD THIS to prevent further event handling
+            });
+        }
+
+        if (guestsPopupSearchButton) {
+            guestsPopupSearchButton.addEventListener('click', async (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+
+                // Update current selections from pending (same logic as main search button)
+                if (pendingSelections.location === defaultValues.location) {
+                    currentSelections.location = defaultValues.location;
+                } else {
+                    currentSelections.location = pendingSelections.location;
+                }
+
+                if (pendingSelections.dates === defaultValues.dates) {
+                    currentSelections.dates = defaultValues.dates;
+                } else {
+                    currentSelections.dates = pendingSelections.dates;
+                }
+
+                if (pendingSelections.guests === defaultValues.guests) {
+                    currentSelections.guests = defaultValues.guests;
+                } else {
+                    currentSelections.guests = pendingSelections.guests;
+                }
+
+                if (pendingSelections.type === defaultValues.type) {
+                    currentSelections.type = defaultValues.type;
+                } else {
+                    currentSelections.type = pendingSelections.type;
+                }
+
+                // Copy selected dates object if available
+                if (pendingSelections.selectedDatesObj) {
+                    currentSelections.selectedDatesObj = pendingSelections.selectedDatesObj;
+                }
+
+                // Copy guest details if available
+                if (pendingSelections.guestDetails) {
+                    currentSelections.guestDetails = pendingSelections.guestDetails;
+                }
+
+                // Update API formats based on current selections
+                await updateAPIFormats();
+
+                // Fetch property search results
+                const searchResults = await fetchPropertySearchResults();
+
+                // Handle search results
+                if (!searchResults?.error) {
+                    localStorage.setItem('propertySearchResults', JSON.stringify(searchResults));
+                } else {
+                    console.error('Search failed:', searchResults?.message);
+                }
+
+                // Close guests popup and hide mobile container
+                if (guestsPopup) guestsPopup.style.display = 'none';
+                hideMobilePopup();
+
+                // Update phone view content
+                updatePhoneViewContent();
+            });
+        }
+
+        // Add CSS to hide these buttons on desktop
+        const mobileButtonStyles = document.createElement('style');
+        mobileButtonStyles.textContent = `
+    @media screen and (min-width: 992px) {
+        [data-element="navBarSearch_closeButton"],
+        [data-element="navBarSearch_clearButton"],
+        [data-element="navBarSearch_typePopup_closeButton"],
+        [data-element="navBarSearch_typePopup_nextButton"],
+        [data-element="navBarSearch_locationPopup_closeButton"],
+        [data-element="navBarSearch_locationPopup_nextButton"],
+        [data-element="navBarSearch_datesPopup_closeButton"],
+        [data-element="navBarSearch_datesPopup_nextButton"],
+        [data-element="navBarSearch_guestsPopup_closeButton"],
+        [data-element="navBarSearch_guestsPopup_searchButton"] {
+            display: none !important;
+        }
+    }
+    
+    @media screen and (max-width: 991px) {
+        [data-element="navBarSearch_closeButton"],
+        [data-element="navBarSearch_clearButton"],
+        [data-element="navBarSearch_typePopup_closeButton"],
+        [data-element="navBarSearch_typePopup_nextButton"],
+        [data-element="navBarSearch_locationPopup_closeButton"],
+        [data-element="navBarSearch_locationPopup_nextButton"],
+        [data-element="navBarSearch_datesPopup_closeButton"],
+        [data-element="navBarSearch_datesPopup_nextButton"],
+        [data-element="navBarSearch_guestsPopup_closeButton"],
+        [data-element="navBarSearch_guestsPopup_searchButton"] {
+            display: flex !important;
+        }
+    }
+`;
+        document.head.appendChild(mobileButtonStyles);
+
+        // Return update function for external use
+        return {
+            updatePhoneView: updatePhoneViewContent,
+            showPopup: showMobilePopup,
+            hidePopup: hideMobilePopup
+        };
+
+
+
+    }
+
+    // ADD THIS: Call the setup function after the existing setup
+    const responsiveNav = setupResponsiveNavigation();
+
+    // ADD THIS: Update phone view whenever selections change
+    // Override updateButtonText to also update phone view
+    const originalUpdateButtonText = updateButtonText;
+    updateButtonText = function (textElement, newValue, defaultValue) {
+        originalUpdateButtonText(textElement, newValue, defaultValue);
+
+        // Update phone view content when any button text changes
+        if (responsiveNav && responsiveNav.updatePhoneView) {
+            responsiveNav.updatePhoneView();
+        }
+    };
 
     // Initialize the popups
     const typePopupHandlers = setupTypePopup();
@@ -2951,16 +3768,13 @@ document.addEventListener('DOMContentLoaded', function () {
             const dockFeatures = Object.values(activeFilters.dock);
             if (dockFeatures.some(feature => feature !== null)) count++;
 
-            console.log("count", count);
 
             // Update UI
             if (activeFiltersCount) {
                 if (count > 0) {
-                    console.log("count", count);
                     activeFiltersCount.textContent = count;
                     activeFiltersCount.style.display = 'flex';
                 } else {
-                    console.log("count", count);
                     activeFiltersCount.style.display = 'none';
                 }
             }
@@ -3200,27 +4014,222 @@ document.addEventListener('DOMContentLoaded', function () {
     // Add this at the top of your file with other variables
     let isSearchInProgress = false;
 
-    // Modify the fetchPropertySearchResults function
+    // ADD THIS: Skeleton loading functionality at the top after the existing variables
+    let skeletonTimeout = null;
+    let skeletonStartTime = null;
+    const MINIMUM_SKELETON_TIME = 1500; // 1.5 seconds minimum display
+
+    // Add skeleton CSS styles
+    const skeletonStyles = document.createElement('style');
+    skeletonStyles.textContent = `
+        /* Skeleton container styling */
+        [data-element="listings-skeleton-container"] {
+            display: none;
+            flex-wrap: wrap;
+            gap: 20px;
+            width: 100%;
+            justify-content: flex-start;
+        }
+        
+        /* Individual skeleton card styling */
+        .skeleton-card {
+            width: 48%;
+            min-width: 296px;
+            height: 320px;
+            background: #f0f0f0;
+            border-radius: 10px;
+            position: relative;
+            overflow: hidden;
+            animation: skeleton-pulse 1.5s ease-in-out infinite;
+        }
+        
+        /* Skeleton shimmer effect */
+        .skeleton-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(
+                90deg,
+                transparent,
+                rgba(255, 255, 255, 0.6),
+                transparent
+            );
+            animation: skeleton-shimmer 2s infinite;
+        }
+        
+        /* Skeleton pulse animation */
+        @keyframes skeleton-pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.8;
+            }
+        }
+        
+        /* Skeleton shimmer animation */
+        @keyframes skeleton-shimmer {
+            0% {
+                left: -100%;
+            }
+            100% {
+                left: 100%;
+            }
+        }
+        
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .skeleton-card {
+                width: 100%;
+                min-width: unset;
+            }
+        }
+        
+        @media (min-width: 769px) and (max-width: 1024px) {
+            .skeleton-card {
+                width: 48%;
+            }
+        }
+        
+        @media (min-width: 1025px) {
+            .skeleton-card {
+                width: 48%;
+            }
+        }
+    `;
+    document.head.appendChild(skeletonStyles);
+
+    // Function to create skeleton container if it doesn't exist
+    function createSkeletonContainer() {
+        let skeletonContainer = document.querySelector('[data-element="listings-skeleton-container"]');
+
+        if (!skeletonContainer) {
+            skeletonContainer = document.createElement('div');
+            skeletonContainer.setAttribute('data-element', 'listings-skeleton-container');
+            skeletonContainer.style.display = 'flex';
+            skeletonContainer.style.flexWrap = 'wrap';
+            skeletonContainer.style.gap = '20px';
+            skeletonContainer.style.width = '100%';
+            skeletonContainer.style.justifyContent = 'flex-start';
+
+            // Insert skeleton container right after listings container
+            const listingsContainer = document.querySelector('[data-element="listings-container"]');
+            if (listingsContainer && listingsContainer.parentNode) {
+                listingsContainer.parentNode.insertBefore(skeletonContainer, listingsContainer.nextSibling);
+            }
+        }
+
+        return skeletonContainer;
+    }
+
+    // Function to create skeleton cards
+    function createSkeletonCards(count = 4) {
+        const skeletonContainer = createSkeletonContainer();
+        skeletonContainer.innerHTML = '';
+
+        for (let i = 0; i < count; i++) {
+            const skeletonCard = document.createElement('div');
+            skeletonCard.className = 'skeleton-card';
+            skeletonContainer.appendChild(skeletonCard);
+        }
+    }
+
+    // Function to show skeleton loading with minimum time (NON-BLOCKING VERSION)
+    function showSkeletonLoading() {
+        const listingsContainer = document.querySelector('[data-element="listings-container"]');
+        const skeletonContainer = createSkeletonContainer();
+        const paginationContainer = document.querySelector('[data-element="pagination-container"]');
+
+        // Record when skeleton loading started
+        skeletonStartTime = Date.now();
+
+        // Use requestAnimationFrame to avoid blocking map interactions
+        requestAnimationFrame(() => {
+            // Create and show skeleton cards
+            createSkeletonCards(4);
+
+            // Hide listings container and pagination
+            if (listingsContainer) {
+                listingsContainer.style.display = 'none';
+            }
+            if (paginationContainer) {
+                paginationContainer.style.display = 'none';
+            }
+
+            // Show skeleton container
+            skeletonContainer.style.display = 'flex';
+        });
+    }
+
+    // Function to hide skeleton loading with minimum time check (NON-BLOCKING VERSION)
+    function hideSkeletonLoading() {
+        const listingsContainer = document.querySelector('[data-element="listings-container"]');
+        const skeletonContainer = document.querySelector('[data-element="listings-skeleton-container"]');
+
+        if (!skeletonStartTime) {
+            // If skeleton wasn't shown, just ensure containers are visible
+            requestAnimationFrame(() => {
+                if (listingsContainer) listingsContainer.style.display = '';
+                if (skeletonContainer) skeletonContainer.style.display = 'none';
+            });
+            return;
+        }
+
+        const elapsedTime = Date.now() - skeletonStartTime;
+        const remainingTime = Math.max(0, MINIMUM_SKELETON_TIME - elapsedTime);
+
+        // Clear any existing timeout
+        if (skeletonTimeout) {
+            clearTimeout(skeletonTimeout);
+        }
+
+        // Use requestAnimationFrame for smooth transitions
+        const hideSkeletonElements = () => {
+            requestAnimationFrame(() => {
+                // Hide skeleton container
+                if (skeletonContainer) {
+                    skeletonContainer.style.display = 'none';
+                }
+
+                // Show listings container
+                if (listingsContainer) {
+                    listingsContainer.style.display = '';
+                }
+
+                // Reset timing variables
+                skeletonStartTime = null;
+                skeletonTimeout = null;
+            });
+        };
+
+        // If minimum time hasn't passed, wait for remaining time
+        if (remainingTime > 0) {
+            skeletonTimeout = setTimeout(hideSkeletonElements, remainingTime);
+        } else {
+            // Minimum time has passed, hide immediately
+            hideSkeletonElements();
+        }
+    }
+
+    // MODIFY the fetchPropertySearchResults function to include skeleton loading
     async function fetchPropertySearchResults() {
+
         // Prevent multiple simultaneous searches
         if (isSearchInProgress) {
-            console.log("Search already in progress, skipping...");
             return;
         }
 
         try {
             isSearchInProgress = true;
 
-            // Show skeleton and store show time
-            const skeleton = document.querySelector('[data-element="map_skeleton"]');
-            if (skeleton) {
-                skeleton.setAttribute('data-show-time', Date.now().toString());
-                showMapSkeleton();
-            }
 
-            console.log("Fetching properties with search parameters:", apiFormats);
+            // Show skeleton loading
+            showSkeletonLoading();
 
-            // Show loading state
+            // Show loading state on search button
             const searchButton = document.querySelector('[data-element="navBarSearch_searchButton"]');
             if (searchButton) {
                 searchButton.classList.add('loading');
@@ -3257,10 +4266,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 const formattedCheckIn = formatDateForAPI(apiFormats.dates.checkIn);
                 const formattedCheckOut = formatDateForAPI(apiFormats.dates.checkOut);
 
-                console.log("Original dates:", apiFormats.dates);
-                console.log("Formatted check-in:", formattedCheckIn);
-                console.log("Formatted check-out:", formattedCheckOut);
-
                 if (formattedCheckIn) params.append('check_in', formattedCheckIn);
                 if (formattedCheckOut) params.append('check_out', formattedCheckOut);
             }
@@ -3276,13 +4281,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
             // Make the API request as GET with query parameters
             const apiUrl = `https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/property_search?${params.toString()}`;
-            console.log("API URL:", apiUrl);
 
             const response = await fetch(apiUrl, {
                 method: 'GET'
             });
 
-            // Remove loading state
+            // Remove loading state from search button
             if (searchButton) {
                 searchButton.classList.remove('loading');
             }
@@ -3296,7 +4300,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
             // Parse the data
             const data = await response.json();
-            console.log("Property search results:", data);
 
             // Store results in localStorage
             localStorage.setItem('propertySearchResults', JSON.stringify(data));
@@ -3307,22 +4310,23 @@ document.addEventListener('DOMContentLoaded', function () {
             return data;
         } catch (error) {
             console.error('Error fetching property search results:', error);
-            // Hide skeleton even on error
-            hideMapSkeleton();
             return { error: true, message: error.message };
         } finally {
             // Always reset the search flag when done
             isSearchInProgress = false;
 
-            // Remove loading state
+            // Remove loading state from search button
             const searchButton = document.querySelector('[data-element="navBarSearch_searchButton"]');
             if (searchButton) {
                 searchButton.classList.remove('loading');
             }
+
+            // Hide skeleton loading
+            hideSkeletonLoading();
         }
     }
 
-    // MODIFY THIS: Update the setupMapIntegration function (around line 2470)
+    // MODIFY setupMapIntegration to initialize map only once:
     function setupMapIntegration(searchResults) {
         // Apply filters before rendering
         const filteredResults = filterSystem ? filterSystem.applyFilters(searchResults) : searchResults;
@@ -3330,34 +4334,31 @@ document.addEventListener('DOMContentLoaded', function () {
         // Load Google Maps API if not already loaded
         if (typeof google === 'undefined' || typeof google.maps === 'undefined') {
             loadGoogleMapsAPI(() => {
+                initializeMap(); // Initialize map once
                 renderSearchResults(filteredResults);
             });
         } else {
+            if (!isMapInitialized) {
+                initializeMap(); // Initialize map once
+            }
             renderSearchResults(filteredResults);
         }
     }
 
-    // Modify the renderSearchResults function to preserve map bounds
+    // MODIFY the renderSearchResults function to use the new approach:
     function renderSearchResults(searchResults) {
         currentPage = 1; // Reset to first page on new search
-
-        // Store current map bounds if they exist
-        let currentBounds = null;
-        if (window.currentMap && window.currentMap.getBounds()) {
-            currentBounds = window.currentMap.getBounds();
-        }
 
         // Render listing cards
         renderListingCards(searchResults);
 
-        // Create map with preserved bounds
-        createMap(searchResults, currentBounds);
+        // Update map with new results (instead of creating new map)
+        updateMapWithResults(searchResults);
     }
 
     // Function to load Google Maps API with callback
     function loadGoogleMapsAPI(callback) {
-        // Show skeleton when starting to load Maps API
-        showMapSkeleton();
+
 
         // Check if API is already loading or loaded
         if (document.querySelector('script[src*="maps.googleapis.com/maps/api/js"]')) {
@@ -3380,29 +4381,43 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Define global callback for Google Maps
         window.initMap = function () {
-            console.log('Google Maps API loaded');
             callback();
-            // Note: Don't hide skeleton here as it will be handled by createMap
         };
     }
 
-    // Function to initialize Splide for a listing card
     function initializeSplideForCard(card, listing) {
         // Find the splide element within the card
         const splideElement = card.querySelector('.splide');
+        console.log({ splideElement })
 
         if (!splideElement || !listing._images || listing._images.length === 0) {
             return; // No slider element or no images
         }
-
-        // Check if Splide is already initialized on this element
-        if (splideElement.classList.contains('is-initialized')) {
-            return; // Already initialized
-        }
-
+        /*
+                // Check if Splide is already initialized on this element
+                if (splideElement.classList.contains('is-initialized')) {
+                    // If already initialized, reset to first slide and refresh
+                    const existingSlider = splideElement.splide;
+                    if (existingSlider) {
+                        try {
+                            existingSlider.go(0); // Go to first slide
+                            return;
+                        } catch (e) {
+                            // If there's an error, continue with reinitialization
+                            console.warn('Error resetting Splide position:', e);
+                        }
+        
+                    }
+                    return; // Already initialized
+                }*/
+        // LEAH MARK
         // Initialize Splide for this slider
         const slider = new Splide(splideElement, {
             type: 'loop',   // Enable looping
+            perPage: 1,
+            arrows: true,
+            pagination: true
+
         });
 
         slider.on('pagination:mounted', function (data) {
@@ -3439,15 +4454,29 @@ document.addEventListener('DOMContentLoaded', function () {
 
         slider.mount();
 
-        // Add slides for each image
-        listing._images.forEach((imageData) => {
+        splideElement.splide = slider;
+
+
+        // Store reference to the slider instance for later access
+
+
+        // Add slides for each image with optimized loading
+        listing._images.forEach((imageData, index) => {
             if (imageData && imageData.property_image && imageData.property_image.url) {
                 const li = document.createElement('li');
                 li.classList.add('splide__slide');
-                li.innerHTML = `<img src="${imageData.property_image.url}" alt="${listing.property_name || 'Property Photo'}">`;
+
+                // Load first 3 images eagerly, rest lazily
+                const loadingStrategy = index < 3 ? 'eager' : 'lazy';
+
+                li.innerHTML = `<img src="${imageData.property_image.url}" 
+                                   alt="${listing.property_name || 'Property Photo'}"
+                                   loading="${loadingStrategy}">`;
                 slider.add(li);
             }
         });
+
+
 
         // Style the arrows
         const prevArrow = splideElement.querySelector('.splide__arrow--prev');
@@ -3482,10 +4511,14 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Refresh the slider after adding slides
         slider.refresh();
+        console.log(splideElement)
+
 
         // Mark as initialized
         splideElement.classList.add('is-initialized');
     }
+
+
 
     // Function to render pagination controls
     function renderPagination(totalListings) {
@@ -3612,6 +4645,21 @@ document.addEventListener('DOMContentLoaded', function () {
             currentPage = 1;  // Changed this line - always reset to 1, not conditionally
         }
 
+        // Update listings count display
+        let listingsCountElement = document.querySelector('[data-element="listings-count"]');
+        if (!listingsCountElement) {
+            listingsCountElement = document.createElement('div');
+            listingsCountElement.setAttribute('data-element', 'listings-count');
+            // Insert before the listings container
+            listingContainer.parentNode.insertBefore(listingsCountElement, listingContainer);
+        }
+
+        // Update count text
+        const totalListings = currentListings.length;
+        listingsCountElement.textContent = totalListings === 1
+            ? '1 Listing'
+            : `${totalListings} Listings`;
+
         // Calculate pagination
         const startIndex = (currentPage - 1) * listingsPerPage;
         const endIndex = startIndex + listingsPerPage;
@@ -3698,11 +4746,11 @@ document.addEventListener('DOMContentLoaded', function () {
         existingResetButtons.forEach(btn => btn.remove());
 
         paginatedListings.forEach((listing) => {
-            console.log("Listing:", listing);
             // Check if card for this listing already exists
             let card = listingContainer.querySelector(`[data-listing-id="${listing.id}"]`);
 
             if (!card) {
+                console.log("leah gets here card doesn't exist")
                 // Card doesn't exist, create a new one from template
                 card = listingCardTemplate.cloneNode(true);
                 card.style.display = ''; // Make sure the new card is visible
@@ -3782,6 +4830,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Add click event to listingCard_bodyBlock for navigation
                 const bodyBlock = card.querySelector('[data-element="listingCard_bodyBlock"]');
                 if (bodyBlock) {
+                    console.log("leah gets here bodyBlock")
                     bodyBlock.addEventListener('click', (e) => {
                         // Don't navigate if clicking on splide arrows or dots
                         if (e.target.closest('.splide__arrow') ||
@@ -3860,9 +4909,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 // Initialize Splide for this card after it's in the DOM
                 requestAnimationFrame(() => {
+                    console.log("leah gets here a")
                     initializeSplideForCard(card, listing);
                 });
             } else {
+                console.log("leah gets here")
                 // Card exists, update its content
                 const calendarText = card.querySelector('[data-element="ListingCardCalendarText"]');
                 const totalPrice = card.querySelector('[data-element="ListingCardTotalPrice"]');
@@ -3963,29 +5014,19 @@ document.addEventListener('DOMContentLoaded', function () {
                         params.append('checkin', checkInDate);
                         params.append('checkout', checkOutDate);
 
-                        // Add guest counts (use search guests if available, otherwise defaults)
-                        let guestParams = {
-                            guests: 1,
-                            adults: 1,
-                            children: 0,
-                            infants: 0,
-                            pets: 0
-                        };
-
+                        // Add guest parameters if they exist
                         if (apiFormats.guests && apiFormats.guests.total > 0) {
-                            guestParams = {
+                            const guestParams = {
                                 guests: apiFormats.guests.total,
                                 adults: apiFormats.guests.adults || 0,
                                 children: apiFormats.guests.children || 0,
                                 infants: apiFormats.guests.infants || 0,
                                 pets: apiFormats.guests.pets || 0
                             };
+                            Object.entries(guestParams).forEach(([key, value]) => {
+                                params.append(key, value);
+                            });
                         }
-
-                        // Append guest parameters
-                        Object.entries(guestParams).forEach(([key, value]) => {
-                            params.append(key, value);
-                        });
 
                         // Open in new tab
                         const url = `/listing/page?${params.toString()}`;
@@ -4005,497 +5046,7 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // Replace the createMap function with this corrected version
-    function createMap(listings, preserveBounds = null) {
-        const mapContainer = document.querySelector('[data-element="search_map"]');
-        if (!mapContainer) {
-            console.error('Map container not found');
-            return;
-        }
 
-        // Show skeleton at start of map creation
-        showMapSkeleton();
-
-        // Store all listings globally for filtering
-        window.allListings = listings;
-
-        // Define neighborhoods for zoom level check
-        const neighborhoods = {
-            "Key Largo": ["Port Largo", "Rock Harbor", "Sunset Cove", "Sexton Cove", "Garden Cove"],
-            "Islamorada": ["Plantation Key Colony", "Lower Matecumbe", "Venetian Shores", "Port Antigua", "Upper Matecumbe", "Windley Key"],
-            "Marathon": ["Boot Key Harbor", "Sombrero Beach", "Coco Plum", "Key Colony Beach"],
-            "Big Pine Key": ["Eden Pines", "Doctor's Arm", "No Name Key", "Pine Channel Estates"],
-            "Key West": ["Old Town", "New Town", "Bahama Village", "Truman Annex", "Casa Marina"]
-        };
-
-        // Define special locations with specific coordinates
-        const specialLocations = {
-            "Sombrero Beach": {
-                bounds: {
-                    northeast: { lat: 24.710746, lng: -81.074342 },
-                    southwest: { lat: 24.689237, lng: -81.092847 },
-                    center: { lat: 24.699992, lng: -81.083595 }
-                }
-            }
-        };
-
-        // Function to check if location is a neighborhood
-        function isNeighborhood(location) {
-            if (!location) return false;
-            const cleanLocation = location.replace(/, FL$/, '').trim();
-
-            for (const specialName of Object.keys(specialLocations)) {
-                if (cleanLocation.startsWith(specialName) ||
-                    cleanLocation.includes(`, ${specialName}`) ||
-                    cleanLocation.toLowerCase().includes(specialName.toLowerCase())) {
-                    return true;
-                }
-            }
-
-            if (cleanLocation.includes(',')) {
-                const [neighborhood] = cleanLocation.split(',').map(part => part.trim());
-                return Object.values(neighborhoods).some(cityNeighborhoods =>
-                    cityNeighborhoods.includes(neighborhood)
-                );
-            }
-            return false;
-        }
-
-        // Define Florida Keys bounds
-        const floridaKeysBounds = {
-            north: 25.2,
-            south: 24.4,
-            west: -82.2,
-            east: -80.0
-        };
-
-        // Determine initial zoom level based on search location
-        let initialZoom = 11;
-        let initialCenter = { lat: 24.7, lng: -81.1 };
-
-        if (apiFormats.location && apiFormats.location.name) {
-            const cleanLocation = apiFormats.location.name.replace(/, FL$/, '').trim();
-
-            if (specialLocations[cleanLocation]) {
-                initialZoom = 15;
-                initialCenter = specialLocations[cleanLocation].bounds.center;
-            } else if (isNeighborhood(apiFormats.location.name)) {
-                initialZoom = 15;
-            }
-        }
-
-        // Create map
-        const map = new google.maps.Map(mapContainer, {
-            center: initialCenter,
-            zoom: initialZoom,
-            minZoom: 9,
-            maxZoom: 15,
-            mapTypeId: google.maps.MapTypeId.ROADMAP,
-            mapTypeControl: false,
-            streetViewControl: false,
-            restriction: {
-                latLngBounds: floridaKeysBounds,
-                strictBounds: false
-            },
-            styles: [
-                {
-                    featureType: "water",
-                    elementType: "geometry.fill",
-                    stylers: [{ color: "#d0e7ff" }]
-                },
-                {
-                    featureType: "landscape",
-                    elementType: "geometry",
-                    stylers: [{ color: "#e6f3e6" }]
-                },
-                {
-                    featureType: "landscape.natural",
-                    elementType: "geometry",
-                    stylers: [{ color: "#e6f3e6" }]
-                },
-                {
-                    featureType: "poi.park",
-                    elementType: "geometry",
-                    stylers: [
-                        { visibility: "on" },
-                        { color: "#e6f3e6" }
-                    ]
-                },
-                {
-                    featureType: "landscape.man_made",
-                    elementType: "geometry",
-                    stylers: [{ color: "#f9f9f9" }]
-                },
-                {
-                    featureType: "poi",
-                    elementType: "all",
-                    stylers: [{ visibility: "off" }]
-                },
-                {
-                    featureType: "poi",
-                    elementType: "labels",
-                    stylers: [{ visibility: "off" }]
-                },
-                {
-                    featureType: "transit",
-                    elementType: "all",
-                    stylers: [{ visibility: "off" }]
-                },
-                {
-                    featureType: "road",
-                    elementType: "geometry",
-                    stylers: [{ color: "#ffffff" }]
-                },
-                {
-                    featureType: "road.highway",
-                    elementType: "geometry",
-                    stylers: [{ color: "#e0e0e0" }]
-                },
-                {
-                    featureType: "road",
-                    elementType: "labels",
-                    stylers: [{ visibility: "off" }]
-                },
-                {
-                    featureType: "administrative",
-                    elementType: "geometry",
-                    stylers: [{ visibility: "simplified" }]
-                },
-                {
-                    featureType: "administrative.locality",
-                    elementType: "labels.text.fill",
-                    stylers: [{ color: "#808080" }]
-                },
-                {
-                    featureType: "all",
-                    elementType: "labels",
-                    stylers: [{ visibility: "off" }]
-                },
-                {
-                    featureType: "administrative.locality",
-                    elementType: "labels",
-                    stylers: [{ visibility: "on" }]
-                }
-            ]
-        });
-
-        // Store markers for later reference
-        window.mapMarkers = {};
-
-        // Add markers for each listing
-        listings.forEach(listing => {
-            console.log('Processing listing:', listing.id); // Add this log
-            if (listing.latitude && listing.longitude) {
-                console.log('Listing has valid coordinates:', listing.id); // Add this log
-                const lat = parseFloat(listing.latitude);
-                const lng = parseFloat(listing.longitude);
-
-                if (!isNaN(lat) && !isNaN(lng)) {
-                    // Determine which price to show
-                    let priceText;
-                    if (apiFormats.dates.checkIn && apiFormats.dates.checkOut) {
-                        // User has searched for specific dates - show total price
-                        const totalPrice = listing.customDatesTotalPrice || 0;
-                        priceText = `$${Math.ceil(totalPrice).toLocaleString()}`;
-                    } else {
-                        // Default dates - show nightly price
-                        const nightlyPrice = listing.nightlyPrice || 0;
-                        priceText = `$${nightlyPrice}`;
-                    }
-                    // Create custom marker HTML
-                    const markerHTML = `
-                        <div style="
-                            background-color: white;
-                            border: 1px solid #e2e2e2;
-                            border-radius: 20px;
-                            padding: 6px 12px;
-                            font-family: 'TT Fors', sans-serif;
-                            font-size: 14px;
-                            font-weight: 600;
-                            color: #000;
-                            white-space: nowrap;
-                            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                            cursor: pointer;
-                            transition: all 0.2s ease;
-                        " onmouseover="this.style.transform='scale(1.05)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)';" 
-                           onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.1)';">
-                            ${priceText}
-                        </div>
-                    `;
-
-                    // Create the marker using AdvancedMarkerElement or fallback to OverlayView
-                    let marker;
-
-                    if (google.maps.marker && google.maps.marker.AdvancedMarkerElement) {
-                        console.log('Using AdvancedMarkerElement for marker:', listing.id);
-                        // Use AdvancedMarkerElement (newer Google Maps API)
-                        const markerDiv = document.createElement('div');
-                        markerDiv.innerHTML = markerHTML;
-
-                        // Add direct click handler to the div
-                        markerDiv.firstElementChild.addEventListener('click', (e) => {
-                            console.log('Direct click on marker div:', listing.id);
-                        });
-
-                        marker = new google.maps.marker.AdvancedMarkerElement({
-                            position: { lat, lng },
-                            map: map,
-                            content: markerDiv.firstElementChild,
-                            title: listing.property_name
-                        });
-                    } else {
-                        console.log('Using CustomMarker (OverlayView) for marker:', listing.id);
-                        // Fallback to custom overlay
-                        class CustomMarker extends google.maps.OverlayView {
-                            constructor(position, map, html, listing) { // Add listing parameter
-                                super();
-                                this.position = position;
-                                this.html = html;
-                                this.listing = listing; // Store listing data
-                                this.setMap(map);
-                            }
-
-                            onAdd() {
-                                console.log('CustomMarker onAdd called for listing:', this.listing.id);
-                                this.div = document.createElement('div');
-                                this.div.style.position = 'absolute';
-                                this.div.innerHTML = this.html;
-
-                                const panes = this.getPanes();
-                                panes.overlayMouseTarget.appendChild(this.div);
-                            }
-
-                            draw() {
-                                const overlayProjection = this.getProjection();
-                                const position = overlayProjection.fromLatLngToDivPixel(this.position);
-
-                                if (position) {
-                                    this.div.style.left = (position.x - this.div.offsetWidth / 2) + 'px';
-                                    this.div.style.top = (position.y - this.div.offsetHeight / 2) + 'px';
-                                }
-                            }
-
-                            onRemove() {
-                                if (this.div) {
-                                    this.div.parentNode.removeChild(this.div);
-                                    this.div = null;
-                                }
-                            }
-                        }
-
-                        marker = new CustomMarker(
-                            new google.maps.LatLng(lat, lng),
-                            map,
-                            markerHTML,
-                            listing // Pass the listing data
-                        );
-                    }
-
-                    // Store marker with listing data
-                    window.mapMarkers[listing.id] = marker;
-                    marker.listingData = listing;
-
-                    // For custom markers, add click handler after onAdd
-                    const originalOnAdd = marker.onAdd;
-                    marker.onAdd = function () {
-                        originalOnAdd.call(this);
-
-                        // Now add click handler
-                        if (this.div) {
-                            console.log('Adding click event listener to CustomMarker div');
-                            this.div.firstElementChild.addEventListener('click', (e) => {
-                                console.log('CustomMarker clicked:', this.listing.id);
-                                e.stopPropagation();
-
-                                // Close any existing overlay
-                                if (window.currentListingOverlay) {
-                                    window.currentListingOverlay.setMap(null);
-                                    // Reset previous marker color
-                                    const prevListingId = window.currentListingOverlay.listing.id;
-                                    setMarkerBackgroundColor(prevListingId, 'white');
-                                }
-
-                                // Change marker background
-                                setMarkerBackgroundColor(this.listing.id, '#9ecaff');
-
-                                // Create and show listing card overlay
-                                const position = new google.maps.LatLng(this.listing.latitude, this.listing.longitude);
-                                window.currentListingOverlay = createListingCardOverlay(this.listing, position, map);
-                            });
-                        }
-                    };
-                }
-            }
-        });
-
-        // SIMPLIFIED MAP AREA LOGIC
-        let searchBounds = null; // The bounds of our current search results
-        let isInitialLoad = true;
-        let searchTimeout = null;
-        let userHasInteracted = false; // Track if user has manually moved/zoomed the map
-
-        // Function to update current map bounds in apiFormats
-        function updateCurrentMapBounds() {
-            const bounds = map.getBounds();
-            if (!bounds) return;
-
-            const ne = bounds.getNorthEast();
-            const sw = bounds.getSouthWest();
-
-            apiFormats.location = {
-                name: "Map area",
-                bounds: {
-                    northeast: { lat: ne.lat(), lng: ne.lng() },
-                    southwest: { lat: sw.lat(), lng: sw.lng() },
-                    center: {
-                        lat: (ne.lat() + sw.lat()) / 2,
-                        lng: (ne.lng() + sw.lng()) / 2
-                    }
-                }
-            };
-        }
-
-        // Function to check if current view is within the search bounds
-        function isWithinSearchBounds(currentBounds, searchBounds) {
-            if (!searchBounds) return false;
-
-            const currentNE = currentBounds.getNorthEast();
-            const currentSW = currentBounds.getSouthWest();
-            const searchNE = searchBounds.getNorthEast();
-            const searchSW = searchBounds.getSouthWest();
-
-            // Check if current bounds are completely within search bounds
-            return currentNE.lat() <= searchNE.lat() &&
-                currentSW.lat() >= searchSW.lat() &&
-                currentNE.lng() <= searchNE.lng() &&
-                currentSW.lng() >= searchSW.lng();
-        }
-
-        // Function to check if user has moved outside search bounds (not just zoomed)
-        function hasMovedOutsideSearchBounds(currentBounds, searchBounds) {
-            if (!searchBounds) return true;
-
-            const currentNE = currentBounds.getNorthEast();
-            const currentSW = currentBounds.getSouthWest();
-            const searchNE = searchBounds.getNorthEast();
-            const searchSW = searchBounds.getSouthWest();
-
-            // Check if any part of current view is outside the search bounds
-            return currentNE.lat() > searchNE.lat() ||
-                currentSW.lat() < searchSW.lat() ||
-                currentNE.lng() > searchNE.lng() ||
-                currentSW.lng() < searchSW.lng();
-        }
-
-        // Add listeners to detect user interaction
-        map.addListener('dragstart', () => {
-            userHasInteracted = true;
-        });
-
-        map.addListener('zoom_changed', () => {
-            // Only set userHasInteracted if this isn't the initial load
-            if (!isInitialLoad) {
-                userHasInteracted = true;
-            }
-        });
-
-        // Single idle listener with clear logic
-        map.addListener('idle', () => {
-            const currentBounds = map.getBounds();
-            if (!currentBounds) return;
-
-            // On initial load, set the search bounds and exit
-            if (isInitialLoad) {
-                searchBounds = currentBounds;
-                isInitialLoad = false;
-                hideMapSkeleton();
-                return;
-            }
-
-            // Only proceed if user has actually interacted with the map
-            if (!userHasInteracted) {
-                // Just filter existing listings for programmatic map changes
-                const visibleListings = filterListingsByBounds(window.allListings, currentBounds);
-                renderListingCards(visibleListings, true);
-                return;
-            }
-
-            // Check if user is within search bounds (just zooming)
-            if (isWithinSearchBounds(currentBounds, searchBounds)) {
-                // User is zooming within existing search area
-                // Update to "Map area" since user has interacted with the map
-                const locationButtonTextElement = document.querySelector('[data-element="navBarSearch_locationButton_text"]');
-                if (locationButtonTextElement && currentSelections.location !== "Map area") {
-                    updateButtonText(locationButtonTextElement, "Map area", defaultValues.location);
-                    currentSelections.location = "Map area";
-                    pendingSelections.location = "Map area";
-
-                    // Update the bounds in apiFormats for search button functionality
-                    updateCurrentMapBounds();
-                }
-
-                // Just filter existing listings, no new API call
-                const visibleListings = filterListingsByBounds(window.allListings, currentBounds);
-                renderListingCards(visibleListings, true);
-                return;
-            }
-
-            // User has moved outside search bounds - need new search
-            if (hasMovedOutsideSearchBounds(currentBounds, searchBounds)) {
-                // Update location to "Map area"
-                const locationButtonTextElement = document.querySelector('[data-element="navBarSearch_locationButton_text"]');
-                if (locationButtonTextElement) {
-                    updateButtonText(locationButtonTextElement, "Map area", defaultValues.location);
-                    currentSelections.location = "Map area";
-                    pendingSelections.location = "Map area";
-                }
-
-                // Update bounds in apiFormats
-                updateCurrentMapBounds();
-
-                // Clear existing timeout
-                if (searchTimeout) {
-                    clearTimeout(searchTimeout);
-                }
-
-                // Show skeleton and trigger new search after delay
-                const skeleton = document.querySelector('[data-element="map_skeleton"]');
-                if (skeleton) {
-                    skeleton.setAttribute('data-show-time', Date.now().toString());
-                    showMapSkeleton();
-                }
-
-                searchTimeout = setTimeout(() => {
-                    fetchPropertySearchResults();
-                }, 500);
-
-                // Update search bounds to current bounds
-                searchBounds = currentBounds;
-            }
-
-            // Update the filterListingsByBounds function call
-            const visibleListings = filterListingsByBounds(window.allListings, currentBounds);
-            const filteredVisibleListings = filterSystem ? filterSystem.applyFilters(visibleListings) : visibleListings;
-            renderListingCards(filteredVisibleListings, true);
-        });
-
-        // Store map reference globally for search button access
-        window.currentMap = map;
-
-        // After creating markers, decide whether to fit to all bounds or preserve current view
-        if (preserveBounds && userHasInteracted) {
-            // If we have bounds to preserve and user has interacted with the map,
-            // keep the current view
-            map.setCenter(preserveBounds.getCenter());
-            map.setZoom(map.getZoom());
-        } else {
-            // Otherwise fit to show all markers
-            fitMapToBounds(map, listings);
-        }
-
-        // Update markers visibility for initial page
-        updateMarkersVisibility(1);
-    }
 
     // Function to filter listings based on map bounds
     function filterListingsByBounds(listings, bounds) {
@@ -4638,27 +5189,6 @@ document.addEventListener('DOMContentLoaded', function () {
     `;
     document.head.appendChild(mapStyle);
 
-    // Add this near the top of the file where other style elements are added
-    const mapSkeletonStyle = document.createElement('style');
-    mapSkeletonStyle.textContent = `
-        [data-element="map_skeleton"] {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            opacity: 0;
-            pointer-events: none;
-            z-index: 1;
-            transition: opacity 0.2s ease-in-out;
-        }
-
-        [data-element="map_skeleton"].visible {
-            opacity: 1;
-        }
-    `;
-    document.head.appendChild(mapSkeletonStyle);
-
     // Add CSS for map listing card styling
     const mapListingCardStyle = document.createElement('style');
     mapListingCardStyle.textContent = `
@@ -4715,31 +5245,6 @@ document.addEventListener('DOMContentLoaded', function () {
 `;
     document.head.appendChild(mapListingCardStyle);
 
-    // Add these utility functions for skeleton management
-    function showMapSkeleton() {
-        const skeleton = document.querySelector('[data-element="map_skeleton"]');
-        if (skeleton) {
-            skeleton.classList.add('visible');
-        }
-    }
-
-    function hideMapSkeleton(minimumDelay = 1000) {
-        const skeleton = document.querySelector('[data-element="map_skeleton"]');
-        if (skeleton) {
-            // Get the time the skeleton was shown
-            const showTime = parseInt(skeleton.getAttribute('data-show-time') || '0');
-            const currentTime = Date.now();
-            const elapsedTime = currentTime - showTime;
-
-            // Calculate remaining time to meet minimum delay
-            const remainingDelay = Math.max(0, minimumDelay - elapsedTime);
-
-            // Hide after remaining delay
-            setTimeout(() => {
-                skeleton.classList.remove('visible');
-            }, remainingDelay);
-        }
-    }
 
     // Function to handle text truncation with ellipsis
     function handleTextTruncation(element) {
@@ -4788,7 +5293,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    // ADD THIS: New function to update marker visibility based on current page
+    // Function to update marker visibility based on current page with delay and opacity transition
     function updateMarkersVisibility(page = currentPage) {
         if (!window.mapMarkers || !currentListings) return;
 
@@ -4797,24 +5302,67 @@ document.addEventListener('DOMContentLoaded', function () {
         const endIndex = startIndex + listingsPerPage;
         const visibleListingIds = currentListings.slice(startIndex, endIndex).map(listing => listing.id);
 
-        // Update all markers visibility
-        Object.entries(window.mapMarkers).forEach(([listingId, marker]) => {
-            const shouldBeVisible = visibleListingIds.includes(parseInt(listingId));
+        // Use requestAnimationFrame to avoid blocking map interactions
+        requestAnimationFrame(() => {
+            // Only update markers that need to change visibility
+            Object.entries(window.mapMarkers).forEach(([listingId, marker]) => {
+                const shouldBeVisible = visibleListingIds.includes(parseInt(listingId));
+                const isCurrentlyVisible = marker.setMap ?
+                    (marker.getMap() !== null) :
+                    (marker.div && marker.div.style.display !== 'none');
 
-            if (marker.setMap) {
-                // AdvancedMarkerElement - show/hide by setting map
-                marker.setMap(shouldBeVisible ? window.currentMap : null);
-            } else if (marker.div) {
-                // Custom overlay - show/hide via display style
-                marker.div.style.display = shouldBeVisible ? 'block' : 'none';
-            }
+                // Only update if visibility needs to change
+                if (shouldBeVisible !== isCurrentlyVisible) {
+                    if (shouldBeVisible) {
+                        // Show marker with delay and opacity transition
+                        setTimeout(() => {
+                            if (marker.setMap) {
+                                // Add opacity transition for AdvancedMarkerElement
+                                if (marker.content) {
+                                    marker.content.style.transition = 'opacity 0.3s ease';
+                                    marker.content.style.opacity = '0';
+                                }
+                                marker.setMap(window.currentMap);
+
+                                // Fade in after being added to map
+                                if (marker.content) {
+                                    requestAnimationFrame(() => {
+                                        marker.content.style.opacity = '1';
+                                    });
+                                }
+                            } else if (marker.div) {
+                                // Add opacity transition for custom overlay
+                                const markerElement = marker.div.firstElementChild;
+                                if (markerElement) {
+                                    markerElement.style.transition = 'opacity 0.3s ease';
+                                    markerElement.style.opacity = '0';
+                                }
+                                marker.div.style.display = 'block';
+
+                                // Fade in
+                                if (markerElement) {
+                                    requestAnimationFrame(() => {
+                                        markerElement.style.opacity = '1';
+                                    });
+                                }
+                            }
+                        }, 300);
+                    } else {
+                        // Hide marker immediately
+                        if (marker.setMap) {
+                            marker.setMap(null);
+                        } else if (marker.div) {
+                            marker.div.style.display = 'none';
+                        }
+                    }
+                }
+            });
         });
     }
 
     // Call fetchPropertySearchResults on page load to display initial properties
     fetchPropertySearchResults()
         .then(results => {
-            console.log('Initial property search loaded with default parameters');
         })
         .catch(error => {
             console.error('Error loading initial properties:', error);
@@ -4838,6 +5386,9 @@ document.addEventListener('DOMContentLoaded', function () {
             markerElement.style.backgroundColor = color;
         }
     }
+
+
+
 
     // Function to create a custom listing card overlay for map
     function createListingCardOverlay(listing, position, map) {
@@ -5132,6 +5683,532 @@ document.addEventListener('DOMContentLoaded', function () {
         return new ListingCardOverlay(listing, position);
     }
 
+    // Function to initialize the map only once
+    function initializeMap() {
+        if (isMapInitialized) return;
+
+        const mapContainer = document.querySelector('[data-element="search_map"]');
+        if (!mapContainer) {
+            console.error('Map container not found');
+            return;
+        }
+
+        // Define Florida Keys bounds
+        const floridaKeysBounds = {
+            north: 26.2,
+            south: 23.4,
+            west: -83.2,
+            east: -79.0
+        };
+
+        // Create map with default center and zoom
+        const map = new google.maps.Map(mapContainer, {
+            center: { lat: 24.7, lng: -81.1 },
+            zoom: 11,
+            minZoom: 9,
+            maxZoom: 15,
+            mapTypeId: google.maps.MapTypeId.ROADMAP,
+            mapTypeControl: false,
+            streetViewControl: false,
+            disableDoubleClickZoom: true,  // Disable double click zoom
+            restriction: {
+                latLngBounds: floridaKeysBounds,
+                strictBounds: false
+            },
+            styles: [
+                {
+                    featureType: "water",
+                    elementType: "geometry.fill",
+                    stylers: [{ color: "#d0e7ff" }]
+                },
+                {
+                    featureType: "landscape",
+                    elementType: "geometry",
+                    stylers: [{ color: "#e6f3e6" }]
+                },
+                {
+                    featureType: "landscape.natural",
+                    elementType: "geometry",
+                    stylers: [{ color: "#e6f3e6" }]
+                },
+                {
+                    featureType: "poi.park",
+                    elementType: "geometry",
+                    stylers: [
+                        { visibility: "on" },
+                        { color: "#e6f3e6" }
+                    ]
+                },
+                {
+                    featureType: "landscape.man_made",
+                    elementType: "geometry",
+                    stylers: [{ color: "#f9f9f9" }]
+                },
+                {
+                    featureType: "poi",
+                    elementType: "all",
+                    stylers: [{ visibility: "off" }]
+                },
+                {
+                    featureType: "poi",
+                    elementType: "labels",
+                    stylers: [{ visibility: "off" }]
+                },
+                {
+                    featureType: "transit",
+                    elementType: "all",
+                    stylers: [{ visibility: "off" }]
+                },
+                {
+                    featureType: "road",
+                    elementType: "geometry",
+                    stylers: [{ color: "#ffffff" }]
+                },
+                {
+                    featureType: "road.highway",
+                    elementType: "geometry",
+                    stylers: [{ color: "#e0e0e0" }]
+                },
+                {
+                    featureType: "road",
+                    elementType: "labels",
+                    stylers: [{ visibility: "off" }]
+                },
+                {
+                    featureType: "administrative",
+                    elementType: "geometry",
+                    stylers: [{ visibility: "simplified" }]
+                },
+                {
+                    featureType: "administrative.locality",
+                    elementType: "labels.text.fill",
+                    stylers: [{ color: "#808080" }]
+                },
+                {
+                    featureType: "all",
+                    elementType: "labels",
+                    stylers: [{ visibility: "off" }]
+                },
+                {
+                    featureType: "administrative.locality",
+                    elementType: "labels",
+                    stylers: [{ visibility: "on" }]
+                }
+            ]
+        });
+
+        // Store map reference globally
+        window.currentMap = map;
+        window.mapMarkers = {};
+
+        // Initialize map bounds tracking variables
+        let searchBounds = null;
+        let isInitialLoad = true;
+        let searchTimeout = null;
+        let userHasInteracted = false;
+
+        // Function to update current map bounds in apiFormats
+        function updateCurrentMapBounds() {
+            const bounds = map.getBounds();
+            if (!bounds) return;
+
+            const ne = bounds.getNorthEast();
+            const sw = bounds.getSouthWest();
+
+            apiFormats.location = {
+                name: "Map area",
+                bounds: {
+                    northeast: { lat: ne.lat(), lng: ne.lng() },
+                    southwest: { lat: sw.lat(), lng: sw.lng() },
+                    center: {
+                        lat: (ne.lat() + sw.lat()) / 2,
+                        lng: (ne.lng() + sw.lng()) / 2
+                    }
+                }
+            };
+        }
+
+        // Function to check if current view is within the search bounds
+        function isWithinSearchBounds(currentBounds, searchBounds) {
+            if (!searchBounds) return false;
+
+            const currentNE = currentBounds.getNorthEast();
+            const currentSW = currentBounds.getSouthWest();
+            const searchNE = searchBounds.getNorthEast();
+            const searchSW = searchBounds.getSouthWest();
+
+            return currentNE.lat() <= searchNE.lat() &&
+                currentSW.lat() >= searchSW.lat() &&
+                currentNE.lng() <= searchNE.lng() &&
+                currentSW.lng() >= searchSW.lng();
+        }
+
+        // Function to check if user has moved outside search bounds
+        function hasMovedOutsideSearchBounds(currentBounds, searchBounds) {
+            if (!searchBounds) return true;
+
+            const currentNE = currentBounds.getNorthEast();
+            const currentSW = currentBounds.getSouthWest();
+            const searchNE = searchBounds.getNorthEast();
+            const searchSW = searchBounds.getSouthWest();
+
+            return currentNE.lat() > searchNE.lat() ||
+                currentSW.lat() < searchSW.lat() ||
+                currentNE.lng() > searchNE.lng() ||
+                currentSW.lng() < searchSW.lng();
+        }
+
+        // Add listeners to detect user interaction
+        map.addListener('dragstart', () => {
+            userHasInteracted = true;
+        });
+
+        map.addListener('zoom_changed', () => {
+            if (!isInitialLoad) {
+                userHasInteracted = true;
+            }
+        });
+
+        isMapInitialized = true;
+
+
+        // MODIFY the initializeMap function's idle listener:
+        // Single idle listener with clear logic (FIXED VERSION)
+        map.addListener('idle', () => {
+            const currentBounds = map.getBounds();
+            if (!currentBounds) return;
+
+            console.log("idle triggered, isUserExploring:", isUserExploring, "isCenteringOnMarker:", isCenteringOnMarker);
+
+            // On initial load, set the search bounds and exit - don't trigger any updates
+            if (isInitialLoad) {
+                searchBounds = currentBounds;
+                isInitialLoad = false;
+                return;
+            }
+
+            // If we're centering on a marker, don't trigger API requests - just reset the flag and return
+            if (isCenteringOnMarker) {
+                isCenteringOnMarker = false;
+                return;
+            }
+
+            // Only proceed if user has actually interacted with the map
+            if (!userHasInteracted) {
+                return;
+            }
+
+            // Use requestAnimationFrame to avoid blocking map interactions
+            requestAnimationFrame(() => {
+                // Store the original listings before filtering
+                if (!window.originalListings) {
+                    window.originalListings = window.allListings;
+                }
+
+                // Filter listings based on current bounds
+                const visibleListings = filterListingsByBounds(window.originalListings, currentBounds);
+                const filteredVisibleListings = filterSystem ? filterSystem.applyFilters(visibleListings) : visibleListings;
+
+                // Defer marker updates to avoid blocking
+                setTimeout(() => {
+                    // Only update markers that need visibility changes
+                    Object.entries(window.mapMarkers).forEach(([listingId, marker]) => {
+                        const shouldBeVisible = filteredVisibleListings.some(listing => listing.id === parseInt(listingId));
+                        const isCurrentlyVisible = marker.setMap ?
+                            (marker.getMap() !== null) :
+                            (marker.div && marker.div.style.display !== 'none');
+
+                        // Only update if visibility needs to change
+                        if (shouldBeVisible !== isCurrentlyVisible) {
+                            if (marker.setMap) {
+                                marker.setMap(shouldBeVisible ? window.currentMap : null);
+                            } else if (marker.div) {
+                                marker.div.style.display = shouldBeVisible ? 'block' : 'none';
+                            }
+                        }
+                    });
+                }, 0);
+
+                // Only update listings if we've moved significantly outside search bounds
+                if (hasMovedOutsideSearchBounds(currentBounds, searchBounds)) {
+                    const locationButtonTextElement = document.querySelector('[data-element="navBarSearch_locationButton_text"]');
+                    if (locationButtonTextElement) {
+                        updateButtonText(locationButtonTextElement, "Map area", defaultValues.location);
+                        currentSelections.location = "Map area";
+                        pendingSelections.location = "Map area";
+                    }
+
+                    updateCurrentMapBounds();
+
+                    if (searchTimeout) {
+                        clearTimeout(searchTimeout);
+                    }
+
+                    // SET flag to indicate user is exploring
+                    isUserExploring = true;
+
+                    searchTimeout = setTimeout(() => {
+                        fetchPropertySearchResults();
+                    }, 500);
+
+                    searchBounds = currentBounds;
+                } else {
+                    // Show skeleton loading for bounds filtering if the amount of listings changes significantly
+                    const currentListingCount = currentListings ? currentListings.length : 0;
+                    const newListingCount = filteredVisibleListings ? filteredVisibleListings.length : 0;
+
+                    // Only show skeleton if there's a significant change in listing count (more than 25% difference)
+                    if (Math.abs(currentListingCount - newListingCount) > Math.max(currentListingCount * 0.25, 2)) {
+                        showSkeletonLoading();
+
+                        // Add a small delay to make the loading feel responsive
+                        setTimeout(() => {
+                            renderListingCards(filteredVisibleListings, true);
+                            hideSkeletonLoading();
+                        }, 300);
+                    } else {
+                        // Just update the visible listings without skeleton for small changes
+                        setTimeout(() => {
+                            renderListingCards(filteredVisibleListings, true);
+                        }, 0);
+                    }
+                }
+            });
+        });
+
+        // ALSO ADD dragstart listener to detect when user starts dragging:
+        // Add listeners to detect user interaction
+        map.addListener('dragstart', () => {
+            userHasInteracted = true;
+            isUserExploring = true; // User is actively exploring
+        });
+
+        map.addListener('dragend', () => {
+            // Reset exploration flag after a short delay
+            setTimeout(() => {
+                isUserExploring = false;
+            }, 1000);
+        });
+
+        map.addListener('zoom_changed', () => {
+            if (!isInitialLoad) {
+                userHasInteracted = true;
+            }
+        });
+
+    }
+
+    // Function to update map with new search results
+    function updateMapWithResults(listings) {
+        if (!window.currentMap) {
+            console.error('Map not initialized');
+            return;
+        }
+
+        // Clear existing markers
+        clearMapMarkers();
+
+        // Store all listings globally for filtering
+        window.allListings = listings;
+
+        // Add new markers
+        addMarkersToMap(listings);
+
+        // ONLY fit map bounds if user is not actively exploring
+        if (!isUserExploring) {
+            // Update map bounds to fit new results
+            fitMapToBounds(window.currentMap, listings);
+        } else {
+            // Reset the exploration flag after a delay to allow normal behavior later
+            setTimeout(() => {
+                isUserExploring = false;
+            }, 2000);
+        }
+
+        // Update markers visibility for current page
+        updateMarkersVisibility(currentPage);
+    }
+
+    // Function to clear all existing markers
+    function clearMapMarkers() {
+        if (!window.mapMarkers) return;
+
+        Object.values(window.mapMarkers).forEach(marker => {
+            if (marker.setMap) {
+                marker.setMap(null);
+            } else if (marker.onRemove) {
+                marker.onRemove();
+            }
+        });
+
+        window.mapMarkers = {};
+
+        // Close any open listing overlay
+        if (window.currentListingOverlay) {
+            window.currentListingOverlay.setMap(null);
+            window.currentListingOverlay = null;
+        }
+    }
+
+    // Function to add markers to the map
+    function addMarkersToMap(listings) {
+        listings.forEach(listing => {
+            if (listing.latitude && listing.longitude) {
+                const lat = parseFloat(listing.latitude);
+                const lng = parseFloat(listing.longitude);
+
+                if (!isNaN(lat) && !isNaN(lng)) {
+                    // Determine which price to show
+                    let priceText;
+                    if (apiFormats.dates.checkIn && apiFormats.dates.checkOut) {
+                        const totalPrice = listing.customDatesTotalPrice || 0;
+                        priceText = `$${Math.ceil(totalPrice).toLocaleString()}`;
+                    } else {
+                        const nightlyPrice = listing.nightlyPrice || 0;
+                        priceText = `$${nightlyPrice}`;
+                    }
+                    // Create custom marker HTML
+                    const markerHTML = `
+                    <div style="
+                        background-color: white;
+                        border: 1px solid #e2e2e2;
+                        border-radius: 20px;
+                        padding: 6px 12px;
+                        font-family: 'TT Fors', sans-serif;
+                        font-size: 14px;
+                        font-weight: 600;
+                        color: #000;
+                        white-space: nowrap;
+                        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                        cursor: pointer;
+                        transition: all 0.2s ease;
+                        user-select: none;
+                        -webkit-user-select: none;
+                        -moz-user-select: none;
+                        -ms-user-select: none;
+                    " onmouseover="this.style.transform='scale(1.05)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)';" 
+                       onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.1)';">
+
+                        ${priceText}
+                    </div>
+                `;
+
+                    // Create the marker
+                    let marker;
+
+                    if (google.maps.marker && google.maps.marker.AdvancedMarkerElement) {
+                        const markerDiv = document.createElement('div');
+                        markerDiv.innerHTML = markerHTML;
+
+                        marker = new google.maps.marker.AdvancedMarkerElement({
+                            position: { lat, lng },
+                            map: window.currentMap,
+                            content: markerDiv.firstElementChild,
+                            title: listing.property_name
+                        });
+
+                        // Add click handler to center map on marker
+                        marker.addListener('click', () => {
+                            // Set flag to prevent API request during centering
+                            isCenteringOnMarker = true;
+
+                            // Center the map on this marker
+                            window.currentMap.setCenter({ lat, lng });
+
+                            // Close any existing overlay
+                            if (window.currentListingOverlay) {
+                                window.currentListingOverlay.setMap(null);
+                                const prevListingId = window.currentListingOverlay.listing.id;
+                                setMarkerBackgroundColor(prevListingId, 'white');
+                            }
+
+                            // Change marker background
+                            setMarkerBackgroundColor(listing.id, '#9ecaff');
+
+                            // Create and show listing card overlay
+                            const position = new google.maps.LatLng(listing.latitude, listing.longitude);
+                            window.currentListingOverlay = createListingCardOverlay(listing, position, window.currentMap);
+                        });
+                    } else {
+                        // Fallback to custom overlay
+                        class CustomMarker extends google.maps.OverlayView {
+                            constructor(position, map, html, listing) {
+                                super();
+                                this.position = position;
+                                this.html = html;
+                                this.listing = listing;
+                                this.setMap(map);
+                            }
+
+                            onAdd() {
+                                this.div = document.createElement('div');
+                                this.div.style.position = 'absolute';
+                                this.div.innerHTML = this.html;
+
+                                const panes = this.getPanes();
+                                panes.overlayMouseTarget.appendChild(this.div);
+
+                                // Add click handler
+                                this.div.firstElementChild.addEventListener('click', (e) => {
+                                    e.stopPropagation();
+
+                                    // Set flag to prevent API request during centering
+                                    isCenteringOnMarker = true;
+
+                                    // Center the map on this marker
+                                    window.currentMap.setCenter({ lat: this.listing.latitude, lng: this.listing.longitude });
+
+                                    // Close any existing overlay
+                                    if (window.currentListingOverlay) {
+                                        window.currentListingOverlay.setMap(null);
+                                        const prevListingId = window.currentListingOverlay.listing.id;
+                                        setMarkerBackgroundColor(prevListingId, 'white');
+                                    }
+
+                                    // Change marker background
+                                    setMarkerBackgroundColor(this.listing.id, '#9ecaff');
+
+                                    // Create and show listing card overlay
+                                    const position = new google.maps.LatLng(this.listing.latitude, this.listing.longitude);
+                                    window.currentListingOverlay = createListingCardOverlay(this.listing, position, window.currentMap);
+                                });
+                            }
+
+                            draw() {
+                                const overlayProjection = this.getProjection();
+                                const position = overlayProjection.fromLatLngToDivPixel(this.position);
+
+                                if (position) {
+                                    this.div.style.left = (position.x - this.div.offsetWidth / 2) + 'px';
+                                    this.div.style.top = (position.y - this.div.offsetHeight / 2) + 'px';
+                                }
+                            }
+
+                            onRemove() {
+                                if (this.div) {
+                                    this.div.parentNode.removeChild(this.div);
+                                    this.div = null;
+                                }
+                            }
+                        }
+
+                        marker = new CustomMarker(
+                            new google.maps.LatLng(lat, lng),
+                            window.currentMap,
+                            markerHTML,
+                            listing
+                        );
+                    }
+
+                    // Store marker with listing data
+                    window.mapMarkers[listing.id] = marker;
+                    marker.listingData = listing;
+                }
+            }
+        });
+    }
+
 
 
 });
+

@@ -96,9 +96,7 @@ let listingData = {
         hasPrivateDock: null, // Store if property has private dock
         boatSize: '', // Store boat size with ft unit
         beam: '', // Store beam size with ft unit
-        clearance: '', // Store clearance with ft unit
-        dockMaterial: '', // Store dock material
-        draw: '', // Store draw with ft unit
+        draft: '', // Store draft with ft unit
         selectedButtons: [] // Store selected dock buttons
     },
     address: {
@@ -199,7 +197,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const reviewInfoStep = document.getElementById('reviewInfo');
             if (reviewInfoStep && window.getComputedStyle(reviewInfoStep).display !== 'none') {
                 propertyData.addHome_complete = true;
-
+                propertyData.serviceFee = 0.12;
             }
 
             // Only add fields that have been filled out
@@ -292,9 +290,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 propertyData.private_dock = true;
                 if (listingData.dock.boatSize) propertyData.dock_maxBoatLength = listingData.dock.boatSize;
                 if (listingData.dock.beam) propertyData.dock_maxBeamLength = listingData.dock.beam;
-                if (listingData.dock.clearance) propertyData.dock_maxClearance = listingData.dock.clearance;
-                if (listingData.dock.dockMaterial) propertyData.dock_material = listingData.dock.dockMaterial;
-                if (listingData.dock.draw) propertyData.dock_maxDrawLength = listingData.dock.draw;
+                if (listingData.dock.draft) propertyData.dock_maxDraftLength = listingData.dock.draft;
 
                 // Only add dock features that are selected
                 if (listingData.dock.selectedButtons.includes('Fresh water hookup')) propertyData.dock_freshWater = true;
@@ -626,9 +622,7 @@ document.addEventListener('DOMContentLoaded', async function () {
                             listingData.dock.hasPrivateDock = true;
                             if (listing.dock_maxBoatLength) listingData.dock.boatSize = listing.dock_maxBoatLength;
                             if (listing.dock_maxBeamLength) listingData.dock.beam = listing.dock_maxBeamLength;
-                            if (listing.dock_maxDrawLength) listingData.dock.draw = listing.dock_maxDrawLength;
-                            if (listing.dock_maxClearance) listingData.dock.clearance = listing.dock_maxClearance;
-                            if (listing.dock_material) listingData.dock.dockMaterial = listing.dock_material;
+                            if (listing.dock_maxDraftLength) listingData.dock.draft = listing.dock_maxDraftLength;
 
                             const dockFeatures = [];
                             if (listing.dock_freshWater) dockFeatures.push('Fresh water hookup');
@@ -764,9 +758,7 @@ document.addEventListener('DOMContentLoaded', async function () {
                                         } else if (listing.private_dock === true &&
                                             (!listing.dock_maxBoatLength ||
                                                 !listing.dock_maxBeamLength ||
-                                                !listing.dock_maxDrawLength ||
-                                                !listing.dock_maxClearance ||
-                                                !listing.dock_material)) {
+                                                !listing.dock_maxDraftLength)) {
                                             resumeStep = 'dock';
                                         } else if (listing._property_pictures?.length < 5) {
                                             resumeStep = 'photos';
@@ -2968,9 +2960,7 @@ function initializeDockStep() {
     // Get dock input fields
     const boatSizeInput = document.querySelector('[data-element="dock_input_boatSize"]');
     const beamInput = document.querySelector('[data-element="dock_input_beam"]');
-    const clearanceInput = document.querySelector('[data-element="dock_input_clearance"]');
-    const dockMaterialInput = document.querySelector('[data-element="dock_input_dockMaterial"]');
-    const dockDrawInput = document.querySelector('[data-element="dock_input_draw"]');
+    const draftInput = document.querySelector('[data-element="dock_input_draft"]');
 
     // Get dock button options
     const dockButtonOptions = {
@@ -3005,26 +2995,7 @@ function initializeDockStep() {
 
     setupNumericInput(boatSizeInput, 'boatSize');
     setupNumericInput(beamInput, 'beam');
-    setupNumericInput(clearanceInput, 'clearance');
-    setupNumericInput(dockDrawInput, 'draw');
-
-    // Set up dock material input
-    if (dockMaterialInput) {
-        dockMaterialInput.addEventListener('input', (e) => {
-            e.target.value = e.target.value.replace(/[^a-zA-Z\s]/g, '');
-            if (e.target.value.length > 0) {
-                e.target.value = e.target.value.charAt(0).toUpperCase() + e.target.value.slice(1);
-                listingData.dock.dockMaterial = e.target.value;
-            } else {
-                listingData.dock.dockMaterial = '';
-            }
-        });
-
-        // Set initial dock material value if exists
-        if (listingData.dock.dockMaterial) {
-            dockMaterialInput.value = listingData.dock.dockMaterial;
-        }
-    }
+    setupNumericInput(draftInput, 'draft');
 
     // Hide error message and containers initially
     if (dockError) dockError.style.display = 'none';
@@ -3079,9 +3050,7 @@ function initializeDockStep() {
                             selectedButtons: [],
                             boatSize: '',
                             beam: '',
-                            clearance: '',
-                            dockMaterial: '',
-                            draw: ''
+                            draft: ''
                         };
                         // Reset all button styles
                         Object.values(dockButtonOptions).forEach(btn => {
@@ -3921,9 +3890,7 @@ function validateDock() {
         const requiredInputs = {
             boatSize: document.querySelector('[data-element="dock_input_boatSize"]'),
             beam: document.querySelector('[data-element="dock_input_beam"]'),
-            clearance: document.querySelector('[data-element="dock_input_clearance"]'),
-            dockMaterial: document.querySelector('[data-element="dock_input_dockMaterial"]'),
-            draw: document.querySelector('[data-element="dock_input_draw"]')
+            draft: document.querySelector('[data-element="dock_input_draft"]')
         };
 
         let firstError = null;
