@@ -2124,7 +2124,7 @@ document.addEventListener('DOMContentLoaded', function () {
             monthHeader.style.color = 'black';
             monthHeader.style.fontFamily = "'TT Fors', sans-serif";
             monthHeader.style.fontSize = '16px';
-            monthHeader.style.fontWeight = 'bold';
+            monthHeader.style.fontWeight = '500';
             monthHeader.style.margin = '10px 0 20px 0';
             monthHeader.style.display = 'flex';
             monthHeader.style.justifyContent = 'center';
@@ -7950,7 +7950,7 @@ document.addEventListener('DOMContentLoaded', function () {
             reloadButton.style.borderRadius = '4px';
             reloadButton.style.cursor = 'pointer';
             reloadButton.style.textAlign = 'center';
-            reloadButton.style.fontWeight = 'bold';
+            reloadButton.style.fontWeight = '500';
             reloadButton.style.display = 'flex';
             reloadButton.style.margin = '15px auto 0';
             reloadButton.style.alignItems = 'center';
@@ -8816,7 +8816,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         
                         <div style="padding: 8px 8px 12px 8px; display: flex; align-items: top; align-items: stretch; flex-direction: column; gap: 2px; margin-top: 0px; font-family: 'TT Fors', sans-serif;">
                             <div style="display: flex; justify-content: space-between; align-items: flex-start; margin: 0; line-height: 1;">
-                                <h3 style="margin: 0; padding: 0; font-size: 14px; color: #000000; font-weight: 600; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 8px; font-family: 'TT Fors', sans-serif; line-height: 1;">
+                                <h3 style="margin: 0; padding: 0; font-size: 14px; color: #000000; font-weight: 500; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 8px; font-family: 'TT Fors', sans-serif; line-height: 1;">
                                     ${this.listing.property_name || 'Property'}
                                 </h3>
                                 <div style="display: flex; align-items: center; gap: 3px; font-family: 'TT Fors', sans-serif; line-height: 1; margin: 0; padding: 0;">
@@ -8846,7 +8846,7 @@ document.addEventListener('DOMContentLoaded', function () {
                             ` : ''}
                             
                             <div style="display: flex; flex-direction: horizontal; align-items: bottom; gap: 4px; margin: 0;">
-                                <span style="font-size: 14px; font-weight: 600; color: #000000; font-family: 'TT Fors', sans-serif;">
+                                <span style="font-size: 14px; font-weight: 500; color: #000000; font-family: 'TT Fors', sans-serif;">
                                     ${this.getPrice()}
                                 </span>
                                 <span style="font-size: 14px; color: #000000; font-family: 'TT Fors', sans-serif;">
@@ -9587,7 +9587,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         padding: 6px 12px;
                         font-family: 'TT Fors', sans-serif;
                         font-size: 14px;
-                        font-weight: 600;
+                        font-weight: 500;
                         color: #000;
                         white-space: nowrap;
                         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
