@@ -361,6 +361,164 @@ window.Webflow.push(() => {
 });
 
 
+// // Google maps for boat rental location
+// window.Webflow ||= [];
+// window.Webflow.push(() => {
+//     const BOAT_SELECTOR = '[data-element="tripDetailModalBoatRental_googleMaps"]';
+
+//     try {
+//         const apiKey = 'AIzaSyDIsh3z39SZKKEsHm59QVcOucjCrFMepfQ'; // Using the same API key
+
+//         const waitForVisible = (el, tries = 20) =>
+//             new Promise((res) => {
+//                 const tick = () => {
+//                     const rect = el.getBoundingClientRect();
+//                     if ((rect.width > 0 && rect.height > 0) || tries <= 0) return res();
+//                     setTimeout(() => {
+//                         tries--;
+//                         tick();
+//                     }, 100);
+//                 };
+//                 tick();
+//             });
+
+//         const findMapsScript = () => document.querySelector('script[src*="maps.googleapis.com/maps/api/js"]');
+//         const loadMaps = () =>
+//             new Promise((resolve) => {
+//                 if (window.google?.maps) return resolve();
+//                 const existing = findMapsScript();
+//                 if (existing) {
+//                     existing.addEventListener('load', () => resolve(), { once: true });
+//                     return;
+//                 }
+//                 const s = document.createElement("script");
+//                 s.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}`;
+//                 s.async = true;
+//                 s.defer = true;
+//                 s.addEventListener('load', () => resolve(), { once: true });
+//                 document.head.appendChild(s);
+//             });
+
+//         const checkBoatDataInterval = setInterval(async () => {
+//             window.Wized = window.Wized || [];
+//             window.Wized.push(async (Wized) => {
+//                 try {
+//                     // Check if boat rental is enabled
+//                     const hasBoatRental = Wized.data.r?.trip_details?.data?.hasBoatRental;
+
+//                     if (!hasBoatRental) {
+//                         return; // Keep checking in case it becomes true later
+//                     }
+
+//                     // Get boat company address
+//                     const boatPI = Wized.data.r?.trip_details?.data?._boat_paymentintent;
+//                     const address = (boatPI?._boat?._boat_company?.address || "").trim();
+//                     if (!address) {
+//                         return; // Keep checking until address is available
+//                     }
+
+//                     // Ensure the map element exists in DOM
+//                     const boatMapElements = document.querySelectorAll(BOAT_SELECTOR);
+//                     if (!boatMapElements.length) {
+//                         return; // Wait until the element is mounted
+//                     }
+
+//                     clearInterval(checkBoatDataInterval); // All conditions met, proceed
+
+//                     await loadMaps();
+
+//                     // Geocode + render map for each boat map element
+//                     const geocoder = new google.maps.Geocoder();
+//                     geocoder.geocode({ address }, async (results, status) => {
+//                         if (status === "OK" && results?.[0]) {
+//                             const loc = results[0].geometry.location;
+//                             const lat = loc.lat();
+//                             const lng = loc.lng();
+
+//                             for (const mapEl of boatMapElements) {
+//                                 await waitForVisible(mapEl);
+
+//                                 // Ensure container has height
+//                                 if (!mapEl.style.height && !mapEl.style.minHeight) {
+//                                     mapEl.style.minHeight = "280px";
+//                                 }
+
+//                                 let map = mapEl.__mapInstance;
+//                                 if (!map) {
+//                                     map = new google.maps.Map(mapEl, {
+//                                         zoom: 16,
+//                                         center: { lat, lng },
+//                                         mapTypeId: "roadmap",
+//                                         mapTypeControl: false,
+//                                         fullscreenControl: false,
+//                                         zoomControl: true,
+//                                         zoomControlOptions: {
+//                                             position: google.maps.ControlPosition.RIGHT_CENTER,
+//                                         },
+//                                         streetViewControlOptions: {
+//                                             position: google.maps.ControlPosition.TOP_RIGHT,
+//                                         },
+//                                         scrollwheel: false,
+//                                         styles: [
+//                                             { "featureType": "administrative", "elementType": "labels", "stylers": [{ "visibility": "off" }] },
+//                                             { "featureType": "landscape", "stylers": [{ "color": "#f5f5f5" }] },
+//                                             { "featureType": "poi", "elementType": "labels.icon", "stylers": [{ "visibility": "off" }] },
+//                                             { "featureType": "poi.park", "elementType": "geometry", "stylers": [{ "color": "#c2d2b1" }] },
+//                                             { "featureType": "poi", "elementType": "labels.text", "stylers": [{ "visibility": "off" }] },
+//                                             { "featureType": "road", "elementType": "labels", "stylers": [{ "visibility": "off" }] },
+//                                             { "featureType": "transit", "elementType": "labels", "stylers": [{ "visibility": "off" }] },
+//                                             { "featureType": "water", "elementType": "geometry", "stylers": [{ "color": "#9ecaff" }] },
+//                                             { "featureType": "road", "elementType": "geometry", "stylers": [{ "color": "#f0f0f0" }, { "visibility": "on" }] },
+//                                         ]
+//                                     });
+//                                     mapEl.__mapInstance = map;
+//                                 } else {
+//                                     map.setCenter({ lat, lng });
+//                                     map.setZoom(16);
+//                                 }
+
+//                                 const boatPinSvgString = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="48" height="48">
+//                                     <path fill="#ffffff" stroke="#000" stroke-width="2" d="M32 6c-8 0-16 6-16 16 0 12 16 28 16 28s16-16 16-28c0-10-8-16-16-16z"/>
+//                                     <path fill="none" stroke="#000" stroke-width="2" d="M20 24h24M24 20h16"/>
+//                                 </svg>`;
+
+//                                 let marker = mapEl.__mapMarker;
+//                                 if (!marker) {
+//                                     marker = new google.maps.Marker({
+//                                         position: { lat, lng },
+//                                         map,
+//                                         icon: {
+//                                             url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(boatPinSvgString),
+//                                             scaledSize: new google.maps.Size(32, 32),
+//                                             origin: new google.maps.Point(0, 0),
+//                                             anchor: new google.maps.Point(16, 30)
+//                                         },
+//                                         title: 'Boat Company Location'
+//                                     });
+//                                     mapEl.__mapMarker = marker;
+//                                 } else {
+//                                     marker.setPosition({ lat, lng });
+//                                     marker.setMap(map);
+//                                 }
+//                             }
+//                         } else {
+//                             console.error("Geocoding failed:", status, address);
+//                             document.querySelectorAll(BOAT_SELECTOR).forEach(mapEl => {
+//                                 mapEl.style.display = "none";
+//                             });
+//                         }
+//                     });
+//                 } catch (error) {
+//                     console.error("Error loading boat rental map:", error);
+//                 }
+//             });
+//         }, 1000); // Check every second
+//     } catch (error) {
+//         console.error("Error initializing boat rental maps:", error);
+//     }
+// });
+
+
 
 
 

@@ -298,7 +298,7 @@ document.addEventListener('DOMContentLoaded', () => {
       initializeURLParameters();
 
     } catch (error) {
-      //console.error(error);
+
     }
 
 
@@ -744,8 +744,23 @@ window.Webflow.push(() => {
 
 
 
+//reserveButton
+const reserveButtons = document.querySelectorAll('[data-element="listing_reserve_button"]');
+reserveButtons.forEach(button => {
+  if (button) {
+    button.addEventListener('click', () => {
+      // Get current URL parameters
+      const params = window.location.search;
+      // Navigate to '/book/stay' with all current parameters
+      window.location.href = '/book/stays' + params;
+    });
+  }
+});
+
+
 
 // //calender
+
 // //calender
 // //calender
 // //calender
@@ -764,7 +779,10 @@ document.addEventListener('DOMContentLoaded', function () {
     // Get DOM elements
     const checkInInput = document.querySelector('[data-element="checkInInput"]');
     const checkOutInput = document.querySelector('[data-element="checkOutInput"]');
+    const mobileCheckInInput = document.querySelector('[data-element="mobileCheckInInput"]');
+    const mobileCheckOutInput = document.querySelector('[data-element="mobileCheckOutInput"]');
     const calendarContainer = document.querySelector('[data-element="calendarContainer"]');
+    const mobileCalendarContainer = document.querySelector('[data-element="mobileCalendarContainer"]');
 
     // Initialize state
     let selectedStartDate = null;
@@ -915,6 +933,7 @@ document.addEventListener('DOMContentLoaded', function () {
       prevButton.addEventListener('click', () => {
         currentViewMonth.setMonth(currentViewMonth.getMonth() - 1);
         createCalendar();
+        createMobileCalendar();
       });
 
       // Create next month button
@@ -926,6 +945,7 @@ document.addEventListener('DOMContentLoaded', function () {
       nextButton.addEventListener('click', () => {
         currentViewMonth.setMonth(currentViewMonth.getMonth() + 1);
         createCalendar();
+        createMobileCalendar();
       });
 
       // Add navigation buttons
@@ -941,6 +961,35 @@ document.addEventListener('DOMContentLoaded', function () {
       const endMonth = new Date(maxDate);
       endMonth.setMonth(endMonth.getMonth() - 1);
       nextButton.disabled = currentViewMonth >= endMonth;
+    }
+
+    // Create mobile calendar (vertical layout showing all available months)
+    function createMobileCalendar() {
+      if (!mobileCalendarContainer) return;
+
+      // Clear existing calendar
+      mobileCalendarContainer.innerHTML = '';
+
+      // Create months container with vertical layout
+      const monthsContainer = document.createElement('div');
+      monthsContainer.className = 'mobile-months-container';
+      mobileCalendarContainer.appendChild(monthsContainer);
+
+      // Calculate how many months to show (from min date to max date)
+      const startDate = new Date(minDate.getFullYear(), minDate.getMonth(), 1);
+      const endDate = new Date(maxDate.getFullYear(), maxDate.getMonth(), 1);
+
+      let currentMonth = new Date(startDate);
+
+      // Create all months vertically
+      while (currentMonth <= endDate) {
+        const monthElement = createMonthElement(new Date(currentMonth));
+        monthElement.classList.add('mobile-month');
+        monthsContainer.appendChild(monthElement);
+
+        // Move to next month
+        currentMonth.setMonth(currentMonth.getMonth() + 1);
+      }
     }
 
     function createMonthElement(date) {
@@ -1120,6 +1169,7 @@ document.addEventListener('DOMContentLoaded', function () {
         selectingCheckOut = true;
         updateInputs();
         createCalendar();
+        createMobileCalendar();
         return;
       }
 
@@ -1132,6 +1182,7 @@ document.addEventListener('DOMContentLoaded', function () {
           selectingCheckOut = true;
           updateInputs();
           createCalendar();
+          createMobileCalendar();
           return;
         }
 
@@ -1180,6 +1231,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
       // Re-render calendar to update visual state
       createCalendar();
+      createMobileCalendar();
     }
 
     function updateInputs() {
@@ -1189,6 +1241,14 @@ document.addEventListener('DOMContentLoaded', function () {
       }
       if (checkOutInput) {
         checkOutInput.textContent = selectedEndDate ? formatDateForDisplay(selectedEndDate) : 'Set Date';
+      }
+
+      // Update mobile inputs
+      if (mobileCheckInInput) {
+        mobileCheckInInput.textContent = selectedStartDate ? formatDateForDisplay(selectedStartDate) : 'Set Date';
+      }
+      if (mobileCheckOutInput) {
+        mobileCheckOutInput.textContent = selectedEndDate ? formatDateForDisplay(selectedEndDate) : 'Set Date';
       }
     }
 
@@ -1226,24 +1286,29 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function showError(message) {
       const errorContainer = document.querySelector('[data-element="Dates_Error_Container"]');
-      const errorText = document.querySelector('[data-element="Dates_Error_Text"]');
+      const errorTexts = document.querySelectorAll('[data-element="Dates_Error_Text"]');
 
-      if (errorContainer && errorText) {
-        errorText.textContent = message;
+      if (errorContainer && errorTexts.length > 0) {
+        errorTexts.forEach(element => {
+          if (element) {
+            element.textContent = message;
+          }
+        });
         errorContainer.style.display = 'flex';
       }
     }
 
-    // Initialize inputs first, then create calendar to ensure proper styling
+    // Initialize inputs first, then create calendars to ensure proper styling
     updateInputs();
 
     // Add slight delay to ensure DOM is ready and proper styling is applied
     setTimeout(() => {
       createCalendar();
+      createMobileCalendar();
     }, 10);
 
     // Add clear dates functionality
-    const clearButtons = document.querySelectorAll('[data-element="calendarModal_clearDates"]');
+    const clearButtons = document.querySelectorAll('[data-element="calendarModal_clearDates"], [data-element="mobileCalendarModal_clearDates"]');
     clearButtons.forEach(button => {
       button.addEventListener('click', (e) => {
         e.preventDefault();
@@ -1265,20 +1330,28 @@ document.addEventListener('DOMContentLoaded', function () {
         Wized.data.n.parameter.checkout = "";
 
         createCalendar();
+        createMobileCalendar();
       });
     });
 
     // Fix close button functionality
-    const closeButtons = document.querySelectorAll('[data-element="calendarModal_closeButton"]');
+    const closeButtons = document.querySelectorAll('[data-element="calendarModal_closeButton"], [data-element="mobileCalendarModal_closeButton"]');
     const calendarModal = document.querySelector('[data-element="calendarModal"]');
+    const mobileCalendarModal = document.querySelector('[data-element="mobileCalendarModal"]');
 
     closeButtons.forEach(button => {
       button.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
 
+        // Close desktop modal
         if (calendarModal) {
           calendarModal.style.display = 'none';
+        }
+
+        // Close mobile modal
+        if (mobileCalendarModal) {
+          mobileCalendarModal.style.display = 'none';
         }
 
         // Trigger calendar query if dates are selected
@@ -1292,7 +1365,7 @@ document.addEventListener('DOMContentLoaded', function () {
       });
     });
 
-    // Add click outside to close
+    // Add click outside to close for desktop modal
     if (calendarModal) {
       calendarModal.addEventListener('click', function (event) {
         const calendarContent = calendarModal.querySelector('[data-element="calendarModal_content"]');
@@ -1311,6 +1384,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
       });
     }
+
 
     // Add styles matching index-search.js
     const styles = document.createElement('style');
@@ -1587,7 +1661,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const guestDropdown = document.querySelector('[data-element="Input_Guests_Dropdown"]');
   const closeText = document.querySelector('[data-element="Input_Guests_Dropdown_CloseText"]');
   const guestHeaderText = document.querySelector('[data-element="Input_Guests_HeaderText"]');
-  const changeGuestsButton = document.querySelector('[data-element="listing_changeGuests_button"]');
+  const changeGuestsButtons = document.querySelectorAll('[data-element="listing_changeGuests_button"]');
 
   // Handle initial state
   if (guestDropdown) {
@@ -1605,12 +1679,16 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Open dropdown when clicking on change button
-  if (changeGuestsButton) {
-    changeGuestsButton.addEventListener('click', function (e) {
-      e.preventDefault(); // Prevent default action (scrolling to top)
-      e.stopPropagation(); // Prevent the click from bubbling up to document
-      if (guestDropdown) {
-        guestDropdown.style.display = 'flex';
+  if (changeGuestsButtons.length > 0) {
+    changeGuestsButtons.forEach(button => {
+      if (button) {
+        button.addEventListener('click', function (e) {
+          e.preventDefault(); // Prevent default action (scrolling to top)
+          e.stopPropagation(); // Prevent the click from bubbling up to document
+          if (guestDropdown) {
+            guestDropdown.style.display = 'flex';
+          }
+        });
       }
     });
   }
@@ -1630,7 +1708,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (guestDropdown &&
       !guestDropdown.contains(e.target) &&
       !guestInput.contains(e.target) &&
-      (!changeGuestsButton || !changeGuestsButton.contains(e.target))) {
+      !Array.from(changeGuestsButtons).some(button => button && button.contains(e.target))) {
       guestDropdown.style.display = 'none';
     }
   });
@@ -1699,16 +1777,16 @@ document.addEventListener('DOMContentLoaded', () => {
 // Calendar and date selection handler
 document.addEventListener('DOMContentLoaded', () => {
   // Elements
-  const checkAvailabilityButton = document.querySelector('[data-element="listing_checkAvailability_button"]');
-  const changeDatesButton = document.querySelector('[data-element="listing_changeDates_button"]');
+  const checkAvailabilityButtons = document.querySelectorAll('[data-element="listing_checkAvailability_button"]');
+  const changeDatesButtons = document.querySelectorAll('[data-element="listing_changeDates_button"]');
   const calendarModal = document.querySelector('[data-element="calendarModal"]');
 
-  // Add this line to get the addDatesHeading element
-  const addDatesHeading = document.querySelector('[data-element="Listing_Reservaton_AddDates_Heading"]');
+  // Add this line to get the addDatesHeading elements
+  const addDatesHeadings = document.querySelectorAll('[data-element="Listing_Reservaton_AddDates_Heading"]');
 
   // Add error elements
   const errorContainer = document.querySelector('[data-element="Dates_Error_Container"]');
-  const errorText = document.querySelector('[data-element="Dates_Error_Text"]');
+  const errorTexts = document.querySelectorAll('[data-element="Dates_Error_Text"]');
 
   // Initially hide the error container
   if (errorContainer) {
@@ -1716,19 +1794,53 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Add click handlers for availability and change dates buttons
-  if (checkAvailabilityButton && calendarModal) {
-    checkAvailabilityButton.addEventListener('click', function (e) {
-      e.preventDefault(); // Prevent default action (scrolling to top)
-      e.stopPropagation(); // Prevent the click from bubbling up to document
-      calendarModal.style.display = 'flex'; // Show the calendar modal
+  if (checkAvailabilityButtons.length > 0 && calendarModal) {
+    checkAvailabilityButtons.forEach(button => {
+      if (button) {
+        button.addEventListener('click', function (e) {
+          e.preventDefault(); // Prevent default action (scrolling to top)
+          e.stopPropagation(); // Prevent the click from bubbling up to document
+          calendarModal.style.display = 'flex'; // Show the calendar modal
+        });
+      }
     });
   }
 
-  if (changeDatesButton && calendarModal) {
-    changeDatesButton.addEventListener('click', function (e) {
-      e.preventDefault(); // Prevent default action (scrolling to top)
-      e.stopPropagation(); // Prevent the click from bubbling up to document
-      calendarModal.style.display = 'flex'; // Show the calendar modal
+  if (changeDatesButtons.length > 0 && calendarModal) {
+    changeDatesButtons.forEach(button => {
+      if (button) {
+        button.addEventListener('click', function (e) {
+          e.preventDefault(); // Prevent default action (scrolling to top)
+          e.stopPropagation(); // Prevent the click from bubbling up to document
+          calendarModal.style.display = 'flex'; // Show the calendar modal
+        });
+      }
+    });
+  }
+
+  // Add mobile calendar modal functionality to existing buttons
+  const mobileCalendarModal = document.querySelector('[data-element="mobileCalendarModal"]');
+
+  // Update existing buttons to also open mobile modal if it exists
+  if (checkAvailabilityButtons.length > 0 && mobileCalendarModal) {
+    checkAvailabilityButtons.forEach(button => {
+      if (button) {
+        button.addEventListener('click', function (e) {
+          // The desktop modal is already handled above, also show mobile modal if it exists
+          mobileCalendarModal.style.display = 'flex';
+        });
+      }
+    });
+  }
+
+  if (changeDatesButtons.length > 0 && mobileCalendarModal) {
+    changeDatesButtons.forEach(button => {
+      if (button) {
+        button.addEventListener('click', function (e) {
+          // The desktop modal is already handled above, also show mobile modal if it exists  
+          mobileCalendarModal.style.display = 'flex';
+        });
+      }
     });
   }
 
@@ -1750,7 +1862,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // Add this line to call updateAddDatesHeading on initial load
       updateAddDatesHeading();
     }).catch(error => {
-      console.error('Error waiting for requests:', error);
+
     });
 
     // Set up initial state of calendar elements
@@ -1842,21 +1954,25 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       // Update boat rental button state if it exists
-      const boatButton = document.querySelector('[data-element="addBoatButton"]');
-      if (boatButton) {
+      const boatButtons = document.querySelectorAll('[data-element="addBoatButton"]');
+      if (boatButtons.length > 0) {
         const datesValid = color !== "#ffd4d2" &&
           r && r.Load_Property_Calendar_Query &&
           r.Load_Property_Calendar_Query.data;
 
-        boatButton.style.borderColor = datesValid ? '#000000' : '#e2e2e2';
-        boatButton.style.opacity = datesValid ? '1' : '0.5';
-        boatButton.style.cursor = datesValid ? 'pointer' : 'not-allowed';
+        boatButtons.forEach(button => {
+          if (button) {
+            button.style.borderColor = datesValid ? '#e2e2e2' : '#e2e2e2';
+            button.style.opacity = datesValid ? '1' : '0.5';
+            button.style.cursor = datesValid ? 'pointer' : 'not-allowed';
+          }
+        });
       }
     }
 
     // New function to handle error display
     function updateErrorDisplay(hasDateError, hasGuestError, r) {
-      if (!errorContainer || !errorText) {
+      if (!errorContainer || !errorTexts || errorTexts.length === 0) {
         return;
       }
 
@@ -1912,7 +2028,11 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         }
 
-        errorText.textContent = dateErrorMessage;
+        errorTexts.forEach(element => {
+          if (element) {
+            element.textContent = dateErrorMessage;
+          }
+        });
       } else if (hasGuestError) {
         // Guest error message with more concise wording
         let guestErrorMessage = "Invalid number of guests";
@@ -1924,7 +2044,11 @@ document.addEventListener('DOMContentLoaded', () => {
           guestErrorMessage = `Maximum number of guests is ${maxGuests}`;
         }
 
-        errorText.textContent = guestErrorMessage;
+        errorTexts.forEach(element => {
+          if (element) {
+            element.textContent = guestErrorMessage;
+          }
+        });
       }
     }
 
@@ -2049,12 +2173,11 @@ document.addEventListener('DOMContentLoaded', () => {
       // Add this line to call updateAddDatesHeading on initial load
       updateAddDatesHeading();
     }).catch(error => {
-      console.error('Error waiting for requests:', error);
     });
 
     // Add this entire function for updating the heading
     function updateAddDatesHeading() {
-      if (!addDatesHeading) return;
+      if (!addDatesHeadings || addDatesHeadings.length === 0) return;
 
       const r = Wized.data.r;
       if (!r) return;
@@ -2118,9 +2241,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
 
-      // Apply visibility and text
-      addDatesHeading.style.display = shouldBeVisible ? 'flex' : 'none';
-      addDatesHeading.textContent = headingText;
+      // Apply visibility and text to all heading elements (desktop and mobile)
+      addDatesHeadings.forEach(heading => {
+        if (heading) {
+          heading.style.display = shouldBeVisible ? 'flex' : 'none';
+          heading.textContent = headingText;
+        }
+      });
     }
 
     // Make updateAddDatesHeading available globally
@@ -2130,25 +2257,34 @@ document.addEventListener('DOMContentLoaded', () => {
     function handleBoatFunctionality() {
       const urlParams = new URLSearchParams(window.location.search);
       const boatId = urlParams.get('boatId');
-      const selectedBoatBlock = document.querySelector('[data-element="selectedBoatBlock"]');
-      
+      const selectedBoatBlocks = document.querySelectorAll('[data-element="selectedBoatBlock"]');
+
       if (boatId) {
-        // Show the selected boat block
-        if (selectedBoatBlock) {
-          selectedBoatBlock.style.display = 'block';
-        }
+        // Show the selected boat blocks
+        selectedBoatBlocks.forEach(block => {
+          if (block) {
+            block.style.display = 'block';
+          }
+        });
 
         // Show listing-extras pricing (for boat selection)
-        const listingOnlyPricing = document.querySelector('[data-element="ListingOnly_Query_Price_Details"]');
-        const listingExtrasPricing = document.querySelector('[data-element="ListingExtras_Query_Price_Details"]');
-        
-        if (listingOnlyPricing) {
-          listingOnlyPricing.style.display = 'none';
-        }
-        
-        if (listingExtrasPricing) {
-          listingExtrasPricing.style.display = 'block';
-        }
+        const listingOnlyPricingSections = document.querySelectorAll('[data-element="ListingOnly_Query_Price_Details"]');
+        const listingExtrasPricingSections = document.querySelectorAll('[data-element="ListingExtras_Query_Price_Details"]');
+
+        listingOnlyPricingSections.forEach(section => {
+          if (section) {
+            section.style.display = 'none';
+          }
+        });
+
+        listingExtrasPricingSections.forEach(section => {
+          if (section) {
+            section.style.display = 'flex';
+          }
+        });
+
+        // Variable to store selected boat data directly (not as Wized request)
+        window.selectedBoatData = null;
 
         // Make direct fetch request for boat data
         fetch(`https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/boats/${boatId}`)
@@ -2158,39 +2294,55 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             return response.json();
           })
-          .then(boatData => {
-            // Store the boat data in a way that can be accessed by other functions
-            if (!Wized.data.r) {
-              Wized.data.r = {};
-            }
-            Wized.data.r.Load_Selected_Boat = {
-              data: boatData,
-              status: 200,
-              hasRequested: true
-            };
-            
+          .then(async (boatData) => {
+            // Store the boat data directly
+            window.selectedBoatData = boatData;
+
             populateSelectedBoatBlock();
-            updatePricingDisplayForBoat();
+
+            try {
+              // Wait for calendar data to be available before updating pricing
+              await Wized.requests.waitFor('Load_Property_Calendar_Query');
+              updatePricingDisplayForExtras();
+            } catch (error) {
+              // Still try to update pricing even if wait fails
+              updatePricingDisplayForExtras();
+            }
           })
           .catch(error => {
-            console.error('Error loading selected boat:', error);
           });
       } else {
-        // Hide the selected boat block when no boatId
-        if (selectedBoatBlock) {
-          selectedBoatBlock.style.display = 'none';
-        }
+        // Hide the selected boat blocks when no boatId
+        window.selectedBoatData = null; // Clear the boat data when no boat is selected
 
-        // Show listing-only pricing
-        const listingOnlyPricing = document.querySelector('[data-element="ListingOnly_Query_Price_Details"]');
-        const listingExtrasPricing = document.querySelector('[data-element="ListingExtras_Query_Price_Details"]');
-        
-        if (listingOnlyPricing) {
-          listingOnlyPricing.style.display = 'block';
-        }
-        
-        if (listingExtrasPricing) {
-          listingExtrasPricing.style.display = 'none';
+        selectedBoatBlocks.forEach(block => {
+          if (block) {
+            block.style.display = 'none';
+          }
+        });
+
+        // Check if any extras are still selected
+        const hasAnyExtras = window.hasAnyExtrasSelected();
+
+        // Show listing-only pricing only if no extras are selected
+        const listingOnlyPricingSections = document.querySelectorAll('[data-element="ListingOnly_Query_Price_Details"]');
+        const listingExtrasPricingSections = document.querySelectorAll('[data-element="ListingExtras_Query_Price_Details"]');
+
+        listingOnlyPricingSections.forEach(section => {
+          if (section) {
+            section.style.display = hasAnyExtras ? 'none' : 'flex';
+          }
+        });
+
+        listingExtrasPricingSections.forEach(section => {
+          if (section) {
+            section.style.display = hasAnyExtras ? 'flex' : 'none';
+          }
+        });
+
+        // Update pricing display for remaining extras
+        if (hasAnyExtras && window.updatePricingDisplayForExtras) {
+          window.updatePricingDisplayForExtras();
         }
       }
     }
@@ -2200,62 +2352,79 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Populate the selectedBoatBlock elements with boat data
     function populateSelectedBoatBlock() {
-      const r = Wized.data.r;
       const n = Wized.data.n;
 
-      if (!r.Load_Selected_Boat || !r.Load_Selected_Boat.data) {
+      if (!window.selectedBoatData) {
         return;
       }
 
       // Update selectedBoatBlock_image
-      const imageElement = document.querySelector('[data-element="selectedBoatBlock_image"]');
-      if (imageElement && r.Load_Selected_Boat.data.photos && r.Load_Selected_Boat.data.photos[0]) {
-        imageElement.src = r.Load_Selected_Boat.data.photos[0].image.url;
+      const imageElements = document.querySelectorAll('[data-element="selectedBoatBlock_image"]');
+      if (imageElements.length > 0 && window.selectedBoatData.photos && window.selectedBoatData.photos[0]) {
+        imageElements.forEach(element => {
+          if (element) {
+            element.src = window.selectedBoatData.photos[0].image.url;
+          }
+        });
       }
 
       // Update selectedBoatBlock_name
-      const nameElement = document.querySelector('[data-element="selectedBoatBlock_name"]');
-      if (nameElement) {
-        nameElement.textContent = r.Load_Selected_Boat.data.name;
+      const nameElements = document.querySelectorAll('[data-element="selectedBoatBlock_name"]');
+      if (nameElements.length > 0) {
+        nameElements.forEach(element => {
+          if (element) {
+            element.textContent = window.selectedBoatData.name;
+          }
+        });
       }
 
       // Update selectedBoatBlock_companyName
-      const companyNameElement = document.querySelector('[data-element="selectedBoatBlock_companyName"]');
-      if (companyNameElement && r.Load_Selected_Boat.data._boat_company) {
-        companyNameElement.textContent = r.Load_Selected_Boat.data._boat_company.name;
+      const companyNameElements = document.querySelectorAll('[data-element="selectedBoatBlock_companyName"]');
+      if (companyNameElements.length > 0 && window.selectedBoatData._boat_company) {
+        companyNameElements.forEach(element => {
+          if (element) {
+            element.textContent = window.selectedBoatData._boat_company.name;
+          }
+        });
       }
 
       // Update selectedBoatBlock_datesDelivery
-      const datesDeliveryElement = document.querySelector('[data-element="selectedBoatBlock_datesDelivery"]');
-      if (datesDeliveryElement) {
-        const rawDates = n.parameter.boatDates || "";
-        const boatDelivery = n.parameter.boatDelivery === "true";
-        
+      const datesDeliveryElements = document.querySelectorAll('[data-element="selectedBoatBlock_datesDelivery"]');
+      if (datesDeliveryElements.length > 0) {
+        // Read directly from URL parameters instead of Wized data store
+        const urlParams = new URLSearchParams(window.location.search);
+        const rawDates = urlParams.get('boatDates') || n.parameter.boatDates || "";
+        const boatDelivery = urlParams.get('boatDelivery') === "true" || n.parameter.boatDelivery === "true";
+
         // Decode if needed
         const decodedDates = decodeURIComponent(rawDates);
         const boatDates = decodedDates.split(",").filter(Boolean);
-        
+
         if (boatDates.length === 0) {
-          datesDeliveryElement.textContent = "";
+          datesDeliveryElements.forEach(element => {
+            if (element) {
+              element.textContent = "";
+            }
+          });
           return;
         }
-        
+
         const start = boatDates[0];
         const end = boatDates[boatDates.length - 1];
-        
+
         // Helper to get month abbreviation from MM
         const getMonthAbbr = (dateStr) => {
           const month = parseInt(dateStr.split("-")[1], 10);
           const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
           return months[month - 1];
         };
-        
+
         // Extract month and day
         const startMonth = getMonthAbbr(start);
         const startDay = parseInt(start.split("-")[2], 10);
         const endMonth = getMonthAbbr(end);
         const endDay = parseInt(end.split("-")[2], 10);
-        
+
         let formatted = "";
         if (boatDates.length === 1) {
           formatted = `${startMonth} ${startDay}`;
@@ -2264,40 +2433,21 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
           formatted = `${startMonth} ${startDay} - ${endMonth} ${endDay}`;
         }
-        
+
         if (boatDelivery) {
           formatted += " - Delivered to dock";
         }
-        
-        datesDeliveryElement.textContent = formatted;
+
+        datesDeliveryElements.forEach(element => {
+          if (element) {
+            element.textContent = formatted;
+          }
+        });
+      } else {
       }
     }
 
-    // Update pricing display when boat is selected
-    function updatePricingDisplayForBoat() {
-      const listingOnlyPricing = document.querySelector('[data-element="ListingOnly_Query_Price_Details"]');
-      const listingExtrasPricing = document.querySelector('[data-element="ListingExtras_Query_Price_Details"]');
-      
-      if (listingOnlyPricing) {
-        listingOnlyPricing.style.display = 'none';
-      }
-      
-      if (listingExtrasPricing) {
-        listingExtrasPricing.style.display = 'block';
-        
-        // Update Stay_Price_Amount
-        const stayPriceElement = document.querySelector('[data-element="Stay_Price_Amount"]');
-        if (stayPriceElement) {
-          const r = Wized.data.r;
-          if (r.Load_Property_Calendar_Query && r.Load_Property_Calendar_Query.data) {
-            const total = Math.floor(r.Load_Property_Calendar_Query.data.dateRange_nightsTotal) + 
-                         Math.floor(r.Load_Property_Calendar_Query.data.dateRange_cleaningFee) + 
-                         Math.floor(r.Load_Property_Calendar_Query.data.dateRange_serviceFee);
-            stayPriceElement.textContent = "$" + total.toLocaleString();
-          }
-        }
-      }
-    }
+
 
     // Initialize boat functionality on page load
     handleBoatFunctionality();
@@ -2305,89 +2455,94 @@ document.addEventListener('DOMContentLoaded', () => {
     // Setup edit and remove boat handlers
     function setupBoatHandlers() {
       // Edit boat handler
-      const editButton = document.querySelector('[data-element="editSelectedBoat"]');
-      if (editButton) {
-        editButton.addEventListener('click', () => {
-          const urlParams = new URLSearchParams(window.location.search);
-          const boatId = urlParams.get('boatId');
-          
-          if (boatId) {
-            // Open boat modal in details view for the selected boat
-            const modal = document.querySelector('[data-element="addBoatModal"]');
-            const selectWrapper = document.querySelector('[data-element="addBoatModal_selectBoatWrapper"]');
-            const detailsWrapper = document.querySelector('[data-element="addBoatModal_boatDetailsWrapper"]');
+      const editButtons = document.querySelectorAll('[data-element="editSelectedBoat"]');
+      editButtons.forEach(editButton => {
+        if (editButton) {
+          editButton.addEventListener('click', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const boatId = urlParams.get('boatId');
 
-            if (modal && selectWrapper && detailsWrapper) {
-              modal.style.display = 'flex';
-              selectWrapper.style.display = 'none';
-              detailsWrapper.style.display = 'flex';
+            if (boatId) {
+              // Open boat modal in details view for the selected boat
+              const modal = document.querySelector('[data-element="addBoatModal"]');
+              const selectWrapper = document.querySelector('[data-element="addBoatModal_selectBoatWrapper"]');
+              const detailsWrapper = document.querySelector('[data-element="addBoatModal_boatDetailsWrapper"]');
 
-              // Prevent body scroll when modal is open
-              document.body.classList.add('no-scroll');
+              if (modal && selectWrapper && detailsWrapper) {
+                modal.style.display = 'flex';
+                selectWrapper.style.display = 'none';
+                detailsWrapper.style.display = 'flex';
 
-              // Wait for boatRentalService to be available and trigger boat details loading
-              const waitForService = () => {
-                if (window.boatRentalService && window.boatRentalService.showBoatDetails) {
-                  // Get the current boat data from the Load_Selected_Boat request
-                  const r = Wized.data.r;
-                  if (r.Load_Selected_Boat && r.Load_Selected_Boat.data) {
-                    window.boatRentalService.showBoatDetails(r.Load_Selected_Boat.data);
+                // Prevent body scroll when modal is open
+                document.body.classList.add('no-scroll');
+
+                // Wait for boatRentalService to be available and trigger boat details loading
+                const waitForService = () => {
+                  if (window.boatRentalService && window.boatRentalService.handleEditBoat) {
+                    // Use the new edit method that fetches boat data and opens to details view
+                    window.boatRentalService.handleEditBoat(boatId);
                   } else {
-                    // Fallback: create a minimal boat object with the ID
-                    window.boatRentalService.showBoatDetails({ id: boatId });
+                    // If service not ready, wait a bit and try again
+                    setTimeout(waitForService, 100);
                   }
-                } else {
-                  // If service not ready, wait a bit and try again
-                  setTimeout(waitForService, 100);
-                }
-              };
-              waitForService();
+                };
+                waitForService();
+              }
             }
-          }
-        });
-      }
+          });
+        }
+      });
 
       // Remove boat handler
-      const removeButton = document.querySelector('[data-element="removeSelectedBoat"]');
-      if (removeButton) {
-        removeButton.addEventListener('click', () => {
-          // Remove boatId and related parameters from URL
-          const url = new URL(window.location);
-          url.searchParams.delete('boatId');
-          url.searchParams.delete('boatDates');
-          url.searchParams.delete('boatLengthType');
-          url.searchParams.delete('boatPickupTime');
-          url.searchParams.delete('boatGuests');
-          url.searchParams.delete('boatDelivery');
+      const removeButtons = document.querySelectorAll('[data-element="removeSelectedBoat"]');
+      removeButtons.forEach(removeButton => {
+        if (removeButton) {
+          removeButton.addEventListener('click', () => {
+            // Remove boatId and related parameters from URL
+            const url = new URL(window.location);
+            url.searchParams.delete('boatId');
 
-          window.history.pushState({}, '', url);
 
-          // Hide the selected boat block
-          const selectedBoatBlock = document.querySelector('[data-element="selectedBoatBlock"]');
-          if (selectedBoatBlock) {
-            selectedBoatBlock.style.display = 'none';
-          }
+            window.history.pushState({}, '', url);
 
-          // Show listing-only pricing again
-          const listingOnlyPricing = document.querySelector('[data-element="ListingOnly_Query_Price_Details"]');
-          const listingExtrasPricing = document.querySelector('[data-element="ListingExtras_Query_Price_Details"]');
-          
-          if (listingOnlyPricing) {
-            listingOnlyPricing.style.display = 'block';
-          }
-          
-          if (listingExtrasPricing) {
-            listingExtrasPricing.style.display = 'none';
-          }
+            // Hide the selected boat blocks
+            const selectedBoatBlocks = document.querySelectorAll('[data-element="selectedBoatBlock"]');
+            selectedBoatBlocks.forEach(block => {
+              if (block) {
+                block.style.display = 'none';
+              }
+            });
 
-          // Trigger other updates if available
-          if (window.updateBoatVisibility) window.updateBoatVisibility();
-          if (window.updateListingOnlyPricing) window.updateListingOnlyPricing();
-          if (window.updateReservationTotalContainer) window.updateReservationTotalContainer();
-          if (window.updateSelectedBoatBlockVisibility) window.updateSelectedBoatBlockVisibility();
-          if (window.handleBoatFunctionality) window.handleBoatFunctionality();
-        });
-      }
+            // Show listing-only pricing again
+            const listingOnlyPricingSections = document.querySelectorAll('[data-element="ListingOnly_Query_Price_Details"]');
+            const listingExtrasPricingSections = document.querySelectorAll('[data-element="ListingExtras_Query_Price_Details"]');
+
+            listingOnlyPricingSections.forEach(section => {
+              if (section) {
+                section.style.display = 'flex';
+              }
+            });
+
+            listingExtrasPricingSections.forEach(section => {
+              if (section) {
+                section.style.display = 'none';
+              }
+            });
+
+            // Trigger other updates if available
+            if (window.updateBoatVisibility) window.updateBoatVisibility();
+            if (window.updateListingOnlyPricing) window.updateListingOnlyPricing();
+            if (window.updateReservationTotalContainer) window.updateReservationTotalContainer();
+            if (window.updateSelectedBoatBlockVisibility) window.updateSelectedBoatBlockVisibility();
+            if (window.handleBoatFunctionality) window.handleBoatFunctionality();
+
+            // Update pricing display for remaining extras
+            if (window.updatePricingDisplayForExtras) {
+              window.updatePricingDisplayForExtras();
+            }
+          });
+        }
+      });
     }
 
     // Initialize boat handlers
@@ -2411,11 +2566,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Function to update reservation total container visibility
     function updateReservationTotalContainer() {
-      const containerElement = document.querySelector('[data-element="Listing_Reservaton_Amount_Total_Container"]');
-      if (!containerElement) return;
+      const containerElements = document.querySelectorAll('[data-element="Listing_Reservaton_Amount_Total_Container"]');
+      if (!containerElements || containerElements.length === 0) return;
 
       const r = Wized.data.r;
       const n = Wized.data.n;
+
+      // First check if dates are actually selected
+      const urlParams = new URLSearchParams(window.location.search);
+      const hasCheckin = urlParams.has('checkin') && urlParams.get('checkin') !== "";
+      const hasCheckout = urlParams.has('checkout') && urlParams.get('checkout') !== "";
+      const datesSelected = hasCheckin && hasCheckout;
+
+      // If no dates are selected, hide the container
+      if (!datesSelected) {
+        containerElement.style.display = 'none';
+        return;
+      }
 
       // Check if required data exists
       if (!r || !r.Load_Property_Calendar_Query || !r.Load_Property_Calendar_Query.data ||
@@ -2462,13 +2629,19 @@ document.addEventListener('DOMContentLoaded', () => {
       const currentGuests = n && n.parameter ? n.parameter.guests : 1;
       const maxGuests = r.Load_Property_Details.data.property.num_guests;
       const shouldShow = allAvailable && meetsMinNights && (maxGuests >= currentGuests);
-      containerElement.style.display = shouldShow ? 'flex' : 'none';
+
+      // Update all container elements (desktop and mobile)
+      containerElements.forEach(containerElement => {
+        if (containerElement) {
+          containerElement.style.display = shouldShow ? 'flex' : 'none';
+        }
+      });
     }
 
     // Function to update reservation total display
     function updateReservationTotal() {
-      const totalElement = document.querySelector('[data-element="Reservation_Total"]');
-      const totalAmountElement = document.querySelector('[data-element="Reservation_TotalAmount"]');
+      const totalElements = document.querySelectorAll('[data-element="Reservation_Total"]');
+      const totalAmountElements = document.querySelectorAll('[data-element="Reservation_TotalAmount"]');
 
       const r = Wized.data.r;
 
@@ -2481,47 +2654,60 @@ document.addEventListener('DOMContentLoaded', () => {
       const totalPrice = Math.floor(r.Load_Property_Calendar_Query.data.dateRange_totalPrice);
       const formattedPrice = "$" + totalPrice.toLocaleString();
 
-      // Update both elements with the same value
-      if (totalElement) {
-        totalElement.textContent = formattedPrice;
-      }
-      if (totalAmountElement) {
-        totalAmountElement.textContent = formattedPrice;
-      }
+      // Update all total elements (desktop and mobile)
+      totalElements.forEach(element => {
+        if (element) {
+          element.textContent = formattedPrice;
+        }
+      });
+
+      totalAmountElements.forEach(element => {
+        if (element) {
+          element.textContent = formattedPrice;
+        }
+      });
     }
 
     // Function to update selected boat block visibility
     function updateSelectedBoatBlockVisibility() {
-      const selectedBoatBlock = document.querySelector('[data-element="selectedBoatBlock"]');
-      if (!selectedBoatBlock) return;
+      const selectedBoatBlocks = document.querySelectorAll('[data-element="selectedBoatBlock"]');
+      if (!selectedBoatBlocks || selectedBoatBlocks.length === 0) return;
 
       // Use URL parameters as source of truth
       const urlParams = new URLSearchParams(window.location.search);
       const boatId = urlParams.get('boatId');
 
-      // Show block if boatId exists in URL
-      if (boatId) {
-        selectedBoatBlock.style.display = 'flex';
-      } else {
-        selectedBoatBlock.style.display = 'none';
-      }
+      // Show/hide all boat blocks (desktop and mobile)
+      selectedBoatBlocks.forEach(block => {
+        if (block) {
+          if (boatId) {
+            block.style.display = 'flex';
+          } else {
+            block.style.display = 'none';
+          }
+        }
+      });
     }
 
     // Function to update add boat button visibility
     function updateAddBoatButtonVisibility() {
-      const addBoatButton = document.querySelector('[data-element="addBoatButton"]');
-      if (!addBoatButton) return;
+      const addBoatButtons = document.querySelectorAll('[data-element="addBoatButton"]');
+      if (!addBoatButtons || addBoatButtons.length === 0) return;
 
       // Use URL parameters as source of truth
       const urlParams = new URLSearchParams(window.location.search);
       const boatId = urlParams.get('boatId');
 
-      // Show button if boatId doesn't exist in URL
-      if (!boatId) {
-        addBoatButton.style.display = 'flex';
-      } else {
-        addBoatButton.style.display = 'none';
-      }
+      // Show/hide all boat buttons (desktop and mobile)
+      addBoatButtons.forEach(button => {
+        if (button) {
+          if (!boatId) {
+            button.style.display = 'flex';
+          } else {
+            button.style.display = 'none';
+          }
+        }
+      });
     }
 
     // Function to update all boat-related visibility
@@ -2588,33 +2774,38 @@ document.addEventListener('DOMContentLoaded', () => {
       priceDetailsElement.style.display = shouldShow ? 'block' : 'none';
     }
 
-    // Function to handle listing-only pricing display (no boat selected)
+    // Function to handle listing-only pricing display (no extras selected)
     function updateListingOnlyPricing() {
       const n = Wized.data.n;
       const r = Wized.data.r;
 
-      // Check if there's no boatId (no boat selected)
-      const hasNoBoat = !n || !n.parameter || n.parameter.boatId === null || !n.parameter.boatId;
+      // Check if there's no extras selected
+      const hasNoExtras = !window.hasAnyExtrasSelected();
 
       // Show/hide appropriate sections
-      const listingOnlySection = document.querySelector('[data-element="ListingOnly_Query_Price_Details"]');
-      const listingExtrasSection = document.querySelector('[data-element="ListingExtras_Query_Price_Details"]');
+      const listingOnlySections = document.querySelectorAll('[data-element="ListingOnly_Query_Price_Details"]');
+      const listingExtrasSections = document.querySelectorAll('[data-element="ListingExtras_Query_Price_Details"]');
 
-      if (listingOnlySection) {
-        listingOnlySection.style.display = hasNoBoat ? 'flex' : 'none';
-      }
-      if (listingExtrasSection) {
-        listingExtrasSection.style.display = hasNoBoat ? 'none' : 'flex';
-      }
+      listingOnlySections.forEach(section => {
+        if (section) {
+          section.style.display = hasNoExtras ? 'flex' : 'none';
+        }
+      });
 
-      // Only update content if no boat is selected and data exists
-      if (!hasNoBoat || !r || !r.Load_Property_Calendar_Query || !r.Load_Property_Calendar_Query.data) {
+      listingExtrasSections.forEach(section => {
+        if (section) {
+          section.style.display = hasNoExtras ? 'none' : 'flex';
+        }
+      });
+
+      // Only update content if no extras are selected and data exists
+      if (!hasNoExtras || !r || !r.Load_Property_Calendar_Query || !r.Load_Property_Calendar_Query.data) {
         return;
       }
 
       // Update Nightly Price Text
-      const nightlyPriceText = document.querySelector('[data-element="Nightly_Price_Text"]');
-      if (nightlyPriceText && n.parameter.checkin && n.parameter.checkout) {
+      const nightlyPriceTextElements = document.querySelectorAll('[data-element="Nightly_Price_Text"]');
+      if (nightlyPriceTextElements.length > 0 && n.parameter.checkin && n.parameter.checkout) {
         const checkInDate = n.parameter.checkin;
         const checkOutDate = n.parameter.checkout;
 
@@ -2633,64 +2824,95 @@ document.addEventListener('DOMContentLoaded', () => {
         const nightsTotal = r.Load_Property_Calendar_Query.data.dateRange_nightsTotal;
         const nightlyRate = Math.floor(nightsTotal / differenceDays);
 
-        nightlyPriceText.textContent = `$${nightlyRate} x ${differenceDays} nights`;
+        // Update all nightly price text elements (desktop and mobile)
+        nightlyPriceTextElements.forEach(element => {
+          if (element) {
+            element.textContent = `$${nightlyRate} x ${differenceDays} nights`;
+          }
+        });
       }
 
       // Update Nightly Price Amount
-      const nightlyPriceAmount = document.querySelector('[data-element="Nightly_Price_Amount"]');
-      if (nightlyPriceAmount && r.Load_Property_Calendar_Query.data.dateRange_nightsTotal) {
+      const nightlyPriceAmountElements = document.querySelectorAll('[data-element="Nightly_Price_Amount"]');
+      if (nightlyPriceAmountElements.length > 0 && r.Load_Property_Calendar_Query.data.dateRange_nightsTotal) {
         const amount = Math.floor(r.Load_Property_Calendar_Query.data.dateRange_nightsTotal);
-        nightlyPriceAmount.textContent = `$${amount.toLocaleString()}`;
+        nightlyPriceAmountElements.forEach(element => {
+          if (element) {
+            element.textContent = `$${amount.toLocaleString()}`;
+          }
+        });
       }
 
       // Update Cleaning Fee Amount
-      const cleaningFeeAmount = document.querySelector('[data-element="Cleaning_Fee_Amount"]');
-      if (cleaningFeeAmount && r.Load_Property_Calendar_Query.data.dateRange_cleaningFee) {
+      const cleaningFeeAmountElements = document.querySelectorAll('[data-element="Cleaning_Fee_Amount"]');
+      if (cleaningFeeAmountElements.length > 0 && r.Load_Property_Calendar_Query.data.dateRange_cleaningFee) {
         const amount = Math.floor(r.Load_Property_Calendar_Query.data.dateRange_cleaningFee);
-        cleaningFeeAmount.textContent = `$${amount.toLocaleString()}`;
+        cleaningFeeAmountElements.forEach(element => {
+          if (element) {
+            element.textContent = `$${amount.toLocaleString()}`;
+          }
+        });
       }
 
       // Update Service Fee Amount
-      const serviceFeeAmount = document.querySelector('[data-element="Service_Fee_Amount"]');
-      if (serviceFeeAmount && r.Load_Property_Calendar_Query.data.dateRange_serviceFee) {
+      const serviceFeeAmountElements = document.querySelectorAll('[data-element="Service_Fee_Amount"]');
+      if (serviceFeeAmountElements.length > 0 && r.Load_Property_Calendar_Query.data.dateRange_serviceFee) {
         const amount = Math.floor(r.Load_Property_Calendar_Query.data.dateRange_serviceFee);
-        serviceFeeAmount.textContent = `$${amount.toLocaleString()}`;
+        serviceFeeAmountElements.forEach(element => {
+          if (element) {
+            element.textContent = `$${amount.toLocaleString()}`;
+          }
+        });
       }
 
       // Update Taxes Amount
-      const taxesAmount = document.querySelector('[data-element="Taxes_Amount"]');
-      if (taxesAmount) {
+      const taxesAmountElements = document.querySelectorAll('[data-element="Taxes_Amount"]');
+      if (taxesAmountElements.length > 0) {
         const data = r.Load_Property_Calendar_Query.data || {};
         const salesSurTax = parseFloat(data.dateRange_taxFee_salesSurTax) || 0;
         const salesTax = parseFloat(data.dateRange_taxFee_salesTax) || 0;
         const totalTax = salesSurTax + salesTax;
-        taxesAmount.textContent = `$${totalTax.toFixed().toLocaleString()}`;
+        taxesAmountElements.forEach(element => {
+          if (element) {
+            element.textContent = `$${totalTax.toFixed().toLocaleString()}`;
+          }
+        });
       }
 
       // Update Reservation Total
-      const reservationTotal = document.querySelector('[data-element="Reservation_Total"]');
-      const reservationTotalAmount = document.querySelector('[data-element="Reservation_TotalAmount"]');
+      const reservationTotalElements = document.querySelectorAll('[data-element="Reservation_Total"]');
+      const reservationTotalAmountElements = document.querySelectorAll('[data-element="Reservation_TotalAmount"]');
       if (r.Load_Property_Calendar_Query.data.dateRange_totalPrice) {
         const amount = Math.floor(r.Load_Property_Calendar_Query.data.dateRange_totalPrice);
         const formattedAmount = `$${amount.toLocaleString()}`;
 
-        // Update both elements with the same value
-        if (reservationTotal) {
-          reservationTotal.textContent = formattedAmount;
-        }
-        if (reservationTotalAmount) {
-          reservationTotalAmount.textContent = formattedAmount;
-        }
+        // Update all reservation total elements (desktop and mobile)
+        reservationTotalElements.forEach(element => {
+          if (element) {
+            element.textContent = formattedAmount;
+          }
+        });
+
+        reservationTotalAmountElements.forEach(element => {
+          if (element) {
+            element.textContent = formattedAmount;
+          }
+        });
       }
 
       // Update Free Cancellation Date Text
-      const freeCancellationText = document.querySelector('[data-element="free_cancelation_date_text"]');
-      if (freeCancellationText && r.Load_Property_Details && r.Load_Property_Details.data) {
+      const freeCancellationTextElements = document.querySelectorAll('[data-element="free_cancelation_date_text"]');
+
+      if (freeCancellationTextElements.length > 0 && r.Load_Property_Details && r.Load_Property_Details.data) {
         const property = r.Load_Property_Details.data.property;
         const cancellationPolicy = property.cancellation_policy;
 
         if (!cancellationPolicy) {
-          freeCancellationText.textContent = "Non-refundable";
+          freeCancellationTextElements.forEach(element => {
+            if (element) {
+              element.textContent = "Non-refundable";
+            }
+          });
           return;
         }
 
@@ -2705,7 +2927,11 @@ document.addEventListener('DOMContentLoaded', () => {
           cutoffDate = new Date(today.getTime() + strictSeconds * 1000);
 
           if (checkInDate < cutoffDate.toISOString().split("T")[0]) {
-            freeCancellationText.textContent = "The reservation dates selected are non-refundable";
+            freeCancellationTextElements.forEach(element => {
+              if (element) {
+                element.textContent = "The reservation dates selected are non-refundable";
+              }
+            });
             return;
           }
         } else {
@@ -2718,7 +2944,11 @@ document.addEventListener('DOMContentLoaded', () => {
           cutoffDate = checkInDateObj;
 
           if (todayStr > cutoffDate.toISOString().split("T")[0]) {
-            freeCancellationText.textContent = "The reservation dates selected are non-refundable";
+            freeCancellationTextElements.forEach(element => {
+              if (element) {
+                element.textContent = "The reservation dates selected are non-refundable";
+              }
+            });
             return;
           }
         }
@@ -2737,10 +2967,23 @@ document.addEventListener('DOMContentLoaded', () => {
         const isMoreThanOneYear = cutoffDate - today > 365 * 24 * 60 * 60 * 1000;
 
         if (isMoreThanOneYear) {
-          freeCancellationText.textContent = `Free cancellation until ${cutoffMonth} ${cutoffDay}${cutoffDaySuffix}, ${cutoffYear}`;
+          freeCancellationTextElements.forEach(element => {
+            if (element) {
+              element.textContent = `Free cancellation until ${cutoffMonth} ${cutoffDay}${cutoffDaySuffix}, ${cutoffYear}`;
+            }
+          });
         } else {
-          freeCancellationText.textContent = `Free cancellation until ${cutoffMonth} ${cutoffDay}${cutoffDaySuffix}`;
+          freeCancellationTextElements.forEach(element => {
+            if (element) {
+              element.textContent = `Free cancellation until ${cutoffMonth} ${cutoffDay}${cutoffDaySuffix}`;
+            }
+          });
         }
+      }
+
+      // Also update stay cancellation policy for extras view when data is available
+      if (window.hasAnyExtrasSelected && window.hasAnyExtrasSelected()) {
+        updateStayCancellationPolicy();
       }
     }
 
@@ -2752,6 +2995,16 @@ document.addEventListener('DOMContentLoaded', () => {
         updateBoatVisibility();
         updateListingQueryPriceDetailsVisibility();
         updateListingOnlyPricing();
+
+        // Validate extras dates after calendar query completes
+        if (event.name === 'Load_Property_Calendar_Query') {
+          validateExtrasWithinReservationDates();
+        }
+
+        // Update stay cancellation policy for extras when data is loaded
+        if (window.hasAnyExtrasSelected && window.hasAnyExtrasSelected()) {
+          updateStayCancellationPolicy();
+        }
       }
     });
 
@@ -2782,6 +3035,11 @@ document.addEventListener('DOMContentLoaded', () => {
     updateListingQueryPriceDetailsVisibility();
     updateListingOnlyPricing();
 
+    // Initial update of stay cancellation policy for extras
+    if (window.hasAnyExtrasSelected && window.hasAnyExtrasSelected()) {
+      updateStayCancellationPolicy();
+    }
+
     // Make functions globally available
     window.updateReservationTotalContainer = updateReservationTotalContainer;
     window.updateReservationTotal = updateReservationTotal;
@@ -2792,6 +3050,980 @@ document.addEventListener('DOMContentLoaded', () => {
     window.updateListingOnlyPricing = updateListingOnlyPricing;
   });
 });
+
+
+
+
+
+
+
+// Global functions for ListingExtras_Query_Price_Details functionality
+// These functions handle boat pricing calculations and display updates
+
+// Update pricing display when extras (boat or fishing charter) are selected
+async function updatePricingDisplayForExtras() {
+
+  const listingOnlyPricingSections = document.querySelectorAll('[data-element="ListingOnly_Query_Price_Details"]');
+  const listingExtrasPricingSections = document.querySelectorAll('[data-element="ListingExtras_Query_Price_Details"]');
+
+  // Check if any extras are actually selected
+  const hasExtras = window.hasAnyExtrasSelected();
+
+  if (!hasExtras) {
+    // No extras selected - show listing-only pricing
+    listingOnlyPricingSections.forEach(section => {
+      if (section) {
+        section.style.display = 'flex';
+      }
+    });
+
+    listingExtrasPricingSections.forEach(section => {
+      if (section) {
+        section.style.display = 'none';
+      }
+    });
+    return;
+  }
+
+  // Extras are selected - show extras pricing
+  listingOnlyPricingSections.forEach(section => {
+    if (section) {
+      section.style.display = 'none';
+    }
+  });
+
+  if (listingExtrasPricingSections.length > 0) {
+    listingExtrasPricingSections.forEach(section => {
+      if (section) {
+        section.style.display = 'flex';
+      }
+    });
+
+    const r = window.Wized.data.r;
+    const n = window.Wized.data.n;
+
+    if (!r || !r.Load_Property_Calendar_Query || !r.Load_Property_Calendar_Query.data) {
+      return;
+    }
+
+    try {
+      // Calculate stay pricing components
+      const stayPricing = calculateStayPricing(r);
+
+      // Calculate boat pricing components
+      const boatPricing = window.selectedBoatData ? calculateBoatPricing(window.selectedBoatData) : { totalWithFees: 0 };
+
+      // Calculate fishing charter pricing components
+      const fishingCharterPricing = await calculateFishingCharterPricing();
+
+      // Calculate combined taxes (only boat is taxed if not Manual integration, fishing charters are not taxed)
+      const boatTaxableAmount = window.selectedBoatData && window.selectedBoatData._boat_company.integration_type !== 'Manual'
+        ? boatPricing.totalWithFees
+        : 0;
+      const combinedTaxes = calculateCombinedTaxes(r, boatTaxableAmount);
+
+      // Calculate grand total
+      const extrasTotalWithFees = boatPricing.totalWithFees + fishingCharterPricing.totalWithFees;
+      const grandTotal = stayPricing.total + extrasTotalWithFees + combinedTaxes.total;
+
+      // Update all pricing elements
+      updatePricingElements(stayPricing, boatPricing, fishingCharterPricing, combinedTaxes, grandTotal);
+
+      // Update stay cancellation policy for extras view (data is guaranteed to be available here)
+      updateExtrasCancellationPolicies(r, n);
+
+    } catch (error) {
+
+    }
+  } else {
+  }
+}
+
+// Calculate stay pricing (nightly + cleaning + service fees)
+function calculateStayPricing(r) {
+  const nightlyTotal = Math.floor(r.Load_Property_Calendar_Query.data.dateRange_nightsTotal || 0);
+  const cleaningFee = Math.floor(r.Load_Property_Calendar_Query.data.dateRange_cleaningFee || 0);
+  const serviceFee = Math.floor(r.Load_Property_Calendar_Query.data.dateRange_serviceFee || 0);
+
+  return {
+    nightly: nightlyTotal,
+    cleaning: cleaningFee,
+    service: serviceFee,
+    total: nightlyTotal + cleaningFee + serviceFee
+  };
+}
+
+// Calculate boat pricing based on selected dates and boat data
+function calculateBoatPricing(boatData) {
+  if (!boatData) {
+    return { basePrice: 0, serviceFee: 0, deliveryFee: 0, totalWithFees: 0 };
+  }
+
+  // Get boat dates and delivery preference directly from URL parameters
+  const urlParams = new URLSearchParams(window.location.search);
+  const rawDates = urlParams.get('boatDates') || "";
+  const boatDelivery = urlParams.get('boatDelivery') === "true";
+
+  // Parse boat dates
+  const decodedDates = decodeURIComponent(rawDates);
+  const boatDates = decodedDates.split(",").filter(Boolean);
+  const numDates = boatDates.length;
+
+  if (numDates === 0) {
+    return { basePrice: 0, serviceFee: 0, deliveryFee: 0, totalWithFees: 0 };
+  }
+
+  // Calculate base price based on rental duration
+  let basePrice = calculateBoatBasePrice(boatData, numDates);
+
+  // Calculate service fee (from boat company) - skip if integrationType is 'Manual'
+  let serviceFee = 0;
+  if (boatData._boat_company.integration_type !== 'Manual') {
+    const serviceFeeRate = boatData._boat_company?.serviceFee || 0;
+    serviceFee = basePrice * serviceFeeRate;
+  }
+
+  // Calculate delivery fee if delivery is selected
+  const deliveryFee = boatDelivery ? (boatData._boat_company?.deliveryFee || 0) : 0;
+
+  // Calculate total with fees
+  const totalWithFees = basePrice + serviceFee + deliveryFee;
+
+  return {
+    basePrice: Math.round(basePrice),
+    serviceFee: Math.round(serviceFee),
+    deliveryFee: Math.round(deliveryFee),
+    totalWithFees: Math.round(totalWithFees)
+  };
+}
+
+// Calculate boat base price based on duration and pricing tiers
+function calculateBoatBasePrice(boatData, numDates) {
+  if (numDates === 0) return 0;
+
+  // Handle single day or half day
+  if (numDates === 1) {
+    return boatData.pricePerDay || 0;
+  }
+
+  // Handle weekly pricing (7 days)
+  if (numDates === 7 && boatData.pricePerWeek) {
+    return boatData.pricePerWeek;
+  }
+
+  // Handle monthly pricing (30+ days)
+  if (numDates >= 30 && boatData.pricePerMonth) {
+    const months = Math.floor(numDates / 30);
+    const remainingDays = numDates % 30;
+    const monthlyPrice = boatData.pricePerMonth * months;
+
+    // Use weekly daily rate for remaining days if available
+    const dailyRate = boatData.pricePerWeek ? (boatData.pricePerWeek / 7) : (boatData.pricePerDay || 0);
+    return Math.round(monthlyPrice + (remainingDays * dailyRate));
+  }
+
+  // Handle multi-day pricing
+  if (numDates > 7 && boatData.pricePerWeek) {
+    // Use weekly daily rate for longer rentals
+    const weeklyDailyRate = boatData.pricePerWeek / 7;
+    return Math.round(numDates * weeklyDailyRate);
+  }
+
+  // Default to daily rate
+  return numDates * (boatData.pricePerDay || 0);
+}
+
+// Calculate fishing charter pricing based on selected charters
+async function calculateFishingCharterPricing() {
+  if (!window.fishingCharterService) {
+    return { totalWithFees: 0 };
+  }
+
+  try {
+    const urlParams = new URLSearchParams(window.location.search);
+    const allNumbers = window.fishingCharterService.getAllFishingCharterNumbers();
+
+    if (allNumbers.length === 0) {
+      // Clear cached data when no charters
+      window.fishingCharterCancellationData = [];
+      return { totalWithFees: 0 };
+    }
+
+    let totalPrice = 0;
+    const cancellationData = []; // Cache charter data for cancellation policies
+
+    // Calculate price for each selected fishing charter using URL parameters directly
+    for (const number of allNumbers) {
+      const charterId = urlParams.get(`fishingCharterId${number}`);
+      const tripId = urlParams.get(`fishingCharterTripId${number}`);
+      const guests = parseInt(urlParams.get(`fishingCharterGuests${number}`)) || 0;
+      const dates = urlParams.get(`fishingCharterDates${number}`);
+      const pickup = urlParams.get(`fishingCharterPickup${number}`);
+
+      if (!charterId || !tripId) continue;
+
+      try {
+        // Fetch charter data to get pricing info
+        const response = await fetch(`https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/fishingcharters/${charterId}`);
+        if (!response.ok) continue;
+
+        const charter = await response.json();
+        const selectedTrip = charter.tripOptions?.find(t => String(t.id) === String(tripId));
+
+        if (selectedTrip) {
+          // Cache charter data for cancellation policies
+          cancellationData.push({
+            number: number,
+            charterId: charterId,
+            tripId: tripId,
+            charter: charter
+          });
+
+          let tripPrice = selectedTrip.price || 0;
+          const basePeople = selectedTrip.pricePeople || 1;
+          const additionalPersonRate = selectedTrip.pricePerAdditionalPerson || 0;
+
+          // Calculate additional people cost
+          if (guests > basePeople && additionalPersonRate > 0) {
+            const additionalPeople = guests - basePeople;
+            tripPrice += (additionalPeople * additionalPersonRate);
+          }
+
+          // Add private dock pickup fee if selected
+          if (pickup === 'true' && charter.privateDockPickup && charter.privateDockPickupFee) {
+            tripPrice += charter.privateDockPickupFee;
+          }
+
+          // Multiply by number of dates
+          const datesList = dates ? dates.split(',').filter(Boolean) : [];
+          if (datesList.length > 0) {
+            tripPrice *= datesList.length;
+          }
+
+          // Apply service fee if integration type is not "Manual"
+          if (charter.integration_type !== 'Manual' && charter.serviceFee) {
+            tripPrice = tripPrice * (1 + charter.serviceFee);
+          }
+
+          totalPrice += tripPrice;
+        }
+      } catch (error) {
+
+      }
+    }
+
+    // Cache the charter data for cancellation policies
+    window.fishingCharterCancellationData = cancellationData;
+
+    // Cache the charter data for cancellation policies
+    window.fishingCharterCancellationData = cancellationData;
+
+    return {
+      totalWithFees: Math.round(totalPrice)
+    };
+  } catch (error) {
+
+    window.fishingCharterCancellationData = [];
+    return { totalWithFees: 0 };
+  }
+}
+
+// Calculate combined taxes (stay + boat only, fishing charters not taxed)
+function calculateCombinedTaxes(r, boatTotalWithFees) {
+  // Get stay taxes from calendar query
+  const stayData = r.Load_Property_Calendar_Query.data || {};
+  const staySalesSurTax = parseFloat(stayData.dateRange_taxFee_salesSurTax) || 0;
+  const staySalesTax = parseFloat(stayData.dateRange_taxFee_salesTax) || 0;
+  const stayTaxes = staySalesSurTax + staySalesTax;
+
+  // Calculate boat taxes only (7.5% of boat total with fees, fishing charters not taxed)
+  const boatTaxRate = 0.075;
+  const boatTaxes = boatTotalWithFees * boatTaxRate;
+
+  return {
+    stay: stayTaxes,
+    boat: boatTaxes,
+    total: stayTaxes + boatTaxes
+  };
+}
+
+// Update all pricing elements in the DOM
+function updatePricingElements(stayPricing, boatPricing, fishingCharterPricing, combinedTaxes, grandTotal) {
+  // Update Stay Price Amount
+  const stayPriceElements = document.querySelectorAll('[data-element="Stay_Price_Amount"]');
+  stayPriceElements.forEach(element => {
+    if (element) {
+      element.textContent = `$${stayPricing.total.toLocaleString()}`;
+    }
+  });
+
+  // Show/hide and update Boat Price Container
+  const boatPriceContainers = document.querySelectorAll('[data-element="Boat_Price_Container"]');
+  const boatPriceElements = document.querySelectorAll('[data-element="Boat_Price_Amount"]');
+
+  boatPriceContainers.forEach(container => {
+    if (container) {
+      if (boatPricing.totalWithFees > 0) {
+        container.style.display = 'flex';
+      } else {
+        container.style.display = 'none';
+      }
+    }
+  });
+
+  boatPriceElements.forEach(element => {
+    if (element && boatPricing.totalWithFees > 0) {
+      element.textContent = `$${boatPricing.totalWithFees.toLocaleString()}`;
+    }
+  });
+
+  // Show/hide and update Fishing Charter Price Container
+  const fishingCharterPriceContainers = document.querySelectorAll('[data-element="FishingCharter_Price_Container"]');
+  const fishingCharterPriceElements = document.querySelectorAll('[data-element="FishingCharter_Price_Amount"]');
+
+  fishingCharterPriceContainers.forEach(container => {
+    if (container) {
+      if (fishingCharterPricing.totalWithFees > 0) {
+        container.style.display = 'flex';
+      } else {
+        container.style.display = 'none';
+      }
+    }
+  });
+
+  fishingCharterPriceElements.forEach(element => {
+    if (element && fishingCharterPricing.totalWithFees > 0) {
+      element.textContent = `$${fishingCharterPricing.totalWithFees.toLocaleString()}`;
+    }
+  });
+
+  // Update Combined Taxes Amount
+  const taxesElements = document.querySelectorAll('[data-element="StayBoatTaxes_Amount"]');
+  taxesElements.forEach(element => {
+    if (element) {
+      element.textContent = `$${Math.round(combinedTaxes.total).toLocaleString()}`;
+    }
+  });
+
+  // Update Grand Total
+  const grandTotalElements = document.querySelectorAll('[data-element="ReservationStayBoat_Total"]');
+  grandTotalElements.forEach(element => {
+    if (element) {
+      element.textContent = `$${Math.round(grandTotal).toLocaleString()}`;
+    }
+  });
+
+  // Also update the main Reservation_Total to show the combined total when extras are selected
+  const reservationTotalElements = document.querySelectorAll('[data-element="Reservation_Total"]');
+  reservationTotalElements.forEach(element => {
+    if (element) {
+      element.textContent = `$${Math.round(grandTotal).toLocaleString()}`;
+    }
+  });
+
+  // Update cancellation policies for extras
+  updateExtrasCancellationPolicies();
+}
+
+// Check if any extras (boat or fishing charters) are selected
+function hasAnyExtrasSelected() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const hasBoat = urlParams.get('boatId');
+
+  // Check for fishing charters - fallback to direct URL check if service not available
+  let hasFishingCharters = false;
+  if (window.fishingCharterService) {
+    hasFishingCharters = window.fishingCharterService.hasAnyFishingCharters();
+  } else {
+    // Fallback: check URL parameters directly
+    for (const [key] of urlParams) {
+      if (key.match(/^fishingCharterId\d+$/)) {
+        hasFishingCharters = true;
+        break;
+      }
+    }
+  }
+
+  return !!(hasBoat || hasFishingCharters);
+}
+
+// Update cancellation policies for extras (boat and fishing charters)
+async function updateExtrasCancellationPolicies() {
+  // Update stay cancellation policy (same as free_cancelation_date_text)
+  updateStayCancellationPolicy();
+
+  // Update boat cancellation policy
+  updateBoatCancellationPolicy();
+
+  // Update fishing charter cancellation policies
+  await updateFishingCharterCancellationPolicies();
+}
+
+// Update stay cancellation policy for extras view
+function updateStayCancellationPolicy() {
+
+  const stayFreeCancellationElements = document.querySelectorAll('[data-element="stayFree_cancelation_date_text"]');
+
+  if (!stayFreeCancellationElements || stayFreeCancellationElements.length === 0) return;
+
+  const r = window.Wized?.data?.r;
+  const n = window.Wized?.data?.n;
+
+  if (!r?.Load_Property_Details?.data?.property || !n?.parameter?.checkin) {
+    stayFreeCancellationElements.forEach(element => {
+      if (element) {
+        element.textContent = "";
+      }
+    });
+    return;
+  }
+
+  const property = r.Load_Property_Details.data.property;
+  const cancellationPolicy = property.cancellation_policy;
+
+  if (!cancellationPolicy) {
+    stayFreeCancellationElements.forEach(element => {
+      if (element) {
+        element.textContent = "Stay: Non-refundable";
+      }
+    });
+    return;
+  }
+
+  const today = new Date();
+  const todayStr = today.toISOString().split("T")[0];
+  const checkInDate = n.parameter.checkin;
+
+  let cutoffDate;
+
+  if (property.strict_cancellation_policy === true) {
+    const strictSeconds = Number(property.strict_cancellation_policy_option || 0);
+    cutoffDate = new Date(today.getTime() + strictSeconds * 1000);
+
+    if (checkInDate < cutoffDate.toISOString().split("T")[0]) {
+      stayFreeCancellationElements.forEach(element => {
+        if (element) {
+          element.textContent = "Stay: The reservation dates selected are non-refundable";
+        }
+      });
+      return;
+    }
+  } else {
+    const cancellationPolicySeconds = Number(property.cancellation_policy_option || 0);
+    const cancellationPolicyDays = cancellationPolicySeconds / (24 * 60 * 60);
+
+    const [year, month, day] = checkInDate.split("-").map(Number);
+    const checkInDateObj = new Date(year, month - 1, day);
+    checkInDateObj.setDate(checkInDateObj.getDate() - Math.floor(cancellationPolicyDays));
+    cutoffDate = checkInDateObj;
+
+    if (todayStr > cutoffDate.toISOString().split("T")[0]) {
+      stayFreeCancellationElements.forEach(element => {
+        if (element) {
+          element.textContent = "Stay: The reservation dates selected are non-refundable";
+        }
+      });
+      return;
+    }
+  }
+
+  // Format the cutoff date
+  const monthNames = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"
+  ];
+  const suffix = (d) => (d >= 11 && d <= 13) ? "th" : ["st", "nd", "rd"][((d % 10) - 1)] || "th";
+  const cutoffYear = cutoffDate.getFullYear();
+  const cutoffMonth = monthNames[cutoffDate.getMonth()];
+  const cutoffDay = cutoffDate.getDate();
+  const cutoffDaySuffix = suffix(cutoffDay);
+
+  const isMoreThanOneYear = cutoffDate - today > 365 * 24 * 60 * 60 * 1000;
+
+  if (isMoreThanOneYear) {
+    stayFreeCancellationElements.forEach(element => {
+      if (element) {
+        element.textContent = `Stay: Free cancellation until ${cutoffMonth} ${cutoffDay}${cutoffDaySuffix}, ${cutoffYear}`;
+      }
+    });
+  } else {
+    stayFreeCancellationElements.forEach(element => {
+      if (element) {
+        element.textContent = `Stay: Free cancellation until ${cutoffMonth} ${cutoffDay}${cutoffDaySuffix}`;
+      }
+    });
+  }
+}
+
+// Update boat cancellation policy
+function updateBoatCancellationPolicy() {
+  const boatCancellationContainers = document.querySelectorAll('[data-element="boatFree_cancelation_date"]');
+  const boatCancellationTexts = document.querySelectorAll('[data-element="boatFree_cancelation_date_text"]');
+
+  if (!boatCancellationContainers || boatCancellationContainers.length === 0 ||
+    !boatCancellationTexts || boatCancellationTexts.length === 0) return;
+
+  // Check if boat is selected
+  if (!window.selectedBoatData) {
+    boatCancellationContainers.forEach(container => {
+      if (container) {
+        container.style.display = 'none';
+      }
+    });
+    return;
+  }
+
+  boatCancellationContainers.forEach(container => {
+    if (container) {
+      container.style.display = 'flex';
+    }
+  });
+
+  const boat = window.selectedBoatData;
+  const urlParams = new URLSearchParams(window.location.search);
+
+  // Helper functions
+  const isTrue = v => v === true || v === "true" || v === 1 || v === "1";
+  const isFalse = v => v === false || v === "false" || v === 0 || v === "0";
+
+  // Integration type (supports either data.integration_type or data._boat_company.integration_type)
+  const integrationType = String(
+    boat?.integration_type ?? boat?._boat_company?.integration_type ?? ""
+  );
+  const isManual = integrationType === "Manual";
+
+  // 1) Explicit non-refundable
+  if (isFalse(boat.cancellationPolicy)) {
+    boatCancellationTexts.forEach(element => {
+      if (element) {
+        element.textContent = "Boat Rental: This reservation is non-refundable.";
+      }
+    });
+    return;
+  }
+
+  // 2) Free-until window (from first boatDates date)
+  if (isTrue(boat.cancellationPolicy)) {
+    const days = Number(boat.cancellationPolicy_daysNotice);
+    const raw = String(urlParams.get('boatDates') || "");
+    const firstYMD = (() => {
+      const s = decodeURIComponent(raw).split(",")[0]?.trim();
+      return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
+    })();
+
+    if (!Number.isFinite(days) || days < 0 || !firstYMD) {
+      // invalid config → manual note if applicable
+      boatCancellationTexts.forEach(element => {
+        if (element) {
+          element.textContent = isManual ? "Boat Rental: Details communicated with boat rental upon payment." : "";
+        }
+      });
+      return;
+    }
+
+    // UTC-safe subtract
+    const [Y, M, D] = firstYMD.split("-").map(Number);
+    const dt = new Date(Date.UTC(Y, M - 1, D));
+    dt.setUTCDate(dt.getUTCDate() - days);
+
+    // format "Month Dth"
+    const monthNames = [
+      "January", "February", "March", "April", "May", "June",
+      "July", "August", "September", "October", "November", "December"
+    ];
+    const suffix = (n) =>
+      (n % 10 === 1 && n % 100 !== 11) ? "st" :
+        (n % 10 === 2 && n % 100 !== 12) ? "nd" :
+          (n % 10 === 3 && n % 100 !== 13) ? "rd" : "th";
+
+    const dayNum = dt.getUTCDate();
+    const pretty = `${monthNames[dt.getUTCMonth()]} ${dayNum}${suffix(dayNum)}`;
+
+    const baseMsg = `Free cancellation until ${pretty}.`;
+    boatCancellationTexts.forEach(element => {
+      if (element) {
+        element.textContent = `Boat Rental: ${baseMsg}`;
+      }
+    });
+    return;
+  }
+
+  // 3) Unknown/missing policy → manual note if applicable
+  boatCancellationTexts.forEach(element => {
+    if (element) {
+      element.textContent = isManual ? "Boat Rental: Details communicated with boat rental." : "";
+    }
+  });
+}
+
+// Update fishing charter cancellation policies using existing data
+async function updateFishingCharterCancellationPolicies() {
+  const fishingCharterCancellationTemplates = document.querySelectorAll('[data-element="fishingCharterFree_cancelation_date"]');
+
+  if (!fishingCharterCancellationTemplates || fishingCharterCancellationTemplates.length === 0) return;
+
+  // Handle each template container separately (desktop and mobile)
+  fishingCharterCancellationTemplates.forEach(template => {
+    const container = template.parentElement;
+    if (!container) return;
+
+    // Remove any existing duplicated blocks (keep the template)
+    const existingBlocks = container.querySelectorAll('[data-element="fishingCharterFree_cancelation_date"]');
+    existingBlocks.forEach((block, index) => {
+      if (index !== 0) { // Keep the template block
+        block.remove();
+      }
+    });
+
+    // Check if fishing charters are selected
+    if (!window.fishingCharterService || !window.fishingCharterService.hasAnyFishingCharters()) {
+      template.style.display = 'none';
+      return;
+    }
+
+    // Use existing charter data from the cached calculation
+    if (!window.fishingCharterCancellationData) {
+      // If no cached data, hide for now
+      template.style.display = 'none';
+      return;
+    }
+
+    const selectedTrips = window.fishingCharterCancellationData;
+
+    if (selectedTrips.length === 0) {
+      template.style.display = 'none';
+      return;
+    }
+
+    // Show and populate blocks for each selected fishing charter
+    selectedTrips.forEach((tripData, index) => {
+      let block;
+      if (index === 0) {
+        // Use the template block for the first fishing charter
+        block = template;
+      } else {
+        // Clone the template for additional fishing charters
+        block = template.cloneNode(true);
+        container.appendChild(block);
+      }
+
+      // Show the block
+      block.style.display = 'flex';
+
+      // Populate cancellation policy for this fishing charter using cached data
+      populateFishingCharterCancellationPolicyFromCache(block, tripData);
+    });
+  });
+}
+
+// Populate cancellation policy for a single fishing charter using cached data
+function populateFishingCharterCancellationPolicyFromCache(block, tripData) {
+  const cancellationTextElement = block.querySelector('[data-element="fishingCharterFree_cancelation_date_text"]');
+
+  if (!cancellationTextElement || !tripData.charter) return;
+
+  const charter = tripData.charter;
+  const urlParams = new URLSearchParams(window.location.search);
+
+  // Helper functions
+  const isTrue = v => v === true || v === "true" || v === 1 || v === "1";
+  const isFalse = v => v === false || v === "false" || v === 0 || v === "0";
+  const isManual = String(charter.integration_type) === "Manual";
+
+  // 1) Explicit non-refundable
+  if (isFalse(charter.cancellationPolicy)) {
+    cancellationTextElement.textContent = `${charter.name || 'Fishing Charter'}: This reservation is non-refundable.`;
+    return;
+  }
+
+  // 2) Free-until (compute last day using the first date from fishingCharterDates)
+  if (isTrue(charter.cancellationPolicy)) {
+    const days = Number(charter.cancellationPolicy_daysNotice);
+
+    // Pull first YYYY-MM-DD from URL param
+    const key = `fishingCharterDates${tripData.number}`;
+    const raw = String(urlParams.get(key) || "");
+    const firstYMD = (() => {
+      const s = decodeURIComponent(raw).split(",")[0]?.trim();
+      return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
+    })();
+
+    if (!Number.isFinite(days) || days < 0 || !firstYMD) {
+      // invalid config → if manual, still show details line
+      cancellationTextElement.textContent = isManual ? `${charter.name || 'Fishing Charter'}: Details communicated with fishing charter.` : "";
+      return;
+    }
+
+    // UTC-safe subtract: cutoff = firstYMD - days
+    const [Y, M, D] = firstYMD.split("-").map(Number);
+    const dt = new Date(Date.UTC(Y, M - 1, D));
+    dt.setUTCDate(dt.getUTCDate() - days);
+
+    // format "Month Dth"
+    const monthNames = ["January", "February", "March", "April", "May", "June",
+      "July", "August", "September", "October", "November", "December"];
+    const suffix = (n) =>
+      (n % 10 === 1 && n % 100 !== 11) ? "st" :
+        (n % 10 === 2 && n % 100 !== 12) ? "nd" :
+          (n % 10 === 3 && n % 100 !== 13) ? "rd" : "th";
+
+    const dayNum = dt.getUTCDate();
+    const pretty = `${monthNames[dt.getUTCMonth()]} ${dayNum}${suffix(dayNum)}`;
+
+    const baseMsg = `Free cancellation until ${pretty}.`;
+    cancellationTextElement.textContent = isManual ? `${charter.name || 'Fishing Charter'}: ${baseMsg}` : `${charter.name || 'Fishing Charter'}: ${baseMsg}`;
+    return;
+  }
+
+  // 3) Unknown/missing policy → manual note if applicable
+  cancellationTextElement.textContent = isManual ? `${charter.name || 'Fishing Charter'}: Details communicated with fishing charter.` : "";
+}
+
+// Wrapper function to handle async pricing updates
+function updatePricingDisplayForExtrasSync() {
+  updatePricingDisplayForExtras().catch(error => {
+
+  });
+}
+
+// Validate that extras dates are within reservation dates
+function validateExtrasWithinReservationDates() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const checkin = urlParams.get('checkin');
+  const checkout = urlParams.get('checkout');
+
+  // If no reservation dates, don't validate
+  if (!checkin || !checkout) return;
+
+  // Create date range from checkin to checkout (excluding checkout day)
+  const reservationDates = generateDateRangeForValidation(checkin, checkout);
+  const reservationDateSet = new Set(reservationDates);
+
+  let hasRemovedExtras = false;
+
+  // Validate boat dates
+  const boatDates = urlParams.get('boatDates');
+  if (boatDates) {
+    const boatDatesList = boatDates.split(',').filter(Boolean);
+    const isBoatValid = boatDatesList.every(date => reservationDateSet.has(date));
+
+    if (!isBoatValid) {
+      removeBoatFromReservation();
+      hasRemovedExtras = true;
+    }
+  }
+
+  // Validate fishing charter dates
+  const allCharterNumbers = getAllFishingCharterNumbersForValidation();
+  for (const number of allCharterNumbers) {
+    const charterDates = urlParams.get(`fishingCharterDates${number}`);
+    if (charterDates) {
+      const charterDatesList = charterDates.split(',').filter(Boolean);
+      const isCharterValid = charterDatesList.every(date => reservationDateSet.has(date));
+
+      if (!isCharterValid) {
+        removeFishingCharterFromReservation(number);
+        hasRemovedExtras = true;
+      }
+    }
+  }
+
+  // Update UI if any extras were removed
+  if (hasRemovedExtras) {
+    // Update pricing displays
+    if (window.updatePricingDisplayForExtras) {
+      window.updatePricingDisplayForExtras();
+    }
+    if (window.updateListingOnlyPricing) {
+      window.updateListingOnlyPricing();
+    }
+
+    // Update boat visibility
+    if (window.updateBoatVisibility) {
+      window.updateBoatVisibility();
+    }
+
+    // Update fishing charter blocks
+    if (window.fishingCharterService && window.fishingCharterService.populateSelectedFishingCharterBlock) {
+      window.fishingCharterService.populateSelectedFishingCharterBlock();
+    }
+  }
+}
+
+// Helper function to generate date range for validation
+function generateDateRangeForValidation(startDateStr, endDateStr) {
+  const dateRange = [];
+  const [startYear, startMonth, startDay] = startDateStr.split('-').map(Number);
+  const [endYear, endMonth, endDay] = endDateStr.split('-').map(Number);
+
+  let currentYear = startYear;
+  let currentMonth = startMonth;
+  let currentDay = startDay;
+
+  while (true) {
+    const currentDateStr = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(currentDay).padStart(2, '0')}`;
+
+    // Stop before checkout date (checkout day is not included in stay)
+    if (currentDateStr === endDateStr) break;
+
+    dateRange.push(currentDateStr);
+
+    // Move to next day
+    currentDay++;
+
+    // Handle month overflow
+    const daysInMonth = getDaysInMonthForValidation(currentYear, currentMonth);
+    if (currentDay > daysInMonth) {
+      currentDay = 1;
+      currentMonth++;
+
+      // Handle year overflow
+      if (currentMonth > 12) {
+        currentMonth = 1;
+        currentYear++;
+      }
+    }
+  }
+
+  return dateRange;
+}
+
+// Helper function to get days in month
+function getDaysInMonthForValidation(year, month) {
+  const daysInMonths = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  if (month === 2 && isLeapYearForValidation(year)) {
+    return 29;
+  }
+  return daysInMonths[month - 1];
+}
+
+// Helper function to check leap year
+function isLeapYearForValidation(year) {
+  return (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0);
+}
+
+// Helper function to get all fishing charter numbers
+function getAllFishingCharterNumbersForValidation() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const numbers = [];
+
+  for (const [key] of urlParams) {
+    const match = key.match(/^fishingCharterId(\d+)$/);
+    if (match) {
+      numbers.push(parseInt(match[1]));
+    }
+  }
+
+  return numbers.sort((a, b) => a - b);
+}
+
+// Remove boat from reservation
+function removeBoatFromReservation() {
+  const url = new URL(window.location);
+  url.searchParams.delete('boatId');
+  url.searchParams.delete('boatDates');
+  url.searchParams.delete('boatGuests');
+  url.searchParams.delete('boatPickupTime');
+  url.searchParams.delete('boatLengthType');
+  url.searchParams.delete('boatPrivateDock');
+  url.searchParams.delete('boatDelivery');
+  window.history.replaceState({}, '', url);
+
+  // Clear boat data
+  window.selectedBoatData = null;
+
+  // Hide selected boat blocks
+  const selectedBoatBlocks = document.querySelectorAll('[data-element="selectedBoatBlock"]');
+  selectedBoatBlocks.forEach(block => {
+    if (block) {
+      block.style.display = 'none';
+    }
+  });
+
+  // Reset boat service modal state
+  if (window.boatRentalService) {
+    window.boatRentalService.resetModalState();
+  }
+}
+
+// Remove fishing charter from reservation
+function removeFishingCharterFromReservation(numberToRemove) {
+  const url = new URL(window.location);
+  const allNumbers = getAllFishingCharterNumbersForValidation();
+
+  // Remove the specific numbered parameters
+  url.searchParams.delete(`fishingCharterId${numberToRemove}`);
+  url.searchParams.delete(`fishingCharterTripId${numberToRemove}`);
+  url.searchParams.delete(`fishingCharterGuests${numberToRemove}`);
+  url.searchParams.delete(`fishingCharterDates${numberToRemove}`);
+  url.searchParams.delete(`fishingCharterPickup${numberToRemove}`);
+
+  // Get remaining numbers and renumber them sequentially
+  const remainingNumbers = allNumbers.filter(num => num !== numberToRemove).sort((a, b) => a - b);
+
+  if (remainingNumbers.length > 0) {
+    const tempParams = {};
+
+    // Store remaining parameters temporarily
+    remainingNumbers.forEach(oldNumber => {
+      const charterId = url.searchParams.get(`fishingCharterId${oldNumber}`);
+      const tripId = url.searchParams.get(`fishingCharterTripId${oldNumber}`);
+      const guests = url.searchParams.get(`fishingCharterGuests${oldNumber}`);
+      const dates = url.searchParams.get(`fishingCharterDates${oldNumber}`);
+      const pickup = url.searchParams.get(`fishingCharterPickup${oldNumber}`);
+
+      if (charterId) {
+        tempParams[oldNumber] = { charterId, tripId, guests, dates, pickup };
+      }
+
+      // Remove old numbered parameters
+      url.searchParams.delete(`fishingCharterId${oldNumber}`);
+      url.searchParams.delete(`fishingCharterTripId${oldNumber}`);
+      url.searchParams.delete(`fishingCharterGuests${oldNumber}`);
+      url.searchParams.delete(`fishingCharterDates${oldNumber}`);
+      url.searchParams.delete(`fishingCharterPickup${oldNumber}`);
+    });
+
+    // Re-add parameters with sequential numbering
+    Object.values(tempParams).forEach((params, index) => {
+      const newNumber = index + 1;
+      url.searchParams.set(`fishingCharterId${newNumber}`, params.charterId);
+      if (params.tripId) url.searchParams.set(`fishingCharterTripId${newNumber}`, params.tripId);
+      if (params.guests) url.searchParams.set(`fishingCharterGuests${newNumber}`, params.guests);
+      if (params.dates) url.searchParams.set(`fishingCharterDates${newNumber}`, params.dates);
+      if (params.pickup) url.searchParams.set(`fishingCharterPickup${newNumber}`, params.pickup);
+    });
+  }
+
+  window.history.replaceState({}, '', url);
+
+  // Reset fishing charter service modal state
+  if (window.fishingCharterService) {
+    window.fishingCharterService.resetModalState();
+  }
+}
+
+// Make functions globally available
+window.hasAnyExtrasSelected = hasAnyExtrasSelected;
+window.updatePricingDisplayForExtras = updatePricingDisplayForExtrasSync;
+window.updatePricingDisplayForBoat = updatePricingDisplayForExtrasSync; // Backward compatibility
+window.calculateStayPricing = calculateStayPricing;
+window.calculateBoatPricing = calculateBoatPricing;
+window.calculateFishingCharterPricing = calculateFishingCharterPricing;
+window.calculateBoatBasePrice = calculateBoatBasePrice;
+window.calculateCombinedTaxes = calculateCombinedTaxes;
+window.updatePricingElements = updatePricingElements;
+window.updateExtrasCancellationPolicies = updateExtrasCancellationPolicies;
+window.updateStayCancellationPolicy = updateStayCancellationPolicy;
+window.updateBoatCancellationPolicy = updateBoatCancellationPolicy;
+window.updateFishingCharterCancellationPolicies = updateFishingCharterCancellationPolicies;
+window.validateExtrasWithinReservationDates = validateExtrasWithinReservationDates;
+
+
+
+
+
+
 
 
 // Additional Services Section
@@ -2806,7 +4038,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Boat Rental Service Handler
     class BoatRentalService {
       constructor() {
-        this.button = document.querySelector('[data-element="addBoatButton"]');
+        this.buttons = document.querySelectorAll('[data-element="addBoatButton"]');
         this.modal = document.querySelector('[data-element="addBoatModal"]');
         this.modalBackground = document.querySelector('[data-element="addBoatModalBackground"]');
         this.selectWrapper = document.querySelector('[data-element="addBoatModal_selectBoatWrapper"]');
@@ -2814,6 +4046,10 @@ document.addEventListener('DOMContentLoaded', () => {
         this.exitButton = document.querySelector('[data-element="addBoatModal_selectBoat_exit"]');
         this.cardTemplate = document.querySelector('[data-element="addBoatModal_selectBoat_card"]');
         this.cardWrapper = document.querySelector('[data-element="addBoatModal_selectBoat_cardWrapper"]');
+
+        // Flag to prevent URL updates during initialization
+        this.isInitializing = false;
+
         this.messageTimeout = null;
 
         // Boat details elements
@@ -2826,6 +4062,7 @@ document.addEventListener('DOMContentLoaded', () => {
         this.datesFilterText = document.querySelector('[data-element="addBoatModal_selectBoat_datesText"]');
         this.datesPopup = document.querySelector('[data-element="addBoatModal_selectBoat_datesPopup"]');
         this.datesPopupExit = document.querySelector('[data-element="addBoatModal_selectBoat_datesPopup_exit"]');
+        this.datesPopupDone = document.querySelector('[data-element="addBoatModal_selectBoat_datesPopup_doneButton"]');
         this.selectDatesSection = document.querySelector('[data-element="addBoatModal_selectBoat_datesPopup_selectDates"]');
         this.fullDayBtn = document.querySelector('[data-element="addBoatModal_selectBoat_datesPopup_fullDay"]');
         this.halfDayBtn = document.querySelector('[data-element="addBoatModal_selectBoat_datesPopup_halfDay"]');
@@ -2838,7 +4075,9 @@ document.addEventListener('DOMContentLoaded', () => {
           '1pm': document.querySelector('[data-element="pickupTime_1pm"]'),
           '2pm': document.querySelector('[data-element="pickupTime_2pm"]'),
           '3pm': document.querySelector('[data-element="pickupTime_3pm"]'),
-          '4pm': document.querySelector('[data-element="pickupTime_4pm"]')
+          '4pm': document.querySelector('[data-element="pickupTime_4pm"]'),
+          '5pm': document.querySelector('[data-element="pickupTime_5pm"]'),
+          '6pm': document.querySelector('[data-element="pickupTime_6pm"]')
         };
 
         // Boat details date filter elements
@@ -2846,6 +4085,7 @@ document.addEventListener('DOMContentLoaded', () => {
         this.boatDetailsDateFilterText = document.querySelector('[data-element="boatDetails_reservation_dateTimeText"]');
         this.boatDetailsPopup = document.querySelector('[data-element="addBoatModal_boatDetails_datesPopup"]');
         this.boatDetailsPopupExit = document.querySelector('[data-element="addBoatModal_boatDetails_datesPopup_exit"]');
+        this.boatDetailsPopupDone = document.querySelector('[data-element="addBoatModal_boatDetails_datesPopup_doneButton"]');
         this.boatDetailsSelectDatesSection = document.querySelector('[data-element="addBoatModal_boatDetails_datesPopup_selectDates"]');
         this.boatDetailsFullDayBtn = document.querySelector('[data-element="addBoatModal_boatDetails_datesPopup_fullDay"]');
         this.boatDetailsHalfDayBtn = document.querySelector('[data-element="addBoatModal_boatDetails_datesPopup_halfDay"]');
@@ -2858,7 +4098,9 @@ document.addEventListener('DOMContentLoaded', () => {
           '1pm': document.querySelector('[data-element="boatDetailsPickupTime_1pm"]'),
           '2pm': document.querySelector('[data-element="boatDetailsPickupTime_2pm"]'),
           '3pm': document.querySelector('[data-element="boatDetailsPickupTime_3pm"]'),
-          '4pm': document.querySelector('[data-element="boatDetailsPickupTime_4pm"]')
+          '4pm': document.querySelector('[data-element="boatDetailsPickupTime_4pm"]'),
+          '5pm': document.querySelector('[data-element="boatDetailsPickupTime_5pm"]'),
+          '6pm': document.querySelector('[data-element="boatDetailsPickupTime_6pm"]')
         };
 
         // Boat details guest filter elements
@@ -2866,10 +4108,14 @@ document.addEventListener('DOMContentLoaded', () => {
         this.boatDetailsGuestsFilterText = document.querySelector('[data-element="boatDetails_reservation_passengersText"]');
         this.boatDetailsGuestsPopup = document.querySelector('[data-element="addBoatModal_boatDetails_guestsPopup"]');
         this.boatDetailsGuestsPopupExit = document.querySelector('[data-element="addBoatModal_boatDetails_guestsPopup_exit"]');
+        this.boatDetailsGuestsPopupDone = document.querySelector('[data-element="addBoatModal_boatDetails_guestsPopup_doneButton"]');
         this.boatDetailsGuestMinus = document.querySelector('[data-element="BoatDetails_Guest_Minus"]');
         this.boatDetailsGuestNumber = document.querySelector('[data-element="boatDetailsGuest_number"]');
         this.boatDetailsGuestPlus = document.querySelector('[data-element="BoatDetails_Guest_Plus"]');
         this.boatDetailsGuestsClearBtn = document.querySelector('[data-element="boatDetails_guestsPopup_clearButton"]');
+
+        // Error element for boat details
+        this.boatDetailsErrorElement = document.querySelector('[data-element="boatDetails_reservation_addToReservationError"]');
 
         this.guestsFilter = document.querySelector('[data-element="addBoatModal_selectBoat_guests"]');
         this.guestsFilterText = document.querySelector('[data-element="addBoatModal_selectBoat_guestsText"]');
@@ -2929,7 +4175,6 @@ document.addEventListener('DOMContentLoaded', () => {
         this.pontoonBoatBlock = document.querySelector('[data-element="addBoatModal_selectBoat_typePopup_pontoonBoatBlock"]');
         this.pontoonBoatCheckbox = document.querySelector('[data-element="addBoatModal_selectBoat_typePopup_pontoonBoatCheckbox"]');
 
-        console.log(this.centerConsoleBlock);
 
         // Filter state
         this.selectedDates = [];
@@ -2937,7 +4182,7 @@ document.addEventListener('DOMContentLoaded', () => {
         this.selectedPickupTime = '';
         this.selectedGuests = 0;
         this.selectedPriceMin = 0;
-        this.selectedPriceMax = 12000;
+        this.selectedPriceMax = Infinity; // Use Infinity for no upper bound by default
         this.deliverySelected = false;
         this.maxPriceAdjusted = false; // Track if max price has been manually adjusted
         this.selectedLengthMin = 0;
@@ -2945,13 +4190,292 @@ document.addEventListener('DOMContentLoaded', () => {
         this.maxLengthAdjusted = false; // Track if max length has been manually adjusted
         this.selectedBoatTypes = []; // Track selected boat types
         this.selectedPrivateDock = false; // Track if private dock filter is selected
+        this.userAge = null; // Store user's age for filtering
+
+        // Flag to prevent multiple rapid calls to handleAddToReservation
+        this.isAddingToReservation = false;
 
         this.initialize();
       }
 
+      // Helper method to parse property check-in time to 24-hour format
+      parseCheckInTime(checkInTimeStr) {
+        if (!checkInTimeStr) return null;
+
+        try {
+          // Handle formats like "4 PM", "16:00", "4PM", "16", etc.
+          const timeStr = checkInTimeStr.toString().trim().toUpperCase();
+
+          // Try to match "4 PM" or "4PM" format
+          let match = timeStr.match(/^(\d{1,2})\s*(AM|PM)$/);
+          if (match) {
+            let hour = parseInt(match[1]);
+            const period = match[2];
+
+            if (period === 'PM' && hour !== 12) {
+              hour += 12;
+            } else if (period === 'AM' && hour === 12) {
+              hour = 0;
+            }
+
+            return hour;
+          }
+
+          // Try to match "16:00" or "16" format
+          match = timeStr.match(/^(\d{1,2})(?::(\d{2}))?$/);
+          if (match) {
+            const hour = parseInt(match[1]);
+            if (hour >= 0 && hour <= 23) {
+              return hour;
+            }
+          }
+
+          return null;
+        } catch (error) {
+          return null;
+        }
+      }
+
+      // Helper method to convert pickup time string to 24-hour format
+      pickupTimeTo24Hour(pickupTime) {
+        if (!pickupTime) return null;
+
+        const timeMap = {
+          '8am': 8,
+          '9am': 9,
+          '10am': 10,
+          '11am': 11,
+          '12pm': 12,
+          '1pm': 13,
+          '2pm': 14,
+          '3pm': 15,
+          '4pm': 16,
+          '5pm': 17,
+          '6pm': 18
+        };
+
+        return timeMap[pickupTime] || null;
+      }
+
+      // Helper method to get all pickup times in chronological order
+      getAllPickupTimesInOrder() {
+        return ['8am', '9am', '10am', '11am', '12pm', '1pm', '2pm', '3pm', '4pm', '5pm', '6pm'];
+      }
+
+      // Method to check if pickup time gating should be enforced
+      shouldEnforcePickupTimeGating() {
+        try {
+          // Check if Private Dock Delivery is ON
+          if (!this.selectedPrivateDock) {
+            return false;
+          }
+
+          // Check if we have selected dates and the first date equals property check-in date
+          if (!this.selectedDates || this.selectedDates.length === 0) {
+            return false;
+          }
+
+          const urlParams = new URLSearchParams(window.location.search);
+          const propertyCheckinDate = urlParams.get('checkin');
+
+          if (!propertyCheckinDate) {
+            return false;
+          }
+
+          const firstSelectedDate = this.selectedDates.sort()[0];
+          if (firstSelectedDate !== propertyCheckinDate) {
+            return false;
+          }
+
+          // Check if property check-in time is available and parseable
+          const r = window.Wized?.data?.r;
+          if (!r?.Load_Property_Details?.data?.property?.check_in_time) {
+            return false;
+          }
+
+          const checkInTime = this.parseCheckInTime(r.Load_Property_Details.data.property.check_in_time);
+          if (checkInTime === null) {
+            return false;
+          }
+
+          return true;
+        } catch (error) {
+          return false;
+        }
+      }
+
+      // Method to get the earliest allowed pickup time based on check-in time
+      getEarliestAllowedPickupTime() {
+        try {
+          const r = window.Wized?.data?.r;
+          const checkInTimeStr = r?.Load_Property_Details?.data?.property?.check_in_time;
+
+          if (!checkInTimeStr) {
+            return null;
+          }
+
+          const checkInHour = this.parseCheckInTime(checkInTimeStr);
+          if (checkInHour === null) {
+            return null;
+          }
+
+          const allTimes = this.getAllPickupTimesInOrder();
+
+          // Find the first pickup time that is >= check-in time
+          for (const time of allTimes) {
+            const pickupHour = this.pickupTimeTo24Hour(time);
+            if (pickupHour !== null && pickupHour >= checkInHour) {
+              return time;
+            }
+          }
+
+          return null;
+        } catch (error) {
+          return null;
+        }
+      }
+
+      // Method to apply pickup time gating rules
+      applyPickupTimeGating(pillsObject, isBoatDetails = false) {
+        if (!pillsObject) return;
+
+        try {
+          const shouldGate = this.shouldEnforcePickupTimeGating();
+
+          // Always start by clearing all gated states to ensure clean slate
+          Object.entries(pillsObject).forEach(([time, pill]) => {
+            if (pill) {
+              pill.style.opacity = '1';
+              pill.style.cursor = 'pointer';
+              pill.style.pointerEvents = 'auto';
+              pill.removeAttribute('aria-disabled');
+              pill.classList.remove('pickup-time-gated');
+              pill.style.filter = '';
+              pill.disabled = false;
+              pill.removeAttribute('disabled');
+            }
+          });
+
+          if (!shouldGate) {
+            return;
+          }
+
+          const r = window.Wized?.data?.r;
+          const checkInTimeStr = r?.Load_Property_Details?.data?.property?.check_in_time;
+          const checkInHour = this.parseCheckInTime(checkInTimeStr);
+
+          if (checkInHour === null) {
+            return;
+          }
+
+          const allTimes = this.getAllPickupTimesInOrder();
+          let hasValidSelection = false;
+          let earliestValidTime = null;
+
+          // Apply gating to each pickup time
+          allTimes.forEach(time => {
+            const pill = pillsObject[time];
+            if (!pill) return;
+
+            const pickupHour = this.pickupTimeTo24Hour(time);
+            const isBeforeCheckIn = pickupHour !== null && pickupHour < checkInHour;
+
+            if (isBeforeCheckIn) {
+              // Disable times before check-in
+              pill.style.opacity = '0.3';
+              pill.style.cursor = 'not-allowed';
+              pill.style.pointerEvents = 'none';
+              pill.setAttribute('aria-disabled', 'true');
+              pill.classList.add('pickup-time-gated');
+            } else {
+              // Enable times at or after check-in
+              pill.style.opacity = '1';
+              pill.style.cursor = 'pointer';
+              pill.style.pointerEvents = 'auto';
+              pill.removeAttribute('aria-disabled');
+              pill.classList.remove('pickup-time-gated');
+
+              if (earliestValidTime === null) {
+                earliestValidTime = time;
+              }
+
+              if (this.selectedPickupTime === time) {
+                hasValidSelection = true;
+              }
+            }
+          });
+
+          // If current selection is now invalid, auto-select earliest valid time
+          if (!hasValidSelection && this.selectedPickupTime && earliestValidTime) {
+            const currentPickupHour = this.pickupTimeTo24Hour(this.selectedPickupTime);
+            if (currentPickupHour !== null && currentPickupHour < checkInHour) {
+              // Clear current selection styling from both sets of pills
+              Object.values(this.pickupTimePills).forEach(pill => {
+                if (pill) pill.style.borderColor = '';
+              });
+              Object.values(this.boatDetailsPickupTimePills).forEach(pill => {
+                if (pill) pill.style.borderColor = '';
+              });
+
+              // Auto-select earliest valid time
+              this.selectedPickupTime = earliestValidTime;
+
+              // Update both sets of pills
+              const mainPill = this.pickupTimePills[earliestValidTime];
+              const boatDetailsPill = this.boatDetailsPickupTimePills[earliestValidTime];
+              if (mainPill) mainPill.style.borderColor = '#000000';
+              if (boatDetailsPill) boatDetailsPill.style.borderColor = '#000000';
+
+              // Update UI and state
+              this.updateDatesFilterText();
+              this.updateFilterStyles();
+              this.updateURLParams();
+
+              if (isBoatDetails) {
+                this.updateBoatDetailsDateFilterText();
+                this.updateBoatDetailsPrice();
+                this.clearErrorIfResolved(this.boatDetailsErrorElement);
+                this.updateBoatDetailsDateButtonStyles();
+
+              } else {
+                this.updateExistingCards();
+              }
+            }
+          }
+        } catch (error) {
+        }
+      }
+
+
+
+      async loadUserAge() {
+        try {
+          const r = Wized.data.r;
+          await Wized.requests.waitFor('Load_user');
+          if (r?.Load_user?.status === 200 && r?.Load_user?.data.Birth_Date) {
+            const birthDate = new Date(r.Load_user.data.Birth_Date);
+            const today = new Date();
+
+            // Calculate age
+            let age = today.getFullYear() - birthDate.getFullYear();
+            const monthDiff = today.getMonth() - birthDate.getMonth();
+
+            // Adjust age if birthday hasn't occurred this year
+            if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+              age--;
+            }
+
+            this.userAge = age;
+
+
+          }
+        } catch (error) {
+          this.userAge = null;
+        }
+      }
+
       initialize() {
-        if (!this.button || !this.modal || !this.selectWrapper || !this.detailsWrapper || !this.exitButton || !this.cardTemplate || !this.cardWrapper) {
-          console.warn('Some boat rental elements are missing from the DOM');
+        if (!this.buttons || this.buttons.length === 0 || !this.modal || !this.selectWrapper || !this.detailsWrapper || !this.exitButton || !this.cardTemplate || !this.cardWrapper) {
           return;
         }
 
@@ -2968,8 +4492,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (this.boatDetailsPopup) this.boatDetailsPopup.style.display = 'none';
         if (this.boatDetailsGuestsPopup) this.boatDetailsGuestsPopup.style.display = 'none';
 
-        // Add click handlers
-        this.button.addEventListener('click', () => this.handleButtonClick());
+        // Add click handlers for all buttons
+        this.buttons.forEach(button => {
+          if (button) {
+            button.addEventListener('click', () => this.handleButtonClick());
+          }
+        });
         this.exitButton.addEventListener('click', () => this.closeModal());
 
         // Modal background click handler - close modal when clicking on background
@@ -3009,11 +4537,46 @@ document.addEventListener('DOMContentLoaded', () => {
           this.updateButtonState();
         });
 
+        // Monitor URL parameter changes for checkin/checkout dates
+        this.setupDateParameterMonitoring();
+
         // Setup pickup time pill handlers
         this.setupPickupTimePills();
 
         // Check property private dock status and setup visibility
         this.checkPropertyPrivateDockStatus();
+
+        // Setup property details monitoring for pickup time gating
+        this.setupPropertyDetailsMonitoring();
+      }
+
+      setupPropertyDetailsMonitoring() {
+        // Monitor for property details loading to apply pickup time gating
+        const checkForPropertyDetails = () => {
+          const r = window.Wized?.data?.r;
+          if (r?.Load_Property_Details?.data?.property?.check_in_time) {
+            // Property details with check-in time are now available, apply gating
+            this.applyPickupTimeGating(this.pickupTimePills, false);
+            this.applyPickupTimeGating(this.boatDetailsPickupTimePills, true);
+            return true; // Stop monitoring
+          }
+          return false; // Continue monitoring
+        };
+
+        // Check immediately
+        if (!checkForPropertyDetails()) {
+          // If not available yet, check periodically
+          const intervalId = setInterval(() => {
+            if (checkForPropertyDetails()) {
+              clearInterval(intervalId);
+            }
+          }, 100); // Check every 100ms
+
+          // Stop monitoring after 10 seconds to prevent infinite polling
+          setTimeout(() => {
+            clearInterval(intervalId);
+          }, 10000);
+        }
       }
 
       checkPropertyPrivateDockStatus() {
@@ -3053,6 +4616,11 @@ document.addEventListener('DOMContentLoaded', () => {
           if (!pill) return;
 
           pill.addEventListener('click', () => {
+            // Check if this pill is disabled by gating
+            if (pill.classList.contains('pickup-time-gated') || pill.getAttribute('aria-disabled') === 'true') {
+              return; // Ignore clicks on gated pills
+            }
+
             // If clicking already selected pill, deselect it
             if (this.selectedPickupTime === time) {
               this.selectedPickupTime = '';
@@ -3071,20 +4639,35 @@ document.addEventListener('DOMContentLoaded', () => {
             this.updateDatesFilterText();
             this.updateFilterStyles();
             this.updateURLParams();
+            this.updateExistingCards();
+
+            // Re-apply gating after pickup time selection changes
+            this.applyPickupTimeGating(this.pickupTimePills, false);
           });
         });
+
+        // Apply initial gating
+        this.applyPickupTimeGating(this.pickupTimePills, false);
       }
 
       initializeFromURL() {
         const urlParams = new URLSearchParams(window.location.search);
 
-        // Check for boatId - if present, hide button and show selected boat block
+        // Check for boatId - if present, hide buttons and show selected boat block
         const boatId = urlParams.get('boatId');
         if (boatId) {
-          this.button.style.display = 'none';
+          this.buttons.forEach(button => {
+            if (button) {
+              button.style.display = 'none';
+            }
+          });
           if (this.selectedBoatBlock) this.selectedBoatBlock.style.display = 'flex';
         } else {
-          this.button.style.display = 'flex';
+          this.buttons.forEach(button => {
+            if (button) {
+              button.style.display = 'flex';
+            }
+          });
           if (this.selectedBoatBlock) this.selectedBoatBlock.style.display = 'none';
         }
 
@@ -3141,12 +4724,36 @@ document.addEventListener('DOMContentLoaded', () => {
           this.datesFilter.addEventListener('click', () => {
             closeAllPopups();
             this.datesPopup.style.display = 'flex';
+
+            // Apply gating when dates popup opens
+            requestAnimationFrame(() => {
+              this.applyPickupTimeGating(this.pickupTimePills, false);
+              this.applyPickupTimeGating(this.boatDetailsPickupTimePills, true);
+            });
           });
         }
 
         if (this.datesPopupExit) {
           this.datesPopupExit.addEventListener('click', () => {
             closeAllPopups();
+
+            // Apply gating when popup closes
+            requestAnimationFrame(() => {
+              this.applyPickupTimeGating(this.pickupTimePills, false);
+              this.applyPickupTimeGating(this.boatDetailsPickupTimePills, true);
+            });
+          });
+        }
+
+        if (this.datesPopupDone) {
+          this.datesPopupDone.addEventListener('click', () => {
+            closeAllPopups();
+
+            // Apply gating when popup closes
+            requestAnimationFrame(() => {
+              this.applyPickupTimeGating(this.pickupTimePills, false);
+              this.applyPickupTimeGating(this.boatDetailsPickupTimePills, true);
+            });
           });
         }
 
@@ -3160,6 +4767,8 @@ document.addEventListener('DOMContentLoaded', () => {
               this.updateFilterStyles();
               this.updateExistingCards();
               this.updateURLParams();
+
+              this.fetchAndRenderBoats();
             }
           });
         }
@@ -3173,6 +4782,8 @@ document.addEventListener('DOMContentLoaded', () => {
               this.updateFilterStyles();
               this.updateExistingCards();
               this.updateURLParams();
+              // Re-filter boats to apply half-day filtering
+              this.fetchAndRenderBoats();
             }
           });
         }
@@ -3283,6 +4894,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
               }
             }
+
+
+            // Use requestAnimationFrame to ensure DOM updates are applied after state changes
+            requestAnimationFrame(() => {
+              this.applyPickupTimeGating(this.pickupTimePills, false);
+              this.applyPickupTimeGating(this.boatDetailsPickupTimePills, true);
+
+              // Double-check with another frame to ensure it sticks
+              requestAnimationFrame(() => {
+                this.applyPickupTimeGating(this.pickupTimePills, false);
+                this.applyPickupTimeGating(this.boatDetailsPickupTimePills, true);
+              });
+            });
 
             this.refilterBoatsIfModalOpen();
           });
@@ -3506,8 +5130,12 @@ document.addEventListener('DOMContentLoaded', () => {
         this.updateLengthTypeButtons();
         this.updateDatesFilterText();
         this.updateFilterStyles();
-        this.updateExistingCards();
+        this.fetchAndRenderBoats();
         this.updateURLParams();
+
+        // Apply pickup time gating when dates change (first/last day affects gating)
+        this.applyPickupTimeGating(this.pickupTimePills, false);
+        this.applyPickupTimeGating(this.boatDetailsPickupTimePills, true);
       }
 
       generateDateRange(startDateStr, endDateStr) {
@@ -3776,8 +5404,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
       }
 
-
-
       filterBoats(boats) {
         return boats.filter(boat => {
           // Filter by guest count
@@ -3793,13 +5419,17 @@ document.addEventListener('DOMContentLoaded', () => {
             }
           }
 
-          // Filter by price range
-          const totalPrice = this.calculateBoatPrice(boat);
+          // Filter by price range using unified pricing
+          const quote = this.computeBoatQuote(boat);
+          const totalPrice = quote.total;
+
+          // Always enforce min price
           if (totalPrice < this.selectedPriceMin) {
             return false;
           }
-          // Only apply max price filter if it has been manually adjusted
-          if (this.maxPriceAdjusted && totalPrice > this.selectedPriceMax) {
+
+          // Always enforce max price (no gating based on maxPriceAdjusted)
+          if (totalPrice > this.selectedPriceMax) {
             return false;
           }
 
@@ -3821,23 +5451,55 @@ document.addEventListener('DOMContentLoaded', () => {
             }
           }
 
+          // Filter by user age if user is logged in and age is available
+          if (this.userAge !== null && boat.minAge && this.userAge < boat.minAge) {
+            return false;
+          }
 
+          // Filter by dock length restrictions (property-based)
+          const r = Wized.data.r;
+          if (r && r.Load_Property_Details && r.Load_Property_Details.data && r.Load_Property_Details.data.property) {
+            const property = r.Load_Property_Details.data.property;
+
+            // If property has private dock, apply dock length restrictions
+            if (property.private_dock === true && property.dock_maxBoatLength) {
+              const boatLength = boat.length || 0;
+              // Extract integer value from dock_maxBoatLength (e.g., "55 ft" -> 55)
+              let maxDockLength = 0;
+              if (property.dock_maxBoatLength) {
+                const match = property.dock_maxBoatLength.match(/\d+/);
+                if (match) {
+                  maxDockLength = parseInt(match[0], 10);
+                }
+              }
+
+              // Filter out boats that are too long for the dock
+              if (boatLength > maxDockLength) {
+                return false;
+              }
+            }
+          }
 
           // Filter by private dock delivery
           if (this.selectedPrivateDock) {
+            // First check if property actually has a private dock
+            const r = Wized.data.r;
+            if (r && r.Load_Property_Details && r.Load_Property_Details.data && r.Load_Property_Details.data.property) {
+              const hasPrivateDock = r.Load_Property_Details.data.property.private_dock;
+              if (hasPrivateDock === false) {
+                // Property doesn't have private dock, so skip this filter entirely
+                return true; // Don't filter out this boat
+              }
+            }
+
             // Check if boat delivers
             if (!boat.delivers) {
               return false;
             }
 
             // Get property city from Wized data
-            const r = Wized.data.r;
-
-
-
             if (r && r.Load_Property_Details && r.Load_Property_Details.data && r.Load_Property_Details.data.property.listing_city) {
               const propertyCityName = r.Load_Property_Details.data.property.listing_city;
-
 
               // Check if boat delivers to the property's city
               if (!boat.deliversTo || !Array.isArray(boat.deliversTo)) {
@@ -3863,7 +5525,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       async fetchAndRenderBoats() {
         try {
-          // Fetch all boat options
+          // Fetch all boat options (user age is loaded inside fetchBoatOptions)
           const allBoats = await this.fetchBoatOptions();
 
           // Filter boats based on guest count
@@ -3874,7 +5536,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
           return filteredBoats;
         } catch (error) {
-          console.error('Error in fetchAndRenderBoats:', error);
           this.renderBoatCards([]);
           return [];
         }
@@ -3882,18 +5543,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
       async fetchBoatOptions() {
         try {
+          // Load user age first
+          await this.loadUserAge();
+
           // Get property ID from URL
           const urlParams = new URLSearchParams(window.location.search);
           const propertyId = urlParams.get('id');
 
           if (!propertyId) {
-            console.warn('Property ID not found in URL');
             return [];
           }
 
           const params = new URLSearchParams({
             propertyID: propertyId
           });
+
+          // Add user age to params if available, otherwise send null
+          if (this.userAge !== null) {
+            params.set('userAge', this.userAge);
+          } else {
+            params.set('userAge', '');
+          }
 
           // Make API call
           const response = await fetch(`https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/boatResults_listingPage?${params}`, {
@@ -3906,6 +5576,7 @@ document.addEventListener('DOMContentLoaded', () => {
           if (!response.ok) {
             throw new Error('Failed to fetch boat options');
           }
+
 
           const data = await response.json();
 
@@ -3929,6 +5600,7 @@ document.addEventListener('DOMContentLoaded', () => {
                   ...boat,
                   serviceFee: company.serviceFee,
                   delivers: company.delivers,
+                  deliveryMinLength: company.deliveryMinLength || 0,
                   deliversTo: company.privateDockDeliveryCity || [],
                   address: company.address || '',
                   city: company.city || '',
@@ -3937,6 +5609,8 @@ document.addEventListener('DOMContentLoaded', () => {
                   companyProfileImage: company.profilePic || '',
                   companyDeliveryFee: company.deliveryFee || 0,
                   companyDelivers: company.delivers || false,
+                  minAge: company.minAge || 0,
+                  integrationType: company.integration_type || '',
                 };
               }
               return boat;
@@ -3949,7 +5623,6 @@ document.addEventListener('DOMContentLoaded', () => {
           return Array.isArray(data) ? data : [];
 
         } catch (error) {
-          console.error('Error fetching boat options:', error);
           return [];
         }
       }
@@ -3963,9 +5636,33 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         });
 
-        // If no boats, hide the template card
+        // Clear any existing no results message
+        const existingNoResultsMessage = this.cardWrapper.querySelector('.no-results-message');
+        if (existingNoResultsMessage) {
+          existingNoResultsMessage.remove();
+        }
+
+        // If no boats, hide the template card and show no results message
         if (boats.length === 0) {
           this.cardTemplate.style.display = 'none';
+
+          // Create and add no results message
+          const noResultsMessage = document.createElement('div');
+          noResultsMessage.className = 'no-results-message';
+          noResultsMessage.style.fontFamily = 'TT Fors, sans-serif !important';
+          noResultsMessage.style.cssText = `
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 40px 20px;
+            color: black;
+            font-size: 16px;
+            width: 100%;
+            min-height: 200px;
+          `;
+          noResultsMessage.textContent = 'No boat rentals found for this listing :( Try adjusting your stay or search params.';
+          this.cardWrapper.appendChild(noResultsMessage);
           return;
         }
 
@@ -4102,80 +5799,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
       getStartingPriceText(boat) {
         const minLength = boat.minReservationLength || 0;
-        let basePrice = 0;
+
+        // Use unified pricing with no dates selected
+        const quote = this.computeBoatQuote(boat, {
+          selectedDates: [],
+          selectedLengthType: this.selectedLengthType,
+          selectedPrivateDock: this.selectedPrivateDock,
+          selectedGuests: this.selectedGuests
+        });
 
         if (minLength <= 0.5) {
-          basePrice = boat.pricePerHalfDay || 0;
+          return `Starting at $${quote.total.toLocaleString()}`;
         } else if (minLength === 1) {
-          basePrice = boat.pricePerDay || 0;
+          return `Starting at $${quote.total.toLocaleString()}`;
         } else {
-          basePrice = boat.pricePerDay || 0;
-        }
-
-        // Add delivery fee if private dock filter is selected and boat can deliver
-        if (this.selectedPrivateDock && boat.companyDelivers && boat.companyDeliveryFee) {
-          basePrice += boat.companyDeliveryFee;
-        }
-
-        if (minLength <= 0.5) {
-          return `Starting at $${basePrice.toLocaleString()}`;
-        } else if (minLength === 1) {
-          return `Starting at $${basePrice.toLocaleString()}`;
-        } else {
-          return `Starting at $${basePrice.toLocaleString()} per day`;
+          return `Starting at $${quote.total.toLocaleString()} per day`;
         }
       }
 
       calculateSelectedPriceText(boat) {
-        let basePrice = 0;
-        const numDates = this.selectedDates.length;
-
-        if (numDates === 1) {
-          // Single day reservation
-          if (this.selectedLengthType === 'half') {
-            basePrice = boat.pricePerHalfDay || 0;
-          } else {
-            basePrice = boat.pricePerDay || 0;
-          }
-        } else {
-          // Multi-day reservation
-          if (numDates >= 30 && boat.pricePerMonth) {
-            // Handle 30+ days with monthly rate
-            const months = Math.floor(numDates / 30);
-            const remainingDays = numDates % 30;
-            const monthlyPrice = boat.pricePerMonth * months;
-
-            // Calculate remaining days price
-            let dailyRate = boat.pricePerDay || 0;
-            if (boat.pricePerWeek) {
-              dailyRate = boat.pricePerWeek / 7; // Use weekly daily rate if available
-            }
-
-            basePrice = monthlyPrice + (remainingDays * dailyRate);
-          } else if (numDates === 7 && boat.pricePerWeek) {
-            // Use weekly rate for exactly 7 days if available
-            basePrice = boat.pricePerWeek;
-          } else if (numDates > 7 && boat.pricePerWeek) {
-            // Use weekly daily rate for periods longer than a week to continue discount
-            const weeklyDailyRate = boat.pricePerWeek / 7;
-            basePrice = numDates * weeklyDailyRate;
-          } else {
-            // Use daily rate for shorter periods or when no weekly/monthly rates available
-            basePrice = numDates * (boat.pricePerDay || 0);
-          }
-        }
-
-        // Apply service fee
-        const serviceFee = boat.serviceFee || 0;
-        let totalPrice = basePrice * (1 + serviceFee);
-
-        // Add delivery fee if private dock filter is selected and boat can deliver
-        if (this.selectedPrivateDock && boat.companyDelivers && boat.companyDeliveryFee) {
-          totalPrice += boat.companyDeliveryFee;
-        }
-
-        // Round and format with commas
-        return `$${Math.round(totalPrice).toLocaleString()} total price`;
+        // Use unified pricing calculation
+        const quote = this.computeBoatQuote(boat);
+        return `$${quote.total.toLocaleString()} total price`;
       }
 
       updateExistingCards() {
@@ -4203,6 +5848,64 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Re-enable body scroll
         document.body.classList.remove('no-scroll');
+
+        // Reset editing state
+        this.editingCharterNumber = null;
+      }
+
+      resetModalState() {
+        // Clear all filter state
+        this.selectedDates = [];
+        this.selectedLengthType = 'full';
+        this.selectedPickupTime = '';
+        this.selectedGuests = 0;
+        // Don't reset price constraints unless explicitly clearing filters
+        // this.selectedPriceMin = 0;
+        // this.selectedPriceMax = Infinity;
+        // this.maxPriceAdjusted = false;
+        this.selectedLengthMin = 0;
+        this.selectedLengthMax = 50;
+        this.maxLengthAdjusted = false;
+        this.selectedBoatTypes = [];
+        this.selectedPrivateDock = false;
+        this.deliverySelected = false;
+
+        // Reset pickup time pills
+        Object.values(this.pickupTimePills).forEach(pill => {
+          if (pill) pill.style.borderColor = '';
+        });
+
+        // Reset boat details pickup time pills
+        Object.values(this.boatDetailsPickupTimePills).forEach(pill => {
+          if (pill) pill.style.borderColor = '';
+        });
+
+        // Update guest number displays
+        if (this.guestNumber) this.guestNumber.textContent = this.selectedGuests;
+        if (this.boatDetailsGuestNumber) this.boatDetailsGuestNumber.textContent = this.selectedGuests;
+
+        // Update all filter texts
+        this.updateDatesFilterText();
+        this.updateGuestsFilterText();
+        this.updatePriceFilterText();
+        this.updateLengthFilterText();
+        this.updateBoatTypeFilterText();
+        this.updatePrivateDockFilterText();
+        this.updateBoatDetailsDateFilterText();
+        this.updateBoatDetailsGuestsFilterText();
+
+        // Update filter styles
+        this.updateFilterStyles();
+        this.updateLengthTypeButtons();
+        this.updateBoatDetailsLengthTypeButtons();
+
+        // Reset date button styles
+        this.updateDateButtonStyles();
+        this.updateBoatDetailsDateButtonStyles();
+
+        // Re-render date selections
+        this.renderDateSelection();
+        this.renderBoatDetailsDateSelection();
       }
 
       async handleButtonClick() {
@@ -4218,6 +5921,9 @@ document.addEventListener('DOMContentLoaded', () => {
           return;
         }
 
+        // Load user age for age-based filtering
+        await this.loadUserAge();
+
         // Ensure modal always opens to select wrapper view
         this.detailsWrapper.style.display = 'none';
         this.selectWrapper.style.display = 'flex';
@@ -4227,6 +5933,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Prevent body scroll when modal is open
         document.body.classList.add('no-scroll');
+
+        // Apply pickup time gating when modal opens
+        this.applyPickupTimeGating(this.pickupTimePills, false);
+        this.applyPickupTimeGating(this.boatDetailsPickupTimePills, true);
 
         // Fetch and render boat options with filtering
         await this.fetchAndRenderBoats();
@@ -4325,10 +6035,51 @@ document.addEventListener('DOMContentLoaded', () => {
       updateButtonState() {
         const isValid = this.areDatesValid();
 
-        // Update button styles
-        this.button.style.borderColor = isValid ? '' : '#e2e2e2';
-        this.button.style.opacity = isValid ? '1' : '0.5';
-        this.button.style.cursor = isValid ? 'pointer' : 'not-allowed';
+        // Update all button styles
+        this.buttons.forEach(button => {
+          if (button) {
+            button.style.borderColor = isValid ? '' : '#e2e2e2';
+            button.style.opacity = isValid ? '1' : '0.5';
+            button.style.cursor = isValid ? 'pointer' : 'not-allowed';
+          }
+        });
+      }
+
+      setupDateParameterMonitoring() {
+        // Store current parameter values
+        let lastCheckin = '';
+        let lastCheckout = '';
+
+        // Check for parameter changes every second
+        const checkParameters = () => {
+          const urlParams = new URLSearchParams(window.location.search);
+          const currentCheckin = urlParams.get('checkin') || '';
+          const currentCheckout = urlParams.get('checkout') || '';
+
+          // If checkin or checkout parameters have changed
+          if (currentCheckin !== lastCheckin || currentCheckout !== lastCheckout) {
+            lastCheckin = currentCheckin;
+            lastCheckout = currentCheckout;
+
+            // Re-initialize from URL parameters
+            this.initializeFromURL();
+
+            // Re-initialize date selection functionality
+            this.renderDateSelection();
+            this.updateButtonState();
+            this.updateDatesFilterText();
+            this.updateFilterStyles();
+
+            // Also update boat details section if it exists
+            this.renderBoatDetailsDateSelection();
+            this.updateBoatDetailsDateFilterText();
+            this.updateBoatDetailsLengthTypeButtons();
+          }
+        };
+
+        // Check initially and then every second
+        checkParameters();
+        setInterval(checkParameters, 1000);
       }
 
       setupFilterXButtons() {
@@ -4402,6 +6153,8 @@ document.addEventListener('DOMContentLoaded', () => {
         this.updateFilterStyles();
         this.updateExistingCards();
         this.updateURLParams();
+        // Re-filter boats to show all boats again
+        this.fetchAndRenderBoats();
       }
 
       clearGuestsFilter() {
@@ -4449,7 +6202,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Update price filter button style
         if (this.priceFilter && this.priceFilterText) {
-          const hasPriceFilter = this.selectedPriceMin > 0 || this.maxPriceAdjusted;
+          const hasPriceFilter = this.selectedPriceMin > 0 || (this.selectedPriceMax !== Infinity && this.maxPriceAdjusted);
 
           if (hasPriceFilter) {
             this.priceFilter.style.backgroundColor = '#000000';
@@ -4524,7 +6277,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Show/hide price X button
         if (this.priceFilterX) {
-          const hasPriceFilter = this.selectedPriceMin > 0 || this.maxPriceAdjusted;
+          const hasPriceFilter = this.selectedPriceMin > 0 || (this.selectedPriceMax !== Infinity && this.maxPriceAdjusted);
           this.priceFilterX.style.display = hasPriceFilter ? 'flex' : 'none';
         }
 
@@ -4553,10 +6306,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
 
-      calculateBoatPrice(boat) {
-        // Calculate the total price for filtering purposes
+      // Single source of truth for boat pricing calculation
+      computeBoatQuote(boat, state = null) {
+        // Use current state if no state provided
+        const currentState = state || {
+          selectedDates: this.selectedDates,
+          selectedLengthType: this.selectedLengthType,
+          selectedPrivateDock: this.selectedPrivateDock,
+          selectedGuests: this.selectedGuests
+        };
+
         let basePrice = 0;
-        const numDates = this.selectedDates.length;
+        const numDates = currentState.selectedDates.length;
 
         if (numDates === 0) {
           // No dates selected, use minimum price (starting price)
@@ -4568,13 +6329,13 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         } else if (numDates === 1) {
           // Single day reservation
-          if (this.selectedLengthType === 'half') {
+          if (currentState.selectedLengthType === 'half') {
             basePrice = boat.pricePerHalfDay || 0;
           } else {
             basePrice = boat.pricePerDay || 0;
           }
         } else {
-          // Multi-day reservation - same logic as calculateSelectedPriceText
+          // Multi-day reservation
           if (numDates >= 30 && boat.pricePerMonth) {
             const months = Math.floor(numDates / 30);
             const remainingDays = numDates % 30;
@@ -4582,25 +6343,161 @@ document.addEventListener('DOMContentLoaded', () => {
 
             let dailyRate = boat.pricePerDay || 0;
             if (boat.pricePerWeek) {
-              dailyRate = boat.pricePerWeek / 7; // Use weekly daily rate if available
+              dailyRate = boat.pricePerWeek / 7;
             }
 
-            basePrice = monthlyPrice + (remainingDays * dailyRate);
+            basePrice = Math.round(monthlyPrice + (remainingDays * dailyRate));
           } else if (numDates === 7 && boat.pricePerWeek) {
             basePrice = boat.pricePerWeek;
           } else if (numDates > 7 && boat.pricePerWeek) {
             const weeklyDailyRate = boat.pricePerWeek / 7;
-            basePrice = numDates * weeklyDailyRate;
+            basePrice = Math.round(numDates * weeklyDailyRate);
           } else {
             basePrice = numDates * (boat.pricePerDay || 0);
           }
         }
 
-        // Apply service fee
-        const serviceFee = boat.serviceFee || 0;
-        const totalPrice = basePrice * (1 + serviceFee);
+        // Calculate service fee unless integrationType is "Manual"
+        let serviceFee = 0;
+        if (boat.integrationType !== "Manual") {
+          serviceFee = basePrice * (boat.serviceFee || 0);
+        }
 
-        return Math.round(totalPrice);
+        // Calculate delivery fee if private dock is selected and boat can deliver
+        let deliveryFee = 0;
+        if (currentState.selectedPrivateDock && boat.companyDelivers && boat.companyDeliveryFee) {
+          deliveryFee = boat.companyDeliveryFee;
+        }
+
+        const total = basePrice + serviceFee + deliveryFee;
+
+        return {
+          base: Math.round(basePrice),
+          fees: {
+            service: Math.round(serviceFee),
+            delivery: Math.round(deliveryFee)
+          },
+          total: Math.round(total)
+        };
+      }
+
+      filterBoats(boats) {
+        return boats.filter(boat => {
+          // Filter by guest count
+          if (this.selectedGuests > 0 && boat.maxPassengers < this.selectedGuests) {
+            return false;
+          }
+
+          // Filter by half-day compatibility
+          if (this.selectedDates.length === 1 && this.selectedLengthType === 'half') {
+            const minLength = boat.minReservationLength || 0;
+            if (minLength >= 1) {
+              return false; // Boat doesn't allow half days
+            }
+          }
+
+          // Filter by price range using unified pricing
+          const quote = this.computeBoatQuote(boat);
+          const totalPrice = quote.total;
+
+          // Always enforce min price
+          if (totalPrice < this.selectedPriceMin) {
+            return false;
+          }
+
+          // Always enforce max price (no gating based on maxPriceAdjusted)
+          if (totalPrice > this.selectedPriceMax) {
+            return false;
+          }
+
+          // Filter by boat length
+          const boatLength = boat.length || 0;
+          if (boatLength < this.selectedLengthMin) {
+            return false;
+          }
+          // Only apply max length filter if it has been manually adjusted
+          if (this.maxLengthAdjusted && boatLength > this.selectedLengthMax) {
+            return false;
+          }
+
+          // Filter by boat type
+          if (this.selectedBoatTypes.length > 0) {
+            const boatType = boat.boatType;
+            if (!this.selectedBoatTypes.includes(boatType)) {
+              return false;
+            }
+          }
+
+          // Filter by user age if user is logged in and age is available
+          if (this.userAge !== null && boat.minAge && this.userAge < boat.minAge) {
+            return false;
+          }
+
+          // Filter by dock length restrictions (property-based)
+          const r = Wized.data.r;
+          if (r && r.Load_Property_Details && r.Load_Property_Details.data && r.Load_Property_Details.data.property) {
+            const property = r.Load_Property_Details.data.property;
+
+            // If property has private dock, apply dock length restrictions
+            if (property.private_dock === true && property.dock_maxBoatLength) {
+              const boatLength = boat.length || 0;
+              // Extract integer value from dock_maxBoatLength (e.g., "55 ft" -> 55)
+              let maxDockLength = 0;
+              if (property.dock_maxBoatLength) {
+                const match = property.dock_maxBoatLength.match(/\d+/);
+                if (match) {
+                  maxDockLength = parseInt(match[0], 10);
+                }
+              }
+
+              // Filter out boats that are too long for the dock
+              if (boatLength > maxDockLength) {
+                return false;
+              }
+            }
+          }
+
+          // Filter by private dock delivery
+          if (this.selectedPrivateDock) {
+            // First check if property actually has a private dock
+            const r = Wized.data.r;
+            if (r && r.Load_Property_Details && r.Load_Property_Details.data && r.Load_Property_Details.data.property) {
+              const hasPrivateDock = r.Load_Property_Details.data.property.private_dock;
+              if (hasPrivateDock === false) {
+                // Property doesn't have private dock, so skip this filter entirely
+                return true; // Don't filter out this boat
+              }
+            }
+
+            // Check if boat delivers
+            if (!boat.delivers) {
+              return false;
+            }
+
+            // Get property city from Wized data
+            if (r && r.Load_Property_Details && r.Load_Property_Details.data && r.Load_Property_Details.data.property.listing_city) {
+              const propertyCityName = r.Load_Property_Details.data.property.listing_city;
+
+              // Check if boat delivers to the property's city
+              if (!boat.deliversTo || !Array.isArray(boat.deliversTo)) {
+                return false;
+              }
+
+              const canDeliverToProperty = boat.deliversTo.some(location =>
+                location.city && location.city.toLowerCase() === propertyCityName.toLowerCase()
+              );
+
+              if (!canDeliverToProperty) {
+                return false;
+              }
+            } else {
+              // If we can't get property city, hide boats when private dock filter is active
+              return false;
+            }
+          }
+
+          return true;
+        });
       }
 
       setupPriceFilter() {
@@ -4643,9 +6540,9 @@ document.addEventListener('DOMContentLoaded', () => {
           thumbMin.style.left = minPercent + '%';
           thumbMax.style.left = maxPercent + '%';
 
-          // Update state
+          // Update state - use Infinity if slider is at max to represent "no upper bound"
           this.selectedPriceMin = minVal;
-          this.selectedPriceMax = maxVal;
+          this.selectedPriceMax = maxVal >= maxPrice ? Infinity : maxVal;
 
           // Set maxPriceAdjusted flag when max value changes from default
           this.maxPriceAdjusted = maxVal < maxPrice;
@@ -4753,9 +6650,19 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         });
 
-        // Set initial values
-        if (this.priceMinInput) this.priceMinInput.value = '$0';
-        if (this.priceMaxInput) this.priceMaxInput.value = `$${maxPrice.toLocaleString()}+`;
+        // Set initial values based on current state
+        if (this.priceMinInput) this.priceMinInput.value = '$' + this.selectedPriceMin.toLocaleString();
+        if (this.priceMaxInput) {
+          if (this.selectedPriceMax === Infinity) {
+            this.priceMaxInput.value = `$${maxPrice.toLocaleString()}+`;
+          } else {
+            this.priceMaxInput.value = this.selectedPriceMax >= maxPrice ? `$${maxPrice.toLocaleString()}+` : '$' + this.selectedPriceMax.toLocaleString();
+          }
+        }
+
+        // Initialize slider values based on current state
+        if (sliderMin) sliderMin.value = this.selectedPriceMin;
+        if (sliderMax) sliderMax.value = this.selectedPriceMax === Infinity ? maxPrice : Math.min(this.selectedPriceMax, maxPrice);
 
         updateSlider();
       }
@@ -4763,7 +6670,7 @@ document.addEventListener('DOMContentLoaded', () => {
       clearPriceFilter() {
         // Reset price filter to default values
         this.selectedPriceMin = 0;
-        this.selectedPriceMax = 12000;
+        this.selectedPriceMax = Infinity; // Use Infinity for no upper bound
         this.maxPriceAdjusted = false; // Reset the adjustment flag
 
         // Update slider if it exists
@@ -4771,7 +6678,7 @@ document.addEventListener('DOMContentLoaded', () => {
           const sliderMin = this.priceScrollBar.querySelector('.price-slider-min');
           const sliderMax = this.priceScrollBar.querySelector('.price-slider-max');
           if (sliderMin) sliderMin.value = 0;
-          if (sliderMax) sliderMax.value = 12000;
+          if (sliderMax) sliderMax.value = 12000; // UI slider still shows 12000 as max
 
           // Trigger update
           const updateEvent = new Event('input');
@@ -4787,13 +6694,13 @@ document.addEventListener('DOMContentLoaded', () => {
       updatePriceFilterText() {
         if (!this.priceFilterText) return;
 
-        const hasFilter = this.selectedPriceMin > 0 || this.maxPriceAdjusted;
+        const hasFilter = this.selectedPriceMin > 0 || (this.selectedPriceMax !== Infinity && this.maxPriceAdjusted);
 
         if (!hasFilter) {
           this.priceFilterText.textContent = 'Price';
         } else {
           const minText = this.selectedPriceMin > 0 ? `$${this.selectedPriceMin.toLocaleString()}` : '$0';
-          const maxText = this.selectedPriceMax >= 12000 ? '$12,000+' : `$${this.selectedPriceMax.toLocaleString()}`;
+          const maxText = this.selectedPriceMax === Infinity || this.selectedPriceMax >= 12000 ? '$12,000+' : `$${this.selectedPriceMax.toLocaleString()}`;
           this.priceFilterText.textContent = `${minText} - ${maxText}`;
         }
       }
@@ -5119,6 +7026,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (detailsContent) {
           detailsContent.scrollTop = 0;
         }
+
+        // Apply pickup time gating when boat details opens
+        this.applyPickupTimeGating(this.pickupTimePills, false);
+        this.applyPickupTimeGating(this.boatDetailsPickupTimePills, true);
 
         // Populate the boat details
         this.populateBoatDetails(boat);
@@ -5488,7 +7399,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const longitude = location.lng();
                 initializeMap(latitude, longitude);
               } else {
-                console.error('Geocoding failed:', status);
+
                 // Hide map if geocoding fails
                 mapElement.style.display = 'none';
               }
@@ -5559,8 +7470,12 @@ document.addEventListener('DOMContentLoaded', () => {
         // Add images to track
         sortedPhotos.forEach((photo, index) => {
           const imageContainer = document.createElement('div');
+          // Check screen width for responsive behavior
+          const isMobile = window.innerWidth < 767;
+          const flexBasis = isMobile ? '100%' : '50%';
+
           imageContainer.style.cssText = `
-            flex: 0 0 50%;
+            flex: 0 0 ${flexBasis};
             height: 320px;
             padding: 0 6px;
             box-sizing: border-box;
@@ -5612,10 +7527,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         carouselWrapper.appendChild(imagesTrack);
 
-        // Add navigation buttons only if there are more than 2 images
-        if (sortedPhotos.length > 2) {
+        // Add navigation buttons only if there are more than the visible count
+        const isMobile = window.innerWidth < 767;
+        const visibleCount = isMobile ? 1 : 2;
+
+        if (sortedPhotos.length > visibleCount) {
           let currentIndex = 0;
-          const maxIndex = Math.max(0, sortedPhotos.length - 2); // Show 2 images at a time
+          const maxIndex = Math.max(0, sortedPhotos.length - visibleCount); // Show based on screen size
 
           // Create counter first so it can be referenced in navigation
           const counter = document.createElement('div');
@@ -5634,7 +7552,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
           const updateCounter = () => {
             const startImage = currentIndex + 1;
-            const endImage = Math.min(currentIndex + 2, sortedPhotos.length);
+            const endImage = Math.min(currentIndex + visibleCount, sortedPhotos.length);
             counter.textContent = `${startImage}-${endImage} of ${sortedPhotos.length}`;
           };
 
@@ -5698,7 +7616,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
           // Navigation functionality
           const updateCarousel = () => {
-            const translateX = -(currentIndex * 50); // Move by exactly 50% (width of one image container)
+            const movePercentage = isMobile ? 100 : 50; // Move by 100% on mobile, 50% on desktop
+            const translateX = -(currentIndex * movePercentage);
             imagesTrack.style.transform = `translateX(${translateX}%)`;
             updateButtonStates();
             updateCounter();
@@ -5757,7 +7676,7 @@ document.addEventListener('DOMContentLoaded', () => {
             font-family: 'TT Fors', sans-serif;
             z-index: 10;
           `;
-          counter.textContent = `1-${sortedPhotos.length} of ${sortedPhotos.length}`;
+          counter.textContent = isMobile ? `1 of ${sortedPhotos.length}` : `1-${sortedPhotos.length} of ${sortedPhotos.length}`;
           carouselWrapper.appendChild(counter);
         }
 
@@ -5815,10 +7734,10 @@ document.addEventListener('DOMContentLoaded', () => {
         // Close button
         const closeButton = document.createElement('button');
         closeButton.innerHTML = `
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M18 6L6 18M6 6L18 18" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        `;
+            </svg>
+          `;
         closeButton.style.cssText = `
           position: fixed;
           top: 20px;
@@ -5826,15 +7745,15 @@ document.addEventListener('DOMContentLoaded', () => {
           width: 48px;
           height: 48px;
           background: rgba(0, 0, 0, 0.7);
-          border: none;
-          border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          cursor: pointer;
+            border: none;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
           z-index: 10001;
-          transition: background-color 0.2s ease;
-        `;
+            transition: background-color 0.2s ease;
+          `;
 
         // Image counter
         const counter = document.createElement('div');
@@ -5883,22 +7802,22 @@ document.addEventListener('DOMContentLoaded', () => {
           nextButton.innerHTML = `
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M9 18L15 12L9 6" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          `;
+          </svg>
+        `;
           nextButton.style.cssText = `
             position: fixed;
-            right: 20px;
+          right: 20px;
             top: 50%;
             transform: translateY(-50%);
             width: 56px;
             height: 56px;
             background: rgba(0, 0, 0, 0.7);
-            border: none;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
+          border: none;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
             z-index: 10001;
             transition: background-color 0.2s ease, opacity 0.2s ease;
           `;
@@ -6032,15 +7951,14 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       setupAddToReservationButton(boat) {
-        // Get the reservation button and error element
+        // Get the reservation button
         const addToReservationButton = document.querySelector('[data-element="boatDetails_reservation_addToReservationButton"]');
-        const errorElement = document.querySelector('[data-element="boatDetails_reservation_addToReservationError"]');
 
         if (!addToReservationButton) return;
 
         // Hide error element initially
-        if (errorElement) {
-          errorElement.style.display = 'none';
+        if (this.boatDetailsErrorElement) {
+          this.boatDetailsErrorElement.style.display = 'none';
         }
 
         // Remove any existing event listeners to prevent duplicates
@@ -6049,8 +7967,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Add click handler to the new button
         newButton.addEventListener('click', () => {
-          this.handleAddToReservation(boat, errorElement);
+          this.handleAddToReservation(boat, this.boatDetailsErrorElement);
         });
+      }
+
+      // Method to clear errors when conditions are met
+      clearErrorIfResolved(errorElement) {
+        if (!errorElement || errorElement.style.display === 'none') return;
+
+        // Check if all required parameters are now valid
+        const hasValidDates = this.selectedDates && this.selectedDates.length > 0;
+        const hasValidGuests = this.selectedGuests && this.selectedGuests > 0;
+        const hasValidPickupTime = this.selectedPickupTime && this.selectedPickupTime !== '';
+        const hasValidLengthType = this.selectedLengthType && this.selectedLengthType !== '';
+
+        // If all conditions are met, hide the error
+        if (hasValidDates && hasValidGuests && hasValidPickupTime && hasValidLengthType) {
+          errorElement.style.display = 'none';
+        }
       }
 
       handleAddToReservation(boat, errorElement) {
@@ -6199,6 +8133,23 @@ document.addEventListener('DOMContentLoaded', () => {
           this.updateFilterStyles();
           this.updateURLParams();
 
+          // Apply pickup time gating when delivery checkbox changes
+          // Use requestAnimationFrame to ensure DOM updates are applied after state changes
+          requestAnimationFrame(() => {
+            this.applyPickupTimeGating(this.pickupTimePills, false);
+            this.applyPickupTimeGating(this.boatDetailsPickupTimePills, true);
+
+            // Double-check with another frame to ensure it sticks
+            requestAnimationFrame(() => {
+              this.applyPickupTimeGating(this.pickupTimePills, false);
+              this.applyPickupTimeGating(this.boatDetailsPickupTimePills, true);
+
+              // Update date/time text display after pickup time gating is complete
+              this.updateBoatDetailsDateFilterText();
+            });
+          });
+
+
           // Update pricing
           this.updateBoatDetailsPricing(boat);
         });
@@ -6238,8 +8189,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const priceFeeElement = document.querySelector('[data-element="boatDetails_reservation_priceFee"]');
         const taxesElement = document.querySelector('[data-element="boatDetails_reservation_taxes"]');
         const totalPriceElement = document.querySelector('[data-element="boatDetails_reservation_totalPrice"]');
+        const pricesContainer = document.querySelector('[data-element="boatDetails_reservation_prices_container"]');
 
         if (this.selectedDates.length === 0) {
+          if (pricesContainer) {
+            pricesContainer.style.display = 'none';
+          }
           // No dates selected - show starting price
           if (reservationPrice) {
             reservationPrice.textContent = this.getStartingPriceText(boat);
@@ -6251,12 +8206,15 @@ document.addEventListener('DOMContentLoaded', () => {
           return;
         }
 
-        // Calculate base price
-        let basePrice = this.calculateBasePrice(boat);
+        // Use unified pricing calculation
+        const quote = this.computeBoatQuote(boat, {
+          selectedDates: this.selectedDates,
+          selectedLengthType: this.selectedLengthType,
+          selectedPrivateDock: this.deliverySelected, // Use deliverySelected for boat details pricing
+          selectedGuests: this.selectedGuests
+        });
 
-        // Add delivery fee if selected
-        const deliveryFee = (this.deliverySelected && boat.companyDeliveryFee) ? boat.companyDeliveryFee : 0;
-        const priceWithDelivery = basePrice + deliveryFee;
+        const priceWithDelivery = quote.base + quote.fees.service + quote.fees.delivery;
 
         // Calculate taxes (7.5% of price + delivery fee)
         const taxRate = 0.075;
@@ -6281,51 +8239,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (reservationPrice) {
           reservationPrice.textContent = `$${Math.round(totalPrice).toLocaleString()} total price`;
         }
-      }
 
-      calculateBasePrice(boat) {
-        let basePrice = 0;
-        const numDates = this.selectedDates.length;
-
-        if (numDates === 1) {
-          // Single day reservation
-          if (this.selectedLengthType === 'half') {
-            basePrice = boat.pricePerHalfDay || 0;
-          } else {
-            basePrice = boat.pricePerDay || 0;
-          }
-        } else {
-          // Multi-day reservation
-          if (numDates >= 30 && boat.pricePerMonth) {
-            // Handle 30+ days with monthly rate
-            const months = Math.floor(numDates / 30);
-            const remainingDays = numDates % 30;
-            const monthlyPrice = boat.pricePerMonth * months;
-
-            // Calculate remaining days price
-            let dailyRate = boat.pricePerDay || 0;
-            if (boat.pricePerWeek) {
-              dailyRate = boat.pricePerWeek / 7; // Use weekly daily rate if available
-            }
-
-            basePrice = monthlyPrice + (remainingDays * dailyRate);
-          } else if (numDates === 7 && boat.pricePerWeek) {
-            // Use weekly rate for exactly 7 days if available
-            basePrice = boat.pricePerWeek;
-          } else if (numDates > 7 && boat.pricePerWeek) {
-            // Use weekly daily rate for periods longer than a week to continue discount
-            const weeklyDailyRate = boat.pricePerWeek / 7;
-            basePrice = numDates * weeklyDailyRate;
-          } else {
-            // Use daily rate for shorter periods or when no weekly/monthly rates available
-            basePrice = numDates * (boat.pricePerDay || 0);
-          }
+        // Make the price container flex when there are price values
+        if (pricesContainer) {
+          pricesContainer.style.display = 'flex';
+          pricesContainer.style.flexDirection = 'column';
         }
-
-        // Apply service fee
-        const serviceFee = boat.serviceFee || 0;
-        return basePrice * (1 + serviceFee);
       }
+
+
 
       initializeBoatDetailsDateFilter() {
         // Initialize boat details date filter text
@@ -6544,6 +8466,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Update boat details price
         this.updateBoatDetailsPrice();
+
+        // Apply pickup time gating when dates change (first/last day affects gating)
+        this.applyPickupTimeGating(this.pickupTimePills, false);
+        this.applyPickupTimeGating(this.boatDetailsPickupTimePills, true);
+
+        // Clear error if conditions are now met
+        this.clearErrorIfResolved(this.boatDetailsErrorElement);
       }
 
       updateBoatDetailsDateButtonStyles() {
@@ -6579,12 +8508,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Show boat details dates popup
             if (this.boatDetailsPopup) this.boatDetailsPopup.style.display = 'flex';
+            if (this.boatDetailsGuestsPopup) this.boatDetailsGuestsPopup.style.display = 'none';
           });
         }
 
         // Boat details popup exit handler
         if (this.boatDetailsPopupExit) {
           this.boatDetailsPopupExit.addEventListener('click', () => {
+            if (this.boatDetailsPopup) this.boatDetailsPopup.style.display = 'none';
+          });
+        }
+
+        // Boat details popup done handler
+        if (this.boatDetailsPopupDone) {
+          this.boatDetailsPopupDone.addEventListener('click', () => {
             if (this.boatDetailsPopup) this.boatDetailsPopup.style.display = 'none';
           });
         }
@@ -6601,12 +8538,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Show boat details guests popup
             if (this.boatDetailsGuestsPopup) this.boatDetailsGuestsPopup.style.display = 'flex';
+            if (this.boatDetailsPopup) this.boatDetailsPopup.style.display = 'none';
           });
         }
 
         // Boat details guest popup exit handler
         if (this.boatDetailsGuestsPopupExit) {
           this.boatDetailsGuestsPopupExit.addEventListener('click', () => {
+            if (this.boatDetailsGuestsPopup) this.boatDetailsGuestsPopup.style.display = 'none';
+          });
+        }
+
+        // Boat details guest popup done handler
+        if (this.boatDetailsGuestsPopupDone) {
+          this.boatDetailsGuestsPopupDone.addEventListener('click', () => {
             if (this.boatDetailsGuestsPopup) this.boatDetailsGuestsPopup.style.display = 'none';
           });
         }
@@ -6623,6 +8568,11 @@ document.addEventListener('DOMContentLoaded', () => {
           if (!pill) return;
 
           pill.addEventListener('click', () => {
+            // Check if this pill is disabled by gating
+            if (pill.classList.contains('pickup-time-gated') || pill.getAttribute('aria-disabled') === 'true') {
+              return; // Ignore clicks on gated pills
+            }
+
             // If clicking already selected pill, deselect it
             if (this.selectedPickupTime === time) {
               this.selectedPickupTime = '';
@@ -6641,8 +8591,17 @@ document.addEventListener('DOMContentLoaded', () => {
             this.initializeBoatDetailsDateFilter();
             this.updateURLParams();
             this.updateBoatDetailsPrice();
+
+            // Clear error if conditions are now met
+            this.clearErrorIfResolved(this.boatDetailsErrorElement);
+
+            // Re-apply gating after pickup time selection changes
+            this.applyPickupTimeGating(this.boatDetailsPickupTimePills, true);
           });
         });
+
+        // Apply initial gating
+        this.applyPickupTimeGating(this.boatDetailsPickupTimePills, true);
       }
 
       setupBoatDetailsLengthTypeButtons() {
@@ -6654,6 +8613,9 @@ document.addEventListener('DOMContentLoaded', () => {
               this.initializeBoatDetailsDateFilter();
               this.updateURLParams();
               this.updateBoatDetailsPrice();
+
+              // Clear error if conditions are now met
+              this.clearErrorIfResolved(this.boatDetailsErrorElement);
             }
           });
         }
@@ -6665,6 +8627,9 @@ document.addEventListener('DOMContentLoaded', () => {
               this.initializeBoatDetailsDateFilter();
               this.updateURLParams();
               this.updateBoatDetailsPrice();
+
+              // Clear error if conditions are now met
+              this.clearErrorIfResolved(this.boatDetailsErrorElement);
             }
           });
         }
@@ -6673,13 +8638,21 @@ document.addEventListener('DOMContentLoaded', () => {
       initializeFromURL() {
         const urlParams = new URLSearchParams(window.location.search);
 
-        // Check for boatId - if present, hide button and show selected boat block
+        // Check for boatId - if present, hide buttons and show selected boat block
         const boatId = urlParams.get('boatId');
         if (boatId) {
-          this.button.style.display = 'none';
+          this.buttons.forEach(button => {
+            if (button) {
+              button.style.display = 'none';
+            }
+          });
           if (this.selectedBoatBlock) this.selectedBoatBlock.style.display = 'flex';
         } else {
-          this.button.style.display = 'flex';
+          this.buttons.forEach(button => {
+            if (button) {
+              button.style.display = 'flex';
+            }
+          });
           if (this.selectedBoatBlock) this.selectedBoatBlock.style.display = 'none';
         }
 
@@ -6817,6 +8790,9 @@ document.addEventListener('DOMContentLoaded', () => {
             // Update button states
             updatePlusButtonState();
             updateMinusButtonState();
+
+            // Clear error if conditions are now met
+            this.clearErrorIfResolved(this.boatDetailsErrorElement);
           }
         });
 
@@ -6831,6 +8807,9 @@ document.addEventListener('DOMContentLoaded', () => {
             // Update button states
             updatePlusButtonState();
             updateMinusButtonState();
+
+            // Clear error if conditions are now met
+            this.clearErrorIfResolved(this.boatDetailsErrorElement);
           }
         });
 
@@ -6851,6 +8830,9 @@ document.addEventListener('DOMContentLoaded', () => {
             // Update button states
             updatePlusButtonState();
             updateMinusButtonState();
+
+            // Clear error if conditions are now met
+            this.clearErrorIfResolved(this.boatDetailsErrorElement);
           });
         }
       }
@@ -6886,89 +8868,52 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
 
-      setupAddToReservationButton(boat) {
-        // Get the reservation button and error element
-        const addToReservationButton = document.querySelector('[data-element="boatDetails_reservation_addToReservationButton"]');
-        const errorElement = document.querySelector('[data-element="boatDetails_reservation_addToReservationError"]');
+      // Handle editing an existing boat - fetch data and open to details view
+      async handleEditBoat(boatId) {
+        try {
+          // Load existing boat parameters from URL
+          const urlParams = new URLSearchParams(window.location.search);
+          const boatGuests = urlParams.get('boatGuests');
+          const boatDates = urlParams.get('boatDates');
+          const boatPickupTime = urlParams.get('boatPickupTime');
+          const boatLengthType = urlParams.get('boatLengthType');
+          const boatPrivateDock = urlParams.get('boatPrivateDock');
+          const boatDelivery = urlParams.get('boatDelivery');
 
-        if (!addToReservationButton) return;
+          // Set the service's internal state to match URL parameters
+          this.selectedGuests = boatGuests ? parseInt(boatGuests) : 0;
+          this.selectedDates = boatDates ? boatDates.split(',') : [];
+          this.selectedPickupTime = boatPickupTime || '';
+          this.selectedLengthType = boatLengthType || 'full';
+          this.selectedPrivateDock = boatPrivateDock === 'true';
+          this.deliverySelected = boatDelivery === 'true';
 
-        // Hide error element initially
-        if (errorElement) {
-          errorElement.style.display = 'none';
-        }
-
-        // Remove any existing event listeners to prevent duplicates
-        const newButton = addToReservationButton.cloneNode(true);
-        addToReservationButton.parentNode.replaceChild(newButton, addToReservationButton);
-
-        // Add click handler to the new button
-        newButton.addEventListener('click', () => {
-          this.handleAddToReservation(boat, errorElement);
-        });
-      }
-
-      handleAddToReservation(boat, errorElement) {
-        // Get current URL parameters
-        const urlParams = new URLSearchParams(window.location.search);
-
-        // Check required parameters
-        const missingParams = [];
-
-        // Check boatDates
-        if (!this.selectedDates || this.selectedDates.length === 0) {
-          missingParams.push('Please select boat rental dates');
-        }
-
-        // Check boatGuests
-        if (!this.selectedGuests || this.selectedGuests === 0) {
-          missingParams.push('Please add total passengers');
-        }
-
-        // Check boatPickupTime
-        if (!this.selectedPickupTime) {
-          missingParams.push('Please select a pickup time');
-        }
-
-        // Check boatLengthType (this should always have a default value, but let's be safe)
-        if (!this.selectedLengthType) {
-          missingParams.push('Please select rental duration');
-        }
-
-        // If there are missing parameters, show error and return
-        if (missingParams.length > 0) {
-          if (errorElement) {
-            errorElement.textContent = missingParams[0]; // Show the first missing parameter
-            errorElement.style.display = 'flex';
+          // Update guest number displays
+          if (this.guestNumber) {
+            this.guestNumber.textContent = this.selectedGuests;
           }
-          return;
+          if (this.boatDetailsGuestNumber) {
+            this.boatDetailsGuestNumber.textContent = this.selectedGuests;
+          }
+
+          // Fetch all boat options to get the complete boat data
+          const allBoats = await this.fetchBoatOptions();
+
+          // Find the specific boat being edited
+          const boatToEdit = allBoats.find(boat => boat.id == boatId);
+
+          if (boatToEdit) {
+            // Show boat details with the fetched data
+            this.showBoatDetails(boatToEdit);
+          } else {
+
+            this.closeModal();
+          }
+
+        } catch (error) {
+
+          this.closeModal();
         }
-
-        // All parameters are present, proceed with adding boat to reservation
-
-        // Hide error element
-        if (errorElement) {
-          errorElement.style.display = 'none';
-        }
-
-        // Add boatId to URL parameters
-        const url = new URL(window.location);
-        url.searchParams.set('boatId', boat.id);
-        window.history.pushState({}, '', url);
-
-        // Update the service state to reflect the boat selection
-        this.initializeFromURL();
-
-        // Close the modal
-        this.closeModal();
-
-        // Ensure proper visibility: selectBoatWrapper as flex, boatDetailsWrapper hidden
-        this.selectWrapper.style.display = 'flex';
-        this.detailsWrapper.style.display = 'none';
-
-        // Trigger other updates to ensure proper visibility
-        if (window.updateBoatVisibility) window.updateBoatVisibility();
-        if (window.handleBoatFunctionality) window.handleBoatFunctionality();
       }
     }
 
@@ -6977,13 +8922,4462 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Make it globally accessible for property checks
     window.boatRentalService = boatRental;
+
+    // Fishing Charter Service Handler
+    class FishingCharterService {
+      constructor() {
+        this.buttons = document.querySelectorAll('[data-element="addFishingCharterButton"]');
+        this.selectedFishingCharterBlocks = document.querySelectorAll('[data-element="selectedFishingCharterBlock"]');
+        this.modal = document.querySelector('[data-element="addFishingCharterModal"]');
+        this.modalBackground = document.querySelector('[data-element="addFishingCharterModalBackground"]');
+        this.selectWrapper = document.querySelector('[data-element="addFishingCharterModal_selectFishingCharterWrapper"]');
+        this.detailsWrapper = document.querySelector('[data-element="addFishingCharterModal_FishingCharterDetailsWrapper"]');
+        this.exitButton = document.querySelector('[data-element="addFishingCharterModal_selectFishingCharter_exit"]');
+        this.cardTemplate = document.querySelector('[data-element="addFishingCharterModal_selectFishingCharter_card"]');
+        this.cardWrapper = document.querySelector('[data-element="addFishingCharterModal_selectFishingCharter_cardWrapper"]');
+
+        // Flag to prevent URL updates during initialization
+        this.isInitializing = false;
+
+        // Filter elements
+        this.datesFilter = document.querySelector('[data-element="addFishingCharterModal_selectFishingCharter_dates"]');
+        this.datesText = document.querySelector('[data-element="addFishingCharterModal_selectFishingCharter_datesText"]');
+        this.datesX = document.querySelector('[data-element="addFishingCharterModal_selectFishingCharter_datesX"]');
+        this.datesPopup = document.querySelector('[data-element="addFishingCharterModal_selectFishingCharter_datesPopup"]');
+        this.datesPopupSelectDates = document.querySelector('[data-element="addFishingCharterModal_selectFishingCharter_datesPopup_selectDates"]');
+        this.datesPopupExit = document.querySelector('[data-element="addFishingCharterModal_selectFishingCharter_datesPopup_exit"]');
+
+        this.guestsFilter = document.querySelector('[data-element="addFishingCharterModal_selectFishingCharter_guests"]');
+        this.guestsText = document.querySelector('[data-element="addFishingCharterModal_selectFishingCharter_guestsText"]');
+        this.guestsX = document.querySelector('[data-element="addFishingCharterModal_selectFishingCharter_guestsX"]');
+        this.guestsPopup = document.querySelector('[data-element="addFishingCharterModal_selectFishingCharter_guestsPopup"]');
+        this.guestsPopupExit = document.querySelector('[data-element="addFishingCharterModal_selectFishingCharter_guestsPopup_exit"]');
+        this.guestMinus = document.querySelector('[data-element="FishingCharter_Guest_Minus"]');
+        this.guestNumber = document.querySelector('[data-element="fishingCharterGuest_number"]');
+        this.guestPlus = document.querySelector('[data-element="FishingCharter_Guest_Plus"]');
+        this.guestsClearButton = document.querySelector('[data-element="fishingCharter_guestsPopup_clearButton"]');
+
+        this.priceFilter = document.querySelector('[data-element="addFishingCharterModal_selectFishingCharter_price"]');
+        this.priceText = document.querySelector('[data-element="addFishingCharterModal_selectFishingCharter_priceText"]');
+        this.priceX = document.querySelector('[data-element="addFishingCharterModal_selectFishingCharter_priceX"]');
+        this.pricePopup = document.querySelector('[data-element="addFishingCharterModal_selectFishingCharter_pricePopup"]');
+        this.pricePopupExit = document.querySelector('[data-element="addFishingCharterModal_selectFishingCharter_pricePopup_exit"]');
+        this.priceScrollBar = document.querySelector('[data-element="fishingCharterFilterModalPrice_scrollBar"]');
+        this.priceMinInput = document.querySelector('[data-element="fishingCharterFilterModalPrice_minPriceInput"]');
+        this.priceMaxInput = document.querySelector('[data-element="fishingCharterFilterModalPrice_maxPriceInput"]');
+        this.priceClearButton = document.querySelector('[data-element="fishingCharter_pricePopup_clearButton"]');
+
+        this.typeFilter = document.querySelector('[data-element="addFishingCharterModal_selectFishingCharter_type"]');
+        this.typeText = document.querySelector('[data-element="addFishingCharterModal_selectFishingCharter_typeText"]');
+        this.typeX = document.querySelector('[data-element="addFishingCharterModal_selectFishingCharter_typeX"]');
+        this.typePopup = document.querySelector('[data-element="addFishingCharterModal_selectFishingCharter_typePopup"]');
+        this.typePopupExit = document.querySelector('[data-element="addFishingCharterModal_selectFishingCharter_typePopup_exit"]');
+
+        // Fishing type checkboxes
+        this.fishingTypes = {
+          inshore: document.querySelector('[data-element="addFishingCharterModal_selectBoat_typePopup_inshoreFishingCheckbox"]'),
+          offshore: document.querySelector('[data-element="addFishingCharterModal_selectBoat_typePopup_offshoreFishingCheckbox"]'),
+          near: document.querySelector('[data-element="addFishingCharterModal_selectBoat_typePopup_nearFishingCheckbox"]'),
+          wreck: document.querySelector('[data-element="addFishingCharterModal_selectBoat_typePopup_wreckFishingCheckbox"]'),
+          reef: document.querySelector('[data-element="addFishingCharterModal_selectBoat_typePopup_reefFishingCheckbox"]'),
+          flats: document.querySelector('[data-element="addFishingCharterModal_selectBoat_typePopup_flatsFishingCheckbox"]')
+        };
+
+        this.privateDockFilter = document.querySelector('[data-element="addFishingCharterModal_selectFishingCharter_privateDock"]');
+        this.privateDockText = document.querySelector('[data-element="addFishingCharterModal_selectFishingCharter_privateDockText"]');
+        this.privateDockX = document.querySelector('[data-element="addFishingCharterModal_selectFishingCharter_privateDockX"]');
+
+        // Details section elements
+        this.detailsViewTripsButton = document.querySelector('[data-element="fishingCharterDetails_viewTripsButton"]');
+        this.detailsContentContainer = document.querySelector('[data-element="fishingCharterDetails_contentContainer"]');
+        this.detailsTripTypeContainer = document.querySelector('[data-element="fishingCharterDetails_tripType_container"]');
+
+        // Details section filters
+        this.detailsDatesFilter = document.querySelector('[data-element="fishingCharterDetailsModal_selectFishingCharter_dates"]');
+        this.detailsDatesText = document.querySelector('[data-element="fishingCharterDetailsModal_selectFishingCharter_datesText"]');
+        this.detailsDatesX = document.querySelector('[data-element="fishingCharterDetailsModal_selectFishingCharter_datesX"]');
+        this.detailsDatesPopup = document.querySelector('[data-element="fishingCharterDetailsModal_selectFishingCharter_datesPopup"]');
+        this.detailsDatesPopupSelectDates = document.querySelector('[data-element="fishingCharterDetailsModal_selectFishingCharter_datesPopup_selectDates"]');
+        this.detailsDatesPopupExit = document.querySelector('[data-element="fishingCharterDetailsModal_selectFishingCharter_datesPopup_exit"]');
+
+        this.detailsGuestsFilter = document.querySelector('[data-element="fishingCharterDetailsModal_selectFishingCharter_guests"]');
+        this.detailsGuestsText = document.querySelector('[data-element="fishingCharterDetailsModal_selectFishingCharter_guestsText"]');
+        this.detailsGuestsX = document.querySelector('[data-element="fishingCharterDetailsModal_selectFishingCharter_guestsX"]');
+        this.detailsGuestsPopup = document.querySelector('[data-element="fishingCharterDetailsModal_selectFishingCharter_guestsPopup"]');
+        this.detailsGuestsPopupExit = document.querySelector('[data-element="fishingCharterDetailsModal_selectFishingCharter_guestsPopup_exit"]');
+        this.detailsGuestMinus = document.querySelector('[data-element="FishingCharterDetails_Guest_Minus"]');
+        this.detailsGuestNumber = document.querySelector('[data-element="fishingCharterDetailsGuest_number"]');
+        this.detailsGuestPlus = document.querySelector('[data-element="FishingCharterDetails_Guest_Plus"]');
+        this.detailsGuestsClearButton = document.querySelector('[data-element="fishingCharterDetails_guestsPopup_clearButton"]');
+
+        this.detailsPrivateDockFilter = document.querySelector('[data-element="fishingCharterDetailsModal_selectFishingCharter_privateDock"]');
+        this.detailsPrivateDockText = document.querySelector('[data-element="fishingCharterDetailsModal_selectFishingCharter_privateDockText"]');
+        this.detailsPrivateDockX = document.querySelector('[data-element="fishingCharterDetailsModal_selectFishingCharter_privateDockX"]');
+
+        // Trip type template
+        this.tripTypeTemplate = document.querySelector('[data-element="fishingCharterDetails_tripType_card"]');
+        this.tripTypeWrapper = this.tripTypeTemplate?.parentElement;
+
+        // State
+        this.selectedDates = [];
+        this.selectedGuests = 0;
+        this.selectedPickupTime = '';
+        this.selectedPrivateDock = false;
+        this.selectedFishingTypes = [];
+        this.priceMin = 0;
+        this.priceMax = 5000;
+        this.allFishingCharters = [];
+
+        // Details section state
+        this.detailsSelectedDates = [];
+        this.detailsSelectedGuests = 0;
+        this.detailsSelectedPrivateDock = false;
+
+        // Editing state
+        this.editingCharterNumber = null;
+        this.editingTripId = null;
+
+        // Florida Keys order for proximity sorting
+        this.floridaKeysOrder = [
+          'Key Largo',
+          'Tavernier',
+          'Islamorada',
+          'Duck Key',
+          'Marathon',
+          'Summerland Key',
+          'Cudjoe Key',
+          'Sugarloaf Key',
+          'Key West'
+        ];
+
+        this.initialize();
+      }
+
+
+      async getSelectedFishingCharterData() {
+        const numbers = (this.getAllFishingCharterNumbers() || []).filter(Boolean);
+        const base = 'https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/fishingcharters';
+        const selectedTrips = [];
+        const urlParams = new URLSearchParams(window.location.search);
+
+        for (const number of numbers) {
+          const charterId = urlParams.get(`fishingCharterId${number}`);
+          const tripId = urlParams.get(`fishingCharterTripId${number}`);
+          const guests = urlParams.get(`fishingCharterGuests${number}`);
+          const dates = urlParams.get(`fishingCharterDates${number}`);
+          const pickup = urlParams.get(`fishingCharterPickup${number}`);
+
+          if (!charterId) continue;
+
+          try {
+            const res = await fetch(`${base}/${charterId}`);
+            if (!res.ok) continue;
+            const charter = await res.json();
+
+            // Find the selected trip for this numbered group
+            const selectedTrip = Array.isArray(charter?.tripOptions)
+              ? charter.tripOptions.find(t => String(t?.id) === String(tripId)) || null
+              : null;
+
+            const mainImage = charter.images?.find(image => image.order === 1);
+
+
+
+            if (selectedTrip) {
+              // Format dates for display
+              const datesList = dates ? dates.split(',').filter(Boolean) : [];
+              let formattedDates = this.formatDatesForDisplay(datesList);
+
+              // Add private dock pickup text if applicable
+              if (pickup === 'true' && formattedDates) {
+                formattedDates += ' • Private dock pickup';
+              }
+
+              // Build the complete trip data object
+              const tripData = {
+                number: number,
+                charterId: charterId,
+                tripId: tripId,
+                image: mainImage?.image?.url || '',
+                tripName: selectedTrip.name || '',
+                companyName: charter.name || '',
+                dates: formattedDates,
+              };
+
+              selectedTrips.push(tripData);
+            }
+          } catch (error) {
+
+            // skip failures
+          }
+        }
+
+        return selectedTrips;
+      }
+
+
+
+      // Get reserved dates from other fishing charters (excluding current editing charter)
+      getReservedDatesForOtherCharters() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const allNumbers = this.getAllFishingCharterNumbers();
+        const reservedDates = new Set();
+
+        allNumbers.forEach(number => {
+          // Skip the charter we're currently editing
+          if (this.editingCharterNumber && number === this.editingCharterNumber) {
+            return;
+          }
+
+          const datesParam = urlParams.get(`fishingCharterDates${number}`);
+          if (datesParam) {
+            const dates = datesParam.split(',').filter(Boolean);
+            dates.forEach(date => reservedDates.add(date));
+          }
+        });
+
+        return Array.from(reservedDates);
+      }
+
+
+      // Format dates for display like "May 1, 2, 4" or "May 1, 2 & Jun 1"
+      formatDatesForDisplay(datesList) {
+        if (!datesList || datesList.length === 0) return '';
+
+        // Helper to get month abbreviation from MM
+        const getMonthAbbr = (monthNum) => {
+          const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+          return months[monthNum - 1];
+        };
+
+        // Group dates by month
+        const datesByMonth = {};
+
+        datesList.forEach(dateStr => {
+          // dateStr is in format YYYY-MM-DD
+          const [year, month, day] = dateStr.split('-').map(Number);
+          const monthKey = `${year}-${month}`;
+          const monthName = getMonthAbbr(month);
+
+          if (!datesByMonth[monthKey]) {
+            datesByMonth[monthKey] = {
+              monthName: monthName,
+              days: []
+            };
+          }
+
+          datesByMonth[monthKey].days.push(day);
+        });
+
+        // Sort days within each month
+        Object.values(datesByMonth).forEach(monthData => {
+          monthData.days.sort((a, b) => a - b);
+        });
+
+        // Format the result
+        const monthKeys = Object.keys(datesByMonth);
+
+        if (monthKeys.length === 1) {
+          // Single month: "May 1, 2, 4"
+          const monthData = datesByMonth[monthKeys[0]];
+          return `${monthData.monthName} ${monthData.days.join(', ')}`;
+        } else {
+          // Multiple months: "May 1, 2 & Jun 1"
+          const monthParts = monthKeys.map(monthKey => {
+            const monthData = datesByMonth[monthKey];
+            return `${monthData.monthName} ${monthData.days.join(', ')}`;
+          });
+
+          // Join with " & " for the last month
+          if (monthParts.length === 2) {
+            return monthParts.join(' & ');
+          } else {
+            // For 3+ months, use commas and & for the last one
+            const lastMonth = monthParts.pop();
+            return monthParts.join(', ') + ' & ' + lastMonth;
+          }
+        }
+      }
+
+      // Populate the selected fishing charter block with data
+      async populateSelectedFishingCharterBlock() {
+        const selectedTrips = await this.getSelectedFishingCharterData();
+        this.renderSelectedFishingCharterBlocks(selectedTrips);
+      }
+
+      // Render multiple selected fishing charter blocks
+      renderSelectedFishingCharterBlocks(selectedTrips) {
+        // Handle all fishing charter blocks (desktop and mobile)
+        this.selectedFishingCharterBlocks.forEach(templateBlock => {
+          if (!templateBlock) return;
+
+          const container = templateBlock.parentElement;
+          if (!container) return;
+
+          // Remove any existing duplicated blocks (keep the template)
+          const existingBlocks = container.querySelectorAll('[data-element="selectedFishingCharterBlock"]');
+          existingBlocks.forEach((block, index) => {
+            if (index !== 0) { // Keep the template block
+              block.remove();
+            }
+          });
+
+          if (selectedTrips.length === 0) {
+            templateBlock.style.display = 'none';
+            return;
+          }
+
+          // Show and populate blocks for each selected trip
+          selectedTrips.forEach((trip, index) => {
+            let block;
+            if (index === 0) {
+              // Use the template block for the first trip
+              block = templateBlock;
+            } else {
+              // Clone the template for additional trips
+              block = templateBlock.cloneNode(true);
+              container.appendChild(block);
+            }
+
+            // Show the block
+            block.style.display = 'flex';
+
+            // Populate block with trip data
+            this.populateSingleFishingCharterBlock(block, trip);
+          });
+        });
+      }
+
+
+
+      // Populate a single fishing charter block with trip data
+      populateSingleFishingCharterBlock(block, trip) {
+        // Store trip data on the block for removal functionality
+        block.tripData = trip;
+
+        // Update selectedFishingCharterBlock_image
+        const imageElement = block.querySelector('[data-element="selectedFishingCharterBlock_image"]');
+        if (imageElement && trip.image) {
+          imageElement.src = trip.image;
+        }
+
+        // Update selectedFishingCharterBlock_tripName
+        const tripNameElement = block.querySelector('[data-element="selectedFishingCharterBlock_tripName"]');
+        if (tripNameElement) {
+          tripNameElement.textContent = trip.tripName;
+        }
+
+        // Update selectedFishingCharterBlock_companyName
+        const companyNameElement = block.querySelector('[data-element="selectedFishingCharterBlock_companyName"]');
+        if (companyNameElement) {
+          companyNameElement.textContent = trip.companyName;
+        }
+
+        // Update selectedFishingCharterBlock_datesDelivery
+        const datesDeliveryElement = block.querySelector('[data-element="selectedFishingCharterBlock_datesDelivery"]');
+        if (datesDeliveryElement) {
+          datesDeliveryElement.textContent = trip.dates;
+        }
+
+        // Setup edit button for this specific block
+        const editButton = block.querySelector('[data-element="editSelectedFishingCharter"]');
+        if (editButton) {
+          // Remove any existing event listeners
+          const newEditButton = editButton.cloneNode(true);
+          editButton.parentNode.replaceChild(newEditButton, editButton);
+
+          newEditButton.addEventListener('click', () => {
+            this.handleEditSpecificFishingCharter(trip);
+          });
+        }
+
+        // Setup remove button for this specific block
+        const removeButton = block.querySelector('[data-element="removeSelectedFishingCharter"]');
+        if (removeButton) {
+          // Remove any existing event listeners
+          const newRemoveButton = removeButton.cloneNode(true);
+          removeButton.parentNode.replaceChild(newRemoveButton, removeButton);
+
+          newRemoveButton.addEventListener('click', () => {
+            this.handleRemoveSpecificFishingCharter(trip.number);
+          });
+        }
+      }
+
+      // Handle editing a specific fishing charter
+      handleEditSpecificFishingCharter(trip) {
+        // Store the charter number being edited
+        this.editingCharterNumber = trip.number;
+
+        // Get the original dates from URL parameters for this charter
+        const urlParams = new URLSearchParams(window.location.search);
+        const originalDates = urlParams.get(`fishingCharterDates${trip.number}`);
+        const originalGuests = urlParams.get(`fishingCharterGuests${trip.number}`);
+        const originalPickup = urlParams.get(`fishingCharterPickup${trip.number}`);
+
+        // Set the filter values to match the trip being edited
+        this.selectedDates = originalDates ? originalDates.split(',').filter(Boolean) : [];
+        this.selectedGuests = originalGuests ? parseInt(originalGuests) : 0;
+        this.selectedPickupTime = originalPickup === 'true' ? '' : originalPickup;
+        this.selectedPrivateDock = originalPickup === 'true';
+
+        // Also set details section values
+        this.detailsSelectedDates = [...this.selectedDates];
+        this.detailsSelectedGuests = this.selectedGuests;
+        this.detailsSelectedPrivateDock = this.selectedPrivateDock;
+
+        // Show modal directly to details view
+        if (this.modal) this.modal.style.display = 'flex';
+        this.selectWrapper.style.display = 'none';
+        this.detailsWrapper.style.display = 'flex';
+
+        // Prevent body scroll when modal is open
+        document.body.classList.add('no-scroll');
+
+        // Fetch and show the charter details for editing
+        this.fetchAndShowCharterForEdit(trip.charterId, trip.tripId);
+      }
+
+      // Fetch charter data and show details for editing
+      async fetchAndShowCharterForEdit(charterId, tripId) {
+        try {
+          const response = await fetch(`https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/fishingcharters/${charterId}`);
+          if (!response.ok) {
+            throw new Error('Failed to fetch charter data');
+          }
+
+          const charter = await response.json();
+
+          // Store the trip ID being edited for the handleAddToReservation method
+          this.editingTripId = tripId;
+
+          // Show the fishing charter details
+          this.showFishingCharterDetails(charter);
+
+        } catch (error) {
+
+          this.closeModal();
+        }
+      }
+
+      // Handle removing a specific fishing charter by its number
+      handleRemoveSpecificFishingCharter(numberToRemove) {
+        const url = new URL(window.location);
+        const allNumbers = this.getAllFishingCharterNumbers();
+
+        // Remove the specific numbered parameters
+        url.searchParams.delete(`fishingCharterId${numberToRemove}`);
+        url.searchParams.delete(`fishingCharterTripId${numberToRemove}`);
+        url.searchParams.delete(`fishingCharterGuests${numberToRemove}`);
+        url.searchParams.delete(`fishingCharterDates${numberToRemove}`);
+        url.searchParams.delete(`fishingCharterPickup${numberToRemove}`);
+
+        // Get remaining numbers (excluding the one we just removed)
+        const remainingNumbers = allNumbers.filter(num => num !== numberToRemove).sort((a, b) => a - b);
+
+        if (remainingNumbers.length === 0) {
+          // No more fishing charters, hide blocks and show buttons
+          this.selectedFishingCharterBlocks.forEach(block => {
+            if (block) {
+              block.style.display = 'none';
+            }
+          });
+
+          this.buttons.forEach(button => {
+            if (button) {
+              button.style.display = 'flex';
+            }
+          });
+        } else {
+          // Renumber remaining parameters to be sequential (1, 2, 3, etc.)
+          const tempParams = {};
+
+          // Store remaining parameters temporarily
+          remainingNumbers.forEach(oldNumber => {
+            const charterId = url.searchParams.get(`fishingCharterId${oldNumber}`);
+            const tripId = url.searchParams.get(`fishingCharterTripId${oldNumber}`);
+            const guests = url.searchParams.get(`fishingCharterGuests${oldNumber}`);
+            const dates = url.searchParams.get(`fishingCharterDates${oldNumber}`);
+            const pickup = url.searchParams.get(`fishingCharterPickup${oldNumber}`);
+
+            if (charterId) {
+              tempParams[oldNumber] = { charterId, tripId, guests, dates, pickup };
+            }
+
+            // Remove old numbered parameters
+            url.searchParams.delete(`fishingCharterId${oldNumber}`);
+            url.searchParams.delete(`fishingCharterTripId${oldNumber}`);
+            url.searchParams.delete(`fishingCharterGuests${oldNumber}`);
+            url.searchParams.delete(`fishingCharterDates${oldNumber}`);
+            url.searchParams.delete(`fishingCharterPickup${oldNumber}`);
+          });
+
+          // Re-add parameters with sequential numbering
+          Object.values(tempParams).forEach((params, index) => {
+            const newNumber = index + 1;
+            url.searchParams.set(`fishingCharterId${newNumber}`, params.charterId);
+            if (params.tripId) url.searchParams.set(`fishingCharterTripId${newNumber}`, params.tripId);
+            if (params.guests) url.searchParams.set(`fishingCharterGuests${newNumber}`, params.guests);
+            if (params.dates) url.searchParams.set(`fishingCharterDates${newNumber}`, params.dates);
+            if (params.pickup) url.searchParams.set(`fishingCharterPickup${newNumber}`, params.pickup);
+          });
+        }
+
+        // Update URL
+        window.history.pushState({}, '', url);
+
+        // Re-render the blocks with updated data
+        this.populateSelectedFishingCharterBlock();
+
+        // Update pricing display for extras
+        if (window.updatePricingDisplayForExtras) {
+          window.updatePricingDisplayForExtras();
+        }
+
+        // Update listing-only pricing display
+        if (window.updateListingOnlyPricing) {
+          window.updateListingOnlyPricing();
+        }
+
+        // Update button state
+        this.updateButtonState();
+      }
+
+      // Helper methods for numbered URL parameters
+      getNextFishingCharterNumber() {
+        const urlParams = new URLSearchParams(window.location.search);
+        let maxNumber = 0;
+
+        // Find the highest existing number
+        for (const [key] of urlParams) {
+          const match = key.match(/^fishingCharterId(\d+)$/);
+          if (match) {
+            maxNumber = Math.max(maxNumber, parseInt(match[1]));
+          }
+        }
+
+        return maxNumber + 1;
+      }
+
+
+
+
+
+      getAllFishingCharterNumbers() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const numbers = [];
+
+        for (const [key] of urlParams) {
+          const match = key.match(/^fishingCharterId(\d+)$/);
+          if (match) {
+            numbers.push(parseInt(match[1]));
+          }
+        }
+
+        return numbers.sort((a, b) => a - b);
+      }
+
+      hasAnyFishingCharters() {
+        const urlParams = new URLSearchParams(window.location.search);
+
+        // Check for legacy parameters
+        const legacyCharterId = urlParams.get('fishingCharterId');
+        const legacyTripId = urlParams.get('fishingCharterTripId');
+
+        if (legacyCharterId && legacyTripId) {
+          return true;
+        }
+
+        // Check for numbered parameters
+        return this.getAllFishingCharterNumbers().length > 0;
+      }
+
+      // Migrate legacy parameters to numbered system
+      migrateLegacyParameters() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const legacyCharterId = urlParams.get('fishingCharterId');
+        const legacyTripId = urlParams.get('fishingCharterTripId');
+
+        if (legacyCharterId && legacyTripId) {
+          const url = new URL(window.location);
+
+          // Copy legacy parameters to numbered parameters
+          url.searchParams.set('fishingCharterId1', legacyCharterId);
+          url.searchParams.set('fishingCharterTripId1', legacyTripId);
+
+          const legacyGuests = urlParams.get('fishingCharterGuests');
+          if (legacyGuests) {
+            url.searchParams.set('fishingCharterGuests1', legacyGuests);
+          }
+
+          const legacyDates = urlParams.get('fishingCharterDates');
+          if (legacyDates) {
+            url.searchParams.set('fishingCharterDates1', legacyDates);
+          }
+
+          const legacyPickup = urlParams.get('fishingCharterPickup');
+          if (legacyPickup) {
+            url.searchParams.set('fishingCharterPickup1', legacyPickup);
+          }
+
+          // Remove legacy parameters
+          url.searchParams.delete('fishingCharterId');
+          url.searchParams.delete('fishingCharterTripId');
+          url.searchParams.delete('fishingCharterGuests');
+          url.searchParams.delete('fishingCharterDates');
+          url.searchParams.delete('fishingCharterPickup');
+
+          window.history.replaceState({}, '', url);
+        }
+      }
+
+      // Get parameters for the first fishing charter (for backward compatibility)
+      getCurrentFishingCharterData() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const numbers = this.getAllFishingCharterNumbers();
+
+        // Check for legacy (non-numbered) parameters first
+        const legacyCharterId = urlParams.get('fishingCharterId');
+        const legacyTripId = urlParams.get('fishingCharterTripId');
+
+        if (legacyCharterId && legacyTripId) {
+          // Legacy parameters exist, use them
+          return {
+            charterId: legacyCharterId,
+            tripId: legacyTripId,
+            guests: urlParams.get('fishingCharterGuests') ? parseInt(urlParams.get('fishingCharterGuests')) : 0,
+            dates: urlParams.get('fishingCharterDates') ? urlParams.get('fishingCharterDates').split(',') : [],
+            pickup: urlParams.get('fishingCharterPickup') || ''
+          };
+        }
+
+        if (numbers.length === 0) {
+          return {
+            charterId: null,
+            tripId: null,
+            guests: 0,
+            dates: [],
+            pickup: ''
+          };
+        }
+
+        // Use the first fishing charter's data for the UI
+        const number = numbers[0];
+        return {
+          charterId: urlParams.get(`fishingCharterId${number}`),
+          tripId: urlParams.get(`fishingCharterTripId${number}`),
+          guests: urlParams.get(`fishingCharterGuests${number}`) ? parseInt(urlParams.get(`fishingCharterGuests${number}`)) : 0,
+          dates: urlParams.get(`fishingCharterDates${number}`) ? urlParams.get(`fishingCharterDates${number}`).split(',') : [],
+          pickup: urlParams.get(`fishingCharterPickup${number}`) || ''
+        };
+      }
+
+      initialize() {
+        if (!this.buttons || this.buttons.length === 0 || !this.modal || !this.selectWrapper || !this.detailsWrapper || !this.exitButton || !this.cardTemplate || !this.cardWrapper) {
+
+          return;
+        }
+
+        // Set flag to prevent URL updates during initialization
+        this.isInitializing = true;
+
+        // Set initial styles
+        this.modal.style.display = 'none';
+        this.detailsWrapper.style.display = 'none';
+        this.cardTemplate.style.display = 'none';
+        if (this.tripTypeTemplate) this.tripTypeTemplate.style.display = 'none';
+
+        // Add CSS to ensure fishing charter button stays at bottom
+        const fishingCharterButtonStyles = document.createElement('style');
+        fishingCharterButtonStyles.textContent = `
+          [data-element="addFishingCharterButton"] {
+            order: 999 !important;
+            margin-top: auto !important;
+            display: flex !important;
+          }
+          [data-element="addBoatButton"] {
+            order: 998 !important;
+          }
+        `;
+        document.head.appendChild(fishingCharterButtonStyles);
+
+        if (this.datesPopup) this.datesPopup.style.display = 'none';
+        if (this.guestsPopup) this.guestsPopup.style.display = 'none';
+        if (this.pricePopup) this.pricePopup.style.display = 'none';
+        if (this.typePopup) this.typePopup.style.display = 'none';
+
+        // Hide details section popups
+        if (this.detailsDatesPopup) this.detailsDatesPopup.style.display = 'none';
+        if (this.detailsGuestsPopup) this.detailsGuestsPopup.style.display = 'none';
+
+        // Add click handlers for all buttons
+        this.buttons.forEach(button => {
+          if (button) {
+            button.addEventListener('click', () => this.handleButtonClick());
+          }
+        });
+        this.exitButton.addEventListener('click', () => this.closeModal());
+
+        // Set initial button state based on dates
+        this.updateButtonAvailability();
+
+        // Listen for URL changes to update button availability when dates change
+        window.addEventListener('popstate', () => {
+          this.updateButtonAvailability();
+        });
+
+        // Monitor URL parameter changes for checkin/checkout dates
+        this.setupDateParameterMonitoring();
+
+        // Modal background click handler
+        if (this.modalBackground) {
+          this.modalBackground.addEventListener('click', () => {
+            this.closeModal();
+          });
+        }
+
+        // Filter handlers
+        this.setupFilterHandlers();
+        this.setupGuestButtons();
+        this.setupPriceFilter();
+        this.setupFishingTypeFilter();
+
+        // Setup X button handlers
+        this.setupFilterXButtons();
+
+        // Setup details section handlers
+        this.setupDetailsFilterHandlers();
+        this.setupDetailsGuestButtons();
+        this.setupDetailsFilterXButtons();
+        this.setupViewTripsButton();
+
+        // Initialize from URL parameters
+        this.initializeFromURL();
+
+        // Update button state
+        this.updateButtonState();
+
+        this.populateSelectedFishingCharterBlock();
+
+        // Update pricing display if any fishing charters are selected
+        if (this.hasAnyFishingCharters() && window.updatePricingDisplayForExtras) {
+          window.updatePricingDisplayForExtras();
+        }
+      }
+
+      initializeFromURL() {
+        const urlParams = new URLSearchParams(window.location.search);
+
+        // Check if any fishing charters exist using numbered parameters
+        const hasCharters = this.hasAnyFishingCharters();
+
+        // Always keep all buttons visible at the bottom
+        this.buttons.forEach(button => {
+          if (button) {
+            button.style.display = 'flex';
+          }
+        });
+
+        if (hasCharters) {
+          this.selectedFishingCharterBlocks.forEach(block => {
+            if (block) {
+              block.style.display = 'flex';
+            }
+          });
+        } else {
+          this.selectedFishingCharterBlocks.forEach(block => {
+            if (block) {
+              block.style.display = 'none';
+            }
+          });
+        }
+
+        // Only load existing charter data if we're editing (not adding new)
+        if (this.editingCharterNumber) {
+          // Get current fishing charter data (from first charter for UI compatibility)
+          const currentData = this.getCurrentFishingCharterData();
+
+          // Set guests
+          this.selectedGuests = currentData.guests;
+          if (this.guestNumber) this.guestNumber.textContent = this.selectedGuests;
+          this.updateGuestsFilterText();
+
+          // Set dates
+          this.selectedDates = currentData.dates;
+
+          // Set pickup
+          this.selectedPickupTime = currentData.pickup;
+        } else {
+          // Clear all filters when adding a new charter (not editing)
+          this.selectedGuests = 0;
+          this.selectedDates = [];
+          this.selectedPickupTime = '';
+          this.selectedPrivateDock = false;
+          this.selectedFishingTypes = [];
+          this.priceMin = 0;
+          this.priceMax = 5000;
+
+          // Update UI elements to reflect cleared state
+          if (this.guestNumber) this.guestNumber.textContent = this.selectedGuests;
+          this.updateGuestsFilterText();
+          this.updateDatesFilterText();
+          this.updatePrivateDockFilterText();
+          this.updateFishingTypeFilterText();
+          this.updatePriceFilterText();
+
+          // Reset checkbox styles for fishing types
+          Object.values(this.fishingTypes).forEach(checkbox => {
+            if (checkbox) {
+              checkbox.style.backgroundColor = '';
+            }
+          });
+        }
+
+        this.updateDatesFilterText();
+        this.updateFilterStyles();
+        this.renderDateSelection();
+        this.updatePrivateDockFilterText();
+
+        // Clear initialization flag to allow URL updates
+        this.isInitializing = false;
+      }
+
+      setupFilterHandlers() {
+        const closeAllPopups = () => {
+          if (this.datesPopup) this.datesPopup.style.display = 'none';
+          if (this.guestsPopup) this.guestsPopup.style.display = 'none';
+          if (this.pricePopup) this.pricePopup.style.display = 'none';
+          if (this.typePopup) this.typePopup.style.display = 'none';
+        };
+
+        // Dates filter handlers
+        if (this.datesFilter) {
+          this.datesFilter.addEventListener('click', () => {
+            closeAllPopups();
+            if (this.datesPopup) this.datesPopup.style.display = 'flex';
+          });
+        }
+
+        if (this.datesPopupExit) {
+          this.datesPopupExit.addEventListener('click', () => {
+            if (this.datesPopup) this.datesPopup.style.display = 'none';
+          });
+        }
+
+        // Guests filter handlers
+        if (this.guestsFilter) {
+          this.guestsFilter.addEventListener('click', () => {
+            closeAllPopups();
+            if (this.guestsPopup) this.guestsPopup.style.display = 'flex';
+          });
+        }
+
+        if (this.guestsPopupExit) {
+          this.guestsPopupExit.addEventListener('click', () => {
+            if (this.guestsPopup) this.guestsPopup.style.display = 'none';
+          });
+        }
+
+        // Price filter handlers
+        if (this.priceFilter) {
+          this.priceFilter.addEventListener('click', () => {
+            closeAllPopups();
+            if (this.pricePopup) this.pricePopup.style.display = 'flex';
+          });
+        }
+
+        if (this.pricePopupExit) {
+          this.pricePopupExit.addEventListener('click', () => {
+            if (this.pricePopup) this.pricePopup.style.display = 'none';
+          });
+        }
+
+        // Type filter handlers
+        if (this.typeFilter) {
+          this.typeFilter.addEventListener('click', () => {
+            closeAllPopups();
+            if (this.typePopup) this.typePopup.style.display = 'flex';
+          });
+        }
+
+        if (this.typePopupExit) {
+          this.typePopupExit.addEventListener('click', () => {
+            if (this.typePopup) this.typePopup.style.display = 'none';
+          });
+        }
+
+        // Private dock filter
+        if (this.privateDockFilter) {
+          this.privateDockFilter.addEventListener('click', () => {
+            this.selectedPrivateDock = !this.selectedPrivateDock;
+            this.updatePrivateDockFilterText();
+            this.updateFilterStyles();
+            // this.updateURLParams();
+            this.refilterChartersIfModalOpen();
+          });
+        }
+      }
+
+      setupGuestButtons() {
+        if (!this.guestMinus || !this.guestPlus) return;
+
+        // Style and setup minus button
+        this.guestMinus.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M15.5 4.5L7.5 12L15.5 19.5" stroke="#323232" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        </svg>`;
+        this.styleFishingCharterGuestButton(this.guestMinus);
+
+        // Style and setup plus button
+        this.guestPlus.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M8.5 4.5L16.5 12L8.5 19.5" stroke="#323232" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        </svg>`;
+        this.styleFishingCharterGuestButton(this.guestPlus);
+
+        // Add event listeners
+        this.guestMinus.addEventListener('click', () => {
+          if (this.selectedGuests > 0) {
+            this.selectedGuests--;
+            if (this.guestNumber) this.guestNumber.textContent = this.selectedGuests;
+            this.updateGuestsFilterText();
+            this.updateFilterStyles();
+            // this.updateURLParams();
+            this.refilterChartersIfModalOpen();
+          }
+        });
+
+        this.guestPlus.addEventListener('click', () => {
+          this.selectedGuests++;
+          if (this.guestNumber) this.guestNumber.textContent = this.selectedGuests;
+          this.updateGuestsFilterText();
+          this.updateFilterStyles();
+          // this.updateURLParams();
+          this.refilterChartersIfModalOpen();
+        });
+
+        if (this.guestsClearButton) {
+          this.guestsClearButton.addEventListener('click', () => {
+            this.clearGuestsFilter();
+          });
+        }
+      }
+
+      styleFishingCharterGuestButton(button) {
+        button.style.background = 'none';
+        button.style.border = 'none';
+        button.style.cursor = 'pointer';
+        button.style.width = '32px';
+        button.style.height = '32px';
+        button.style.display = 'flex';
+        button.style.alignItems = 'center';
+        button.style.justifyContent = 'center';
+        button.style.borderRadius = '50%';
+        button.style.transition = 'background-color 0.2s ease';
+
+        button.addEventListener('mouseenter', () => {
+          button.style.backgroundColor = 'whitesmoke';
+        });
+
+        button.addEventListener('mouseleave', () => {
+          button.style.backgroundColor = '';
+        });
+      }
+
+      setupPriceFilter() {
+        if (!this.priceScrollBar) return;
+
+        const maxPrice = 5000;
+
+        // Create range slider
+        this.priceScrollBar.innerHTML = `
+          <div class="price-slider-container" style="position: relative; width: 100%; height: 32px; margin: 20px 0;">
+            <div class="price-slider-track" style="position: absolute; top: 50%; transform: translateY(-50%); width: 100%; height: 4px; background: #E5E5E5; border-radius: 2px;"></div>
+            <div class="price-slider-range" style="position: absolute; top: 50%; transform: translateY(-50%); height: 4px; background: #000; border-radius: 2px;"></div>
+            <input type="range" class="price-slider-min" min="0" max="${maxPrice}" value="0" style="position: absolute; width: 100%; opacity: 0; cursor: pointer;">
+            <input type="range" class="price-slider-max" min="0" max="${maxPrice}" value="${maxPrice}" style="position: absolute; width: 100%; opacity: 0; cursor: pointer;">
+            <div class="price-slider-thumb-min" style="position: absolute; top: 50%; transform: translate(-50%, -50%); width: 24px; height: 24px; background: white; border: 1px solid #000; border-radius: 50%; cursor: pointer;"></div>
+            <div class="price-slider-thumb-max" style="position: absolute; top: 50%; transform: translate(-50%, -50%); width: 24px; height: 24px; background: white; border: 1px solid #000; border-radius: 50%; cursor: pointer;"></div>
+          </div>
+        `;
+
+        const sliderMin = this.priceScrollBar.querySelector('.price-slider-min');
+        const sliderMax = this.priceScrollBar.querySelector('.price-slider-max');
+        const range = this.priceScrollBar.querySelector('.price-slider-range');
+        const thumbMin = this.priceScrollBar.querySelector('.price-slider-thumb-min');
+        const thumbMax = this.priceScrollBar.querySelector('.price-slider-thumb-max');
+        const container = this.priceScrollBar.querySelector('.price-slider-container');
+
+        let isDraggingMin = false;
+        let isDraggingMax = false;
+        let startX = 0;
+        let startLeft = 0;
+
+        const updateSlider = () => {
+          const minVal = parseInt(sliderMin.value);
+          const maxVal = parseInt(sliderMax.value);
+          const minPercent = (minVal / maxPrice) * 100;
+          const maxPercent = (maxVal / maxPrice) * 100;
+
+          range.style.left = minPercent + '%';
+          range.style.width = (maxPercent - minPercent) + '%';
+          thumbMin.style.left = minPercent + '%';
+          thumbMax.style.left = maxPercent + '%';
+
+          // Update state
+          this.priceMin = minVal;
+          this.priceMax = maxVal;
+
+          // Update inputs
+          if (this.priceMinInput) this.priceMinInput.value = '$' + minVal.toLocaleString();
+          if (this.priceMaxInput) this.priceMaxInput.value = maxVal >= maxPrice ? `$${maxPrice.toLocaleString()}+` : '$' + maxVal.toLocaleString();
+
+          // Update filter text and styles
+          this.updatePriceFilterText();
+          this.updateFilterStyles();
+          // this.updateURLParams();
+          this.refilterChartersIfModalOpen();
+        };
+
+        const handleDragStart = (e, isMin) => {
+          e.preventDefault();
+          if (isMin) {
+            isDraggingMin = true;
+            startX = e.clientX;
+            startLeft = parseInt(sliderMin.value);
+          } else {
+            isDraggingMax = true;
+            startX = e.clientX;
+            startLeft = parseInt(sliderMax.value);
+          }
+        };
+
+        const handleDragMove = (e) => {
+          if (!isDraggingMin && !isDraggingMax) return;
+
+          const containerRect = container.getBoundingClientRect();
+          const containerWidth = containerRect.width;
+          const moveX = e.clientX - startX;
+          const movePercent = (moveX / containerWidth) * 100;
+          const moveValue = Math.round((movePercent / 100) * maxPrice);
+
+          if (isDraggingMin) {
+            let newValue = Math.max(0, Math.min(startLeft + moveValue, parseInt(sliderMax.value)));
+            sliderMin.value = newValue;
+          } else if (isDraggingMax) {
+            let newValue = Math.max(parseInt(sliderMin.value), Math.min(startLeft + moveValue, maxPrice));
+            sliderMax.value = newValue;
+          }
+
+          updateSlider();
+        };
+
+        const handleDragEnd = () => {
+          isDraggingMin = false;
+          isDraggingMax = false;
+        };
+
+        // Add mouse event listeners for dragging
+        thumbMin.addEventListener('mousedown', (e) => handleDragStart(e, true));
+        thumbMax.addEventListener('mousedown', (e) => handleDragStart(e, false));
+        document.addEventListener('mousemove', handleDragMove);
+        document.addEventListener('mouseup', handleDragEnd);
+
+        // Add touch event listeners for mobile
+        thumbMin.addEventListener('touchstart', (e) => handleDragStart(e.touches[0], true));
+        thumbMax.addEventListener('touchstart', (e) => handleDragStart(e.touches[0], false));
+        document.addEventListener('touchmove', (e) => handleDragMove(e.touches[0]));
+        document.addEventListener('touchend', handleDragEnd);
+
+        // Input event listeners
+        sliderMin?.addEventListener('input', () => {
+          if (parseInt(sliderMin.value) > parseInt(sliderMax.value)) {
+            sliderMin.value = sliderMax.value;
+          }
+          updateSlider();
+        });
+
+        sliderMax?.addEventListener('input', () => {
+          if (parseInt(sliderMax.value) < parseInt(sliderMin.value)) {
+            sliderMax.value = sliderMin.value;
+          }
+          updateSlider();
+        });
+
+        // Input field formatting
+        this.priceMinInput?.addEventListener('focus', function () {
+          this.value = this.value.replace(/[$,+]/g, '');
+        });
+
+        this.priceMinInput?.addEventListener('blur', () => {
+          const val = parseInt(this.priceMinInput.value) || 0;
+          this.priceMinInput.value = '$' + val.toLocaleString();
+          if (sliderMin) {
+            sliderMin.value = val;
+            updateSlider();
+          }
+        });
+
+        this.priceMaxInput?.addEventListener('focus', function () {
+          this.value = this.value.replace(/[$,+]/g, '');
+        });
+
+        this.priceMaxInput?.addEventListener('blur', () => {
+          let val = parseInt(this.priceMaxInput.value) || maxPrice;
+          if (val > maxPrice) val = maxPrice;
+          this.priceMaxInput.value = val >= maxPrice ? `$${maxPrice.toLocaleString()}+` : '$' + val.toLocaleString();
+          if (sliderMax) {
+            sliderMax.value = val;
+            updateSlider();
+          }
+        });
+
+        if (this.priceClearButton) {
+          this.priceClearButton.addEventListener('click', () => {
+            this.clearPriceFilter();
+          });
+        }
+
+        // Set initial values
+        if (this.priceMinInput) this.priceMinInput.value = '$0';
+        if (this.priceMaxInput) this.priceMaxInput.value = `$${maxPrice.toLocaleString()}+`;
+
+        updateSlider();
+      }
+
+      setupFishingTypeFilter() {
+        Object.entries(this.fishingTypes).forEach(([type, checkbox]) => {
+          if (checkbox) {
+            // Set initial checkbox state based on selected fishing types
+            if (this.selectedFishingTypes.includes(type)) {
+              checkbox.style.backgroundColor = '#000000';
+            }
+
+            checkbox.addEventListener('click', () => {
+              const isChecked = this.selectedFishingTypes.includes(type);
+              if (isChecked) {
+                // Deselect - remove from array
+                this.selectedFishingTypes = this.selectedFishingTypes.filter(t => t !== type);
+                checkbox.style.backgroundColor = '';
+              } else {
+                // Select - add to array
+                this.selectedFishingTypes.push(type);
+                checkbox.style.backgroundColor = '#000000';
+              }
+              this.updateFishingTypeFilterText();
+              this.updateFilterStyles();
+              // this.updateURLParams();
+              this.refilterChartersIfModalOpen();
+            });
+          }
+        });
+
+        // Initialize filter text
+        this.updateFishingTypeFilterText();
+      }
+
+      setupFilterXButtons() {
+        if (this.datesX) {
+          this.datesX.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.clearDatesFilter();
+          });
+        }
+
+        if (this.guestsX) {
+          this.guestsX.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.clearGuestsFilter();
+          });
+        }
+
+        if (this.priceX) {
+          this.priceX.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.clearPriceFilter();
+          });
+        }
+
+        if (this.typeX) {
+          this.typeX.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.clearFishingTypeFilter();
+          });
+        }
+
+        if (this.privateDockX) {
+          this.privateDockX.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.clearPrivateDockFilter();
+          });
+        }
+      }
+
+      async handleButtonClick() {
+        try {
+          // Check if valid dates are selected
+          const urlParams = new URLSearchParams(window.location.search);
+          const hasDates = urlParams.has('checkin') && urlParams.has('checkout');
+          const checkIn = urlParams.get('checkin');
+          const checkOut = urlParams.get('checkout');
+
+          if (!checkIn || !checkOut || checkIn === '' || checkOut === '') {
+            const message = hasDates
+              ? 'Valid dates must be selected to add fishing charter'
+              : 'Dates must be selected to add fishing charter';
+
+            this.showMessage(message);
+            return;
+          }
+
+          // Clear editing state when adding new charter (not editing existing one)
+          this.editingCharterNumber = null;
+          this.editingTripId = null;
+
+          // Clear all filters when adding a new charter (not editing)
+          this.selectedGuests = 0;
+          this.selectedDates = [];
+          this.selectedPickupTime = '';
+          this.selectedPrivateDock = false;
+          this.selectedFishingTypes = [];
+          this.priceMin = 0;
+          this.priceMax = 5000;
+
+          // Update UI elements to reflect cleared state
+          if (this.guestNumber) this.guestNumber.textContent = this.selectedGuests;
+          this.updateGuestsFilterText();
+          this.updateDatesFilterText();
+          this.updatePrivateDockFilterText();
+          this.updateFishingTypeFilterText();
+          this.updatePriceFilterText();
+
+          // Reset checkbox styles for fishing types
+          Object.values(this.fishingTypes).forEach(checkbox => {
+            if (checkbox) {
+              checkbox.style.backgroundColor = '';
+            }
+          });
+
+          // Reset price slider UI if it exists
+          if (this.priceScrollBar) {
+            const sliderMin = this.priceScrollBar.querySelector('.price-slider-min');
+            const sliderMax = this.priceScrollBar.querySelector('.price-slider-max');
+            if (sliderMin) sliderMin.value = 0;
+            if (sliderMax) sliderMax.value = 5000;
+          }
+
+          // Update filter styles
+          this.updateFilterStyles();
+
+          // Show modal
+          this.modal.style.display = 'flex';
+          this.selectWrapper.style.display = 'flex';
+          this.detailsWrapper.style.display = 'none';
+
+          // Prevent body scroll when modal is open
+          document.body.classList.add('no-scroll');
+
+          // Fetch and render fishing charters
+          await this.fetchAndRenderFishingCharters();
+        } catch (error) {
+
+        }
+      }
+
+      closeModal() {
+        if (this.modal) this.modal.style.display = 'none';
+        if (this.datesPopup) this.datesPopup.style.display = 'none';
+        if (this.guestsPopup) this.guestsPopup.style.display = 'none';
+        if (this.pricePopup) this.pricePopup.style.display = 'none';
+        if (this.typePopup) this.typePopup.style.display = 'none';
+
+        // Reset editing state when modal is closed
+        this.editingCharterNumber = null;
+        this.editingTripId = null;
+
+        // Clear all filters when modal is closed (for next time it's opened)
+        this.selectedGuests = 0;
+        this.selectedDates = [];
+        this.selectedPickupTime = '';
+        this.selectedPrivateDock = false;
+        this.selectedFishingTypes = [];
+        this.priceMin = 0;
+        this.priceMax = 5000;
+
+        // Update UI elements to reflect cleared state
+        if (this.guestNumber) this.guestNumber.textContent = this.selectedGuests;
+        this.updateGuestsFilterText();
+        this.updateDatesFilterText();
+        this.updatePrivateDockFilterText();
+        this.updateFishingTypeFilterText();
+        this.updatePriceFilterText();
+
+        // Reset checkbox styles for fishing types
+        Object.values(this.fishingTypes).forEach(checkbox => {
+          if (checkbox) {
+            checkbox.style.backgroundColor = '';
+          }
+        });
+
+        // Reset price slider UI if it exists
+        if (this.priceScrollBar) {
+          const sliderMin = this.priceScrollBar.querySelector('.price-slider-min');
+          const sliderMax = this.priceScrollBar.querySelector('.price-slider-max');
+          if (sliderMin) sliderMin.value = 0;
+          if (sliderMax) sliderMax.value = 5000;
+        }
+
+        // Update filter styles
+        this.updateFilterStyles();
+
+        // Re-enable body scroll
+        document.body.classList.remove('no-scroll');
+      }
+
+      resetModalState() {
+        // Clear all filter state
+        this.selectedDates = [];
+        this.selectedGuests = 0;
+        this.selectedPickupTime = '';
+        this.selectedPrivateDock = false;
+        this.selectedFishingTypes = [];
+        this.priceMin = 0;
+        this.priceMax = 5000;
+
+        // Clear details section state
+        this.detailsSelectedDates = [];
+        this.detailsSelectedGuests = 0;
+        this.detailsSelectedPrivateDock = false;
+
+        // Reset editing state
+        this.editingCharterNumber = null;
+        this.editingTripId = null;
+
+        // Update guest number displays
+        if (this.guestNumber) this.guestNumber.textContent = this.selectedGuests;
+        if (this.detailsGuestNumber) this.detailsGuestNumber.textContent = this.detailsSelectedGuests;
+
+        // Update all filter texts
+        this.updateGuestsFilterText();
+        this.updateDatesFilterText();
+        this.updatePrivateDockFilterText();
+        this.updateFishingTypeFilterText();
+        this.updatePriceFilterText();
+        this.updateDetailsGuestsFilterText();
+        this.updateDetailsDateFilterText();
+        this.updateDetailsPrivateDockFilterText();
+
+        // Reset checkbox styles for fishing types
+        Object.values(this.fishingTypes).forEach(checkbox => {
+          if (checkbox) {
+            checkbox.style.backgroundColor = '';
+          }
+        });
+
+        // Reset price slider UI if it exists
+        if (this.priceScrollBar) {
+          const sliderMin = this.priceScrollBar.querySelector('.price-slider-min');
+          const sliderMax = this.priceScrollBar.querySelector('.price-slider-max');
+          if (sliderMin) sliderMin.value = 0;
+          if (sliderMax) sliderMax.value = 5000;
+        }
+
+        // Update filter styles
+        this.updateFilterStyles();
+        this.updateDetailsFilterStyles();
+
+        // Reset date button styles
+        this.updateDateButtonStyles();
+        this.updateDetailsDateButtonStyles();
+
+        // Re-render date selections
+        this.renderDateSelection();
+        this.renderDetailsDateSelection();
+      }
+
+      async fetchAndRenderFishingCharters() {
+        try {
+          // Fetch all fishing charter options
+          const allCharters = await this.fetchFishingCharterOptions();
+          this.allFishingCharters = allCharters;
+
+          // Filter charters based on current filters
+          const filteredCharters = this.filterFishingCharters(allCharters);
+
+          // Render the filtered charters
+          this.renderFishingCharterCards(filteredCharters);
+
+          return filteredCharters;
+        } catch (error) {
+
+          this.renderFishingCharterCards([]);
+          return [];
+        }
+      }
+
+      async fetchFishingCharterOptions() {
+        try {
+          // Make API call to fishing charter endpoint
+          const response = await fetch('https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/fishingCharterResults', {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json'
+            }
+          });
+
+          if (!response.ok) {
+            throw new Error('Failed to fetch fishing charter options');
+          }
+
+          const data = await response.json();
+
+          // Sort by proximity to listing city
+          const sortedCharters = this.sortChartersByProximity(data);
+
+          return sortedCharters;
+        } catch (error) {
+
+          return [];
+        }
+      }
+
+      sortChartersByProximity(charters) {
+        // Get listing city from property data
+        let listingCity = '';
+        try {
+          if (window.Wized && window.Wized.data && window.Wized.data.r &&
+            window.Wized.data.r.Load_Property_Details &&
+            window.Wized.data.r.Load_Property_Details.data &&
+            window.Wized.data.r.Load_Property_Details.data.property) {
+            listingCity = window.Wized.data.r.Load_Property_Details.data.property.listing_city || '';
+          }
+        } catch (error) {
+
+        }
+
+        return charters.sort((a, b) => {
+          const cityA = a.city || '';
+          const cityB = b.city || '';
+
+          // If one matches the listing city exactly, prioritize it
+          if (cityA.toLowerCase() === listingCity.toLowerCase()) return -1;
+          if (cityB.toLowerCase() === listingCity.toLowerCase()) return 1;
+
+          // Otherwise sort by Florida Keys order
+          const indexA = this.floridaKeysOrder.findIndex(key =>
+            cityA.toLowerCase().includes(key.toLowerCase()) || key.toLowerCase().includes(cityA.toLowerCase())
+          );
+          const indexB = this.floridaKeysOrder.findIndex(key =>
+            cityB.toLowerCase().includes(key.toLowerCase()) || key.toLowerCase().includes(cityB.toLowerCase())
+          );
+
+          // If both cities are in the Keys order, sort by that order
+          if (indexA !== -1 && indexB !== -1) {
+            return indexA - indexB;
+          }
+
+          // If only one is in the Keys order, prioritize it
+          if (indexA !== -1) return -1;
+          if (indexB !== -1) return 1;
+
+          // Otherwise, alphabetical order
+          return cityA.localeCompare(cityB);
+        });
+      }
+
+      filterFishingCharters(charters) {
+        return charters.filter(charter => {
+          // Guest filter
+          if (this.selectedGuests > 0) {
+            const maxCapacity = charter.boatInfo && charter.boatInfo[0] ? charter.boatInfo[0].boatCapacity : 0;
+            if (maxCapacity < this.selectedGuests) return false;
+          }
+
+          // Filter charters based on available trips that match all filters
+          if (charter.tripOptions && charter.tripOptions.length > 0) {
+            // Get filtered trips to check if any exist
+            const filteredTrips = this.getFilteredTripOptions(charter);
+
+            // If no trips match the date/fishing type filters, exclude charter completely
+            if (filteredTrips.length === 0) return false;
+
+            // Check if any filtered trip fits the price range
+            const hasValidPricedTrip = filteredTrips.some(trip => {
+              if (!trip.price) return false;
+
+              // Calculate actual price for this trip based on guest count
+              let actualPrice = trip.price;
+              const basePeople = trip.pricePeople || 1;
+              const additionalPersonRate = trip.pricePerAdditionalPerson || 0;
+
+              // If we have selected guests and they exceed the base people count
+              if (this.selectedGuests > basePeople && additionalPersonRate > 0) {
+                const additionalPeople = this.selectedGuests - basePeople;
+                actualPrice += (additionalPeople * additionalPersonRate);
+              }
+
+              // Add private dock pickup fee if selected and charter offers it
+              if (this.selectedPrivateDock && charter.privateDockPickup && charter.privateDockPickupFee && charter.privateDockPickupFee > 0) {
+                // Add pickup fee per day if multiple dates selected
+                const numberOfDays = this.selectedDates.length > 0 ? this.selectedDates.length : 1;
+                actualPrice += (charter.privateDockPickupFee * numberOfDays);
+              }
+
+              // Multiply by number of selected dates if more than 0 dates are selected
+              if (this.selectedDates.length > 0) {
+                actualPrice *= this.selectedDates.length;
+              }
+
+              // Apply service fee if integration type is not "Manual"
+              if (charter.integration_type !== 'Manual' && charter.serviceFee) {
+                actualPrice = actualPrice * (1 + charter.serviceFee);
+              }
+
+              // Check if this trip's calculated price falls within the filter range
+              return actualPrice >= this.priceMin && actualPrice <= this.priceMax;
+            });
+
+            // If no filtered trip fits the price range, exclude this charter completely
+            if (!hasValidPricedTrip) return false;
+          }
+
+          // Fishing type filter - now handled at card level to show available trips
+          // Remove this filter so charters aren't completely hidden, just show filtered trip counts
+
+          // Private dock filter
+          if (this.selectedPrivateDock) {
+            // First check if charter offers private dock pickup
+            if (!charter.privateDockPickup) return false;
+
+            // Get property city from Wized data
+            const r = Wized.data.r;
+            if (r && r.Load_Property_Details && r.Load_Property_Details.data && r.Load_Property_Details.data.property.listing_city) {
+              const propertyCityName = r.Load_Property_Details.data.property.listing_city;
+
+              // Check if charter delivers to the property's city
+              if (!charter.privateDockPickupCity || !Array.isArray(charter.privateDockPickupCity)) {
+                return false;
+              }
+
+              const canDeliverToProperty = charter.privateDockPickupCity.some(location =>
+                location.city && location.city.toLowerCase() === propertyCityName.toLowerCase()
+              );
+
+              if (!canDeliverToProperty) {
+                return false;
+              }
+            } else {
+              // If we can't get property city, hide charters when private dock filter is active
+              return false;
+            }
+          }
+
+          return true;
+        });
+      }
+
+      renderFishingCharterCards(charters) {
+        // Clear any existing duplicated cards
+        const existingCards = this.cardWrapper.querySelectorAll('[data-element="addFishingCharterModal_selectFishingCharter_card"]');
+        existingCards.forEach((card, index) => {
+          if (index !== 0) { // Keep the template card
+            card.remove();
+          }
+        });
+
+        // Clear any existing no results message
+        const existingNoResultsMessage = this.cardWrapper.querySelector('.no-results-message');
+        if (existingNoResultsMessage) {
+          existingNoResultsMessage.remove();
+        }
+
+        // If no charters, hide the template card and show no results message
+        if (charters.length === 0) {
+          this.cardTemplate.style.display = 'none';
+
+          // Create and add no results message
+          const noResultsMessage = document.createElement('div');
+          noResultsMessage.className = 'no-results-message';
+          noResultsMessage.style.fontFamily = 'TT Fors, sans-serif !important';
+          noResultsMessage.style.cssText = `
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 40px 20px;
+            color: black;
+            font-size: 16px;
+            width: 100%;
+            min-height: 200px;
+          `;
+          noResultsMessage.textContent = 'No fishing charters found for this listing :( Try adjusting your stay or search params.';
+          this.cardWrapper.appendChild(noResultsMessage);
+          return;
+        }
+
+        // Show and populate cards for each charter
+        charters.forEach((charter, index) => {
+          let card;
+          if (index === 0) {
+            // Use the template card for the first charter
+            card = this.cardTemplate;
+          } else {
+            // Clone the template for additional charters
+            card = this.cardTemplate.cloneNode(true);
+            this.cardWrapper.appendChild(card);
+          }
+
+          // Show the card
+          card.style.display = 'flex';
+
+          // Populate card with charter data
+          this.populateFishingCharterCard(card, charter);
+        });
+      }
+
+      populateFishingCharterCard(card, charter) {
+        // Store charter data on the card
+        card.charterData = charter;
+
+        // Make entire card clickable
+        card.style.cursor = 'pointer';
+        card.addEventListener('click', (e) => {
+          // Prevent navigation if clicking on interactive elements
+          if (e.target.closest('[data-element="addFishingCharterModal_selectFishingCharter_card_moreDetails"]')) {
+            return;
+          }
+          this.showFishingCharterDetails(charter);
+        });
+
+        // Add click handler for more details button if it exists
+        const moreDetailsButton = card.querySelector('[data-element="addFishingCharterModal_selectFishingCharter_card_moreDetails"]');
+        if (moreDetailsButton) {
+          moreDetailsButton.addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevent card click
+            this.showFishingCharterDetails(charter);
+          });
+        }
+
+        // Populate card title
+        const titleElement = card.querySelector('[data-element="addFishingCharterModal_selectFishingCharter_card_title"]');
+        if (titleElement) {
+          titleElement.textContent = charter.name || '';
+        }
+
+        const subtitleCityElement = card.querySelector('[data-element="addFishingCharterModal_selectFishingCharter_card_subTitleCity"]');
+        if (subtitleCityElement) {
+          subtitleCityElement.textContent = charter.city + ", FL" || '';
+        }
+
+        // Filter trip options based on current filters
+        const availableTrips = this.getFilteredTripOptions(charter);
+
+        // Populate card subtitle based on filtered trip options
+        const subtitleElement = card.querySelector('[data-element="addFishingCharterModal_selectFishingCharter_card_subTitle"]');
+        if (subtitleElement) {
+          if (availableTrips.length === 0) {
+            subtitleElement.textContent = 'No trips available for selected filters';
+          } else {
+            const tripLengths = availableTrips.map(trip => trip.lengthOfTrip);
+            const minHours = Math.min(...tripLengths);
+            const maxHours = Math.max(...tripLengths);
+
+            let subtitleText = `${availableTrips.length} Trip${availableTrips.length > 1 ? 's' : ''} available`;
+            if (minHours && maxHours) {
+              subtitleText += ` (${minHours === maxHours ? minHours : minHours + '-' + maxHours} hours)`;
+            }
+            subtitleElement.textContent = subtitleText;
+          }
+        }
+
+        // Populate card photo
+        const photoElement = card.querySelector('[data-element="addFishingCharterModal_selectFishingCharter_card_photo"]');
+        if (photoElement && charter.images && charter.images[0] && charter.images[0].image) {
+          photoElement.src = charter.images[0].image.url;
+          photoElement.alt = charter.name || '';
+        }
+
+        // Populate card price based on filtered trip options
+        const priceElement = card.querySelector('[data-element="addFishingCharterModal_selectFishingCharter_card_price"]');
+        if (priceElement) {
+          const priceText = this.getFilteredCharterPriceText(charter, availableTrips);
+          priceElement.textContent = priceText;
+        }
+
+        // Populate rating if elements exist
+        const ratingAvgElement = card.querySelector('[data-element="addFishingCharterModal_selectBoat_card_ratingAvg"]');
+        const ratingNumberElement = card.querySelector('[data-element="addFishingCharterModal_selectBoat_card_ratingNumber"]');
+
+        if (ratingAvgElement && ratingNumberElement) {
+          const reviews = charter.reviews || [];
+          if (reviews.length === 0) {
+            // No reviews
+            ratingAvgElement.textContent = 'New';
+            ratingNumberElement.textContent = '';
+          } else {
+            // Calculate average rating
+            const ratings = reviews.map(review => review.rating);
+            const averageRating = ratings.reduce((a, b) => a + b, 0) / ratings.length;
+
+            // Display average rating with one decimal place
+            ratingAvgElement.textContent = averageRating.toFixed(1);
+            ratingNumberElement.textContent = `(${reviews.length})`;
+          }
+        }
+      }
+
+      getCharterPriceText(charter) {
+        if (!charter.tripOptions || charter.tripOptions.length === 0) {
+          return 'Price on request';
+        }
+
+        // Get boat capacity to limit additional guests
+        const boatCapacity = charter.boatInfo && charter.boatInfo[0] ? charter.boatInfo[0].boatCapacity : 0;
+
+        // Calculate prices for each trip option based on selected guests
+        const calculatedPrices = charter.tripOptions.map(trip => {
+          if (!trip.price) return 0;
+
+          let actualPrice = trip.price;
+          const basePeople = trip.pricePeople || 1;
+          const additionalPersonRate = trip.pricePerAdditionalPerson || 0;
+
+          // If we have selected guests and they exceed the base people count
+          if (this.selectedGuests > basePeople && additionalPersonRate > 0) {
+            // Don't exceed boat capacity
+            const effectiveGuests = Math.min(this.selectedGuests, boatCapacity);
+            const additionalPeople = Math.max(0, effectiveGuests - basePeople);
+            actualPrice += (additionalPeople * additionalPersonRate);
+          }
+
+          // Add private dock pickup fee if selected and charter offers it
+          if (this.selectedPrivateDock && charter.privateDockPickup && charter.privateDockPickupFee && charter.privateDockPickupFee > 0) {
+            // Add pickup fee per day if multiple dates selected
+            const numberOfDays = this.selectedDates.length > 0 ? this.selectedDates.length : 1;
+            actualPrice += (charter.privateDockPickupFee * numberOfDays);
+          }
+
+          // Multiply by number of selected dates if more than 0 dates are selected
+          if (this.selectedDates.length > 0) {
+            actualPrice *= this.selectedDates.length;
+          }
+
+          // Apply service fee if integration type is not "Manual"
+          if (charter.integration_type !== 'Manual' && charter.serviceFee) {
+            actualPrice = actualPrice * (1 + charter.serviceFee);
+          }
+
+          return actualPrice;
+        }).filter(price => price > 0);
+
+        if (calculatedPrices.length === 0) {
+          return 'Price on request';
+        }
+
+        const minPrice = Math.min(...calculatedPrices);
+
+        // If no guests selected, show "From" pricing
+        if (this.selectedGuests === 0) {
+          return `From $${minPrice.toLocaleString()}`;
+        }
+
+        // If guests selected, show calculated price for that number of guests
+        return `From $${minPrice.toLocaleString()}`;
+      }
+
+      // Get trip options that match current filters (dates, fishing type, etc.)
+      getFilteredTripOptions(charter) {
+        if (!charter.tripOptions || charter.tripOptions.length === 0) {
+          return [];
+        }
+
+        return charter.tripOptions.filter(trip => {
+          // Filter by fishing type
+          if (this.selectedFishingTypes.length > 0) {
+            const charterTypes = charter.fishingType || [];
+            const hasMatchingType = this.selectedFishingTypes.some(selectedType => {
+              return charterTypes.some(charterType => {
+                const typeName = charterType.type || '';
+                switch (selectedType) {
+                  case 'inshore': return typeName.toLowerCase().includes('inshore');
+                  case 'offshore': return typeName.toLowerCase().includes('offshore');
+                  case 'near': return typeName.toLowerCase().includes('nearshore');
+                  case 'wreck': return typeName.toLowerCase().includes('wreck');
+                  case 'reef': return typeName.toLowerCase().includes('reef');
+                  case 'flats': return typeName.toLowerCase().includes('flats');
+                  default: return false;
+                }
+              });
+            });
+            // Only show trips if charter has matching fishing type
+            if (!hasMatchingType) return false;
+          }
+
+          // Filter by season if dates are selected
+          if (this.selectedDates.length > 0) {
+            const seasonStart = trip.seasonStart || '1/1';
+            const seasonEnd = trip.seasonEnd || '12/31';
+
+            // If year-round (1/1 to 12/31), always valid
+            if (seasonStart === '1/1' && seasonEnd === '12/31') return true;
+
+            // Check if any selected date falls within the season
+            const isSeasonValid = this.selectedDates.some(dateStr => {
+              return this.isDateInSeason(dateStr, seasonStart, seasonEnd);
+            });
+
+            if (!isSeasonValid) return false;
+          }
+
+          return true;
+        });
+      }
+
+      // Get price text based on filtered trip options
+      getFilteredCharterPriceText(charter, availableTrips) {
+        if (availableTrips.length === 0) {
+          return 'No trips match filters';
+        }
+
+        // Get boat capacity to limit additional guests
+        const boatCapacity = charter.boatInfo && charter.boatInfo[0] ? charter.boatInfo[0].boatCapacity : 0;
+
+        // Calculate prices for each available trip option based on selected guests
+        const calculatedPrices = availableTrips.map(trip => {
+          if (!trip.price) return 0;
+
+          let actualPrice = trip.price;
+          const basePeople = trip.pricePeople || 1;
+          const additionalPersonRate = trip.pricePerAdditionalPerson || 0;
+
+          // If we have selected guests and they exceed the base people count
+          if (this.selectedGuests > basePeople && additionalPersonRate > 0) {
+            // Don't exceed boat capacity
+            const effectiveGuests = Math.min(this.selectedGuests, boatCapacity);
+            const additionalPeople = Math.max(0, effectiveGuests - basePeople);
+            actualPrice += (additionalPeople * additionalPersonRate);
+          }
+
+          // Add private dock pickup fee if selected and charter offers it
+          if (this.selectedPrivateDock && charter.privateDockPickup && charter.privateDockPickupFee && charter.privateDockPickupFee > 0) {
+            // Add pickup fee per day if multiple dates selected
+            const numberOfDays = this.selectedDates.length > 0 ? this.selectedDates.length : 1;
+            actualPrice += (charter.privateDockPickupFee * numberOfDays);
+          }
+
+          // Multiply by number of selected dates if more than 0 dates are selected
+          if (this.selectedDates.length > 0) {
+            actualPrice *= this.selectedDates.length;
+          }
+
+          // Apply service fee if integration type is not "Manual"
+          if (charter.integration_type !== 'Manual' && charter.serviceFee) {
+            actualPrice = actualPrice * (1 + charter.serviceFee);
+          }
+
+          return actualPrice;
+        }).filter(price => price > 0);
+
+        if (calculatedPrices.length === 0) {
+          return 'Price on request';
+        }
+
+        const minPrice = Math.min(...calculatedPrices);
+
+        // If no guests selected, show "From" pricing
+        if (this.selectedGuests === 0) {
+          return `From $${minPrice.toLocaleString()}`;
+        }
+
+        // If guests selected, show calculated price for that number of guests
+        return `From $${minPrice.toLocaleString()}`;
+      }
+
+      showFishingCharterDetails(charter) {
+        // Hide select wrapper and show details wrapper
+        this.selectWrapper.style.display = 'none';
+        this.detailsWrapper.style.display = 'flex';
+
+        // Scroll details content container to top
+        if (this.detailsContentContainer) {
+          this.detailsContentContainer.scrollTop = 0;
+        }
+
+        // Store current charter data
+        this.currentCharterData = charter;
+
+        // Check and show/hide private dock option based on charter availability
+        this.updatePrivateDockAvailability(charter);
+
+        // Transfer values from main modal to details section
+        this.transferValuesToDetails();
+
+        // Populate fishing charter details
+        this.populateFishingCharterDetails(charter);
+
+        // Setup back button
+        this.setupFishingCharterDetailsBackButton();
+
+        // Setup map
+        this.setupFishingCharterMap(charter);
+
+        // Render trip types
+        this.renderTripTypes(charter);
+      }
+
+      setupFishingCharterDetailsBackButton() {
+        const backButton = document.querySelector('[data-element="fishingCharterDetails_back"]');
+        if (backButton) {
+          // Remove existing listeners
+          backButton.replaceWith(backButton.cloneNode(true));
+          const newBackButton = document.querySelector('[data-element="fishingCharterDetails_back"]');
+
+          newBackButton.addEventListener('click', () => {
+            // Reset editing state when going back
+            this.editingCharterNumber = null;
+            this.editingTripId = null;
+
+            // Sync all filter states back to main view
+            this.transferValuesToMain();
+            // this.updateURLParams();
+            this.refilterChartersIfModalOpen();
+
+            this.detailsWrapper.style.display = 'none';
+            this.selectWrapper.style.display = 'flex';
+          });
+        }
+      }
+
+      updatePrivateDockAvailability(charter) {
+        if (!this.detailsPrivateDockFilter) return;
+
+        // Check if charter offers private dock pickup
+        if (!charter.privateDockPickup) {
+          this.detailsPrivateDockFilter.style.display = 'none';
+          return;
+        }
+
+        // Get property city from Wized data
+        const r = Wized.data.r;
+        if (r && r.Load_Property_Details && r.Load_Property_Details.data && r.Load_Property_Details.data.property.listing_city) {
+          const propertyCityName = r.Load_Property_Details.data.property.listing_city;
+
+          // Check if charter delivers to the property's city
+          if (!charter.privateDockPickupCity || !Array.isArray(charter.privateDockPickupCity)) {
+            this.detailsPrivateDockFilter.style.display = 'none';
+            return;
+          }
+
+          const canDeliverToProperty = charter.privateDockPickupCity.some(location =>
+            location.city && location.city.toLowerCase() === propertyCityName.toLowerCase()
+          );
+
+          if (!canDeliverToProperty) {
+            this.detailsPrivateDockFilter.style.display = 'none';
+            return;
+          }
+        } else {
+          // If we can't get property city, hide private dock option
+          this.detailsPrivateDockFilter.style.display = 'none';
+          return;
+        }
+
+        // If we get here, private dock is available
+        this.detailsPrivateDockFilter.style.display = 'flex';
+      }
+
+      populateFishingCharterDetails(charter) {
+        // Images container
+        this.setupFishingCharterImagesCarousel(charter);
+
+        // Title
+        const titleElement = document.querySelector('[data-element="fishingCharterDetails_title"]');
+        if (titleElement) {
+          titleElement.textContent = charter.name || '';
+        }
+
+        // Location
+        const locationElement = document.querySelector('[data-element="fishingCharterDetails_location"]');
+        if (locationElement) {
+          locationElement.textContent = (charter.city || '') + ', FL';
+        }
+
+        // Reviews
+        this.populateFishingCharterReviews(charter);
+
+        // Description
+        const descriptionElement = document.querySelector('[data-element="fishingCharterDetails_description"]');
+        if (descriptionElement) {
+          descriptionElement.textContent = charter.description || '';
+        }
+
+        // Boat information
+        this.populateFishingCharterBoatInfo(charter);
+
+        // Captain information
+        this.populateFishingCharterCaptainInfo(charter);
+
+        // Type of fishing blocks
+        this.populateFishingCharterFishingTypes(charter);
+
+        // Amenity blocks
+        this.populateFishingCharterAmenities(charter);
+
+        // What's included blocks
+        this.populateFishingCharterWhatsIncluded(charter);
+
+        // Reviews section
+        this.populateFishingCharterReviewsSection(charter);
+
+        // Policies
+        this.populateFishingCharterPolicies(charter);
+
+        // Cancellation policy
+        this.populateFishingCharterCancellationPolicy(charter);
+
+        // City state
+        const cityStateElement = document.querySelector('[data-element="fishingCharterDetails_cityState"]');
+        if (cityStateElement) {
+          cityStateElement.textContent = (charter.city || '') + ', FL';
+        }
+      }
+
+      setupFishingCharterImagesCarousel(charter) {
+        const imagesContainer = document.querySelector('[data-element="fishingCharterDetails_imagesContainer"]');
+        if (!imagesContainer) return;
+
+        // Clear any existing content
+        imagesContainer.innerHTML = '';
+
+        // Check if charter has images
+        if (!charter.images || charter.images.length === 0) {
+          imagesContainer.innerHTML = '<div style="text-align: center; color: #888; padding: 40px;">No images available</div>';
+          return;
+        }
+
+        // Sort images by order if available, otherwise keep original order
+        const sortedImages = [...charter.images];
+
+        // Create carousel structure
+        const carouselWrapper = document.createElement('div');
+        carouselWrapper.style.cssText = `
+          position: relative;
+          width: 100%;
+          height: 320px;
+          overflow: hidden;
+          border-radius: 12px;
+        `;
+
+        const imagesTrack = document.createElement('div');
+        imagesTrack.style.cssText = `
+          display: flex;
+          transition: transform 0.3s ease;
+          height: 100%;
+        `;
+
+        // Add images to track
+        sortedImages.forEach((image, index) => {
+          const imageContainer = document.createElement('div');
+          // Check screen width for responsive behavior
+          const isMobile = window.innerWidth < 767;
+          const flexBasis = isMobile ? '100%' : '50%';
+
+          imageContainer.style.cssText = `
+            flex: 0 0 ${flexBasis};
+            height: 320px;
+            padding: 0 6px;
+            box-sizing: border-box;
+          `;
+
+          const imageWrapper = document.createElement('div');
+          imageWrapper.style.cssText = `
+            width: 100%;
+            height: 100%;
+            border-radius: 8px;
+            overflow: hidden;
+            background-color: #f0f0f0;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+          `;
+
+          const img = document.createElement('img');
+          img.src = image.image?.url || '';
+          img.alt = `${charter.name} image ${index + 1}`;
+          img.style.cssText = `
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: center;
+          `;
+
+          // Handle image load error
+          img.onerror = () => {
+            imageWrapper.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #888; font-size: 14px;">Image unavailable</div>';
+          };
+
+          // Add hover effect
+          imageWrapper.addEventListener('mouseenter', () => {
+            imageWrapper.style.transform = 'scale(1.02)';
+          });
+          imageWrapper.addEventListener('mouseleave', () => {
+            imageWrapper.style.transform = 'scale(1)';
+          });
+
+          // Add click handler to open full-size modal
+          imageWrapper.addEventListener('click', () => {
+            this.openFishingCharterImageModal(sortedImages, index);
+          });
+
+          imageWrapper.appendChild(img);
+          imageContainer.appendChild(imageWrapper);
+          imagesTrack.appendChild(imageContainer);
+        });
+
+        carouselWrapper.appendChild(imagesTrack);
+
+        // Add navigation buttons only if there are more than the visible count
+        const isMobile = window.innerWidth < 767;
+        const visibleCount = isMobile ? 1 : 2;
+
+        if (sortedImages.length > visibleCount) {
+          let currentIndex = 0;
+          const maxIndex = Math.max(0, sortedImages.length - visibleCount); // Show based on screen size
+
+          // Create counter first so it can be referenced in navigation
+          const counter = document.createElement('div');
+          counter.style.cssText = `
+            position: absolute;
+            bottom: 12px;
+            right: 12px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-family: 'TT Fors, sans-serif';
+            z-index: 10;
+          `;
+
+          const updateCounter = () => {
+            const startImage = currentIndex + 1;
+            const endImage = Math.min(currentIndex + visibleCount, sortedImages.length);
+            counter.textContent = `${startImage}-${endImage} of ${sortedImages.length}`;
+          };
+
+          // Left navigation button
+          const leftButton = document.createElement('button');
+          leftButton.innerHTML = `
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M15 18L9 12L15 6" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          `;
+          leftButton.style.cssText = `
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 40px;
+            height: 40px;
+            background: rgba(0, 0, 0, 0.6);
+            border: none;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 10;
+            transition: background-color 0.2s ease;
+          `;
+
+          // Right navigation button
+          const rightButton = document.createElement('button');
+          rightButton.innerHTML = `
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M9 18L15 12L9 6" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          `;
+          rightButton.style.cssText = `
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 40px;
+            height: 40px;
+            background: rgba(0, 0, 0, 0.6);
+            border: none;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 10;
+            transition: background-color 0.2s ease;
+          `;
+
+          // Update button states
+          const updateButtonStates = () => {
+            leftButton.style.opacity = currentIndex === 0 ? '0.5' : '1';
+            leftButton.style.cursor = currentIndex === 0 ? 'not-allowed' : 'pointer';
+            rightButton.style.opacity = currentIndex >= maxIndex ? '0.5' : '1';
+            rightButton.style.cursor = currentIndex >= maxIndex ? 'not-allowed' : 'pointer';
+          };
+
+          // Navigation functionality
+          const updateCarousel = () => {
+            const movePercentage = isMobile ? 100 : 50; // Move by 100% on mobile, 50% on desktop
+            const translateX = -(currentIndex * movePercentage);
+            imagesTrack.style.transform = `translateX(${translateX}%)`;
+            updateButtonStates();
+            updateCounter();
+          };
+
+          leftButton.addEventListener('click', () => {
+            if (currentIndex > 0) {
+              currentIndex--;
+              updateCarousel();
+            }
+          });
+
+          rightButton.addEventListener('click', () => {
+            if (currentIndex < maxIndex) {
+              currentIndex++;
+              updateCarousel();
+            }
+          });
+
+          // Hover effects
+          leftButton.addEventListener('mouseenter', () => {
+            if (currentIndex > 0) leftButton.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+          });
+          leftButton.addEventListener('mouseleave', () => {
+            leftButton.style.backgroundColor = 'rgba(0, 0, 0, 0.6)';
+          });
+
+          rightButton.addEventListener('mouseenter', () => {
+            if (currentIndex < maxIndex) rightButton.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+          });
+          rightButton.addEventListener('mouseleave', () => {
+            rightButton.style.backgroundColor = 'rgba(0, 0, 0, 0.6)';
+          });
+
+          // Initial states
+          updateButtonStates();
+          updateCounter();
+
+          carouselWrapper.appendChild(leftButton);
+          carouselWrapper.appendChild(rightButton);
+          carouselWrapper.appendChild(counter);
+        }
+
+        // Add simple counter for 1-2 images
+        else if (sortedImages.length > 1) {
+          const counter = document.createElement('div');
+          counter.style.cssText = `
+            position: absolute;
+            bottom: 12px;
+            right: 12px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-family: 'TT Fors', sans-serif;
+            z-index: 10;
+          `;
+          const isMobile = window.innerWidth < 767;
+          const displayCount = isMobile ? 1 : sortedImages.length;
+          counter.textContent = isMobile ? `1 of ${sortedImages.length}` : `1-${sortedImages.length} of ${sortedImages.length}`;
+          carouselWrapper.appendChild(counter);
+        }
+
+        imagesContainer.appendChild(carouselWrapper);
+      }
+
+      openFishingCharterImageModal(images, startIndex = 0) {
+        // Remove any existing modal
+        const existingModal = document.querySelector('.fishing-charter-image-modal');
+        if (existingModal) {
+          existingModal.remove();
+        }
+
+        // Create modal overlay
+        const modal = document.createElement('div');
+        modal.className = 'fishing-charter-image-modal';
+        modal.style.cssText = `
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100vw;
+          height: 100vh;
+          background: rgba(0, 0, 0, 0.9);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 10000;
+          padding: 20px;
+          box-sizing: border-box;
+        `;
+
+        // Create image container
+        const imageContainer = document.createElement('div');
+        imageContainer.style.cssText = `
+          position: relative;
+          max-width: 90vw;
+          max-height: 90vh;
+          width: 90vw;
+          height: 90vh;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        `;
+
+        // Create image element
+        const modalImage = document.createElement('img');
+        modalImage.style.cssText = `
+          width: 100%;
+          height: 100%;
+          max-width: 90vw;
+          max-height: 90vh;
+          object-fit: contain;
+          border-radius: 8px;
+          display: block;
+        `;
+
+        let currentImageIndex = startIndex;
+
+        const updateImage = () => {
+          if (images[currentImageIndex] && images[currentImageIndex].image) {
+            modalImage.src = images[currentImageIndex].image.url;
+            modalImage.alt = `Fishing charter image ${currentImageIndex + 1}`;
+          }
+        };
+
+        updateImage();
+
+        // Navigation buttons if more than one image
+        if (images.length > 1) {
+          const goToPrevious = () => {
+            currentImageIndex = currentImageIndex > 0 ? currentImageIndex - 1 : images.length - 1;
+            updateImage();
+          };
+
+          const goToNext = () => {
+            currentImageIndex = currentImageIndex < images.length - 1 ? currentImageIndex + 1 : 0;
+            updateImage();
+          };
+
+          // Previous button
+          const prevButton = document.createElement('button');
+          prevButton.innerHTML = `
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M15 18L9 12L15 6" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          `;
+          prevButton.style.cssText = `
+            position: absolute;
+            left: -60px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 50px;
+            height: 50px;
+            background: rgba(0, 0, 0, 0.6);
+            border: none;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+          `;
+
+          prevButton.addEventListener('click', goToPrevious);
+          prevButton.addEventListener('mouseenter', () => {
+            prevButton.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+          });
+          prevButton.addEventListener('mouseleave', () => {
+            prevButton.style.backgroundColor = 'rgba(0, 0, 0, 0.6)';
+          });
+
+          // Next button
+          const nextButton = document.createElement('button');
+          nextButton.innerHTML = `
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M9 18L15 12L9 6" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          `;
+          nextButton.style.cssText = `
+            position: absolute;
+            right: -60px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 50px;
+            height: 50px;
+            background: rgba(0, 0, 0, 0.6);
+            border: none;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+          `;
+
+          nextButton.addEventListener('click', goToNext);
+          nextButton.addEventListener('mouseenter', () => {
+            nextButton.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+          });
+          nextButton.addEventListener('mouseleave', () => {
+            nextButton.style.backgroundColor = 'rgba(0, 0, 0, 0.6)';
+          });
+
+          imageContainer.appendChild(prevButton);
+          imageContainer.appendChild(nextButton);
+
+          // Keyboard navigation
+          const handleKeydown = (e) => {
+            if (e.key === 'ArrowLeft') goToPrevious();
+            if (e.key === 'ArrowRight') goToNext();
+            if (e.key === 'Escape') closeModal();
+          };
+
+          document.addEventListener('keydown', handleKeydown);
+
+          // Store cleanup function
+          modal._cleanup = () => {
+            document.removeEventListener('keydown', handleKeydown);
+          };
+        }
+
+        // Close button
+        const closeButton = document.createElement('button');
+        closeButton.innerHTML = `
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M18 6L6 18M6 6L18 18" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        `;
+        closeButton.style.cssText = `
+          position: absolute;
+          top: 20px;
+          right: 20px;
+          width: 40px;
+          height: 40px;
+          background: rgba(0, 0, 0, 0.6);
+          border: none;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          transition: background-color 0.2s ease;
+        `;
+
+        const closeModal = () => {
+          if (modal._cleanup) modal._cleanup();
+          modal.remove();
+        };
+
+        closeButton.addEventListener('click', closeModal);
+        closeButton.addEventListener('mouseenter', () => {
+          closeButton.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+        });
+        closeButton.addEventListener('mouseleave', () => {
+          closeButton.style.backgroundColor = 'rgba(0, 0, 0, 0.6)';
+        });
+
+        // Close on overlay click
+        modal.addEventListener('click', (e) => {
+          if (e.target === modal) closeModal();
+        });
+
+        imageContainer.appendChild(modalImage);
+        modal.appendChild(imageContainer);
+        modal.appendChild(closeButton);
+
+        document.body.appendChild(modal);
+      }
+
+      populateFishingCharterReviews(charter) {
+        const reviewsAvgElement = document.querySelector('[data-element="fishingCharterDetails_reviewsAVG"]');
+        const reviewsDot = document.querySelector('[data-element="fishingCharterDetails_reviewsDot"]');
+        const reviewsAmountElement = document.querySelector('[data-element="fishingCharterDetails_reviewsAmount"]');
+
+        if (reviewsAvgElement && reviewsAmountElement) {
+          if (!charter.reviews || charter.reviews.length === 0) {
+            reviewsAvgElement.textContent = 'New';
+            reviewsAmountElement.textContent = '';
+            reviewsDot.style.display = 'none';
+          } else {
+            const avgRating = charter.reviews.reduce((sum, review) => sum + (review.rating || 0), 0) / charter.reviews.length;
+            reviewsAvgElement.textContent = avgRating.toFixed(1);
+            reviewsAmountElement.textContent = `(${charter.reviews.length})`;
+            reviewsDot.style.display = 'flex';
+          }
+        }
+      }
+
+      populateFishingCharterBoatInfo(charter) {
+        if (!charter.boatInfo || charter.boatInfo.length === 0) return;
+
+        const boatInfo = charter.boatInfo[0];
+
+        // Boat image
+        const boatImageElement = document.querySelector('[data-element="fishingCharterDetails_boatImage"]');
+        if (boatImageElement && boatInfo.image) {
+          boatImageElement.src = boatInfo.image.url;
+          boatImageElement.alt = 'Boat';
+        }
+
+        // Boat year
+        const boatYearElement = document.querySelector('[data-element="fishingCharterDetails_boatYear"]');
+        if (boatYearElement) {
+          boatYearElement.textContent = boatInfo.boatYear || '';
+        }
+
+        // Boat length
+        const boatLengthElement = document.querySelector('[data-element="fishingCharterDetails_boatLength"]');
+        if (boatLengthElement) {
+          boatLengthElement.textContent = boatInfo.boatLength ? `${boatInfo.boatLength}ft` : '';
+        }
+
+        // Boat manufacturer
+        const boatManufacturerElement = document.querySelector('[data-element="fishingCharterDetails_boatManufacturer"]');
+        if (boatManufacturerElement) {
+          boatManufacturerElement.textContent = boatInfo.boatManufacturer || '';
+        }
+
+        // Boat type
+        const boatTypeElement = document.querySelector('[data-element="fishingCharterDetails_boatType"]');
+        if (boatTypeElement) {
+          boatTypeElement.textContent = boatInfo.boatType || '';
+        }
+      }
+
+      populateFishingCharterCaptainInfo(charter) {
+        if (!charter.captainInfo || charter.captainInfo.length === 0) return;
+
+        const captainInfo = charter.captainInfo[0];
+
+        // Captain image
+        const captainImageElement = document.querySelector('[data-element="fishingCharterDetails_captainImage"]');
+        if (captainImageElement && captainInfo.image) {
+          captainImageElement.src = captainInfo.image.url;
+          captainImageElement.alt = captainInfo.name || 'Captain';
+        }
+
+        // Captain name
+        const captainNameElement = document.querySelector('[data-element="fishingCharterDetails_captainName"]');
+        if (captainNameElement) {
+          captainNameElement.textContent = captainInfo.name || '';
+        }
+
+        // Captain description
+        const captainDescriptionElement = document.querySelector('[data-element="fishingCharterDetails_captainDescription"]');
+        if (captainDescriptionElement) {
+          captainDescriptionElement.textContent = captainInfo.description || '';
+        }
+      }
+
+      populateFishingCharterFishingTypes(charter) {
+        const templateBlock = document.querySelector('[data-element="fishingCharterDetails_typeOfFishingBlock"]');
+        const container = templateBlock?.parentElement;
+
+        if (!templateBlock || !container || !charter.fishingType) return;
+
+        // Clear existing blocks except template
+        const existingBlocks = container.querySelectorAll('[data-element="fishingCharterDetails_typeOfFishingBlock"]');
+        existingBlocks.forEach((block, index) => {
+          if (index > 0) block.remove();
+        });
+
+        // Hide template if no fishing types
+        if (charter.fishingType.length === 0) {
+          templateBlock.style.display = 'none';
+          return;
+        }
+
+        // Populate fishing types
+        charter.fishingType.forEach((fishingType, index) => {
+          let block;
+          if (index === 0) {
+            block = templateBlock;
+          } else {
+            block = templateBlock.cloneNode(true);
+            container.appendChild(block);
+          }
+
+          block.style.display = 'flex';
+
+          const textElement = block.querySelector('[data-element="fishingCharterDetails_typeOfFishingBlock_text"]');
+          if (textElement) {
+            textElement.textContent = fishingType.type || '';
+          }
+        });
+      }
+
+      populateFishingCharterAmenities(charter) {
+        const templateBlock = document.querySelector('[data-element="fishingCharterDetails_amenityBlock"]');
+        const container = templateBlock?.parentElement;
+
+        if (!templateBlock || !container || !charter.amenities) return;
+
+        // Clear existing blocks except template
+        const existingBlocks = container.querySelectorAll('[data-element="fishingCharterDetails_amenityBlock"]');
+        existingBlocks.forEach((block, index) => {
+          if (index > 0) block.remove();
+        });
+
+        // Hide template if no amenities
+        if (charter.amenities.length === 0) {
+          templateBlock.style.display = 'none';
+          return;
+        }
+
+        // Populate amenities
+        charter.amenities.forEach((amenity, index) => {
+          let block;
+          if (index === 0) {
+            block = templateBlock;
+          } else {
+            block = templateBlock.cloneNode(true);
+            container.appendChild(block);
+          }
+
+          block.style.display = 'flex';
+
+          const textElement = block.querySelector('[data-element="fishingCharterDetails_amenityBlock_text"]');
+          if (textElement) {
+            textElement.textContent = amenity.amenity || '';
+          }
+        });
+      }
+
+      populateFishingCharterWhatsIncluded(charter) {
+        const templateBlock = document.querySelector('[data-element="fishingCharterDetails_whatsIncludedBlock"]');
+        const container = templateBlock?.parentElement;
+
+        if (!templateBlock || !container || !charter.whatsIncluded) return;
+
+        // Clear existing blocks except template
+        const existingBlocks = container.querySelectorAll('[data-element="fishingCharterDetails_whatsIncludedBlock"]');
+        existingBlocks.forEach((block, index) => {
+          if (index > 0) block.remove();
+        });
+
+        // Hide template if no items
+        if (charter.whatsIncluded.length === 0) {
+          templateBlock.style.display = 'none';
+          return;
+        }
+
+        // Populate what's included
+        charter.whatsIncluded.forEach((item, index) => {
+          let block;
+          if (index === 0) {
+            block = templateBlock;
+          } else {
+            block = templateBlock.cloneNode(true);
+            container.appendChild(block);
+          }
+
+          block.style.display = 'flex';
+
+          const textElement = block.querySelector('[data-element="fishingCharterDetails_whatsIncludedBlock_text"]');
+          if (textElement) {
+            textElement.textContent = item.item || '';
+          }
+        });
+      }
+
+      populateFishingCharterReviewsSection(charter) {
+        const reviewsSection = document.querySelector('[data-element="fishingCharterDetails_reviewsSection"]');
+        if (!reviewsSection) return;
+
+        if (!charter.reviews || charter.reviews.length === 0) {
+          reviewsSection.style.display = 'none';
+          return;
+        }
+
+        reviewsSection.style.display = 'flex';
+
+        // Average rating
+        const avgElement = document.querySelector('[data-element="fishingCharterDetails_reviewsSection_avg"]');
+        if (avgElement) {
+          const avgRating = charter.reviews.reduce((sum, review) => sum + (review.rating || 0), 0) / charter.reviews.length;
+          avgElement.textContent = avgRating.toFixed(1);
+        }
+
+        // Amount of reviews
+        const amountElement = document.querySelector('[data-element="fishingCharterDetails_reviewsSection_amount"]');
+        if (amountElement) {
+          amountElement.textContent = `${charter.reviews.length} review${charter.reviews.length !== 1 ? 's' : ''}`;
+        }
+
+        // Sort reviews by date (most recent first)
+        const sortedReviews = [...charter.reviews].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+        // Show all vs show more button
+        const showAllButton = document.querySelector('[data-element="fishingCharterDetails_reviewsSection_showAll"]');
+        if (showAllButton) {
+          if (charter.reviews.length <= 4) {
+            showAllButton.style.display = 'none';
+          } else {
+            showAllButton.style.display = 'block';
+            this.setupFishingCharterReviewsToggle(sortedReviews, showAllButton);
+          }
+        }
+
+        // Populate review blocks (initially show first 4)
+        this.renderFishingCharterReviewBlocks(sortedReviews.slice(0, 4));
+      }
+
+      setupFishingCharterReviewsToggle(sortedReviews, showAllButton) {
+        let showingAll = false;
+
+        const toggleReviews = () => {
+          if (showingAll) {
+            this.renderFishingCharterReviewBlocks(sortedReviews.slice(0, 4));
+            showAllButton.textContent = 'Show more';
+            showingAll = false;
+          } else {
+            this.renderFishingCharterReviewBlocks(sortedReviews);
+            showAllButton.textContent = 'Show less';
+            showingAll = true;
+          }
+        };
+
+        // Remove existing listeners
+        showAllButton.replaceWith(showAllButton.cloneNode(true));
+        const newShowAllButton = document.querySelector('[data-element="fishingCharterDetails_reviewsSection_showAll"]');
+        newShowAllButton.textContent = 'Show more';
+        newShowAllButton.addEventListener('click', toggleReviews);
+      }
+
+      renderFishingCharterReviewBlocks(reviews) {
+        const templateBlock = document.querySelector('[data-element="fishingCharterDetails_reviewsSection_reviewBlock"]');
+        const container = templateBlock?.parentElement;
+
+        if (!templateBlock || !container) return;
+
+        // Clear existing blocks except template
+        const existingBlocks = container.querySelectorAll('[data-element="fishingCharterDetails_reviewsSection_reviewBlock"]');
+        existingBlocks.forEach((block, index) => {
+          if (index > 0) block.remove();
+        });
+
+        // Hide template if no reviews
+        if (reviews.length === 0) {
+          templateBlock.style.display = 'none';
+          return;
+        }
+
+        reviews.forEach((review, index) => {
+          let block;
+          if (index === 0) {
+            block = templateBlock;
+          } else {
+            block = templateBlock.cloneNode(true);
+            container.appendChild(block);
+          }
+
+          block.style.display = 'flex';
+
+          // First name
+          const firstNameElement = block.querySelector('[data-element="fishingCharterDetails_reviewsSection_reviewBlock_firstName"]');
+          if (firstNameElement) {
+            firstNameElement.textContent = review.firstName || '';
+          }
+
+          // Rating
+          const ratingElement = block.querySelector('[data-element="fishingCharterDetails_reviewsSection_reviewBlock_rating"]');
+          if (ratingElement) {
+            ratingElement.textContent = review.rating || '';
+          }
+
+          // Month and year
+          const monthYearElement = block.querySelector('[data-element="fishingCharterDetails_reviewsSection_reviewBlock_monthYear"]');
+          if (monthYearElement && review.date) {
+            const date = new Date(review.date);
+            const options = { month: 'short', year: 'numeric' };
+            monthYearElement.textContent = date.toLocaleDateString('en-US', options);
+          }
+
+          // Review text
+          const reviewTextElement = block.querySelector('[data-element="fishingCharterDetails_reviewsSection_reviewBlock_reviewText"]');
+          if (reviewTextElement) {
+            reviewTextElement.textContent = review.description || '';
+          }
+        });
+      }
+
+      populateFishingCharterPolicies(charter) {
+        const templatePolicy = document.querySelector('[data-element="fishingCharterDetails_policies_text"]');
+        const container = templatePolicy?.parentElement;
+
+        if (!templatePolicy || !container || !charter.policies) return;
+
+        // Clear existing policies except template
+        const existingPolicies = container.querySelectorAll('[data-element="fishingCharterDetails_policies_text"]');
+        existingPolicies.forEach((policy, index) => {
+          if (index > 0) policy.remove();
+        });
+
+        // Hide template if no policies
+        if (charter.policies.length === 0) {
+          templatePolicy.style.display = 'none';
+          return;
+        }
+
+        // Populate policies
+        charter.policies.forEach((policy, index) => {
+          let policyElement;
+          if (index === 0) {
+            policyElement = templatePolicy;
+          } else {
+            policyElement = templatePolicy.cloneNode(true);
+            container.appendChild(policyElement);
+          }
+
+          policyElement.style.display = 'block';
+          policyElement.textContent = policy.policy || '';
+        });
+      }
+
+      populateFishingCharterCancellationPolicy(charter) {
+        const cancellationPolicyElement = document.querySelector('[data-element="fishingCharterDetails_cancellationPolicy"]');
+        if (!cancellationPolicyElement) return;
+
+        if (charter.cancellationPolicy) {
+          const days = charter.cancellationPolicy_daysNotice || 0;
+          cancellationPolicyElement.textContent = `Free cancellation up to ${days} day${days !== 1 ? 's' : ''} prior to trip`;
+        } else {
+          cancellationPolicyElement.textContent = 'No cancellations allowed';
+        }
+      }
+
+      setupFishingCharterMap(charter) {
+        const mapElement = document.querySelector('[data-element="fishingCharterDetails_map"]');
+        if (!mapElement || !charter.address) return;
+
+        const apiKey = 'AIzaSyDIsh3z39SZKKEsHm59QVcOucjCrFMepfQ';
+
+        // Function to initialize the map with coordinates
+        const initializeMap = (latitude, longitude) => {
+          // Check if Google Maps is already loaded
+          if (window.google && window.google.maps) {
+            createMap();
+          } else {
+            // Load Google Maps script if not already loaded
+            const script = document.createElement('script');
+            script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}`;
+            script.async = true;
+            script.onload = createMap;
+            document.head.appendChild(script);
+          }
+
+          function createMap() {
+            const map = new window.google.maps.Map(mapElement, {
+              zoom: 16,
+              center: { lat: latitude, lng: longitude },
+              mapTypeId: 'roadmap',
+              mapTypeControl: false,
+              fullscreenControl: false,
+              zoomControl: true,
+              zoomControlOptions: {
+                position: google.maps.ControlPosition.RIGHT_CENTER,
+                style: google.maps.ZoomControlStyle.LARGE
+              },
+              streetViewControlOptions: {
+                position: google.maps.ControlPosition.TOP_RIGHT,
+              },
+              scrollwheel: false,
+              styles: [
+                { "featureType": "administrative", "elementType": "labels", "stylers": [{ "visibility": "off" }] },
+                { "featureType": "landscape", "stylers": [{ "color": "#f5f5f0" }] },
+                { "featureType": "poi", "elementType": "labels.icon", "stylers": [{ "visibility": "off" }] },
+                { "featureType": "poi.park", "elementType": "geometry", "stylers": [{ "color": "#c2d2b1" }] },
+                { "featureType": "poi", "elementType": "labels.text", "stylers": [{ "visibility": "off" }] },
+                { "featureType": "road", "elementType": "labels", "stylers": [{ "visibility": "off" }] },
+                { "featureType": "transit", "elementType": "labels", "stylers": [{ "visibility": "off" }] },
+                { "featureType": "water", "elementType": "geometry", "stylers": [{ "color": "#9ecaff" }] },
+                { "featureType": "road", "elementType": "geometry", "stylers": [{ "color": "#f0f0f0" }, { "visibility": "on" }] },
+              ]
+            });
+
+            // Use a fishing icon SVG for the pin
+            const pinSvgString = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" viewBox="0 0 24 24" width="48" height="48"><g><path d="M0 0h24v24h-24Z" fill="none"/><path fill="#fff" d="M12 3c-3.796 0-6.873 3.077-6.873 6.873v.172c0 3.461 4.382 8.671 6.148 10.631.389.432 1.061.432 1.45 0 1.766-1.96 6.148-7.17 6.148-10.631v-.172c0-3.796-3.077-6.873-6.873-6.873z"/><path stroke="#000000" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.4468" fill="none" d="M5.127 10.045v-.172c0-3.796 3.077-6.873 6.873-6.873v0c3.796 0 6.873 3.077 6.873 6.873v.172c0 3.461-4.382 8.671-6.148 10.631 -.389.432-1.061.432-1.45 0 -1.766-1.96-6.148-7.17-6.148-10.631Z"/><path stroke="#000000" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.4468" fill="none" d="M10 9.955c0 1.105.895 2 2 2v0c1.105 0 2-.895 2-2v-.037c0-1.105-.895-2-2-2v0c-1.105 0-2 .895-2 2"/></g></svg>`;
+
+            const marker = new google.maps.Marker({
+              position: { lat: latitude, lng: longitude },
+              map: map,
+              icon: {
+                url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(pinSvgString),
+                scaledSize: new google.maps.Size(32, 32),
+                origin: new google.maps.Point(0, 0),
+                anchor: new google.maps.Point(16, 30)
+              },
+              title: 'Fishing Charter Location'
+            });
+          }
+        };
+
+        // Geocode the address to get coordinates
+        if (window.google && window.google.maps) {
+          geocodeAddress();
+        } else {
+          // Load Google Maps script first
+          const script = document.createElement('script');
+          script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}`;
+          script.async = true;
+          script.onload = geocodeAddress;
+          document.head.appendChild(script);
+        }
+
+        function geocodeAddress() {
+          const geocoder = new google.maps.Geocoder();
+          geocoder.geocode({ address: charter.address }, (results, status) => {
+            if (status === 'OK' && results[0]) {
+              const location = results[0].geometry.location;
+              const latitude = location.lat();
+              const longitude = location.lng();
+              initializeMap(latitude, longitude);
+            } else {
+
+              // Hide map if geocoding fails
+              mapElement.style.display = 'none';
+            }
+          });
+        }
+      }
+
+      // Filter management methods
+      clearDatesFilter() {
+        this.selectedDates = [];
+        this.updateDatesFilterText();
+        this.updateFilterStyles();
+        this.updateDateButtonStyles();
+        // this.updateURLParams();
+        this.refilterChartersIfModalOpen();
+      }
+
+      clearGuestsFilter() {
+        this.selectedGuests = 0;
+        if (this.guestNumber) this.guestNumber.textContent = this.selectedGuests;
+        this.updateGuestsFilterText();
+        this.updateFilterStyles();
+        // this.updateURLParams();
+        this.refilterChartersIfModalOpen();
+      }
+
+      clearPriceFilter() {
+        // Reset price filter to default values
+        this.priceMin = 0;
+        this.priceMax = 5000;
+
+        // Update slider if it exists
+        if (this.priceScrollBar) {
+          const sliderMin = this.priceScrollBar.querySelector('.price-slider-min');
+          const sliderMax = this.priceScrollBar.querySelector('.price-slider-max');
+          if (sliderMin) sliderMin.value = 0;
+          if (sliderMax) sliderMax.value = 5000;
+
+          // Trigger update
+          const updateEvent = new Event('input');
+          if (sliderMin) sliderMin.dispatchEvent(updateEvent);
+        }
+
+        // Update UI elements
+        if (this.priceMinInput) this.priceMinInput.value = '$0';
+        if (this.priceMaxInput) this.priceMaxInput.value = '$5,000+';
+        this.updatePriceFilterText();
+        this.updateFilterStyles();
+        // this.updateURLParams();
+        this.refilterChartersIfModalOpen();
+      }
+
+      clearFishingTypeFilter() {
+        // Reset fishing type filter
+        this.selectedFishingTypes = [];
+
+        // Reset checkbox styles
+        Object.values(this.fishingTypes).forEach(checkbox => {
+          if (checkbox) {
+            checkbox.style.backgroundColor = '';
+          }
+        });
+
+        // Update UI elements
+        this.updateFishingTypeFilterText();
+        this.updateFilterStyles();
+        // this.updateURLParams();
+        this.refilterChartersIfModalOpen();
+      }
+
+      clearPrivateDockFilter() {
+        this.selectedPrivateDock = false;
+        this.updatePrivateDockFilterText();
+        this.updateFilterStyles();
+        // this.updateURLParams();
+        this.refilterChartersIfModalOpen();
+      }
+
+      // Filter text update methods
+      updateDatesFilterText() {
+        if (!this.datesText) return;
+
+        if (this.selectedDates.length === 0) {
+          this.datesText.textContent = 'Add Dates';
+        } else if (this.selectedDates.length === 1) {
+          this.datesText.textContent = this.formatDateForDisplay(this.selectedDates[0]);
+        } else if (this.selectedDates.length === 2) {
+          const startDate = this.formatDateForDisplay(this.selectedDates[0]);
+          const endDate = this.formatDateForDisplay(this.selectedDates[1]);
+          this.datesText.textContent = `${startDate}, ${endDate}`;
+        } else if (this.selectedDates.length === 3) {
+          const startDate = this.formatDateForDisplay(this.selectedDates[0]);
+          const secondDate = this.formatDateForDisplay(this.selectedDates[1]);
+          const endDate = this.formatDateForDisplay(this.selectedDates[2]);
+          this.datesText.textContent = `${startDate}, ${secondDate}, ${endDate}`;
+        } else {
+          this.datesText.textContent = `${this.selectedDates.length} dates selected`;
+        }
+      }
+
+      updateGuestsFilterText() {
+        if (!this.guestsText) return;
+
+        if (this.selectedGuests === 0) {
+          this.guestsText.textContent = 'Add Guests';
+        } else {
+          this.guestsText.textContent = `${this.selectedGuests} guest${this.selectedGuests !== 1 ? 's' : ''}`;
+        }
+      }
+
+      updatePriceFilterText() {
+        if (!this.priceText) return;
+
+        if (this.priceMin === 0 && this.priceMax === 5000) {
+          this.priceText.textContent = 'Price Range';
+        } else if (this.priceMin > 0 && this.priceMax === 5000) {
+          // User only set minimum price, show as "min+"
+          this.priceText.textContent = `$${this.priceMin.toLocaleString()}+`;
+        } else if (this.priceMin === 0 && this.priceMax < 5000) {
+          // User only set maximum price, show as "0 - max"
+          this.priceText.textContent = `$0 - $${this.priceMax.toLocaleString()}`;
+        } else {
+          // User set both min and max, show range
+          this.priceText.textContent = `$${this.priceMin.toLocaleString()} - $${this.priceMax.toLocaleString()}`;
+        }
+      }
+
+      updateFishingTypeFilterText() {
+        if (!this.typeText) return;
+
+        if (this.selectedFishingTypes.length === 0) {
+          this.typeText.textContent = 'Fishing Type';
+        } else if (this.selectedFishingTypes.length === 1) {
+          const typeLabels = {
+            inshore: 'Inshore',
+            offshore: 'Offshore',
+            near: 'Nearshore',
+            wreck: 'Wreck',
+            reef: 'Reef',
+            flats: 'Flats'
+          };
+          this.typeText.textContent = typeLabels[this.selectedFishingTypes[0]] || this.selectedFishingTypes[0];
+        } else {
+          this.typeText.textContent = `${this.selectedFishingTypes.length} Types`;
+        }
+      }
+
+      updatePrivateDockFilterText() {
+        if (!this.privateDockText) return;
+
+        if (this.selectedPrivateDock) {
+          this.privateDockText.textContent = 'Private Dock Pickup';
+        } else {
+          this.privateDockText.textContent = 'Private Dock Pickup';
+        }
+      }
+
+      updateFilterStyles() {
+        // Update dates filter button style
+        if (this.datesFilter && this.datesText) {
+          const hasDatesFilter = this.selectedDates.length > 0;
+
+          if (hasDatesFilter) {
+            this.datesFilter.style.backgroundColor = '#000000';
+            this.datesFilter.style.color = '#ffffff';
+            this.datesText.style.color = '#ffffff';
+          } else {
+            this.datesFilter.style.backgroundColor = '';
+            this.datesFilter.style.color = '';
+            this.datesText.style.color = '';
+          }
+        }
+
+        // Update guests filter button style
+        if (this.guestsFilter && this.guestsText) {
+          const hasGuestsFilter = this.selectedGuests > 0;
+
+          if (hasGuestsFilter) {
+            this.guestsFilter.style.backgroundColor = '#000000';
+            this.guestsFilter.style.color = '#ffffff';
+            this.guestsText.style.color = '#ffffff';
+          } else {
+            this.guestsFilter.style.backgroundColor = '';
+            this.guestsFilter.style.color = '';
+            this.guestsText.style.color = '';
+          }
+        }
+
+        // Update price filter button style
+        if (this.priceFilter && this.priceText) {
+          const hasPriceFilter = this.priceMin > 0 || this.priceMax < 5000;
+
+          if (hasPriceFilter) {
+            this.priceFilter.style.backgroundColor = '#000000';
+            this.priceFilter.style.color = '#ffffff';
+            this.priceText.style.color = '#ffffff';
+          } else {
+            this.priceFilter.style.backgroundColor = '';
+            this.priceFilter.style.color = '';
+            this.priceText.style.color = '';
+          }
+        }
+
+        // Update fishing type filter button style
+        if (this.typeFilter && this.typeText) {
+          const hasTypeFilter = this.selectedFishingTypes.length > 0;
+
+          if (hasTypeFilter) {
+            this.typeFilter.style.backgroundColor = '#000000';
+            this.typeFilter.style.color = '#ffffff';
+            this.typeText.style.color = '#ffffff';
+          } else {
+            this.typeFilter.style.backgroundColor = '';
+            this.typeFilter.style.color = '';
+            this.typeText.style.color = '';
+          }
+        }
+
+        // Update private dock filter button style
+        if (this.privateDockFilter && this.privateDockText) {
+          if (this.selectedPrivateDock) {
+            this.privateDockFilter.style.backgroundColor = '#000000';
+            this.privateDockFilter.style.color = '#ffffff';
+            this.privateDockText.style.color = '#ffffff';
+          } else {
+            this.privateDockFilter.style.backgroundColor = '';
+            this.privateDockFilter.style.color = '';
+            this.privateDockText.style.color = '';
+          }
+        }
+
+        // Update X button visibility
+        this.updateXButtonVisibility();
+      }
+
+      updateXButtonVisibility() {
+        // Update X button visibility based on whether filters are active
+        if (this.datesX) {
+          this.datesX.style.display = this.selectedDates.length > 0 ? 'flex' : 'none';
+        }
+        if (this.guestsX) {
+          this.guestsX.style.display = this.selectedGuests > 0 ? 'flex' : 'none';
+        }
+        if (this.priceX) {
+          this.priceX.style.display = (this.priceMin > 0 || this.priceMax < 5000) ? 'flex' : 'none';
+        }
+        if (this.typeX) {
+          this.typeX.style.display = this.selectedFishingTypes.length > 0 ? 'flex' : 'none';
+        }
+        if (this.privateDockX) {
+          this.privateDockX.style.display = this.selectedPrivateDock ? 'flex' : 'none';
+        }
+      }
+
+      updateButtonState() {
+        // Update button state based on current selections
+        const hasCharters = this.hasAnyFishingCharters();
+
+        // Always keep all buttons visible at the bottom
+        this.buttons.forEach(button => {
+          if (button) {
+            button.style.display = 'flex';
+          }
+        });
+
+        if (hasCharters) {
+          this.selectedFishingCharterBlocks.forEach(block => {
+            if (block) {
+              block.style.display = 'flex';
+            }
+          });
+        } else {
+          this.selectedFishingCharterBlocks.forEach(block => {
+            if (block) {
+              block.style.display = 'none';
+            }
+          });
+        }
+      }
+
+      setupDateParameterMonitoring() {
+        // Store current parameter values
+        let lastCheckin = '';
+        let lastCheckout = '';
+
+        // Check for parameter changes every second
+        const checkParameters = () => {
+          const urlParams = new URLSearchParams(window.location.search);
+          const currentCheckin = urlParams.get('checkin') || '';
+          const currentCheckout = urlParams.get('checkout') || '';
+
+          // If checkin or checkout parameters have changed
+          if (currentCheckin !== lastCheckin || currentCheckout !== lastCheckout) {
+            lastCheckin = currentCheckin;
+            lastCheckout = currentCheckout;
+
+            // Only re-initialize from URL if we're not adding a new charter
+            // (i.e., if modal is closed or we're editing an existing charter)
+            const isModalOpenForNewCharter = this.modal && this.modal.style.display === 'flex' && !this.editingCharterNumber;
+
+            if (!isModalOpenForNewCharter) {
+              // Re-initialize from URL parameters
+              this.initializeFromURL();
+            }
+
+            // Re-initialize date selection functionality
+            this.renderDateSelection();
+            this.updateButtonAvailability();
+            this.updateDatesFilterText();
+            this.updateFilterStyles();
+
+            // Also update details section if it exists
+            this.renderDetailsDateSelection();
+            this.updateDetailsDateFilterText();
+            this.updateDetailsFilterStyles();
+          }
+        };
+
+        // Check initially and then every second
+        checkParameters();
+        setInterval(checkParameters, 1000);
+      }
+
+      refilterChartersIfModalOpen() {
+        // If modal is open, refilter and re-render charters
+        if (this.modal && this.modal.style.display === 'flex' && this.allFishingCharters.length > 0) {
+          const filteredCharters = this.filterFishingCharters(this.allFishingCharters);
+          this.renderFishingCharterCards(filteredCharters);
+        }
+      }
+
+      formatDateForDisplay(dateStr) {
+        // Manual date formatting to avoid timezone issues
+        // dateStr is in format YYYY-MM-DD
+        const [year, month, day] = dateStr.split('-').map(Number);
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        return `${monthNames[month - 1]} ${day}`;
+      }
+
+      renderDateSelection() {
+        if (!this.datesPopupSelectDates) return;
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const checkin = urlParams.get('checkin');
+        const checkout = urlParams.get('checkout');
+
+        if (!checkin || !checkout) return;
+
+        this.datesPopupSelectDates.innerHTML = '';
+
+        const dateArray = this.generateDateRange(checkin, checkout);
+
+        const calendarContainer = document.createElement('div');
+        calendarContainer.style.display = 'flex';
+        calendarContainer.style.flexDirection = 'column';
+        calendarContainer.style.gap = '6px';
+
+        const daysHeader = document.createElement('div');
+        daysHeader.style.display = 'grid';
+        daysHeader.style.gridTemplateColumns = 'repeat(7, 1fr)';
+        daysHeader.style.gap = '6px';
+        daysHeader.style.justifyItems = 'center';
+
+        ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].forEach(day => {
+          const dayHeader = document.createElement('div');
+          dayHeader.textContent = day;
+          dayHeader.style.fontSize = '12px';
+          dayHeader.style.fontFamily = 'TT Fors, sans-serif';
+          dayHeader.style.color = '#808080';
+          dayHeader.style.textTransform = 'uppercase';
+          daysHeader.appendChild(dayHeader);
+        });
+
+        calendarContainer.appendChild(daysHeader);
+
+        const datesGrid = document.createElement('div');
+        datesGrid.style.display = 'grid';
+        datesGrid.style.gridTemplateColumns = 'repeat(7, 1fr)';
+        datesGrid.style.gap = '6px';
+        datesGrid.style.justifyItems = 'center';
+
+        const firstDateStr = dateArray[0];
+        const emptyStartCells = this.getDayOfWeek(firstDateStr);
+
+        for (let i = 0; i < emptyStartCells; i++) {
+          const emptyCell = document.createElement('div');
+          datesGrid.appendChild(emptyCell);
+        }
+
+        // Get reserved dates from other fishing charters
+        const reservedDates = this.getReservedDatesForOtherCharters();
+
+        dateArray.forEach(dateStr => {
+          const [year, month, day] = dateStr.split('-').map(Number);
+
+          const dateBtn = document.createElement('button');
+          dateBtn.textContent = day;
+          dateBtn.setAttribute('data-date', dateStr);
+          dateBtn.style.width = '40px';
+          dateBtn.style.height = '40px';
+          dateBtn.style.border = '1px solid #ddd';
+          dateBtn.style.borderRadius = '1000px';
+
+          // Check if this date is reserved by other charters
+          const isReserved = reservedDates.includes(dateStr);
+          const isSelected = this.selectedDates.includes(dateStr);
+
+          if (isReserved) {
+            // Date is reserved by another charter - disable it
+            dateBtn.style.background = '#f5f5f5';
+            dateBtn.style.color = '#999';
+            dateBtn.style.cursor = 'not-allowed';
+            dateBtn.style.opacity = '0.5';
+            dateBtn.disabled = true;
+          } else if (isSelected) {
+            // Date is selected for current charter
+            dateBtn.style.background = '#000000';
+            dateBtn.style.color = 'white';
+            dateBtn.style.cursor = 'pointer';
+            dateBtn.addEventListener('click', () => {
+              this.handleDateSelection(dateStr);
+            });
+          } else {
+            // Date is available
+            dateBtn.style.background = 'white';
+            dateBtn.style.color = 'black';
+            dateBtn.style.cursor = 'pointer';
+            dateBtn.addEventListener('click', () => {
+              this.handleDateSelection(dateStr);
+            });
+          }
+
+          dateBtn.style.display = 'flex';
+          dateBtn.style.alignItems = 'center';
+          dateBtn.style.justifyContent = 'center';
+          dateBtn.style.fontSize = '14px';
+          dateBtn.style.fontFamily = 'TT Fors, sans-serif';
+          dateBtn.style.fontWeight = '500';
+
+          datesGrid.appendChild(dateBtn);
+        });
+
+        const lastDateStr = dateArray[dateArray.length - 1];
+        const emptyEndCells = 6 - this.getDayOfWeek(lastDateStr);
+
+        for (let i = 0; i < emptyEndCells; i++) {
+          const emptyCell = document.createElement('div');
+          datesGrid.appendChild(emptyCell);
+        }
+
+        calendarContainer.appendChild(datesGrid);
+        this.datesPopupSelectDates.appendChild(calendarContainer);
+      }
+
+      getDayOfWeek(dateStr) {
+        const [year, month, day] = dateStr.split('-').map(Number);
+
+        let adjustedMonth = month;
+        let adjustedYear = year;
+
+        if (month < 3) {
+          adjustedMonth += 12;
+          adjustedYear -= 1;
+        }
+
+        const q = day;
+        const m = adjustedMonth;
+        const k = adjustedYear % 100;
+        const j = Math.floor(adjustedYear / 100);
+
+        const h = (q + Math.floor((13 * (m + 1)) / 5) + k + Math.floor(k / 4) + Math.floor(j / 4) - 2 * j) % 7;
+
+        return (h + 6) % 7;
+      }
+
+      handleDateSelection(dateStr) {
+        if (this.selectedDates.includes(dateStr)) {
+          this.selectedDates = this.selectedDates.filter(date => date !== dateStr);
+        } else {
+          this.selectedDates.push(dateStr);
+          this.selectedDates.sort();
+        }
+
+        this.updateDateButtonStyles();
+
+        this.updateDatesFilterText();
+        this.updateFilterStyles();
+        this.refilterChartersIfModalOpen();
+      }
+
+      generateDateRange(startDateStr, endDateStr) {
+        const dateRange = [];
+
+        const [startYear, startMonth, startDay] = startDateStr.split('-').map(Number);
+        const [endYear, endMonth, endDay] = endDateStr.split('-').map(Number);
+
+        let currentYear = startYear;
+        let currentMonth = startMonth;
+        let currentDay = startDay;
+
+        while (true) {
+          const currentDateStr = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(currentDay).padStart(2, '0')}`;
+          dateRange.push(currentDateStr);
+
+          if (currentDateStr === endDateStr) break;
+
+          currentDay++;
+
+          const daysInMonth = this.getDaysInMonth(currentYear, currentMonth);
+          if (currentDay > daysInMonth) {
+            currentDay = 1;
+            currentMonth++;
+
+            if (currentMonth > 12) {
+              currentMonth = 1;
+              currentYear++;
+            }
+          }
+        }
+
+        return dateRange;
+      }
+
+      getDaysInMonth(year, month) {
+        const daysInMonths = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+        if (month === 2 && this.isLeapYear(year)) {
+          return 29;
+        }
+
+        return daysInMonths[month - 1];
+      }
+
+      isLeapYear(year) {
+        return (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0);
+      }
+
+      updateDateButtonStyles() {
+        if (!this.datesPopupSelectDates) return;
+
+        const dateButtons = this.datesPopupSelectDates.querySelectorAll('button');
+
+        dateButtons.forEach(btn => {
+          const btnDateStr = btn.getAttribute('data-date');
+          if (btnDateStr && this.selectedDates.includes(btnDateStr)) {
+            btn.style.background = '#000000';
+            btn.style.color = 'white';
+            btn.style.borderColor = '#000000';
+          } else if (btnDateStr) {
+            btn.style.background = 'white';
+            btn.style.color = 'black';
+            btn.style.borderColor = '#ddd';
+          }
+        });
+      }
+
+      // Details Section Methods
+
+      setupViewTripsButton() {
+        if (!this.detailsViewTripsButton) return;
+
+        this.detailsViewTripsButton.addEventListener('click', () => {
+          if (this.detailsContentContainer && this.detailsTripTypeContainer) {
+            this.detailsTripTypeContainer.scrollIntoView({ behavior: 'smooth' });
+          }
+        });
+      }
+
+      transferValuesToDetails() {
+        // Transfer dates
+        this.detailsSelectedDates = [...this.selectedDates];
+        this.updateDetailsDateFilterText();
+
+        // Transfer guests
+        this.detailsSelectedGuests = this.selectedGuests;
+        if (this.detailsGuestNumber) this.detailsGuestNumber.textContent = this.detailsSelectedGuests;
+        this.updateDetailsGuestsFilterText();
+
+        // Transfer private dock
+        this.detailsSelectedPrivateDock = this.selectedPrivateDock;
+        this.updateDetailsPrivateDockFilterText();
+
+        this.updateDetailsFilterStyles();
+        this.renderDetailsDateSelection();
+      }
+
+      transferValuesToMain() {
+        // Transfer dates
+        this.selectedDates = [...this.detailsSelectedDates];
+        this.updateDatesFilterText();
+
+        // Transfer guests
+        this.selectedGuests = this.detailsSelectedGuests;
+        if (this.guestNumber) this.guestNumber.textContent = this.selectedGuests;
+        this.updateGuestsFilterText();
+
+        // Transfer private dock
+        this.selectedPrivateDock = this.detailsSelectedPrivateDock;
+        this.updatePrivateDockFilterText();
+
+        this.updateFilterStyles();
+        this.updateDateButtonStyles();
+        this.renderDateSelection();
+      }
+
+      setupDetailsFilterHandlers() {
+        const closeAllDetailsPopups = () => {
+          if (this.detailsDatesPopup) this.detailsDatesPopup.style.display = 'none';
+          if (this.detailsGuestsPopup) this.detailsGuestsPopup.style.display = 'none';
+        };
+
+        // Details dates filter handlers
+        if (this.detailsDatesFilter) {
+          this.detailsDatesFilter.addEventListener('click', (e) => {
+            e.stopPropagation();
+            closeAllDetailsPopups();
+            if (this.detailsDatesPopup) {
+              this.detailsDatesPopup.style.display = 'flex';
+            } else {
+
+            }
+          });
+        } else {
+
+        }
+
+        if (this.detailsDatesPopupExit) {
+          this.detailsDatesPopupExit.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (this.detailsDatesPopup) this.detailsDatesPopup.style.display = 'none';
+          });
+        }
+
+        // Details guests filter handlers
+        if (this.detailsGuestsFilter) {
+          this.detailsGuestsFilter.addEventListener('click', (e) => {
+            e.stopPropagation();
+            closeAllDetailsPopups();
+            if (this.detailsGuestsPopup) {
+              this.detailsGuestsPopup.style.display = 'flex';
+            } else {
+
+            }
+          });
+        } else {
+
+        }
+
+        if (this.detailsGuestsPopupExit) {
+          this.detailsGuestsPopupExit.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (this.detailsGuestsPopup) this.detailsGuestsPopup.style.display = 'none';
+          });
+        }
+
+        // Details private dock filter
+        if (this.detailsPrivateDockFilter) {
+          this.detailsPrivateDockFilter.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.detailsSelectedPrivateDock = !this.detailsSelectedPrivateDock;
+            // Sync with main filter variable
+            this.selectedPrivateDock = this.detailsSelectedPrivateDock;
+            this.updateDetailsPrivateDockFilterText();
+            this.updateDetailsFilterStyles();
+            this.renderTripTypes(this.currentCharterData);
+
+
+            // Apply pickup time gating and update date/time text
+            this.applyPickupTimeGating(this.pickupTimePills, false);
+            this.applyPickupTimeGating(this.boatDetailsPickupTimePills, true);
+            this.updateBoatDetailsDateFilterText();
+          });
+        }
+      }
+
+      setupDetailsGuestButtons() {
+        if (!this.detailsGuestMinus || !this.detailsGuestPlus) return;
+
+        // Style and setup minus button
+        this.detailsGuestMinus.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M15.5 4.5L7.5 12L15.5 19.5" stroke="#323232" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        </svg>`;
+        this.styleFishingCharterGuestButton(this.detailsGuestMinus);
+
+        // Style and setup plus button
+        this.detailsGuestPlus.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M8.5 4.5L16.5 12L8.5 19.5" stroke="#323232" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        </svg>`;
+        this.styleFishingCharterGuestButton(this.detailsGuestPlus);
+
+        // Add event listeners
+        this.detailsGuestMinus.addEventListener('click', () => {
+          if (this.detailsSelectedGuests > 0) {
+            this.detailsSelectedGuests--;
+            // Sync with main filter variable
+            this.selectedGuests = this.detailsSelectedGuests;
+            if (this.detailsGuestNumber) this.detailsGuestNumber.textContent = this.detailsSelectedGuests;
+            this.updateDetailsGuestsFilterText();
+            this.updateDetailsFilterStyles();
+            this.renderTripTypes(this.currentCharterData);
+          }
+        });
+
+        this.detailsGuestPlus.addEventListener('click', () => {
+          // Check boat capacity limit
+          const maxCapacity = this.currentCharterData && this.currentCharterData.boatInfo && this.currentCharterData.boatInfo[0]
+            ? this.currentCharterData.boatInfo[0].boatCapacity
+            : 99; // Default high limit if capacity not found
+
+          if (this.detailsSelectedGuests < maxCapacity) {
+            this.detailsSelectedGuests++;
+            // Sync with main filter variable
+            this.selectedGuests = this.detailsSelectedGuests;
+            if (this.detailsGuestNumber) this.detailsGuestNumber.textContent = this.detailsSelectedGuests;
+            this.updateDetailsGuestsFilterText();
+            this.updateDetailsFilterStyles();
+            this.renderTripTypes(this.currentCharterData);
+          }
+        });
+
+        if (this.detailsGuestsClearButton) {
+          this.detailsGuestsClearButton.addEventListener('click', () => {
+            this.clearDetailsGuestsFilter();
+          });
+        }
+      }
+
+      setupDetailsFilterXButtons() {
+        if (this.detailsDatesX) {
+          this.detailsDatesX.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.clearDetailsDateFilter();
+          });
+        }
+
+        if (this.detailsGuestsX) {
+          this.detailsGuestsX.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.clearDetailsGuestsFilter();
+          });
+        }
+
+        if (this.detailsPrivateDockX) {
+          this.detailsPrivateDockX.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.clearDetailsPrivateDockFilter();
+          });
+        }
+      }
+
+      clearDetailsDateFilter() {
+        this.detailsSelectedDates = [];
+        // Sync with main filter variable
+        this.selectedDates = [];
+        this.updateDetailsDateFilterText();
+        this.updateDetailsFilterStyles();
+        this.renderDetailsDateSelection();
+        this.renderTripTypes(this.currentCharterData);
+      }
+
+      clearDetailsGuestsFilter() {
+        this.detailsSelectedGuests = 0;
+        // Sync with main filter variable
+        this.selectedGuests = 0;
+        if (this.detailsGuestNumber) this.detailsGuestNumber.textContent = this.detailsSelectedGuests;
+        this.updateDetailsGuestsFilterText();
+        this.updateDetailsFilterStyles();
+        this.renderTripTypes(this.currentCharterData);
+      }
+
+      clearDetailsPrivateDockFilter() {
+        this.detailsSelectedPrivateDock = false;
+        // Sync with main filter variable
+        this.selectedPrivateDock = false;
+        this.updateDetailsPrivateDockFilterText();
+        this.updateDetailsFilterStyles();
+        this.renderTripTypes(this.currentCharterData);
+      }
+
+      updateDetailsDateFilterText() {
+        if (!this.detailsDatesText) return;
+
+        if (this.detailsSelectedDates.length === 0) {
+          this.detailsDatesText.textContent = 'Select dates';
+        } else if (this.detailsSelectedDates.length === 1) {
+          this.detailsDatesText.textContent = this.formatDateForDisplay(this.detailsSelectedDates[0]);
+        } else if (this.detailsSelectedDates.length === 2) {
+          const startDate = this.formatDateForDisplay(this.detailsSelectedDates[0]);
+          const endDate = this.formatDateForDisplay(this.detailsSelectedDates[1]);
+          this.detailsDatesText.textContent = `${startDate} - ${endDate}`;
+        } else {
+          const startDate = this.formatDateForDisplay(this.detailsSelectedDates[0]);
+          const secondDate = this.formatDateForDisplay(this.detailsSelectedDates[1]);
+          const endDate = this.formatDateForDisplay(this.detailsSelectedDates[2]);
+          this.detailsDatesText.textContent = `${startDate}, ${secondDate} +${this.detailsSelectedDates.length - 2} more`;
+        }
+      }
+
+      updateDetailsGuestsFilterText() {
+        if (!this.detailsGuestsText) return;
+
+        if (this.detailsSelectedGuests === 0) {
+          this.detailsGuestsText.textContent = 'Add guests';
+        } else {
+          this.detailsGuestsText.textContent = `${this.detailsSelectedGuests} guest${this.detailsSelectedGuests !== 1 ? 's' : ''}`;
+        }
+      }
+
+      updateDetailsPrivateDockFilterText() {
+        if (!this.detailsPrivateDockText) return;
+
+        if (this.detailsSelectedPrivateDock) {
+          this.detailsPrivateDockText.textContent = 'Private dock pickup';
+        } else {
+          this.detailsPrivateDockText.textContent = 'Private dock pickup';
+        }
+      }
+
+      updateDetailsFilterStyles() {
+        // Update dates filter button style
+        if (this.detailsDatesFilter && this.detailsDatesText) {
+          const hasDatesFilter = this.detailsSelectedDates.length > 0;
+
+          if (hasDatesFilter) {
+            this.detailsDatesFilter.style.backgroundColor = '#000000';
+            this.detailsDatesFilter.style.color = '#ffffff';
+            this.detailsDatesText.style.color = '#ffffff';
+          } else {
+            this.detailsDatesFilter.style.backgroundColor = '';
+            this.detailsDatesFilter.style.color = '';
+            this.detailsDatesText.style.color = '';
+          }
+        }
+
+        // Update guests filter button style
+        if (this.detailsGuestsFilter && this.detailsGuestsText) {
+          const hasGuestsFilter = this.detailsSelectedGuests > 0;
+
+          if (hasGuestsFilter) {
+            this.detailsGuestsFilter.style.backgroundColor = '#000000';
+            this.detailsGuestsFilter.style.color = '#ffffff';
+            this.detailsGuestsText.style.color = '#ffffff';
+          } else {
+            this.detailsGuestsFilter.style.backgroundColor = '';
+            this.detailsGuestsFilter.style.color = '';
+            this.detailsGuestsText.style.color = '';
+          }
+        }
+
+        // Update private dock filter button style
+        if (this.detailsPrivateDockFilter && this.detailsPrivateDockText) {
+          if (this.detailsSelectedPrivateDock) {
+            this.detailsPrivateDockFilter.style.backgroundColor = '#000000';
+            this.detailsPrivateDockFilter.style.color = '#ffffff';
+            this.detailsPrivateDockText.style.color = '#ffffff';
+          } else {
+            this.detailsPrivateDockFilter.style.backgroundColor = '';
+            this.detailsPrivateDockFilter.style.color = '';
+            this.detailsPrivateDockText.style.color = '';
+          }
+        }
+
+        // Update X button visibility
+        this.updateDetailsXButtonVisibility();
+
+        // Update Add to Reservation button availability
+        this.updateAddToReservationButtonsAvailability();
+      }
+
+      updateDetailsXButtonVisibility() {
+        if (this.detailsDatesX) {
+          this.detailsDatesX.style.display = this.detailsSelectedDates.length > 0 ? 'flex' : 'none';
+        }
+        if (this.detailsGuestsX) {
+          this.detailsGuestsX.style.display = this.detailsSelectedGuests > 0 ? 'flex' : 'none';
+        }
+        if (this.detailsPrivateDockX) {
+          this.detailsPrivateDockX.style.display = this.detailsSelectedPrivateDock ? 'flex' : 'none';
+        }
+      }
+
+      renderDetailsDateSelection() {
+        if (!this.detailsDatesPopupSelectDates) return;
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const checkin = urlParams.get('checkin');
+        const checkout = urlParams.get('checkout');
+
+        if (!checkin || !checkout) return;
+
+        this.detailsDatesPopupSelectDates.innerHTML = '';
+
+        const dateArray = this.generateDateRange(checkin, checkout);
+
+        const calendarContainer = document.createElement('div');
+        calendarContainer.style.display = 'flex';
+        calendarContainer.style.flexDirection = 'column';
+        calendarContainer.style.gap = '6px';
+
+        const daysHeader = document.createElement('div');
+        daysHeader.style.display = 'grid';
+        daysHeader.style.gridTemplateColumns = 'repeat(7, 1fr)';
+        daysHeader.style.gap = '6px';
+        daysHeader.style.justifyItems = 'center';
+
+        ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].forEach(day => {
+          const dayHeader = document.createElement('div');
+          dayHeader.textContent = day;
+          dayHeader.style.fontSize = '12px';
+          dayHeader.style.fontFamily = 'TT Fors, sans-serif';
+          dayHeader.style.color = '#808080';
+          dayHeader.style.textTransform = 'uppercase';
+          daysHeader.appendChild(dayHeader);
+        });
+
+        calendarContainer.appendChild(daysHeader);
+
+        const datesGrid = document.createElement('div');
+        datesGrid.style.display = 'grid';
+        datesGrid.style.gridTemplateColumns = 'repeat(7, 1fr)';
+        datesGrid.style.gap = '6px';
+        datesGrid.style.justifyItems = 'center';
+
+        const firstDateStr = dateArray[0];
+        const emptyStartCells = this.getDayOfWeek(firstDateStr);
+
+        for (let i = 0; i < emptyStartCells; i++) {
+          const emptyCell = document.createElement('div');
+          datesGrid.appendChild(emptyCell);
+        }
+
+        // Get reserved dates from other fishing charters
+        const reservedDates = this.getReservedDatesForOtherCharters();
+
+        dateArray.forEach(dateStr => {
+          const [year, month, day] = dateStr.split('-').map(Number);
+
+          const dateBtn = document.createElement('button');
+          dateBtn.textContent = day;
+          dateBtn.setAttribute('data-date', dateStr);
+          dateBtn.style.width = '40px';
+          dateBtn.style.height = '40px';
+          dateBtn.style.border = '1px solid #ddd';
+          dateBtn.style.borderRadius = '1000px';
+
+          // Check if this date is reserved by other charters
+          const isReserved = reservedDates.includes(dateStr);
+          const isSelected = this.detailsSelectedDates.includes(dateStr);
+
+          if (isReserved) {
+            // Date is reserved by another charter - disable it
+            dateBtn.style.background = '#f5f5f5';
+            dateBtn.style.color = '#999';
+            dateBtn.style.cursor = 'not-allowed';
+            dateBtn.style.opacity = '0.5';
+            dateBtn.disabled = true;
+          } else {
+            // Date is available or selected
+            dateBtn.style.background = isSelected ? '#000000' : 'white';
+            dateBtn.style.color = isSelected ? 'white' : 'black';
+            dateBtn.style.cursor = 'pointer';
+            dateBtn.addEventListener('click', () => {
+              this.handleDetailsDateSelection(dateStr);
+            });
+          }
+
+          dateBtn.style.display = 'flex';
+          dateBtn.style.alignItems = 'center';
+          dateBtn.style.justifyContent = 'center';
+          dateBtn.style.fontSize = '14px';
+          dateBtn.style.fontFamily = 'TT Fors, sans-serif';
+          dateBtn.style.fontWeight = '500';
+
+          datesGrid.appendChild(dateBtn);
+        });
+
+        const lastDateStr = dateArray[dateArray.length - 1];
+        const emptyEndCells = 6 - this.getDayOfWeek(lastDateStr);
+
+        for (let i = 0; i < emptyEndCells; i++) {
+          const emptyCell = document.createElement('div');
+          datesGrid.appendChild(emptyCell);
+        }
+
+        calendarContainer.appendChild(datesGrid);
+        this.detailsDatesPopupSelectDates.appendChild(calendarContainer);
+      }
+
+      handleDetailsDateSelection(dateStr) {
+        const index = this.detailsSelectedDates.indexOf(dateStr);
+
+        if (index === -1) {
+          // Add date
+          this.detailsSelectedDates.push(dateStr);
+          this.detailsSelectedDates.sort();
+        } else {
+          // Remove date
+          this.detailsSelectedDates.splice(index, 1);
+        }
+
+        // Sync with main filter variable
+        this.selectedDates = [...this.detailsSelectedDates];
+        this.updateDetailsDateFilterText();
+        this.updateDetailsFilterStyles();
+        this.updateDetailsDateButtonStyles();
+        this.renderTripTypes(this.currentCharterData);
+        // Call main updateURLParams method like main filters do
+        // this.updateURLParams();
+      }
+
+      updateDetailsDateButtonStyles() {
+        if (!this.detailsDatesPopupSelectDates) return;
+
+        const dateButtons = this.detailsDatesPopupSelectDates.querySelectorAll('button');
+
+        dateButtons.forEach(btn => {
+          const btnDateStr = btn.getAttribute('data-date');
+          if (btnDateStr && this.detailsSelectedDates.includes(btnDateStr)) {
+            btn.style.background = '#000000';
+            btn.style.color = 'white';
+            btn.style.borderColor = '#000000';
+          } else if (btnDateStr) {
+            btn.style.background = 'white';
+            btn.style.color = 'black';
+            btn.style.borderColor = '#ddd';
+          }
+        });
+      }
+
+      renderTripTypes(charter) {
+        if (!this.tripTypeTemplate || !this.tripTypeWrapper || !charter.tripOptions) return;
+
+        // Clear existing trip type cards except template
+        const existingCards = this.tripTypeWrapper.querySelectorAll('[data-element="fishingCharterDetails_tripType_card"]');
+        existingCards.forEach((card, index) => {
+          if (index > 0) card.remove();
+        });
+
+        // Filter trip options based on season and dates if selected
+        let filteredTripOptions = charter.tripOptions.filter(trip => {
+          return this.isTripSeasonValid(trip);
+        });
+
+        // Hide template if no valid trips
+        if (filteredTripOptions.length === 0) {
+          this.tripTypeTemplate.style.display = 'none';
+          return;
+        }
+
+        // Render trip type cards
+        filteredTripOptions.forEach((trip, index) => {
+          let card;
+          if (index === 0) {
+            card = this.tripTypeTemplate;
+          } else {
+            card = this.tripTypeTemplate.cloneNode(true);
+            this.tripTypeWrapper.appendChild(card);
+          }
+
+          card.style.display = 'flex';
+          this.populateTripTypeCard(card, trip, charter);
+        });
+      }
+
+      isTripSeasonValid(trip) {
+        // If no dates selected, show all trips
+        if (this.detailsSelectedDates.length === 0) return true;
+
+        const seasonStart = trip.seasonStart || '1/1';
+        const seasonEnd = trip.seasonEnd || '12/31';
+
+        // If year-round (1/1 to 12/31), always valid
+        if (seasonStart === '1/1' && seasonEnd === '12/31') return true;
+
+        // Check if any selected date falls within the season
+        return this.detailsSelectedDates.some(dateStr => {
+          return this.isDateInSeason(dateStr, seasonStart, seasonEnd);
+        });
+      }
+
+      isDateInSeason(dateStr, seasonStart, seasonEnd) {
+        const date = new Date(dateStr);
+        const currentYear = date.getFullYear();
+
+        // Parse season dates
+        const [startMonth, startDay] = seasonStart.split('/').map(Number);
+        const [endMonth, endDay] = seasonEnd.split('/').map(Number);
+
+        const seasonStartDate = new Date(currentYear, startMonth - 1, startDay);
+        const seasonEndDate = new Date(currentYear, endMonth - 1, endDay);
+
+        // Handle seasons that cross year boundary
+        if (seasonStartDate > seasonEndDate) {
+          // Season crosses New Year (e.g., Dec 1 - Feb 28)
+          return date >= seasonStartDate || date <= seasonEndDate;
+        } else {
+          // Normal season within same year
+          return date >= seasonStartDate && date <= seasonEndDate;
+        }
+      }
+
+      populateTripTypeCard(card, trip, charter) {
+        // Trip name
+        const nameElement = card.querySelector('[data-element="fishingCharterDetails_tripType_name"]');
+        if (nameElement) {
+          nameElement.textContent = trip.name || '';
+        }
+
+        // Trip length and time
+        const lengthTimeElement = card.querySelector('[data-element="fishingCharterDetails_tripType_lengthTime"]');
+        if (lengthTimeElement) {
+          const lengthText = `${trip.lengthOfTrip || 0} Hour Trip`;
+          const timeText = this.formatMilitaryTime(trip.tripStartTime || 0);
+          lengthTimeElement.textContent = `${lengthText}, starts at ${timeText}`;
+        }
+
+        // Seasonal info
+        const seasonalElement = card.querySelector('[data-element="fishingCharterDetails_tripType_seasonal"]');
+        if (seasonalElement) {
+          if (trip.seasonStart === '1/1' && trip.seasonEnd === '12/31') {
+            seasonalElement.style.display = 'none';
+          } else {
+            seasonalElement.style.display = 'block';
+            const startDate = this.formatSeasonDate(trip.seasonStart);
+            const endDate = this.formatSeasonDate(trip.seasonEnd);
+            seasonalElement.textContent = `Seasonal trip ${startDate} - ${endDate}`;
+          }
+        }
+
+        // Price calculation
+        const priceElement = card.querySelector('[data-element="fishingCharterDetails_tripType_price"]');
+        const pricePeopleElement = card.querySelector('[data-element="fishingCharterDetails_tripType_pricePeople"]');
+
+        const basePeople = trip.pricePeople || 1;
+        const basePrice = trip.price || 0;
+
+        // Only update price if guests exceed the base pricePeople
+        if (this.detailsSelectedGuests > basePeople) {
+          const calculatedPrice = this.calculateTripPrice(trip, charter);
+          const peopleCount = this.calculatePeopleCount(trip);
+
+          if (priceElement) {
+            priceElement.textContent = `$${calculatedPrice.toLocaleString()}`;
+          }
+
+          if (pricePeopleElement) {
+            pricePeopleElement.textContent = `Price for ${peopleCount} people`;
+          }
+        } else {
+          // Show base price for base number of people
+          let displayPrice = basePrice;
+
+          // Add private dock fee if selected
+          if (this.detailsSelectedPrivateDock && charter.privateDockPickup && charter.privateDockPickupFee) {
+            displayPrice += charter.privateDockPickupFee;
+          }
+
+          // Multiply by number of selected dates
+          if (this.detailsSelectedDates.length > 0) {
+            displayPrice *= this.detailsSelectedDates.length;
+          }
+
+          // Apply service fee if integration type is not "Manual"
+          if (charter.integration_type !== 'Manual' && charter.serviceFee) {
+            displayPrice = displayPrice * (1 + charter.serviceFee);
+          }
+
+          if (priceElement) {
+            priceElement.textContent = `$${displayPrice.toLocaleString()}`;
+          }
+
+          if (pricePeopleElement) {
+            pricePeopleElement.textContent = `Price for ${basePeople} people`;
+          }
+        }
+
+        // Show trip details button
+        const showDetailsButton = card.querySelector('[data-element="fishingCharterDetails_tripType_showTripDetails"]');
+        const descriptionElement = card.querySelector('[data-element="fishingCharterDetails_tripType_description"]');
+        const targetedFishContainer = card.querySelector('[data-element="fishingCharterDetails_tripType_targetedFishContainer"]');
+
+        if (showDetailsButton && descriptionElement) {
+          // Initially hide details
+          descriptionElement.style.display = 'none';
+          if (targetedFishContainer) targetedFishContainer.style.display = 'none';
+          showDetailsButton.textContent = 'Show trip details';
+
+          showDetailsButton.addEventListener('click', () => {
+            const isHidden = descriptionElement.style.display === 'none';
+
+            if (isHidden) {
+              descriptionElement.style.display = 'flex';
+              if (targetedFishContainer && trip.targetedFish && trip.targetedFish.length > 0) {
+                targetedFishContainer.style.display = 'flex';
+                this.populateTargetedFish(targetedFishContainer, trip.targetedFish);
+              }
+              showDetailsButton.textContent = 'Show less';
+            } else {
+              descriptionElement.style.display = 'none';
+              if (targetedFishContainer) targetedFishContainer.style.display = 'none';
+              showDetailsButton.textContent = 'Show trip details';
+            }
+          });
+
+          // Populate description
+          if (descriptionElement) {
+            descriptionElement.textContent = trip.description || '';
+          }
+        }
+
+        // Add to reservation button
+        const addToReservationButton = card.querySelector('[data-element="fishingCharterDetails_tripType_addToReservationButton"]');
+        if (addToReservationButton) {
+          // Remove any existing event listeners to prevent duplicates
+          const newButton = addToReservationButton.cloneNode(true);
+          addToReservationButton.parentNode.replaceChild(newButton, addToReservationButton);
+
+          // Add click handler to the new button
+          newButton.addEventListener('click', () => {
+            this.handleAddToReservation(charter.id, trip);
+          });
+        }
+      }
+
+      formatMilitaryTime(time) {
+        const hour = Math.floor(time);
+        const minute = Math.round((time - hour) * 60);
+
+        let period = 'am';
+        let displayHour = hour;
+
+        if (hour >= 12) {
+          period = 'pm';
+          if (hour > 12) displayHour = hour - 12;
+        }
+        if (hour === 0) displayHour = 12;
+
+        const minuteStr = minute > 0 ? `:${minute.toString().padStart(2, '0')}` : '';
+        return `${displayHour}${minuteStr}${period}`;
+      }
+
+      formatSeasonDate(dateStr) {
+        const [month, day] = dateStr.split('/').map(Number);
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        return `${months[month - 1]} ${day}`;
+      }
+
+      calculateTripPrice(trip, charter) {
+        let basePrice = trip.price || 0;
+        const basePeople = trip.pricePeople || 1;
+        const additionalPersonRate = trip.pricePerAdditionalPerson || 0;
+
+        // Calculate additional people cost
+        if (this.detailsSelectedGuests > basePeople && additionalPersonRate > 0) {
+          const additionalPeople = this.detailsSelectedGuests - basePeople;
+          basePrice += (additionalPeople * additionalPersonRate);
+        }
+
+        // Add private dock pickup fee if selected
+        if (this.detailsSelectedPrivateDock && charter.privateDockPickup && charter.privateDockPickupFee) {
+          basePrice += charter.privateDockPickupFee;
+        }
+
+        // Multiply by number of selected dates
+        if (this.detailsSelectedDates.length > 0) {
+          basePrice *= this.detailsSelectedDates.length;
+        }
+
+        // Apply service fee if integration type is not "Manual"
+        if (charter.integration_type !== 'Manual' && charter.serviceFee) {
+          basePrice = basePrice * (1 + charter.serviceFee);
+        }
+
+        return basePrice;
+      }
+
+      calculatePeopleCount(trip) {
+        if (this.detailsSelectedGuests > 0) {
+          return this.detailsSelectedGuests;
+        }
+        return trip.pricePeople || 1;
+      }
+
+      populateTargetedFish(container, targetedFish) {
+        const cardTemplate = container.querySelector('[data-element="fishingCharterDetails_tripType_targetedFishCard"]');
+        const cardContainer = container.querySelector('[data-element="fishingCharterDetails_tripType_targetedFishCardContainer"]');
+
+        if (!cardTemplate || !cardContainer) return;
+
+        // Clear existing cards except template
+        const existingCards = cardContainer.querySelectorAll('[data-element="fishingCharterDetails_tripType_targetedFishCard"]');
+        existingCards.forEach((card, index) => {
+          if (index > 0) card.remove();
+        });
+
+        if (targetedFish.length === 0) {
+          cardTemplate.style.display = 'none';
+          return;
+        }
+
+        targetedFish.forEach((fish, index) => {
+          let card;
+          if (index === 0) {
+            card = cardTemplate;
+          } else {
+            card = cardTemplate.cloneNode(true);
+            cardContainer.appendChild(card);
+          }
+
+          card.style.display = 'flex';
+
+          const textElement = card.querySelector('[data-element="fishingCharterDetails_tripType_targetedFishCardText"]');
+          if (textElement) {
+            textElement.textContent = fish.fish || '';
+          }
+        });
+      }
+
+      handleAddToReservation(charterId, trip) {
+        // Prevent multiple rapid calls
+        if (this.isAddingToReservation) {
+
+          return;
+        }
+        this.isAddingToReservation = true;
+
+        try {
+          // Check if dates and guests are selected
+          const needsDates = this.detailsSelectedDates.length === 0;
+          const needsGuests = this.detailsSelectedGuests === 0;
+
+          if (needsDates || needsGuests) {
+            let message = 'Please select ';
+            if (needsDates && needsGuests) {
+              message += 'date(s) and guests';
+            } else if (needsDates) {
+              message += 'date(s)';
+            } else {
+              message += 'guests';
+            }
+            this.showMessage(message + ' before adding to reservation.');
+            return;
+          }
+
+          // Check if we're editing an existing charter or adding a new one
+          let charterNumber;
+          const url = new URL(window.location);
+
+          if (this.editingCharterNumber) {
+            // We're editing an existing charter, use the same number
+            charterNumber = this.editingCharterNumber;
+          } else {
+            // We're adding a new charter, migrate legacy parameters and get next number
+            this.migrateLegacyParameters();
+            charterNumber = this.getNextFishingCharterNumber();
+          }
+
+          // Add/update numbered parameters to URL
+          url.searchParams.set(`fishingCharterId${charterNumber}`, charterId);
+          url.searchParams.set(`fishingCharterTripId${charterNumber}`, trip.id || '');
+          url.searchParams.set(`fishingCharterGuests${charterNumber}`, this.detailsSelectedGuests.toString());
+          url.searchParams.set(`fishingCharterDates${charterNumber}`, this.detailsSelectedDates.join(','));
+
+          // Set pickup parameter based on private dock selection
+          if (this.detailsSelectedPrivateDock) {
+            url.searchParams.set(`fishingCharterPickup${charterNumber}`, 'true');
+          } else if (this.detailsSelectedPickupTime) {
+            url.searchParams.set(`fishingCharterPickup${charterNumber}`, this.detailsSelectedPickupTime);
+          } else {
+            url.searchParams.set(`fishingCharterPickup${charterNumber}`, '');
+          }
+
+          window.history.replaceState({}, '', url);
+
+          // Clear all filters since user will likely search for different charter next time
+          this.clearDatesFilter();
+          this.clearGuestsFilter();
+          this.clearPriceFilter();
+          this.clearFishingTypeFilter();
+          this.clearPrivateDockFilter();
+
+
+          this.populateSelectedFishingCharterBlock();
+
+          // Update pricing display for extras
+          if (window.updatePricingDisplayForExtras) {
+            window.updatePricingDisplayForExtras();
+          }
+
+          // Reset editing state
+          this.editingCharterNumber = null;
+          this.editingTripId = null;
+
+          // Reset editing state after successful completion
+          this.editingCharterNumber = null;
+          this.editingTripId = null;
+
+          this.closeModal();
+        } finally {
+          // Reset the flag after a short delay to prevent legitimate consecutive calls
+          setTimeout(() => {
+            this.isAddingToReservation = false;
+          }, 500);
+        }
+      }
+
+      showMessage(message) {
+        // Clear any existing message
+        if (this.messageTimeout) {
+          clearTimeout(this.messageTimeout);
+        }
+
+        // Create or get message element
+        let messageElement = document.querySelector('.fishing-charter-message');
+        if (!messageElement) {
+          messageElement = document.createElement('div');
+          messageElement.className = 'fishing-charter-message';
+          document.body.appendChild(messageElement);
+
+          // Add styles
+          const style = document.createElement('style');
+          style.textContent = `
+            .fishing-charter-message {
+              position: fixed;
+              top: 20px;
+              left: 50%;
+              transform: translateX(-50%);
+              background-color: #323232;
+              color: white;
+              padding: 12px 24px;
+              border-radius: 8px;
+              z-index: 9999;
+              display: none;
+              font-family: 'TT Fors', sans-serif;
+              font-size: 14px;
+              box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            }
+          `;
+          document.head.appendChild(style);
+        }
+
+        // Show message
+        messageElement.textContent = message;
+        messageElement.style.display = 'block';
+
+        // Hide after 3 seconds
+        this.messageTimeout = setTimeout(() => {
+          messageElement.style.display = 'none';
+        }, 3000);
+      }
+
+      updateButtonAvailability() {
+        if (!this.buttons || this.buttons.length === 0) return;
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const hasDates = urlParams.has('checkin') && urlParams.has('checkout');
+        const checkIn = urlParams.get('checkin');
+        const checkOut = urlParams.get('checkout');
+
+        if (!checkIn || !checkOut || checkIn === '' || checkOut === '') {
+          // Disable button appearance and set not-allowed cursor
+          this.buttons.forEach(button => {
+            if (button) {
+              button.style.cursor = 'not-allowed';
+              button.style.opacity = '0.5';
+
+              const tooltipMessage = hasDates
+                ? 'Valid dates must be selected to add fishing charter'
+                : 'Dates must be selected to add fishing charter';
+
+              button.setAttribute('title', tooltipMessage);
+            }
+          });
+        } else {
+          // Enable button appearance and set normal cursor
+          this.buttons.forEach(button => {
+            if (button) {
+              button.style.cursor = 'pointer';
+              button.style.opacity = '1';
+              button.removeAttribute('title');
+            }
+          });
+        }
+      }
+
+      updateAddToReservationButtonsAvailability() {
+        // Find all Add to Reservation buttons in the details view
+        const addToReservationButtons = document.querySelectorAll('[data-element="fishingCharterDetails_tripType_addToReservationButton"]');
+
+        const needsDates = this.detailsSelectedDates.length === 0;
+        const needsGuests = this.detailsSelectedGuests === 0;
+        const isDisabled = needsDates || needsGuests;
+
+        addToReservationButtons.forEach(button => {
+          if (isDisabled) {
+            // Disable button appearance and set not-allowed cursor
+            button.style.cursor = 'not-allowed';
+
+
+            let tooltipMessage = 'Please select ';
+            if (needsDates && needsGuests) {
+              tooltipMessage += 'date(s) and guests';
+            } else if (needsDates) {
+              tooltipMessage += 'date(s)';
+            } else {
+              tooltipMessage += 'guests';
+            }
+            tooltipMessage += ' before adding to reservation.';
+
+            button.setAttribute('title', tooltipMessage);
+          } else {
+            // Enable button appearance and set normal cursor
+            button.style.cursor = 'pointer';
+            button.style.opacity = '1';
+            button.removeAttribute('title');
+          }
+        });
+      }
+    }
+
+    // Initialize fishing charter service
+    const fishingCharter = new FishingCharterService();
+
+    // Make it globally accessible
+    window.fishingCharterService = fishingCharter;
+
+    // Periodically check button availability in case URL changes through other means
+    setInterval(() => {
+      fishingCharter.updateButtonAvailability();
+    }, 1000);
+
+    // Initial pricing update if fishing charters are selected
+    if (fishingCharter.hasAnyFishingCharters() && window.updatePricingDisplayForExtras) {
+      // Wait for calendar data to be available
+      Wized.requests.waitFor('Load_Property_Calendar_Query').then(() => {
+        window.updatePricingDisplayForExtras();
+      });
+    }
   });
 });
-
-
-
-
-
-
-
 

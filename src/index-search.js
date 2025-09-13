@@ -1,5 +1,72 @@
 document.addEventListener('DOMContentLoaded', function () {
 
+    // Global variable to store user age
+    let userAge = null;
+    let userDataLoaded = false;
+
+    // Helper function to wait for user data to be loaded
+    async function waitForUserData(timeout = 5000) {
+        return new Promise((resolve) => {
+            if (userDataLoaded) {
+                resolve();
+                return;
+            }
+
+            const startTime = Date.now();
+            const checkInterval = setInterval(() => {
+                if (userDataLoaded || (Date.now() - startTime) > timeout) {
+                    clearInterval(checkInterval);
+                    resolve();
+                }
+            }, 100);
+        });
+    }
+
+    window.Wized = window.Wized || [];
+    window.Wized.push(async (Wized) => {
+        try {
+            const requestName = 'Load_user'; // Ensure this matches the actual request name
+            await Wized.requests.waitFor(requestName);
+
+            if (Wized.data.r.Load_user.status === 200 && Wized.data.r.Load_user.data.Birth_Date) {
+                const birthDateStr = Wized.data.r.Load_user.data.Birth_Date; // e.g. "1999-07-18"
+                // Manually parse birth date
+                const [birthYear, birthMonth, birthDay] = birthDateStr.split('-').map(Number);
+
+                // Manually get today's date
+                const now = new Date();
+                const currentYear = now.getFullYear();
+                const currentMonth = now.getMonth() + 1; // JS months are 0-based
+                const currentDay = now.getDate();
+
+                let age = currentYear - birthYear;
+                if (
+                    currentMonth < birthMonth ||
+                    (currentMonth === birthMonth && currentDay < birthDay)
+                ) {
+                    age--;
+                }
+
+                // Store user age globally
+                userAge = age;
+                userDataLoaded = true;
+
+            } else {
+                // User not logged in or no birth date
+                userDataLoaded = true;
+            }
+        } catch (err) {
+
+            userDataLoaded = true; // Still mark as loaded even if error
+        }
+    });
+
+
+
+
+
+
+
     // Get all button elements
     const typeButton = document.querySelector('[data-element="navBarSearch_typeButton"]');
     const locationButton = document.querySelector('[data-element="navBarSearch_locationButton"]');
@@ -48,9 +115,8 @@ document.addEventListener('DOMContentLoaded', function () {
     const listingsPerPage = 20;
     let currentListings = []; // Store current listings for pagination
 
-    // Filter state object - stores all active filters
+    // Filter state object - stores all active (applied) filters
     const activeFilters = {
-        typeOfSearch: null,
         priceRange: {
             min: null,
             max: null
@@ -67,13 +133,137 @@ document.addEventListener('DOMContentLoaded', function () {
             hasBoatSpecsLength: null,
             hasBoatSpecsDraft: null,
             hasBoatSpecsBeam: null,
+            hasMinBoatLength: null, // New property for minimum boat length requirement
         },
         amenities: [],
         petsAllowed: null,
     };
 
+    // Pending filter state - stores filters being edited (before applying)
+    const pendingFilters = {
+        priceRange: {
+            min: null,
+            max: null
+        },
+        bedrooms: null,
+        beds: null,
+        bathrooms: null,
+        dock: {
+            hasPrivateDock: null,
+            hasShorePower: null,
+            hasFreshWater: null,
+            hasCleaningStation: null,
+            hasDockLights: null,
+            hasBoatSpecsLength: null,
+            hasBoatSpecsDraft: null,
+            hasBoatSpecsBeam: null,
+            hasMinBoatLength: null, // New property for minimum boat length requirement
+        },
+        amenities: [],
+        petsAllowed: null,
+    };
+
+    var boatRentals = [];
+    var fishingCharters = [];
+
     // Store original unfiltered results
     let unfilteredListings = [];
+
+    // --- Phase 0: Pricing helpers ---
+    const fmtMoney = (n) => '$' + Math.round(Number(n) || 0).toLocaleString('en-US');
+    const hasDates = () => Boolean(apiFormats?.dates?.checkIn && apiFormats?.dates?.checkOut);
+    const wantBoat = () => Boolean(currentSelections?.typeFlags?.boatRental);
+    const wantChar = () => Boolean(currentSelections?.typeFlags?.fishingCharter);
+
+    // Home "starting-at" (NO DATES): includes cleaning & serviceFee multiplier
+    const computeHomeStartNoDates = (listing) => {
+        const minNights = Number(listing?.min_nights) || 1;
+        const nightly = Number(listing?.nightlyPrice);
+
+        if (!Number.isFinite(nightly)) {
+            return null; // signals "Price unavailable"
+        }
+
+        const cleaning = Number(listing?.cleaning_fee) || 0;
+        const svcMult = 1 + (Number(listing?.serviceFee) || 0); // e.g. 1 + 0.12 = 1.12
+        const result = (minNights * nightly + cleaning) * svcMult;
+        return result;
+    };
+
+
+
+    // Extras min prices (using existing badge logic)
+    const minBoat = (listing) => {
+        if (!wantBoat()) {
+            return 0;
+        }
+
+        if (typeof boatModule === 'undefined') {
+            return 0;
+        }
+
+        try {
+            // Fix: Convert Date objects to proper format for boat module
+            let datesForBoat = apiFormats?.dates;
+            if (datesForBoat?.checkIn && datesForBoat?.checkOut) {
+                // Convert Date objects to YYYY-MM-DD strings if needed
+                if (datesForBoat.checkIn instanceof Date) {
+                    datesForBoat = {
+                        checkIn: formatDateForAPI(datesForBoat.checkIn),
+                        checkOut: formatDateForAPI(datesForBoat.checkOut)
+                    };
+                }
+            }
+
+            // Fix: Use charter module's active guest filter instead of search guest count
+            // This ensures charter filter changes are reflected in listing prices
+            const charterFilters = charterModule.getCurrentFilters();
+            const guestCount = Math.max(1, charterFilters.guests || apiFormats?.guests?.total || 1);
+
+            const badgeData = boatModule.getBoatBadgeData(listing, datesForBoat, guestCount);
+            const result = Number(badgeData?.minPrice || 0);
+
+            return result;
+        } catch (e) {
+            return 0;
+        }
+    };
+
+    const minChar = (listing) => {
+        if (!wantChar()) {
+            return 0;
+        }
+        try {
+
+            // Fix: Convert Date objects to proper format for charter module
+            let datesForCharter = apiFormats?.dates;
+            if (datesForCharter?.checkIn && datesForCharter?.checkOut) {
+                // Convert Date objects to YYYY-MM-DD strings if needed
+                if (datesForCharter.checkIn instanceof Date) {
+                    datesForCharter = {
+                        checkIn: formatDateForAPI(datesForCharter.checkIn),
+                        checkOut: formatDateForAPI(datesForCharter.checkOut)
+                    };
+                }
+            }
+
+            // Fix: Use charter module's active guest filter instead of search guest count
+            // This ensures charter filter changes are reflected in listing prices
+            const charterFilters = charterModule.getCurrentFilters();
+            const guestCount = Math.max(1, charterFilters.guests || apiFormats?.guests?.total || 1);
+
+            const badgeData = charterModule.getCharterBadgeData(listing, datesForCharter, guestCount);
+            const result = Number(badgeData?.minPrice || 0);
+
+            if (badgeData?.count === 0) {
+            }
+
+            return result;
+        } catch (e) {
+            return 0;
+        }
+    };
+
     // Initial styles for filter modal
     const filterModal = document.querySelector('[data-element="filterModal"]');
     if (filterModal) {
@@ -120,15 +310,17 @@ document.addEventListener('DOMContentLoaded', function () {
         location: defaultValues.location,
         dates: defaultValues.dates,
         guests: defaultValues.guests,
-        selectedDatesObj: { checkIn: null, checkOut: null } // <-- add this
+        selectedDatesObj: { checkIn: null, checkOut: null }, // <-- add this
+        typeFlags: { boatRental: false, fishingCharter: false }
     };
 
     // Pending selections (not yet confirmed with search)
     const pendingSelections = { ...currentSelections };
+    pendingSelections.typeFlags = { boatRental: false, fishingCharter: false };
 
     // API-ready format for the search endpoint
     const apiFormats = {
-        type: defaultValues.type,
+        type: { boatRental: false, fishingCharter: false },
         location: {
             name: defaultValues.location,
             bounds: {
@@ -160,7 +352,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     };
 
-    // Simplified function to ensure YYYY-MM-DD format without date manipulation
+    // Function to ensure YYYY-MM-DD format, accepting YYYY-MM-DD and "Thu Feb 18 2027 00:00:00 GMT-0500 (Eastern Standard Time)"-like strings, without creating a new Date object
     function formatDateToYYYYMMDD(date) {
         if (!date) return '';
 
@@ -169,9 +361,35 @@ document.addEventListener('DOMContentLoaded', function () {
             if (date.match(/^\d{4}-\d{2}-\d{2}$/)) {
                 return date;
             }
+            // Try to match formats like "Thu Feb 18 2027 00:00:00 GMT-0500 (Eastern Standard Time)"
+            // Look for pattern: DayOfWeek Month Day Year ...
+            const match = date.match(/^[A-Za-z]{3,},?\s([A-Za-z]{3,})\s(\d{1,2})\s(\d{4})/);
+            // Or fallback: "Thu Feb 18 2027 00:00:00 GMT-0500 (Eastern Standard Time)"
+            const fallbackMatch = date.match(/^[A-Za-z]{3}\s([A-Za-z]{3})\s(\d{1,2})\s(\d{4})/);
+            const months = {
+                Jan: '01', Feb: '02', Mar: '03', Apr: '04', May: '05', Jun: '06',
+                Jul: '07', Aug: '08', Sep: '09', Oct: '10', Nov: '11', Dec: '12'
+            };
+            let m = match || fallbackMatch;
+            if (m) {
+                const month = months[m[1]];
+                const day = String(m[2]).padStart(2, '0');
+                const year = m[3];
+                if (month && year && day) {
+                    return `${year}-${month}-${day}`;
+                }
+            }
         }
 
-        // If it's not a proper string, return empty
+        // If it's a Date object, format as YYYY-MM-DD
+        if (date instanceof Date && !isNaN(date.getTime())) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
+        // If it's not a proper string or Date, return empty
         return '';
     }
 
@@ -235,6 +453,27 @@ document.addEventListener('DOMContentLoaded', function () {
                     southwest: { lat: 24.689237, lng: -81.092847 },
                     center: { lat: 24.699992, lng: -81.083595 }
                 }
+            },
+            "Upper Keys": {
+                bounds: {
+                    northeast: { lat: 25.3, lng: -80.0 },
+                    southwest: { lat: 24.5, lng: -80.9 },
+                    center: { lat: 24.9, lng: -80.45 }
+                }
+            },
+            "Middle Keys": {
+                bounds: {
+                    northeast: { lat: 24.8, lng: -80.8 },
+                    southwest: { lat: 24.4, lng: -81.3 },
+                    center: { lat: 24.6, lng: -81.05 }
+                }
+            },
+            "Lower Keys": {
+                bounds: {
+                    northeast: { lat: 24.5, lng: -81.2 },
+                    southwest: { lat: 24.4, lng: -82.0 },
+                    center: { lat: 24.45, lng: -81.6 }
+                }
             }
         };
 
@@ -267,7 +506,6 @@ document.addEventListener('DOMContentLoaded', function () {
             const response = await fetch(apiUrl);
 
             if (!response.ok) {
-                console.error('API response not OK:', response.status, response.statusText);
                 throw new Error('Failed to fetch location data');
             }
 
@@ -298,16 +536,20 @@ document.addEventListener('DOMContentLoaded', function () {
 
             return result;
         } catch (error) {
-            console.error('Error fetching location bounds:', error);
-            console.error('Error details:', error.message, error.stack);
             return null;
         }
     }
 
     // Function to update API formats based on current selections
     async function updateAPIFormats() {
-        // Update type
-        apiFormats.type = currentSelections.type;
+        // Update type booleans for request (always present)
+        (function updateTypeBooleans() {
+            const str = (currentSelections.type || '').toLowerCase();
+            apiFormats.type = {
+                boatRental: !!(currentSelections.typeFlags?.boatRental || str.includes('boat')),
+                fishingCharter: !!(currentSelections.typeFlags?.fishingCharter || str.includes('charter') || str.includes('fishing'))
+            };
+        })();
 
         // Update location (only if not default)
         if (currentSelections.location !== defaultValues.location) {
@@ -548,6 +790,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const originalGlobalSearchClick = searchButton.onclick;
 
         searchButton.onclick = async function (e) {
+            console.log("Main search handler executing");
             e.preventDefault();
             e.stopPropagation();  // Prevent event bubbling
 
@@ -572,12 +815,30 @@ document.addEventListener('DOMContentLoaded', function () {
 
             if (pendingSelections.type === defaultValues.type) {
                 currentSelections.type = defaultValues.type;
+                currentSelections.typeFlags = { boatRental: false, fishingCharter: false };
             } else {
                 currentSelections.type = pendingSelections.type;
+                if (pendingSelections.typeFlags) {
+                    currentSelections.typeFlags = { ...pendingSelections.typeFlags };
+                } else {
+                    const str = (pendingSelections.type || '').toLowerCase();
+                    currentSelections.typeFlags = {
+                        boatRental: str.includes('boat'),
+                        fishingCharter: str.includes('charter') || str.includes('fishing')
+                    };
+                }
             }
 
             // Update API formats based on current selections
             await updateAPIFormats();
+
+            // Update extras visibility based on type selections
+            updateExtrasVisibility();
+
+            // Phase 4: Update price filter when search state changes
+            if (typeof filterSystem !== 'undefined' && filterSystem.updatePriceFilter) {
+                filterSystem.updatePriceFilter();
+            }
 
             // Fetch property search results
             const searchResults = await fetchPropertySearchResults();
@@ -586,7 +847,6 @@ document.addEventListener('DOMContentLoaded', function () {
             if (!searchResults?.error) {
                 localStorage.setItem('propertySearchResults', JSON.stringify(searchResults));
             } else {
-                console.error('Search failed:', searchResults?.message);
             }
 
             // Close all popups after search is clicked
@@ -631,57 +891,121 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Type popup functionality
     function setupTypePopup() {
-        const homeBoatOption = document.querySelector('[data-element="navBarSearch_typePopup_homeBoat"]');
-        const privateHomeOption = document.querySelector('[data-element="navBarSearch_typePopup_privateHome"]');
+        const privateHomeEl = document.querySelector('[data-element="navBarSearch_typePopup_privateHome"]');
+        const boatSelectedEl = document.querySelector('[data-element="navBarSearch_typePopup_boatRentalSelected"]');
+        const boatNotSelectedEl = document.querySelector('[data-element="navBarSearch_typePopup_boatRentalNotSelected"]');
+        const fishSelectedEl = document.querySelector('[data-element="navBarSearch_typePopup_fishingCharterSelected"]');
+        const fishNotSelectedEl = document.querySelector('[data-element="navBarSearch_typePopup_fishingCharterNotSelected"]');
 
-        // Set initial selection (Private Home is default)
-        if (privateHomeOption) {
-            privateHomeOption.classList.add('selected');
+        // Ensure Private Home is always selected
+        if (privateHomeEl) {
+            privateHomeEl.classList.add('selected');
         }
 
-        // Function to update the visual state of type options based on current selection
-        function updateTypeSelectionVisual() {
-            // Remove selected class from both options
-            if (homeBoatOption) homeBoatOption.classList.remove('selected');
-            if (privateHomeOption) privateHomeOption.classList.remove('selected');
+        // Internal pending state for toggles
+        let pendingBoat = false;
+        let pendingFishing = false;
 
-            // Add selected class based on current confirmed selection
-            if (currentSelections.type === "Home & Boat" && homeBoatOption) {
-                homeBoatOption.classList.add('selected');
-            } else if (currentSelections.type === "Private Home" && privateHomeOption) {
-                privateHomeOption.classList.add('selected');
+        // Parse a type text into flags
+        function parseTypeString(typeStr) {
+            const str = (typeStr || '').toLowerCase();
+            return {
+                boat: str.includes('boat'),
+                fishing: str.includes('fishing')
+            };
+        }
+
+        // Build the button text from flags
+        function buildTypeText(flags) {
+            const parts = ['Home'];
+            if (flags.boat) parts.push('Boat');
+            if (flags.fishing) parts.push('Charter');
+            // if (parts.length === 3) {
+            //     parts[2] = parts[2].slice(0, 2) + '..';
+            // }
+            return parts.join(' + ');
+        }
+
+        // Apply visibility for selected/not-selected UI blocks
+        function applyToggleVisibility(flags) {
+            if (boatSelectedEl) boatSelectedEl.style.display = flags.boat ? 'flex' : 'none';
+            if (boatNotSelectedEl) boatNotSelectedEl.style.display = flags.boat ? 'none' : 'flex';
+            if (fishSelectedEl) fishSelectedEl.style.display = flags.fishing ? 'flex' : 'none';
+            if (fishNotSelectedEl) fishNotSelectedEl.style.display = flags.fishing ? 'none' : 'flex';
+
+            // Hide NotSelectedContainer if both extras are selected
+            const notSelectedContainer = document.querySelector('[data-element="navBarSearch_typePopup_NotSelectedContainer"]');
+            if (notSelectedContainer) {
+                const bothSelected = flags.boat && flags.fishing;
+                notSelectedContainer.style.display = bothSelected ? 'none' : 'flex';
             }
         }
 
-        // Function to handle type selection
-        function handleTypeSelection(selectedElement, selectedType) {
-            // Remove selected class from both options
-            if (homeBoatOption) homeBoatOption.classList.remove('selected');
-            if (privateHomeOption) privateHomeOption.classList.remove('selected');
+        // Initialize from confirmed selection
+        const initialFlags = parseTypeString(currentSelections.type);
+        // Prefer explicit flags if present
+        if (currentSelections.typeFlags) {
+            initialFlags.boat = !!currentSelections.typeFlags.boatRental;
+            initialFlags.fishing = !!currentSelections.typeFlags.fishingCharter;
+        }
+        pendingBoat = initialFlags.boat;
+        pendingFishing = initialFlags.fishing;
+        applyToggleVisibility(initialFlags);
+        // Sync button and pending selection text to confirmed value on open
+        updateButtonText(typeButtonText, buildTypeText(initialFlags), defaultValues.type);
+        pendingSelections.type = buildTypeText(initialFlags);
+        pendingSelections.typeFlags = { boatRental: pendingBoat, fishingCharter: pendingFishing };
 
-            // Add selected class to the clicked option
-            if (selectedElement) selectedElement.classList.add('selected');
-
-            // Update pending selection and button text
-            pendingSelections.type = selectedType;
-            updateButtonText(typeButtonText, selectedType, defaultValues.type);
+        function syncPendingAndText() {
+            const flags = { boat: pendingBoat, fishing: pendingFishing };
+            const text = buildTypeText(flags);
+            pendingSelections.type = text;
+            pendingSelections.typeFlags = { boatRental: pendingBoat, fishingCharter: pendingFishing };
+            updateButtonText(typeButtonText, text, defaultValues.type);
+            applyToggleVisibility(flags);
         }
 
-        // Add click event listeners to options
-        if (homeBoatOption) {
-            homeBoatOption.addEventListener('click', function () {
-                handleTypeSelection(homeBoatOption, "Home & Boat");
-            });
+        // Toggle helpers
+        function toggleBoatRental() {
+            pendingBoat = !pendingBoat;
+            syncPendingAndText();
         }
 
-        if (privateHomeOption) {
-            privateHomeOption.addEventListener('click', function () {
-                handleTypeSelection(privateHomeOption, "Private Home");
-            });
+        function toggleFishingCharter() {
+            pendingFishing = !pendingFishing;
+            syncPendingAndText();
         }
 
-        // Make updateTypeSelectionVisual available outside this function
-        return { updateTypeSelectionVisual };
+        // Click listeners to toggle visibility; stop propagation to avoid closing popup
+        if (boatNotSelectedEl) boatNotSelectedEl.addEventListener('click', (e) => { e.stopPropagation(); toggleBoatRental(); });
+        if (boatSelectedEl) boatSelectedEl.addEventListener('click', (e) => { e.stopPropagation(); toggleBoatRental(); });
+        if (fishNotSelectedEl) fishNotSelectedEl.addEventListener('click', (e) => { e.stopPropagation(); toggleFishingCharter(); });
+        if (fishSelectedEl) fishSelectedEl.addEventListener('click', (e) => { e.stopPropagation(); toggleFishingCharter(); });
+
+        // Ensure UI matches confirmed selection and revert pending
+        function updateTypeSelectionVisual() {
+            const flags = parseTypeString(currentSelections.type);
+            // Prefer explicit flags if present
+            if (currentSelections.typeFlags) {
+                flags.boat = !!currentSelections.typeFlags.boatRental;
+                flags.fishing = !!currentSelections.typeFlags.fishingCharter;
+            }
+            pendingBoat = flags.boat;
+            pendingFishing = flags.fishing;
+            if (privateHomeEl) privateHomeEl.classList.add('selected');
+            applyToggleVisibility(flags);
+            const text = buildTypeText(flags);
+            pendingSelections.type = text;
+            pendingSelections.typeFlags = { boatRental: pendingBoat, fishingCharter: pendingFishing };
+            updateButtonText(typeButtonText, text, defaultValues.type);
+        }
+
+        function revertPendingType() {
+            updateTypeSelectionVisual();
+        }
+
+        // Make functions available outside
+        return { updateTypeSelectionVisual, revertPendingType };
     }
 
     // Location popup functionality
@@ -1583,6 +1907,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (searchButton) {
             const originalSearchClickHandler = searchButton.onclick;
             searchButton.onclick = function (e) {
+                console.log("Guest search handler executing");
                 // Update confirmed guests with current selections
                 confirmedGuests = { ...guests };
 
@@ -2321,6 +2646,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (searchButton) {
             const originalSearchClickHandler = searchButton.onclick;
             searchButton.onclick = function (e) {
+                console.log("Dates search handler executing");
 
                 // Check if dates popup is open and selection is incomplete
                 if (datesPopup && datesPopup.style.display === 'flex' &&
@@ -2508,7 +2834,28 @@ document.addEventListener('DOMContentLoaded', function () {
             width: 60% !important;
         }
     }
+
+    /* Make Nav Bar logo hide if less than 360px */
+    @media screen and (max-width: 360px) {
+        [data-element="LogoNavBar"] {
+            display: none !important;
+        }
+    }
     
+    /* Make listing-card-extras-container flex vertically between 990px and 1250px */
+    @media screen and (max-width: 1250px) and (min-width: 990px) {
+        [data-element="listing-card-extras-container"] {
+            flex-direction: column !important;
+            display: flex !important;
+        }
+    }
+    /* And also for less than 480px */
+    @media screen and (max-width: 480px) {
+        [data-element="listing-card-extras-container"] {
+            flex-direction: column !important;
+            display: flex !important;
+        }
+    }
 `;
         document.head.appendChild(mapListingsLayoutStyles);
 
@@ -2544,8 +2891,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Apply layout on window resize
         window.addEventListener('resize', ensureProperLayout);
-
-
 
         // Add responsive CSS
         const responsiveNavStyles = document.createElement('style');
@@ -2611,7 +2956,6 @@ document.addEventListener('DOMContentLoaded', function () {
         const navBarContainer = document.querySelector('[data-element="navBar_Container"]');
 
         if (!phoneViewContainer || !phoneViewLocation || !phoneViewDatesGuests || !navBarContainer) {
-            console.error('Required phone view elements not found');
             return;
         }
 
@@ -2627,8 +2971,9 @@ document.addEventListener('DOMContentLoaded', function () {
             // Update dates and guests
             const hasCustomDates = currentSelections.dates !== defaultValues.dates;
             const hasCustomGuests = currentSelections.guests !== defaultValues.guests;
+            const hasCustomType = currentSelections.type !== defaultValues.type;
 
-            if (!hasCustomDates && !hasCustomGuests) {
+            if (!hasCustomDates && !hasCustomGuests && !hasCustomType) {
                 // Default search - hide dates/guests
                 phoneViewDatesGuests.style.display = 'none';
             } else {
@@ -2637,7 +2982,18 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 let datesGuestsText = '';
 
+                if (hasCustomType) {
+                    const typeStr = (currentSelections.type || '').toLowerCase();
+                    if (typeStr.includes('boat')) {
+                        datesGuestsText += '🛥️';
+                    }
+                    if (typeStr.includes('charter')) {
+                        datesGuestsText += '🎣';
+                    }
+                }
+
                 if (hasCustomDates) {
+                    if (datesGuestsText) datesGuestsText += ' • ';
                     datesGuestsText += currentSelections.dates;
                 }
 
@@ -2707,24 +3063,24 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         };
 
-        // Override the search button click to close mobile popup
-        if (searchButton) {
-            const originalSearchClick = searchButton.onclick;
-            searchButton.onclick = function (e) {
-                // Call original handler
-                if (originalSearchClick) {
-                    originalSearchClick.call(this, e);
-                }
+        // // Override the search button click to close mobile popup
+        // if (searchButton) {
+        //     const originalSearchClick = searchButton.onclick;
+        //     searchButton.onclick = function (e) {
+        //         // Call original handler
+        //         if (originalSearchClick) {
+        //             originalSearchClick.call(this, e);
+        //         }
 
-                // Close mobile popup after search
-                if (window.innerWidth <= 991) {
-                    hideMobilePopup();
-                }
+        //         // Close mobile popup after search
+        //         if (window.innerWidth <= 991) {
+        //             hideMobilePopup();
+        //         }
 
-                // Update phone view content after search
-                updatePhoneViewContent();
-            };
-        }
+        //         // Update phone view content after search
+        //         updatePhoneViewContent();
+        //     };
+        // }
 
         // Update phone view content initially and when selections change
         updatePhoneViewContent();
@@ -2751,6 +3107,7 @@ document.addEventListener('DOMContentLoaded', function () {
         // Get the new mobile navigation buttons
         const navBarCloseButton = document.querySelector('[data-element="navBarSearch_closeButton"]');
         const navBarClearButton = document.querySelector('[data-element="navBarSearch_clearButton"]');
+        const phoneViewSearchButton = document.querySelector('[data-element="navBarSearch_phone_searchButton"]');
 
         // Type popup buttons
         const typePopupCloseButton = document.querySelector('[data-element="navBarSearch_typePopup_closeButton"]');
@@ -2767,6 +3124,8 @@ document.addEventListener('DOMContentLoaded', function () {
         // Guests popup buttons
         const guestsPopupCloseButton = document.querySelector('[data-element="navBarSearch_guestsPopup_closeButton"]');
         const guestsPopupSearchButton = document.querySelector('[data-element="navBarSearch_guestsPopup_searchButton"]');
+
+
 
         // Function to reset to default values (for clear button)
         function resetToDefaults() {
@@ -2786,11 +3145,17 @@ document.addEventListener('DOMContentLoaded', function () {
 
             // Reset type popup visual state
             if (typeof typePopupHandlers !== 'undefined' && typePopupHandlers.updateTypeSelectionVisual) {
-                const homeBoatOption = document.querySelector('[data-element="navBarSearch_typePopup_homeBoat"]');
-                const privateHomeOption = document.querySelector('[data-element="navBarSearch_typePopup_privateHome"]');
+                const privateHomeEl = document.querySelector('[data-element="navBarSearch_typePopup_privateHome"]');
+                const boatSelectedEl = document.querySelector('[data-element="navBarSearch_typePopup_boatRentalSelected"]');
+                const boatNotSelectedEl = document.querySelector('[data-element="navBarSearch_typePopup_boatRentalNotSelected"]');
+                const fishSelectedEl = document.querySelector('[data-element="navBarSearch_typePopup_fishingCharterSelected"]');
+                const fishNotSelectedEl = document.querySelector('[data-element="navBarSearch_typePopup_fishingCharterNotSelected"]');
 
-                if (homeBoatOption) homeBoatOption.classList.remove('selected');
-                if (privateHomeOption) privateHomeOption.classList.add('selected');
+                if (privateHomeEl) privateHomeEl.classList.add('selected');
+                if (boatSelectedEl) boatSelectedEl.style.display = 'none';
+                if (boatNotSelectedEl) boatNotSelectedEl.style.display = 'flex';
+                if (fishSelectedEl) fishSelectedEl.style.display = 'none';
+                if (fishNotSelectedEl) fishNotSelectedEl.style.display = 'flex';
             }
 
             // Reset location input
@@ -2862,34 +3227,39 @@ document.addEventListener('DOMContentLoaded', function () {
             });
         }
 
-        // Override the main search button to hide container on success
-        if (searchButton) {
-            const existingSearchClick = searchButton.onclick;
-            searchButton.onclick = async function (e) {
-                e.preventDefault();
-                e.stopPropagation();
+        // // Override the main search button to hide container on success
+        // if (searchButton) {
+        //     const existingSearchClick = searchButton.onclick;
+        //     searchButton.onclick = async function (e) {
+        //         e.preventDefault();
+        //         e.stopPropagation();
 
-                // Call the existing search logic
-                if (existingSearchClick) {
-                    await existingSearchClick.call(this, e);
-                }
+        //         // Call the existing search logic
+        //         if (existingSearchClick) {
+        //             await existingSearchClick.call(this, e);
+        //         }
 
-                // Hide mobile popup after successful search
-                if (window.innerWidth <= 991) {
-                    hideMobilePopup();
-                }
+        //         // Hide mobile popup after successful search
+        //         if (window.innerWidth <= 991) {
+        //             hideMobilePopup();
+        //         }
 
-                // Update phone view content
-                updatePhoneViewContent();
-            };
-        }
+        //         // Update phone view content
+        //         updatePhoneViewContent();
+        //     };
+        // }
 
         // Type popup button handlers
         if (typePopupCloseButton) {
             typePopupCloseButton.addEventListener('click', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                e.stopImmediatePropagation(); // ADD THIS to prevent all other handlers
+                e.stopImmediatePropagation();
+
+                // // Revert pending type changes to last confirmed selection
+                // if (typeof typePopupHandlers !== 'undefined' && typePopupHandlers.updateTypeSelectionVisual) {
+                //     typePopupHandlers.updateTypeSelectionVisual();
+                // }
 
                 // Only hide this specific popup, don't close entire container
                 if (typePopup) typePopup.style.display = 'none';
@@ -2911,8 +3281,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
                 }
 
-                // Don't revert changes - keep temp selections
-                return false; // ADD THIS to prevent further event handling
+                return false;
             });
         }
 
@@ -2921,6 +3290,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 e.stopPropagation();
                 navigateToNextPopup(typePopup, locationPopup);
                 // Remove selected class from type button
+                if (typeButton) typeButton.classList.remove('selected');
             });
         }
 
@@ -3060,8 +3430,18 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 if (pendingSelections.type === defaultValues.type) {
                     currentSelections.type = defaultValues.type;
+                    currentSelections.typeFlags = { boatRental: false, fishingCharter: false };
                 } else {
                     currentSelections.type = pendingSelections.type;
+                    if (pendingSelections.typeFlags) {
+                        currentSelections.typeFlags = { ...pendingSelections.typeFlags };
+                    } else {
+                        const str = (pendingSelections.type || '').toLowerCase();
+                        currentSelections.typeFlags = {
+                            boatRental: str.includes('boat'),
+                            fishingCharter: str.includes('charter') || str.includes('fishing')
+                        };
+                    }
                 }
 
                 // Copy selected dates object if available
@@ -3077,6 +3457,14 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Update API formats based on current selections
                 await updateAPIFormats();
 
+                // Update extras visibility based on type selections
+                updateExtrasVisibility();
+
+                // Phase 4: Update price filter when search state changes
+                if (typeof filterSystem !== 'undefined' && filterSystem.updatePriceFilter) {
+                    filterSystem.updatePriceFilter();
+                }
+
                 // Fetch property search results
                 const searchResults = await fetchPropertySearchResults();
 
@@ -3084,11 +3472,108 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (!searchResults?.error) {
                     localStorage.setItem('propertySearchResults', JSON.stringify(searchResults));
                 } else {
-                    console.error('Search failed:', searchResults?.message);
                 }
+
+                // Update listing cards with new extras state and pricing
+                const filtered = filterSystem ? filterSystem.applyFilters(unfilteredListings) : unfilteredListings;
+                renderListingCards(filtered, false, 1);
+                updateMarkersVisibilityWithFilters(filtered);
+
+                // Update badges if needed (boat/charter)
+                updateBoatBadgeForAllVisibleCards(filtered);
+                updateCharterBadgeForAllVisibleCards(filtered);
 
                 // Close guests popup and hide mobile container
                 if (guestsPopup) guestsPopup.style.display = 'none';
+                hideMobilePopup();
+
+                // Update phone view content
+                updatePhoneViewContent();
+            });
+        }
+
+        if (phoneViewSearchButton) {
+            phoneViewSearchButton.addEventListener('click', async (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+
+                // Update current selections from pending (same logic as main search button)
+                if (pendingSelections.location === defaultValues.location) {
+                    currentSelections.location = defaultValues.location;
+                } else {
+                    currentSelections.location = pendingSelections.location;
+                }
+
+                if (pendingSelections.dates === defaultValues.dates) {
+                    currentSelections.dates = defaultValues.dates;
+                } else {
+                    currentSelections.dates = pendingSelections.dates;
+                }
+
+                if (pendingSelections.guests === defaultValues.guests) {
+                    currentSelections.guests = defaultValues.guests;
+                } else {
+                    currentSelections.guests = pendingSelections.guests;
+                }
+
+                if (pendingSelections.type === defaultValues.type) {
+                    currentSelections.type = defaultValues.type;
+                    currentSelections.typeFlags = { boatRental: false, fishingCharter: false };
+                } else {
+                    currentSelections.type = pendingSelections.type;
+                    if (pendingSelections.typeFlags) {
+                        currentSelections.typeFlags = { ...pendingSelections.typeFlags };
+                    } else {
+                        const str = (pendingSelections.type || '').toLowerCase();
+                        currentSelections.typeFlags = {
+                            boatRental: str.includes('boat'),
+                            fishingCharter: str.includes('charter') || str.includes('fishing')
+                        };
+                    }
+                }
+
+                // Copy selected dates object if available
+                if (pendingSelections.selectedDatesObj) {
+                    currentSelections.selectedDatesObj = pendingSelections.selectedDatesObj;
+                }
+
+                // Copy guest details if available
+                if (pendingSelections.guestDetails) {
+                    currentSelections.guestDetails = pendingSelections.guestDetails;
+                }
+
+                // Update API formats based on current selections
+                await updateAPIFormats();
+
+                // Update extras visibility based on type selections
+                updateExtrasVisibility();
+
+                // Phase 4: Update price filter when search state changes
+                if (typeof filterSystem !== 'undefined' && filterSystem.updatePriceFilter) {
+                    filterSystem.updatePriceFilter();
+                }
+
+                // Fetch property search results
+                const searchResults = await fetchPropertySearchResults();
+
+                // Handle search results
+                if (!searchResults?.error) {
+                    localStorage.setItem('propertySearchResults', JSON.stringify(searchResults));
+                } else {
+                }
+
+                // Update listing cards with new extras state and pricing
+                const filtered = filterSystem ? filterSystem.applyFilters(unfilteredListings) : unfilteredListings;
+                renderListingCards(filtered, false, 1);
+                updateMarkersVisibilityWithFilters(filtered);
+
+                // Update badges if needed (boat/charter)
+                updateBoatBadgeForAllVisibleCards(filtered);
+                updateCharterBadgeForAllVisibleCards(filtered);
+
+                // Close all popups after search is clicked
+                closeAllPopups();
+
                 hideMobilePopup();
 
                 // Update phone view content
@@ -3162,13 +3647,1186 @@ document.addEventListener('DOMContentLoaded', function () {
     setupLocationPopup();
     setupDatesPopup();
     setupGuestsPopup();
+
+    /***** BOAT MODULE (boats only; charter-ready shape) *****/
+    const boatModule = (() => {
+        // Public "enabled" flag (toggle from your "Type" UI)
+        let enabled = false;
+
+        // Active filters that apply to boats (applied state)
+        const filters = {
+            days: 0.5,                    // 0.5 for half day, 1+ for full days
+            passengers: 1,                // minimum passengers/capacity
+            dockDelivery: false,          // if true, must deliver to listing's city
+            selectedDates: [],            // array of selected date strings
+            lengthType: 'half',           // 'half' or 'full'
+            boatTypes: []                // array of selected boat types ["Center Console", "Pontoon", etc.]
+        };
+
+        // Pending filters (being edited in modal)
+        const pendingFilters = {
+            days: 0.5,
+            passengers: 1,
+            dockDelivery: false,
+            selectedDates: [],
+            lengthType: 'half',
+            boatTypes: []
+        };
+
+        // Preindexed data
+        const boatsByListingId = new Map(); // listingId -> Boat[]
+
+        // --- Utils ---
+        const lc = s => String(s ?? "").trim().toLowerCase();
+        const getCity = v => {
+            // For listings, try different city field names
+            if (v?.listing_city) return lc(v.listing_city);
+            if (v?.city) return lc(v.city);
+            if (v?.locationCity) return lc(v.locationCity);
+            if (v?.pickupCity) return lc(v.pickupCity);
+
+            // For boats, check if it has _boatcompany with service cities
+            if (v?._boatcompany) {
+                // Try to get the primary service city (usually servicesTo_city1)
+                for (let i = 1; i <= 10; i++) {
+                    const cityField = `servicesTo_city${i}`;
+                    if (v._boatcompany[cityField] && typeof v._boatcompany[cityField] === 'string' && v._boatcompany[cityField].trim()) {
+                        return lc(v._boatcompany[cityField]);
+                    }
+                }
+            }
+
+            return "";
+        };
+        const priceNum = v => Number(v || 0);
+        const hasArr = a => Array.isArray(a) && a.length > 0;
+
+        // Helper function to get all service cities for a boat
+        const getBoatServiceCities = (boat) => {
+            const cities = [];
+            if (boat?._boatcompany) {
+                for (let i = 1; i <= 10; i++) {
+                    const cityField = `servicesTo_city${i}`;
+                    if (boat._boatcompany[cityField] && typeof boat._boatcompany[cityField] === 'string' && boat._boatcompany[cityField].trim()) {
+                        cities.push(lc(boat._boatcompany[cityField]));
+                    }
+                }
+            }
+            return cities;
+        };
+
+        // Helper function to check if boat can service a specific city
+        // If useDeliveryCities is true, allow delivery cities; otherwise, only primary/service cities
+        const checkBoatServicesCity = (boat, targetCity, useDeliveryCities = false) => {
+            const normalizedTarget = lc(targetCity);
+            const serviceCities = getBoatServiceCities(boat);
+            const primaryCity = getCity(boat);
+            const inPrimaryOrService = normalizedTarget === primaryCity || serviceCities.includes(normalizedTarget);
+
+            if (inPrimaryOrService) return true;
+
+            if (useDeliveryCities) {
+                const deliveryCities = (boat?._boatcompany?.privateDockDeliveryCity || []).map(cityObj => lc(cityObj?.city || ""));
+                return deliveryCities.includes(normalizedTarget);
+            }
+
+            return false;
+        };
+
+        // Very simple YMD overlap helpers; adapt to your real availability
+        const isDateRangeBlocked = (checkInYMD, checkOutYMD, blockedRanges = []) => {
+            if (!checkInYMD || !checkOutYMD || !hasArr(blockedRanges)) return false;
+            // TODO: replace with your real overlap logic
+            return false;
+        };
+
+        // --- Build index once per results load ---
+        function buildIndex(listings, allBoats) {
+
+            boatsByListingId.clear();
+            if (!Array.isArray(listings) || !Array.isArray(allBoats)) {
+                return;
+            }
+
+            // Group listings by normalized city
+            const cityToListingIds = new Map();
+            for (const l of listings) {
+                const c = getCity(l);
+                if (!cityToListingIds.has(c)) cityToListingIds.set(c, []);
+                cityToListingIds.get(c).push(l.id);
+            }
+
+            // Attach boats by city match (or delivery cities)
+            for (const boat of allBoats) {
+                // Get all service cities for this boat (from commented code logic)
+                const serviceCities = [];
+                if (boat?._boatcompany) {
+                    for (let i = 1; i <= 10; i++) {
+                        const cityField = `servicesTo_city${i}`;
+                        if (boat._boatcompany[cityField] && typeof boat._boatcompany[cityField] === 'string' && boat._boatcompany[cityField].trim()) {
+                            serviceCities.push(lc(boat._boatcompany[cityField]));
+                        }
+                    }
+                }
+
+                const boatCity = getCity(boat);
+                const deliveryCities = (boat?._boatcompany?.privateDockDeliveryCity || []).map(cityObj => lc(cityObj?.city || ""));
+
+
+                // candidate listing ids = primary city + all service cities + all delivery cities
+                const candidateListingIds = new Set([
+                    ...(cityToListingIds.get(boatCity) || []),
+                    ...serviceCities.flatMap(sc => cityToListingIds.get(sc) || []),
+                    ...deliveryCities.flatMap(dc => cityToListingIds.get(dc) || []),
+                ]);
+
+
+                for (const listingId of candidateListingIds) {
+                    if (!boatsByListingId.has(listingId)) boatsByListingId.set(listingId, []);
+                    boatsByListingId.get(listingId).push(boat);
+                }
+            }
+
+        }
+
+        // --- Filter boats for a single listing (pure) ---
+        function filterBoatsForListing(listing, dates, guestCount) {
+            const options = boatsByListingId.get(listing.id) || [];
+
+            if (!options.length) {
+                return [];
+            }
+
+            const needGuests = Math.max(1, Number(guestCount || filters.passengers || 1));
+            const cIn = dates?.checkIn, cOut = dates?.checkOut;
+            const listingCity = getCity(listing);
+
+            const filteredBoats = options.filter(b => {
+
+                // FIRST CHECK: Can this boat actually service the listing's city?
+                // Only consider delivery cities if the user toggled dock delivery
+                const canServiceListing = checkBoatServicesCity(b, listingCity, !!filters.dockDelivery);
+                if (!canServiceListing) {
+                    return false;
+                }
+
+                // Age check - only apply if user data is loaded and user is signed in
+                if (userDataLoaded && userAge !== null && b._boatcompany?.minAge) {
+                    const minAge = Number(b._boatcompany.minAge);
+                    if (!isNaN(minAge) && userAge < minAge) {
+                        return false;
+                    }
+                }
+
+                // Passenger capacity check (from original code logic)
+                if (filters.passengers > 1 && (b.maxPassengers || 0) < filters.passengers) {
+                    return false;
+                }
+                if (needGuests && (b.maxPassengers || 0) < needGuests) {
+                    return false;
+                }
+
+                // Legacy capacity filter removed
+
+                // Boat type filtering (multiple types supported)
+                if (filters.boatTypes.length > 0) {
+                    const boatTypeMatches = filters.boatTypes.some(filterType =>
+                        lc(b.boatType) === lc(filterType)
+                    );
+                    if (!boatTypeMatches) {
+                        return false;
+                    }
+                }
+
+                // Dock delivery requirement
+                if (filters.dockDelivery) {
+                    const deliv = (b?._boatcompany?.privateDockDeliveryCity || []).map(cityObj => lc(cityObj?.city || ""));
+                    if (!deliv.includes(listingCity)) {
+                        return false;
+                    }
+                }
+
+                // Minimum reservation length check (from original logic)
+                // For default half-day (0.5), be permissive - accept boats with min reservation <= 1
+                // For user-selected longer periods, enforce minimum reservation length
+                if (filters.days === 0.5) {
+                    // Default half-day: accept if min reservation is 1 day or less (most boats should qualify)
+                    const minRes = b.minReservationLength || 0;
+                    if (minRes > 1) {
+                        return false;
+                    }
+                } else if (filters.days > 0.5) {
+                    // Full-day+ request: check minimum reservation length
+                    if ((b.minReservationLength || 0) > filters.days) {
+                        return false;
+                    }
+                }
+
+                // Date availability check for selected dates
+                if (filters.selectedDates.length > 0) {
+                    // This would need real availability logic
+                    // For now, we'll assume all boats are available on selected dates
+                    // TODO: implement real date availability checking
+                }
+
+                // Basic date availability (stubbed – replace with real logic)
+                if (isDateRangeBlocked(cIn, cOut, b.unavailableRanges)) {
+                    return false;
+                }
+
+                return true;
+            });
+
+            return filteredBoats;
+        }
+
+        // --- Badge data (decoupled from filtering/UI) ---
+        function getBoatBadgeData(listing, dates, guestCount) {
+
+            const filtered = filterBoatsForListing(listing, dates, guestCount);
+
+            if (!filtered.length) {
+                return { count: 0, minPrice: null, formatted: "0 Boats" };
+            }
+
+            // Calculate minimum price using sophisticated pricing logic from commented code
+            let min = null;
+            let minDaysUsed = null; // Track the days used for the min price
+
+            filtered.forEach(boat => {
+                let basePrice = 0;
+                let daysToCalculate = filters.days || 0;
+
+                // If numDays is 0, use the minimum reservation length
+                if (daysToCalculate === 0) {
+                    daysToCalculate = boat.minReservationLength || 1;
+                }
+
+                // Calculate base price based on rental duration (from commented code logic)
+                if (daysToCalculate < 1) {
+                    // Half day rental - use half day price, or fall back to daily price
+                    basePrice = boat.pricePerHalfDay || boat.pricePerDay || 0;
+                } else if (daysToCalculate >= 1 && daysToCalculate <= 6) {
+                    // Daily rental (1-6 days)
+                    basePrice = (boat.pricePerDay || 0) * daysToCalculate;
+                } else if (daysToCalculate >= 7 && daysToCalculate <= 29) {
+                    // Weekly rental (7-29 days)
+                    if (boat.pricePerWeek && boat.pricePerWeek > 0) {
+                        // Calculate based on weekly rate and round to avoid decimals
+                        const dailyWeeklyRate = boat.pricePerWeek / 7;
+                        basePrice = Math.round(dailyWeeklyRate * daysToCalculate);
+                    } else {
+                        // Fall back to daily rate if weekly not available
+                        basePrice = (boat.pricePerDay || 0) * daysToCalculate;
+                    }
+                } else if (daysToCalculate >= 30) {
+                    // Monthly rental (30+ days)
+                    if (boat.pricePerMonth && boat.pricePerMonth > 0) {
+                        // Calculate based on monthly rate and round to avoid decimals
+                        const dailyMonthlyRate = boat.pricePerMonth / 30;
+                        basePrice = Math.round(dailyMonthlyRate * daysToCalculate);
+                    } else if (boat.pricePerWeek && boat.pricePerWeek > 0) {
+                        // Fall back to weekly rate if monthly not available and round to avoid decimals
+                        const dailyWeeklyRate = boat.pricePerWeek / 7;
+                        basePrice = Math.round(dailyWeeklyRate * daysToCalculate);
+                    } else {
+                        // Fall back to daily rate if neither monthly nor weekly available
+                        basePrice = (boat.pricePerDay || 0) * daysToCalculate;
+                    }
+                }
+
+                if (filters.dockDelivery === true) {
+                    basePrice += boat._boatcompany?.deliveryFee || 0;
+                }
+
+                // Apply service fee if not manual integration (from commented code)
+                let finalPrice = Math.round(basePrice); // Ensure base price is rounded
+                if (boat._boatcompany && boat._boatcompany.integration_type !== 'Manual') {
+                    const serviceFee = boat._boatcompany.serviceFee || 0;
+                    finalPrice = Math.round(basePrice * (1 + serviceFee));
+                }
+
+                // Update cheapest price if this boat is cheaper
+                if (finalPrice > 0 && (min === null || finalPrice < min)) {
+                    min = finalPrice;
+                    minDaysUsed = daysToCalculate;
+                }
+            });
+
+            const boatLabel = filtered.length === 1 ? 'Boat' : 'Boats';
+            const formatted = min != null
+                ? `${filtered.length} ${boatLabel} • $${min.toLocaleString()}+`.trim()
+                : `${filtered.length} ${boatLabel}`;
+
+            return { count: filtered.length, minPrice: min, formatted };
+        }
+
+        // --- Gate used by listing filter pass ---
+        function listingPassesBoatGate(listing, dates, guestCount) {
+
+            if (!enabled) {
+                return true; // feature not selected → do not gate
+            }
+
+            const hasBoats = filterBoatsForListing(listing, dates, guestCount).length > 0;
+            return hasBoats;
+        }
+
+        // Get active filter count for badge display (uses active filters, not pending)
+        function getActiveFilterCount() {
+            let count = 0;
+            if (filters.days !== 0.5) count++;
+            if (filters.passengers !== 1) count++;
+            if (filters.dockDelivery) count++;
+            if (filters.selectedDates.length > 0) count++;
+            if (filters.boatTypes.length > 0) count++;
+            return count;
+        }
+
+        // Get current filter state for debugging/UI
+        function getCurrentFilters() {
+            return { ...filters };
+        }
+
+        // Function to initialize pending state from active state
+        function initializePendingState() {
+            Object.assign(pendingFilters, filters);
+        }
+
+        // Function to apply pending filters to active filters
+        function applyPendingFilters() {
+            Object.assign(filters, pendingFilters);
+        }
+
+        // Function to revert pending filters to active state
+        function revertPendingFilters() {
+            Object.assign(pendingFilters, filters);
+        }
+
+        // Public API
+        return {
+            setEnabled(v) { enabled = !!v; },
+            setFilters(partial) { Object.assign(filters, partial || {}); },
+            setPendingFilters(partial) { Object.assign(pendingFilters, partial || {}); },
+            resetFilters() {
+                const resetState = {
+                    days: 0.5,
+                    passengers: 1,
+                    dockDelivery: false,
+                    selectedDates: [],
+                    lengthType: 'half',
+                    boatTypes: []
+                };
+                Object.assign(filters, resetState);
+                Object.assign(pendingFilters, resetState);
+            },
+            resetPendingFilters() {
+                const resetState = {
+                    days: 0.5,
+                    passengers: 1,
+                    dockDelivery: false,
+                    selectedDates: [],
+                    lengthType: 'half',
+                    boatTypes: []
+                };
+                Object.assign(pendingFilters, resetState);
+            },
+            buildIndex,
+            getBoatBadgeData,
+            listingPassesBoatGate,
+            getActiveFilterCount,
+            getCurrentFilters: () => ({ ...filters }),
+            getPendingFilters: () => ({ ...pendingFilters }),
+            initializePendingState,
+            applyPendingFilters,
+            revertPendingFilters,
+            isEnabled: () => enabled,
+            _debug: { boatsByListingId }, // optional
+        };
+    })();
+
+    // Make boat module globally accessible for future UI integration
+    window.boatModule = boatModule;
+
+    /***** FISHING CHARTER MODULE (charters only; parallel to boats) *****/
+    const charterModule = (() => {
+        // Public "enabled" flag (toggle from your "Type" UI or charter modal)
+        let enabled = false;
+
+        // Active filters that apply to fishing charters (applied state)
+        const filters = {
+            guests: 1,                    // minimum guests/capacity
+            days: 1,                      // number of charter days (>=1)
+            requirePrivateDockPickup: false, // if true, must have private dock pickup
+            fishingTypes: new Set(),      // set of selected fishing types
+        };
+
+        // Pending filters (being edited in modal)
+        const pendingFilters = {
+            guests: 1,
+            days: 1,
+            requirePrivateDockPickup: false,
+            fishingTypes: new Set(),
+        };
+
+        // Preindexed data
+        const chartersByListingId = new Map(); // listingId -> Charter[]
+
+        // --- Utils ---
+        const lc = s => String(s ?? "").trim().toLowerCase();
+        const getCity = v => {
+            // For listings, try different city field names
+            if (v?.listing_city) return lc(v.listing_city);
+            if (v?.city) return lc(v.city);
+            if (v?.locationCity) return lc(v.locationCity);
+
+            // For charter companies, check company location fields
+            if (v?.companyCity) return lc(v.companyCity);
+            if (v?.location) return lc(v.location);
+            if (v?.baseLocation) return lc(v.baseLocation);
+
+            return "";
+        };
+
+        // Helper function to parse M/D season strings
+        function parseMD(md) {
+            if (!md || typeof md !== 'string') return null;
+            const parts = md.split('/');
+            if (parts.length !== 2) return null;
+            const month = parseInt(parts[0]);
+            const day = parseInt(parts[1]);
+            if (isNaN(month) || isNaN(day) || month < 1 || month > 12 || day < 1 || day > 31) {
+                return null;
+            }
+            return { month, day };
+        }
+
+        // Helper function to check if a date falls within a season (handles year wrap)
+        function dateInSeason(date, startMD, endMD) {
+            if (!date || !startMD || !endMD) return false;
+
+            const month = date.getMonth() + 1; // getMonth() is 0-based
+            const day = date.getDate();
+
+            // Check if season wraps around year end
+            if (startMD.month > endMD.month ||
+                (startMD.month === endMD.month && startMD.day > endMD.day)) {
+                // Season wraps (e.g., Nov 15 to Feb 15)
+                return (month > startMD.month || (month === startMD.month && day >= startMD.day)) ||
+                    (month < endMD.month || (month === endMD.month && day <= endMD.day));
+            } else {
+                // Normal season (e.g., Mar 1 to Oct 31)
+                return (month > startMD.month || (month === startMD.month && day >= startMD.day)) &&
+                    (month < endMD.month || (month === endMD.month && day <= endMD.day));
+            }
+        }
+
+        // Helper function to convert "M/D" season format to current year date
+        function parseSeasonDate(seasonStr) {
+            if (!seasonStr || typeof seasonStr !== 'string') return null;
+            const parts = seasonStr.split('/');
+            if (parts.length !== 2) return null;
+            const month = parseInt(parts[0]);
+            const day = parseInt(parts[1]);
+            if (isNaN(month) || isNaN(day) || month < 1 || month > 12 || day < 1 || day > 31) {
+                return null;
+            }
+
+            const currentYear = new Date().getFullYear();
+            const date = new Date(currentYear, month - 1, day); // month is 0-indexed in Date constructor
+            return date;
+        }
+
+        // Helper function to check if a date falls within a season (handles cross-year seasons)
+        function isDateInSeason(checkDate, seasonStart, seasonEnd) {
+            if (!checkDate || !seasonStart || !seasonEnd) return false;
+
+            const startDate = parseSeasonDate(seasonStart);
+            const endDate = parseSeasonDate(seasonEnd);
+
+            if (!startDate || !endDate) return false;
+
+            // Check for year-round season (1/1 to 12/31)
+            if (startDate.getMonth() === 0 && startDate.getDate() === 1 &&
+                endDate.getMonth() === 11 && endDate.getDate() === 31) {
+                return true; // Year-round season
+            }
+
+            // Create date objects with same year for comparison
+            const checkMonth = checkDate.getMonth();
+            const checkDay = checkDate.getDate();
+            const startMonth = startDate.getMonth();
+            const startDay = startDate.getDate();
+            const endMonth = endDate.getMonth();
+            const endDay = endDate.getDate();
+
+            // Check if season crosses year boundary (e.g., Aug 30 to Mar 30)
+            if (startMonth > endMonth || (startMonth === endMonth && startDay > endDay)) {
+                // Season crosses year boundary
+                return (checkMonth > startMonth || (checkMonth === startMonth && checkDay >= startDay)) ||
+                    (checkMonth < endMonth || (checkMonth === endMonth && checkDay <= endDay));
+            } else {
+                // Normal season within same year
+                return (checkMonth > startMonth || (checkMonth === startMonth && checkDay >= startDay)) &&
+                    (checkMonth < endMonth || (checkMonth === endMonth && checkDay <= endDay));
+            }
+        }
+
+        // Helper function to check if date range overlaps with season
+        function rangeOverlapsSeason(checkInDate, checkOutDate, seasonStart, seasonEnd) {
+            if (!checkInDate || !checkOutDate || !seasonStart || !seasonEnd) return false;
+
+            // Convert string dates to Date objects if needed
+            let startDate = checkInDate;
+            let endDate = checkOutDate;
+
+            if (typeof checkInDate === 'string') {
+                startDate = new Date(checkInDate);
+            }
+            if (typeof checkOutDate === 'string') {
+                endDate = new Date(checkOutDate);
+            }
+
+            // Check if any day in the date range falls within the season
+            const currentDate = new Date(startDate);
+            while (currentDate <= endDate) {
+                if (isDateInSeason(currentDate, seasonStart, seasonEnd)) {
+                    return true;
+                }
+                currentDate.setDate(currentDate.getDate() + 1);
+            }
+
+            return false;
+        }
+
+        // Helper function to compute trip base price per day (without service fee)
+        function computeTripBasePricePerDay(trip, boatCapacity, guests) {
+            if (!trip || guests <= 0) return null;
+
+            // Check capacity
+            if (guests > boatCapacity) return null;
+
+            const pricePeople = Math.min(trip.pricePeople || 0, boatCapacity);
+            let basePrice = trip.price || 0;
+            const additionalPersonPrice = trip.pricePerAdditionalPerson || 0;
+
+            // Calculate base price with guest adjustments
+            if (guests <= pricePeople) {
+                basePrice = basePrice;
+            } else {
+                basePrice = basePrice + (guests - pricePeople) * additionalPersonPrice;
+            }
+
+            return basePrice;
+        }
+
+        // Helper function to apply service fee to total cost
+        function applyServiceFee(totalCost, charter) {
+            if (!charter || charter.integration_type === "Manual") {
+                return totalCost;
+            }
+
+            const serviceFee = charter.serviceFee || 0;
+            return totalCost * (serviceFee + 1);
+        }
+
+        // Helper function to check if trip matches selected types
+        function tripMatchesTypes(trip, selectedTypes) {
+            if (selectedTypes.size === 0) return true; // No filter applied
+
+            if (!trip.type || !Array.isArray(trip.type)) return false;
+
+            return trip.type.some(typeObj => {
+                const typeText = normalizeCharterType(typeObj.text || '');
+                return selectedTypes.has(typeText);
+            });
+        }
+
+        // Helper function to normalize charter type labels
+        function normalizeCharterType(label) {
+            const normalized = lc(label);
+            const mappings = {
+                'inshore': 'Inshore Fishing',
+                'inshore fishing': 'Inshore Fishing',
+                'nearshore': 'Nearshore Fishing',
+                'nearshore fishing': 'Nearshore Fishing',
+                'near fishing': 'Nearshore Fishing',
+                'offshore': 'Offshore Fishing',
+                'offshore fishing': 'Offshore Fishing',
+                'reef': 'Reef Fishing',
+                'reef fishing': 'Reef Fishing',
+                'wreck': 'Wreck Fishing',
+                'wreck fishing': 'Wreck Fishing',
+                'flats': 'Flats Fishing',
+                'flats fishing': 'Flats Fishing',
+                'backcountry': 'Backcountry Fishing',
+                'backcountry fishing': 'Backcountry Fishing'
+            };
+            return mappings[normalized] || label;
+        }
+
+        // Florida Keys city positions (approximate order from north to south)
+        const floridaKeysOrder = {
+            'key largo': 0,
+            'tavernier': 1,
+            'plantation key': 2,
+            'islamorada': 3,
+            'upper matecumbe key': 4,
+            'lower matecumbe key': 5,
+            'long key': 6,
+            'conch key': 7,
+            'duck key': 8,
+            'grassy key': 9,
+            'crawl key': 10,
+            'marathon': 11,
+            'key colony beach': 12,
+            'boot key': 13,
+            'knight key': 14,
+            'little duck key': 15,
+            'ohio key': 16,
+            'missouri key': 17,
+            'bahia honda key': 18,
+            'spanish harbor key': 19,
+            'big pine key': 20,
+            'little torch key': 21,
+            'ramrod key': 22,
+            'summerland key': 23,
+            'cudjoe key': 24,
+            'sugarloaf key': 25,
+            'saddlebunch keys': 26,
+            'big coppit key': 27,
+            'rockland key': 28,
+            'stock island': 29,
+            'key west': 30
+        };
+
+        // Helper function to get normalized city position
+        function getCityPosition(cityName) {
+            if (!cityName) return -1;
+
+            const normalized = lc(cityName);
+
+            // Direct match
+            if (floridaKeysOrder.hasOwnProperty(normalized)) {
+                return floridaKeysOrder[normalized];
+            }
+
+            // Handle common variations and abbreviations
+            const variations = {
+                'kl': 'key largo',
+                'largo': 'key largo',
+                'islamorada village': 'islamorada',
+                'village of islamorada': 'islamorada',
+                'marathon shores': 'marathon',
+                'marathon key': 'marathon',
+                'key colony': 'key colony beach',
+                'big pine': 'big pine key',
+                'little torch': 'little torch key',
+                'torch key': 'little torch key',
+                'ramrod': 'ramrod key',
+                'summerland': 'summerland key',
+                'cudjoe': 'cudjoe key',
+                'sugarloaf': 'sugarloaf key',
+                'stock': 'stock island',
+                'kw': 'key west',
+                'key west city': 'key west'
+            };
+
+            // Check variations
+            if (variations[normalized]) {
+                return floridaKeysOrder[variations[normalized]];
+            }
+
+            // Fuzzy matching for partial matches
+            for (const [key, position] of Object.entries(floridaKeysOrder)) {
+                if (normalized.includes(key) || key.includes(normalized)) {
+                    return position;
+                }
+            }
+
+            return -1; // Unknown city
+        }
+
+        // Helper function to check if two cities are within reasonable charter distance
+        function isWithinCharterDistance(charterCity, listingCity) {
+            const charterPos = getCityPosition(charterCity);
+            const listingPos = getCityPosition(listingCity);
+
+            // If we can't determine positions, allow it (fallback)
+            if (charterPos === -1 || listingPos === -1) {
+                return true;
+            }
+
+            // Allow charters within ~8 positions (roughly 30 miles in the Keys)
+            // This allows Islamorada to Marathon but not Marathon to Key West
+            const distance = Math.abs(charterPos - listingPos);
+            return distance <= 8;
+        }
+
+        // Helper function to check if company can serve the listing location
+        function companyCanServeListing(company, listing) {
+            const listingCity = getCity(listing);
+            const charterCity = getCity(company);
+
+            // First check geographic distance
+            if (!isWithinCharterDistance(charterCity, listingCity)) {
+                return false;
+            }
+
+            return true;
+        }
+
+        // Helper function to check if company satisfies dock pickup requirements
+        function companySatisfiesDockPickup(company, listing) {
+            if (!filters.requirePrivateDockPickup) return true;
+
+            // Company must offer private dock pickup
+            if (!company.privateDockPickup) return false;
+
+            // Listing must have a private dock
+            if (!listing.private_dock) return false;
+
+            const listingCity = getCity(listing);
+
+            // If no specific cities listed, assume they can serve anywhere (within distance)
+            if (!company.privateDockPickupCity || company.privateDockPickupCity.length === 0) {
+                return true;
+            }
+
+            // Check if listing city is in the pickup cities
+            if (listingCity) {
+                const normalizedListingCity = lc(listingCity);
+                return company.privateDockPickupCity.some(cityObj =>
+                    lc(cityObj.city || '') === normalizedListingCity
+                );
+            }
+
+            return true; // If no listing city provided, don't filter
+        }
+
+        // --- Build index once per results load ---
+        function buildIndex(listings, allCharters) {
+            chartersByListingId.clear();
+            if (!Array.isArray(listings) || !Array.isArray(allCharters)) {
+                return;
+            }
+
+            // Filter charters by geographic proximity and dock pickup requirements
+            for (const listing of listings) {
+                const listingCity = getCity(listing);
+                const eligibleCharters = [];
+
+                for (const charter of allCharters) {
+                    // Check if charter can serve this listing (geographic distance)
+                    if (!companyCanServeListing(charter, listing)) {
+                        continue;
+                    }
+
+                    eligibleCharters.push(charter);
+                }
+
+                if (eligibleCharters.length > 0) {
+                    chartersByListingId.set(listing.id, eligibleCharters);
+                }
+
+            }
+
+        }
+
+        // --- Filter charters for a single listing (pure) ---
+        function filterChartersForListing(listing, dates, guestCount) {
+            const options = chartersByListingId.get(listing.id) || [];
+
+            if (!options.length) {
+                return [];
+            }
+
+            const needGuests = Math.max(1, Number(guestCount || filters.guests || 1));
+            const eligibleTrips = [];
+
+            for (const charter of options) {
+                // Check dock pickup requirement (now includes private dock check on listing)
+                if (!companySatisfiesDockPickup(charter, listing)) {
+                    continue;
+                }
+
+                // Age check - only apply if user data is loaded and user is signed in
+                if (userDataLoaded && userAge !== null && charter.minAge) {
+                    const minAge = Number(charter.minAge);
+                    if (!isNaN(minAge) && userAge < minAge) {
+                        continue;
+                    }
+                }
+
+                const boatCapacity = charter.boatInfo?.[0]?.boatCapacity || Infinity;
+                if (needGuests > boatCapacity) {
+                    continue;
+                }
+
+                // Check each trip option
+                if (charter.tripOptions && Array.isArray(charter.tripOptions)) {
+                    for (const trip of charter.tripOptions) {
+                        // Season check - only if dates are provided
+                        if (dates?.checkIn && dates?.checkOut) {
+                            // Use the new season checking that properly handles M/D format
+                            if (!rangeOverlapsSeason(dates.checkIn, dates.checkOut, trip.seasonStart, trip.seasonEnd)) {
+                                continue;
+                            }
+                        }
+
+                        // Type check
+                        if (!tripMatchesTypes(trip, filters.fishingTypes)) {
+                            continue;
+                        }
+
+                        // Price calculation - build up total cost before applying service fee
+                        let basePricePerDay = computeTripBasePricePerDay(trip, boatCapacity, needGuests);
+                        if (basePricePerDay === null) {
+                            continue;
+                        }
+
+                        // Add private dock pickup fee if required and available
+                        const dockPickupFee = (filters.requirePrivateDockPickup && charter.privateDockPickup)
+                            ? (charter.privateDockPickupFee || 0)
+                            : 0;
+
+                        // Calculate total cost per day (base + dock fee)
+                        let totalCostPerDay = basePricePerDay + dockPickupFee;
+
+                        // Apply service fee to the total cost (LAST STEP)
+                        const finalPricePerDay = applyServiceFee(totalCostPerDay, charter);
+
+                        // Trip passes all filters
+                        const eligibleTrip = {
+                            companyId: charter.id,
+                            tripId: trip.id,
+                            basePricePerDay: finalPricePerDay,
+                            basePriceForSelectedDays: filters.days > 1 ? finalPricePerDay * filters.days : finalPricePerDay,
+                            tripLabel: trip.name,
+                            startTime: trip.tripStartTime,
+                            lengthHours: trip.lengthOfTrip,
+                            privateDockPickup: charter.privateDockPickup,
+                            privateDockPickupFee: dockPickupFee
+                        };
+
+                        eligibleTrips.push(eligibleTrip);
+                    }
+                }
+            }
+
+            return eligibleTrips;
+        }
+
+        // --- Badge data (decoupled from filtering/UI) ---
+        function getCharterBadgeData(listing, dates, guestCount) {
+            const eligibleTrips = filterChartersForListing(listing, dates, guestCount);
+
+            if (!eligibleTrips.length) {
+                return { count: 0, minPrice: null, formatted: "0 Charters" };
+            }
+
+            // Calculate minimum price per day
+            const minPricePerDay = Math.min(...eligibleTrips.map(trip => trip.basePricePerDay));
+            const totalEstimate = minPricePerDay * filters.days;
+
+            const charterLabel = eligibleTrips.length === 1 ? 'Charter' : 'Charters';
+            let formatted = `${eligibleTrips.length} ${charterLabel} • $${totalEstimate.toLocaleString()}+`;
+
+
+            return {
+                count: eligibleTrips.length,
+                minPrice: totalEstimate, // Return total estimate instead of per-day price
+                formatted
+            };
+        }
+
+        // --- Gate used by listing filter pass ---
+        function listingPassesCharterGate(listing, dates, guestCount) {
+            if (!enabled) {
+                return true; // feature not selected → do not gate
+            }
+
+            const eligibleTrips = filterChartersForListing(listing, dates, guestCount);
+            const hasCharters = eligibleTrips.length > 0;
+            return hasCharters;
+        }
+
+        // Get active filter count for badge display (uses active filters, not pending)
+        function getActiveFilterCount() {
+            let count = 0;
+            if (filters.guests !== 1) count++;
+            if (filters.days !== 1) count++;
+            if (filters.requirePrivateDockPickup) count++;
+            if (filters.fishingTypes.size > 0) count++;
+            return count;
+        }
+
+        // Get current filter state for debugging/UI
+        function getCurrentFilters() {
+            return {
+                ...filters,
+                fishingTypes: Array.from(filters.fishingTypes) // Convert Set to Array for easier inspection
+            };
+        }
+
+        // Function to initialize pending state from active state
+        function initializePendingState() {
+            Object.assign(pendingFilters, filters);
+            // Handle Set type specially
+            pendingFilters.fishingTypes = new Set(filters.fishingTypes);
+        }
+
+        // Function to apply pending filters to active filters
+        function applyPendingFilters() {
+            Object.assign(filters, pendingFilters);
+            // Handle Set type specially
+            filters.fishingTypes = new Set(pendingFilters.fishingTypes);
+        }
+
+        // Function to revert pending filters to active state
+        function revertPendingFilters() {
+            Object.assign(pendingFilters, filters);
+            // Handle Set type specially
+            pendingFilters.fishingTypes = new Set(filters.fishingTypes);
+        }
+
+        // Public API
+        return {
+            setEnabled(v) { enabled = !!v; },
+            setFilters(partial) {
+                if (partial) {
+                    Object.assign(filters, partial);
+                    // Handle fishingTypes specially since it's a Set
+                    if (partial.fishingTypes) {
+                        if (Array.isArray(partial.fishingTypes)) {
+                            filters.fishingTypes = new Set(partial.fishingTypes);
+                        } else if (partial.fishingTypes instanceof Set) {
+                            filters.fishingTypes = new Set(partial.fishingTypes);
+                        }
+                    }
+                }
+            },
+            setPendingFilters(partial) {
+                if (partial) {
+                    Object.assign(pendingFilters, partial);
+                    // Handle fishingTypes specially since it's a Set
+                    if (partial.fishingTypes) {
+                        if (Array.isArray(partial.fishingTypes)) {
+                            pendingFilters.fishingTypes = new Set(partial.fishingTypes);
+                        } else if (partial.fishingTypes instanceof Set) {
+                            pendingFilters.fishingTypes = new Set(partial.fishingTypes);
+                        }
+                    }
+                }
+            },
+            resetFilters() {
+                const resetState = {
+                    guests: 1,
+                    days: 1,
+                    requirePrivateDockPickup: false,
+                    fishingTypes: new Set()
+                };
+                Object.assign(filters, resetState);
+                Object.assign(pendingFilters, resetState);
+            },
+            resetPendingFilters() {
+                const resetState = {
+                    guests: 1,
+                    days: 1,
+                    requirePrivateDockPickup: false,
+                    fishingTypes: new Set()
+                };
+                Object.assign(pendingFilters, resetState);
+            },
+            buildIndex,
+            getCharterBadgeData,
+            listingPassesCharterGate,
+            getActiveFilterCount,
+            getCurrentFilters: () => ({
+                ...filters,
+                fishingTypes: Array.from(filters.fishingTypes) // Convert Set to Array for easier inspection
+            }),
+            getPendingFilters: () => ({
+                ...pendingFilters,
+                fishingTypes: Array.from(pendingFilters.fishingTypes) // Convert Set to Array for easier inspection
+            }),
+            initializePendingState,
+            applyPendingFilters,
+            revertPendingFilters,
+            isEnabled: () => enabled,
+            _debug: { chartersByListingId }, // optional
+        };
+    })();
+
+    // Make charter module globally accessible for future UI integration
+    window.charterModule = charterModule;
+
+    // Ensure charter module is available globally before filter system setup
+    if (typeof window.charterModule === 'undefined') {
+    }
+
+    // Function to update charter badge text for all visible cards
+    function updateCharterBadgeForAllVisibleCards(visibleListings) {
+
+        if (!visibleListings || !visibleListings.length) {
+            return;
+        }
+
+        for (const l of visibleListings) {
+
+            // Try the specific selector first, then fallback to general
+            let el = document.querySelector(`[data-listing-id="${l.id}"] [data-element="listing-card-extras-fishingCharterBlockText"]`);
+            if (!el) {
+                // Fallback to any fishing charter block text element
+                el = document.querySelector('[data-element="listing-card-extras-fishingCharterBlockText"]');
+            }
+
+            if (!el) {
+                continue;
+            }
+
+            // Fix: Use the same date and guest count fixes as minChar function
+            let datesForCharter = apiFormats?.dates;
+            if (datesForCharter?.checkIn && datesForCharter?.checkOut) {
+                if (datesForCharter.checkIn instanceof Date) {
+                    datesForCharter = {
+                        checkIn: formatDateForAPI(datesForCharter.checkIn),
+                        checkOut: formatDateForAPI(datesForCharter.checkOut)
+                    };
+                }
+            }
+            // Fix: Use charter module's active guest filter for badge consistency
+            const charterFilters = charterModule.getCurrentFilters();
+            const guestCount = Math.max(1, charterFilters.guests || apiFormats?.guests?.total || 1);
+
+            const badge = charterModule.getCharterBadgeData(l, datesForCharter, guestCount);
+
+            el.textContent = badge.formatted;
+        }
+    }
+
+    // Function to update boat badge text for all visible cards
+    function updateBoatBadgeForAllVisibleCards(visibleListings) {
+
+        if (!visibleListings || !visibleListings.length) {
+            return;
+        }
+
+        for (const l of visibleListings) {
+
+            // Try the specific selector first, then fallback to general
+            let el = document.querySelector(`[data-listing-id="${l.id}"] [data-element="listing-card-extras-boatRentalBlockText"]`);
+            if (!el) {
+                // Fallback to any boat rental block text element
+                el = document.querySelector('[data-element="listing-card-extras-boatRentalBlockText"]');
+            }
+
+            if (!el) {
+                continue;
+            }
+
+            // Fix: Use the same date and guest count fixes as minBoat function
+            let datesForBoat = apiFormats?.dates;
+            if (datesForBoat?.checkIn && datesForBoat?.checkOut) {
+                if (datesForBoat.checkIn instanceof Date) {
+                    datesForBoat = {
+                        checkIn: formatDateForAPI(datesForBoat.checkIn),
+                        checkOut: formatDateForAPI(datesForBoat.checkOut)
+                    };
+                }
+            }
+            const guestCount = Math.max(1, apiFormats?.guests?.total || 1);
+
+            const badge = boatModule.getBoatBadgeData(l, datesForBoat, guestCount);
+
+            el.textContent = badge.formatted;
+        }
+    }
+
+    // ADD THIS: Track previous pricing mode to detect changes
+    let previousPricingMode = null;
+
+    // Function to get current pricing mode
+    // Pricing modes:
+    // - 'per-night': No dates, no extras (shows nightly price, max ~$2000)
+    // - 'total-stay': Has dates, no extras (shows total stay price, max ~$12000)
+    // - 'total-with-extras': Has extras (with or without dates, shows combined total, max ~$15000)
+    function getCurrentPricingMode() {
+        const datesSelected = hasDates();
+        const hasExtras = wantBoat() || wantChar();
+
+        if (!hasExtras && !datesSelected) {
+            return 'per-night';
+        } else if (!hasExtras && datesSelected) {
+            return 'total-stay';
+        } else {
+            return 'total-with-extras';
+        }
+    }
+
+    // Function to clear price filters when mode changes
+    function clearPriceFiltersOnModeChange() {
+        const currentMode = getCurrentPricingMode();
+
+        // If this is the first time or mode hasn't changed, do nothing
+        if (previousPricingMode === null || previousPricingMode === currentMode) {
+            previousPricingMode = currentMode;
+            return false; // No change occurred
+        }
+
+
+        // Mode has changed - clear price filters
+        activeFilters.priceRange.min = null;
+        activeFilters.priceRange.max = null;
+        pendingFilters.priceRange.min = null;
+        pendingFilters.priceRange.max = null;
+
+        // Update previous mode
+        previousPricingMode = currentMode;
+
+        // Filter count will be updated when setupPriceSlider is called
+
+        return true; // Change occurred and filters were cleared
+    }
+
     const filterSystem = setupFilterSystem();
+
+    // Example: Wiring boat filter UI to the module (for future implementation)
+    // When a user changes boat filters:
+    // 
+    // Basic filters:
+    // boatModule.setFilters({ passengers: 8 });                    // minimum passenger capacity
+    // boatModule.setFilters({ dockDelivery: true });               // require dock delivery
+    // boatModule.setFilters({ days: 1 });                         // 0.5 for half day, 1+ for full days
+    // boatModule.setFilters({ lengthType: 'full' });              // 'half' or 'full'
+    // 
+    // Boat type filters (multiple selection):
+    // boatModule.setFilters({ boatTypes: ["Center Console", "Pontoon"] });
+    // 
+    // Date selection filters:
+    // boatModule.setFilters({ selectedDates: ["2024-01-15", "2024-01-16"] });
+    // 
+    // Legacy single filters (for backward compatibility):
+    // boatModule.setFilters({ capacityMin: 8, type: "Pontoon", requireDockDelivery: true });
+    // 
+    // Check filter state:
+    // const filterCount = boatModule.getActiveFilterCount();       // get number of active filters
+    // const currentFilters = boatModule.getCurrentFilters();       // get current filter state
+    // const isEnabled = boatModule.isEnabled();                    // check if boat filtering is enabled
+    // 
+    // Re-run property filtering and refresh text:
+    // const filtered = filterSystem.applyFilters(unfilteredListings);
+    // renderListingCards(filtered, false, 1);
+    // updateBoatBadgeForAllVisibleCards(filtered);
 
     // Add event listeners to buttons to update visual state when popups open
     if (typeButton) {
         typeButton.addEventListener('click', function () {
-            // Update type selection visual state when popup opens
-            typePopupHandlers.updateTypeSelectionVisual();
+            // Only update type selection visual state if there are no pending changes
+            // This allows users to switch between popups without losing their changes
+            if (pendingSelections.type === currentSelections.type) {
+                typePopupHandlers.updateTypeSelectionVisual();
+            }
         });
     }
 
@@ -3182,16 +4840,13 @@ document.addEventListener('DOMContentLoaded', function () {
         const closeFilterButton = document.querySelector('[data-element="filterModal_closeButton"]');
         const activeFiltersCount = document.querySelector('[data-element="activeFiltersCount"]');
 
-        // Type toggle elements
-        const entireHomeToggle = document.querySelector('[data-element="filterModalType_entireHome"]');
-        const homeAndBoatToggle = document.querySelector('[data-element="filterModalType_homeAndBoat"]');
-        const boatContainer = document.querySelector('[data-element="filterModalBoat_container"]');
-        const dockBoatSpecsContainer = document.querySelector('[data-element="filterModalDock_boatSpecsContainer"]');
+
 
         // Price elements
         const priceScrollBar = document.querySelector('[data-element="filterModalPrice_scrollBar"]');
         const priceDescription = document.querySelector('[data-element="filterModalPrice_description"]');
         const priceMinInput = document.querySelector('[data-element="filterModalPrice_minPriceInput"]');
+        const priceMinInputContainer = document.querySelector('[data-element="filterModalPrice_minPriceInputContainer"]');
         const priceMaxInput = document.querySelector('[data-element="filterModalPrice_maxPriceInput"]');
 
         // Rooms elements
@@ -3225,62 +4880,94 @@ document.addEventListener('DOMContentLoaded', function () {
         const boatDraftInput = document.querySelector('[data-element="filterModalDock_boatDraftInput"]');
         const boatBeamInput = document.querySelector('[data-element="filterModalDock_boatBeamInput"]');
 
+        // New boat length section elements
+        const dockBoatLengthScrollBar = document.querySelector('[data-element="filterModalDock_boatLength_scrollBar"]');
+        const dockBoatLengthInput = document.querySelector('[data-element="filterModalDock_boatLength_input"]');
+
         // Add this with the other element selections at the top of setupFilterSystem
         const petsAllowedCheckbox = document.querySelector('[data-element="filterModalPets_petsAllowedCheckbox"]');
 
         // Amenities elements
-        // Track if type has changed
-        let initialType = null;
+
 
         // initially hide filter count
         if (activeFiltersCount) {
             activeFiltersCount.style.display = 'none';
         }
 
-        // Setup Type Toggle
-        function setupTypeToggle() {
-            // Set initial state based on current selection
-            const currentType = currentSelections.type || defaultValues.type;
-            initialType = currentType;
 
-            if (currentType === "Private Home") {
-                entireHomeToggle?.classList.add('selected');
-                homeAndBoatToggle?.classList.remove('selected');
-                if (boatContainer) boatContainer.style.display = 'none';
-                if (dockBoatSpecsContainer) dockBoatSpecsContainer.style.display = 'flex';
-            } else if (currentType === "Home & Boat") {
-                homeAndBoatToggle?.classList.add('selected');
-                entireHomeToggle?.classList.remove('selected');
-                if (boatContainer) boatContainer.style.display = 'flex';
-                if (dockBoatSpecsContainer) dockBoatSpecsContainer.style.display = 'none';
-            }
-
-            // Add click handlers
-            entireHomeToggle?.addEventListener('click', () => {
-                entireHomeToggle.classList.add('selected');
-                homeAndBoatToggle?.classList.remove('selected');
-                if (boatContainer) boatContainer.style.display = 'none';
-                if (dockBoatSpecsContainer) dockBoatSpecsContainer.style.display = 'flex';
-                activeFilters.typeOfSearch = "Private Home";
-            });
-
-            homeAndBoatToggle?.addEventListener('click', () => {
-                homeAndBoatToggle.classList.add('selected');
-                entireHomeToggle?.classList.remove('selected');
-                if (boatContainer) boatContainer.style.display = 'flex';
-                if (dockBoatSpecsContainer) dockBoatSpecsContainer.style.display = 'none';
-                activeFilters.typeOfSearch = "Home & Boat";
-            });
-        }
 
 
         function setupPriceSlider() {
-            const hasDates = apiFormats.dates.checkIn && apiFormats.dates.checkOut;
-            const maxPrice = hasDates ? 12000 : 2000;
+            // Phase 4: Dynamic price filter logic
+            const datesSelected = hasDates();
+            const hasExtras = wantBoat() || wantChar();
+
+            let maxPrice, description;
+            if (!hasExtras && !datesSelected) {
+                // Home-only & NO dates (per-night)
+                maxPrice = 2000;
+                description = "Price per night";
+            } else if (!hasExtras && datesSelected) {
+                // Home-only & WITH dates (total stay)
+                maxPrice = 12000;
+                description = "Total price";
+            } else {
+                // Home + Extras
+                maxPrice = 15000;
+                if (wantBoat() && wantChar()) {
+                    description = "Total price (stay + fishing charter + boat rental)";
+                } else if (wantChar()) {
+                    description = "Total price (stay + fishing charter)";
+                } else {
+                    description = "Total price (stay + boat rental)";
+                }
+            }
+
+            // Initialize pending price state from active state
+            function initializePendingPriceState() {
+                pendingFilters.priceRange.min = activeFilters.priceRange.min;
+                pendingFilters.priceRange.max = activeFilters.priceRange.max;
+                updatePriceUI();
+            }
+
+            function updatePriceUI() {
+                const minVal = pendingFilters.priceRange.min || 0;
+                const maxVal = pendingFilters.priceRange.max || maxPrice;
+
+                // Phase 4: Hide min controls when extras are active
+                const sliderMin = priceScrollBar?.querySelector('.price-slider-min');
+                const sliderMax = priceScrollBar?.querySelector('.price-slider-max');
+                const thumbMin = priceScrollBar?.querySelector('.price-slider-thumb-min');
+
+                if (hasExtras) {
+                    // Hide min controls visually but keep state at 0
+                    if (thumbMin) thumbMin.style.display = 'none';
+                    if (priceMinInput) priceMinInput.style.display = 'none';
+                    if (priceMinInputContainer) priceMinInputContainer.style.display = 'none';
+                    if (sliderMin) sliderMin.value = 0;
+                    pendingFilters.priceRange.min = 0;
+                } else {
+                    // Show min controls
+                    if (thumbMin) thumbMin.style.display = '';
+                    if (priceMinInputContainer) priceMinInputContainer.style.display = 'block';
+                    if (priceMinInput) {
+                        priceMinInput.style.display = '';
+                        priceMinInput.value = '$' + minVal.toLocaleString();
+                    }
+                    if (sliderMin) sliderMin.value = minVal;
+                }
+
+                if (priceMaxInput) priceMaxInput.value = maxVal >= maxPrice ? `$${maxPrice.toLocaleString()}+` : '$' + maxVal.toLocaleString();
+                if (sliderMax) sliderMax.value = maxVal;
+
+                // Update visual slider elements
+                updateSlider();
+            }
 
             // Update description
             if (priceDescription) {
-                priceDescription.textContent = hasDates ? "Trip price, before taxes" : "Price per night";
+                priceDescription.textContent = description;
             }
 
             // Create range slider
@@ -3303,6 +4990,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 const thumbMax = priceScrollBar.querySelector('.price-slider-thumb-max');
                 const container = priceScrollBar.querySelector('.price-slider-container');
 
+
                 let isDraggingMin = false;
                 let isDraggingMax = false;
                 let startX = 0;
@@ -3322,6 +5010,10 @@ document.addEventListener('DOMContentLoaded', function () {
                     // Update inputs
                     if (priceMinInput) priceMinInput.value = '$' + minVal.toLocaleString();
                     if (priceMaxInput) priceMaxInput.value = maxVal >= maxPrice ? `$${maxPrice.toLocaleString()}+` : '$' + maxVal.toLocaleString();
+
+                    // CRITICAL FIX: Also update pending filters
+                    pendingFilters.priceRange.min = minVal || null;
+                    pendingFilters.priceRange.max = maxVal >= maxPrice ? null : maxVal;
                 }
 
                 function handleDragStart(e, isMin) {
@@ -3349,9 +5041,14 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (isDraggingMin) {
                         let newValue = Math.max(0, Math.min(startLeft + moveValue, parseInt(sliderMax.value)));
                         sliderMin.value = newValue;
+                        // Update pending filters immediately
+                        pendingFilters.priceRange.min = newValue || null;
                     } else if (isDraggingMax) {
                         let newValue = Math.max(parseInt(sliderMin.value), Math.min(startLeft + moveValue, maxPrice));
                         sliderMax.value = newValue;
+                        // Update pending filters immediately
+                        const newMaxValue = newValue >= maxPrice ? null : newValue;
+                        pendingFilters.priceRange.max = newMaxValue;
                     }
 
                     updateSlider();
@@ -3379,6 +5076,9 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (parseInt(sliderMin.value) > parseInt(sliderMax.value)) {
                         sliderMin.value = sliderMax.value;
                     }
+                    // Update pending filters
+                    const newMinValue = parseInt(sliderMin.value) || null;
+                    pendingFilters.priceRange.min = newMinValue;
                     updateSlider();
                 });
 
@@ -3386,6 +5086,9 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (parseInt(sliderMax.value) < parseInt(sliderMin.value)) {
                         sliderMax.value = sliderMin.value;
                     }
+                    // Update pending filters
+                    const newMaxValue = parseInt(sliderMax.value) >= maxPrice ? null : parseInt(sliderMax.value);
+                    pendingFilters.priceRange.max = newMaxValue;
                     updateSlider();
                 });
 
@@ -3400,6 +5103,7 @@ document.addEventListener('DOMContentLoaded', function () {
             priceMinInput?.addEventListener('blur', function () {
                 const val = parseInt(this.value) || 0;
                 this.value = '$' + val.toLocaleString();
+                pendingFilters.priceRange.min = val || null;
                 if (priceScrollBar) {
                     const slider = priceScrollBar.querySelector('.price-slider-min');
                     if (slider) slider.value = val;
@@ -3415,6 +5119,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 let val = parseInt(this.value) || maxPrice;
                 if (val > maxPrice) val = maxPrice;
                 this.value = val >= maxPrice ? `$${maxPrice.toLocaleString()}+` : '$' + val.toLocaleString();
+                pendingFilters.priceRange.max = val >= maxPrice ? null : val;
                 if (priceScrollBar) {
                     const slider = priceScrollBar.querySelector('.price-slider-max');
                     if (slider) slider.value = val;
@@ -3422,9 +5127,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
             });
 
-            // Set initial values
-            if (priceMinInput) priceMinInput.value = '$0';
-            if (priceMaxInput) priceMaxInput.value = `$${maxPrice.toLocaleString()}+`;
+            // Store initialization function for later use
+            setupPriceSlider.initialize = initializePendingPriceState;
         }
 
 
@@ -3434,100 +5138,195 @@ document.addEventListener('DOMContentLoaded', function () {
             const svgPlus = '<svg width="30" height="30" xmlns="http://www.w3.org/2000/svg"><circle cx="15" cy="15" r="14" fill="none" stroke="#808080" stroke-width="1"></circle><rect x="9" y="14" width="12" height="2" rx="2" fill="#808080"></rect><rect x="14" y="9" width="2" height="12" rx="2" fill="#808080"></rect></svg>';
             const svgMinus = '<svg width="30" height="30" xmlns="http://www.w3.org/2000/svg"><circle cx="15" cy="15" r="14" fill="none" stroke="#808080" stroke-width="1"></circle><rect x="9" y="14" width="12" height="2" rx="2" fill="#808080"></rect></svg>';
 
+            function initializePendingRoomState() {
+                pendingFilters.bedrooms = activeFilters.bedrooms;
+                pendingFilters.beds = activeFilters.beds;
+                pendingFilters.bathrooms = activeFilters.bathrooms;
+                updateRoomUI();
+            }
+
+            function updateRoomUI() {
+                const values = [pendingFilters.bedrooms, pendingFilters.beds, pendingFilters.bathrooms];
+                const elements = [bedroomsElements, bedsElements, bathroomsElements];
+
+                elements.forEach((elementSet, index) => {
+                    const isBoathrooms = index === 2;
+                    const value = values[index];
+
+                    if (elementSet.number) {
+                        if (value === null) {
+                            elementSet.number.textContent = 'Any';
+                        } else {
+                            elementSet.number.textContent = isBoathrooms && value % 1 !== 0 ? value.toFixed(1) : value.toString();
+                        }
+                    }
+
+                    if (elementSet.minus) {
+                        elementSet.minus.style.opacity = value === null ? '0.3' : '1';
+                        elementSet.minus.disabled = value === null;
+                    }
+                });
+            }
+
             // Setup each room type
             [bedroomsElements, bedsElements, bathroomsElements].forEach((elements, index) => {
                 const isBoathrooms = index === 2;
                 const increment = isBoathrooms ? 0.5 : 1;
-                let value = null; // null represents "Any"
+                const filterKeys = ['bedrooms', 'beds', 'bathrooms'];
+                const filterKey = filterKeys[index];
 
                 // Set SVG icons
                 if (elements.minus) elements.minus.innerHTML = svgMinus;
                 if (elements.plus) elements.plus.innerHTML = svgPlus;
 
-                // Set initial display
-                if (elements.number) elements.number.textContent = 'Any';
-
-                // Update button states
-                function updateButtonStates() {
-                    if (elements.minus) {
-                        elements.minus.style.opacity = value === null ? '0.3' : '1';
-                        elements.minus.disabled = value === null;
-                    }
-                }
-
-                elements.plus?.addEventListener('click', () => {
-                    if (value === null) {
-                        value = increment;
-                    } else {
-                        value += increment;
-                    }
-                    if (elements.number) {
-                        elements.number.textContent = isBoathrooms && value % 1 !== 0 ? value.toFixed(1) : value.toString();
-                    }
-                    updateButtonStates();
-                });
-
-                elements.minus?.addEventListener('click', () => {
-                    if (value !== null) {
-                        value -= increment;
-                        if (value <= 0) {
-                            value = null;
-                            if (elements.number) elements.number.textContent = 'Any';
+                // Remove existing event listeners to prevent duplicates
+                if (elements.plus && !elements.plus.hasAttribute('data-room-listener-added')) {
+                    elements.plus.addEventListener('click', () => {
+                        let value = pendingFilters[filterKey];
+                        if (value === null) {
+                            value = increment;
                         } else {
-                            if (elements.number) {
-                                elements.number.textContent = isBoathrooms && value % 1 !== 0 ? value.toFixed(1) : value.toString();
-                            }
+                            value += increment;
                         }
-                    }
-                    updateButtonStates();
-                });
-
-                updateButtonStates();
-
-                // Store getter for filter collection
-                if (index === 0) { // bedrooms
-                    elements.getValue = () => value;
-                } else if (index === 1) { // beds
-                    elements.getValue = () => value;
-                } else { // bathrooms
-                    elements.getValue = () => value;
+                        pendingFilters[filterKey] = value;
+                        updateRoomUI();
+                    });
+                    elements.plus.setAttribute('data-room-listener-added', 'true');
                 }
+
+                if (elements.minus && !elements.minus.hasAttribute('data-room-listener-added')) {
+                    elements.minus.addEventListener('click', () => {
+                        let value = pendingFilters[filterKey];
+                        if (value !== null) {
+                            value -= increment;
+                            if (value <= 0) {
+                                value = null;
+                            }
+                            pendingFilters[filterKey] = value;
+                            updateRoomUI();
+                        }
+                    });
+                    elements.minus.setAttribute('data-room-listener-added', 'true');
+                }
+
+                // Store getter for filter collection (for backward compatibility)
+                elements.getValue = () => pendingFilters[filterKey];
             });
+
+            // Store initialization function for later use
+            setupRoomControls.initialize = initializePendingRoomState;
         }
 
         // Setup Dock Section
         function setupDockSection() {
-            // Private dock checkbox
-            let hasPrivateDock = false;
+            // Initialize pending dock state from active state
+            function initializePendingDockState() {
+                // Copy active state to pending
+                Object.assign(pendingFilters.dock, activeFilters.dock);
 
-            //initially hide private dock options
-            if (privateDockOptions) {
-                privateDockOptions.style.display = 'none';
+                // Update UI to match pending state
+                updateDockUI();
+            }
+
+            function updateDockUI() {
+                const hasPrivateDock = !!pendingFilters.dock.hasPrivateDock;
+
+                if (privateDockCheckbox) {
+                    privateDockCheckbox.style.backgroundColor = hasPrivateDock ? '#000' : '#fff';
+                }
+
+                if (privateDockOptions) {
+                    privateDockOptions.style.display = hasPrivateDock ? 'flex' : 'none';
+                }
+
+                // Update dock specs UI
+                Object.entries(dockSpecs).forEach(([key, element]) => {
+                    if (element) {
+                        const dockKey = 'has' + key.charAt(0).toUpperCase() + key.slice(1);
+                        const isSelected = !!pendingFilters.dock[dockKey];
+                        if (isSelected) {
+                            element.classList.add('selected');
+                        } else {
+                            element.classList.remove('selected');
+                        }
+                    }
+                });
+
+                // Update boat specs inputs
+                if (boatLengthInput) {
+                    const lengthVal = pendingFilters.dock.hasBoatSpecsLength;
+                    boatLengthInput.value = lengthVal ? (lengthVal >= 80 ? '80+ ft' : lengthVal + ' ft') : 'Any';
+                }
+                if (boatDraftInput) {
+                    const draftVal = pendingFilters.dock.hasBoatSpecsDraft;
+                    boatDraftInput.value = draftVal ? draftVal + ' ft' : 'Any';
+                }
+                if (boatBeamInput) {
+                    const beamVal = pendingFilters.dock.hasBoatSpecsBeam;
+                    boatBeamInput.value = beamVal ? beamVal + ' ft' : 'Any';
+                }
+
+                // Update new dock boat length input
+                if (dockBoatLengthInput) {
+                    const dockLengthVal = pendingFilters.dock.hasMinBoatLength;
+                    dockBoatLengthInput.value = dockLengthVal ? (dockLengthVal >= 55 ? '55+ ft' : dockLengthVal + ' ft') : '0 ft';
+                }
+
+                // Update boat length slider
+                if (boatLengthScrollBar) {
+                    const slider = boatLengthScrollBar.querySelector('.boat-slider');
+                    const thumb = boatLengthScrollBar.querySelector('.slider-thumb');
+                    if (slider && thumb) {
+                        const lengthVal = pendingFilters.dock.hasBoatSpecsLength || 15;
+                        slider.value = lengthVal;
+                        const percent = (lengthVal / 80) * 100;
+                        thumb.style.left = percent + '%';
+                    }
+                }
+
+                // Update new dock boat length slider
+                if (dockBoatLengthScrollBar) {
+                    const slider = dockBoatLengthScrollBar.querySelector('.dock-boat-slider');
+                    const thumb = dockBoatLengthScrollBar.querySelector('.dock-slider-thumb');
+                    if (slider && thumb) {
+                        const dockLengthVal = pendingFilters.dock.hasMinBoatLength || 0;
+                        slider.value = dockLengthVal;
+                        const percent = (dockLengthVal / 55) * 100;
+                        thumb.style.left = percent + '%';
+                    }
+                }
             }
 
             if (privateDockCheckbox) {
                 privateDockCheckbox.style.cursor = 'pointer';
-                privateDockCheckbox.addEventListener('click', () => {
-                    hasPrivateDock = !hasPrivateDock;
-                    privateDockCheckbox.style.backgroundColor = hasPrivateDock ? '#000' : '#fff';
-                    if (privateDockOptions) {
-                        privateDockOptions.style.display = hasPrivateDock ? 'flex' : 'none';
-                    }
-                    activeFilters.dock.hasPrivateDock = hasPrivateDock ? true : null;
-                });
+                if (!privateDockCheckbox.hasAttribute('data-dock-listener-added')) {
+                    privateDockCheckbox.addEventListener('click', () => {
+                        const hasPrivateDock = !pendingFilters.dock.hasPrivateDock;
+                        pendingFilters.dock.hasPrivateDock = hasPrivateDock ? true : null;
+                        updateDockUI();
+                    });
+                    privateDockCheckbox.setAttribute('data-dock-listener-added', 'true');
+                }
             }
 
             // Dock specs
             Object.entries(dockSpecs).forEach(([key, element]) => {
                 if (element) {
                     element.style.cursor = 'pointer';
-                    element.addEventListener('click', () => {
-                        element.classList.toggle('selected');
-                        const dockKey = 'has' + key.charAt(0).toUpperCase() + key.slice(1);
-                        activeFilters.dock[dockKey] = element.classList.contains('selected') ? true : null;
-                    });
+                    if (!element.hasAttribute('data-dock-spec-listener-added')) {
+                        element.addEventListener('click', () => {
+                            const dockKey = 'has' + key.charAt(0).toUpperCase() + key.slice(1);
+                            const isSelected = !pendingFilters.dock[dockKey];
+                            pendingFilters.dock[dockKey] = isSelected ? true : null;
+                            updateDockUI();
+                        });
+                        element.setAttribute('data-dock-spec-listener-added', 'true');
+                    }
                 }
             });
+
+            // Store initialization function for later use
+            setupDockSection.initialize = initializePendingDockState;
 
             // Boat length slider
             let boatLengthValue = null;
@@ -3554,6 +5353,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     thumb.style.background = '#fff';
                     thumb.style.borderColor = '#000';
                     boatLengthValue = value;
+                    pendingFilters.dock.hasBoatSpecsLength = value > 15 ? value : null;
 
                     if (boatLengthInput) {
                         boatLengthInput.value = value >= 80 ? '80+ ft' : value + ' ft';
@@ -3604,6 +5404,80 @@ document.addEventListener('DOMContentLoaded', function () {
                 updateSlider(parseInt(slider.value));
             }
 
+            // New dock boat length slider (separate from boat specs)
+            if (dockBoatLengthScrollBar) {
+                dockBoatLengthScrollBar.innerHTML = `
+                <div class="dock-boat-length-slider" style="position: relative; width: 100%; height: 32px; margin: 20px 0;">
+                    <div class="dock-slider-track" style="position: absolute; top: 50%; transform: translateY(-50%); width: 100%; height: 4px; background: #E5E5E5; border-radius: 2px;"></div>
+                    <input type="range" class="dock-boat-slider" min="0" max="55" value="0" style="position: absolute; width: 100%; opacity: 0; cursor: pointer;">
+                    <div class="dock-slider-thumb" style="position: absolute; top: 50%; transform: translate(-50%, -50%); left: 0%; width: 24px; height: 24px; background: white; border: 1px solid #000; border-radius: 50%; cursor: pointer;"></div>
+                </div>
+            `;
+
+                const dockSlider = dockBoatLengthScrollBar.querySelector('.dock-boat-slider');
+                const dockThumb = dockBoatLengthScrollBar.querySelector('.dock-slider-thumb');
+                const dockContainer = dockBoatLengthScrollBar.querySelector('.dock-boat-length-slider');
+
+                let isDockDragging = false;
+                let dockStartX = 0;
+                let dockStartValue = 0;
+
+                function updateDockSlider(value) {
+                    const percent = (value / 55) * 100;
+                    dockThumb.style.left = percent + '%';
+                    dockThumb.style.background = '#fff';
+                    dockThumb.style.borderColor = '#000';
+                    pendingFilters.dock.hasMinBoatLength = value > 0 ? value : null;
+
+                    if (dockBoatLengthInput) {
+                        dockBoatLengthInput.value = value >= 55 ? '55+ ft' : value + ' ft';
+                    }
+                }
+
+                function handleDockDragStart(e) {
+                    e.preventDefault();
+                    isDockDragging = true;
+                    dockStartX = e.clientX;
+                    dockStartValue = parseInt(dockSlider.value);
+                }
+
+                function handleDockDragMove(e) {
+                    if (!isDockDragging) return;
+
+                    const containerRect = dockContainer.getBoundingClientRect();
+                    const containerWidth = containerRect.width;
+                    const moveX = e.clientX - dockStartX;
+                    const movePercent = (moveX / containerWidth) * 100;
+                    const moveValue = Math.round((movePercent / 100) * 55);
+                    const newValue = Math.max(0, Math.min(dockStartValue + moveValue, 55));
+
+                    dockSlider.value = newValue;
+                    updateDockSlider(newValue);
+                }
+
+                function handleDockDragEnd() {
+                    isDockDragging = false;
+                }
+
+                // Add mouse event listeners for dragging
+                dockThumb.addEventListener('mousedown', handleDockDragStart);
+                document.addEventListener('mousemove', handleDockDragMove);
+                document.addEventListener('mouseup', handleDockDragEnd);
+
+                // Add touch event listeners for mobile
+                dockThumb.addEventListener('touchstart', (e) => handleDockDragStart(e.touches[0]));
+                document.addEventListener('touchmove', (e) => handleDockDragMove(e.touches[0]));
+                document.addEventListener('touchend', handleDockDragEnd);
+
+                // Keep the original input event listener
+                dockSlider?.addEventListener('input', () => {
+                    updateDockSlider(parseInt(dockSlider.value));
+                });
+
+                // Initialize dock slider
+                updateDockSlider(parseInt(dockSlider.value));
+            }
+
             // Boat input fields
             [boatLengthInput, boatDraftInput, boatBeamInput].forEach(input => {
                 if (input) {
@@ -3621,14 +5495,68 @@ document.addEventListener('DOMContentLoaded', function () {
                     input.addEventListener('blur', function () {
                         if (this.value === '') {
                             this.value = 'Any';
+                            if (input === boatLengthInput) {
+                                pendingFilters.dock.hasBoatSpecsLength = null;
+                            } else if (input === boatDraftInput) {
+                                pendingFilters.dock.hasBoatSpecsDraft = null;
+                            } else if (input === boatBeamInput) {
+                                pendingFilters.dock.hasBoatSpecsBeam = null;
+                            }
                         } else {
                             let val = parseInt(this.value);
                             if (input === boatLengthInput && val > 80) val = 80;
                             this.value = (input === boatLengthInput && val >= 80) ? '80+ ft' : val + ' ft';
+
+                            // Update pending filters
+                            if (input === boatLengthInput) {
+                                pendingFilters.dock.hasBoatSpecsLength = val;
+                            } else if (input === boatDraftInput) {
+                                pendingFilters.dock.hasBoatSpecsDraft = val;
+                            } else if (input === boatBeamInput) {
+                                pendingFilters.dock.hasBoatSpecsBeam = val;
+                            }
                         }
                     });
                 }
             });
+
+            // New dock boat length input handling
+            if (dockBoatLengthInput) {
+                dockBoatLengthInput.value = '0 ft';
+
+                dockBoatLengthInput.addEventListener('focus', function () {
+                    this.value = this.value.replace(/ ft\+?/g, '');
+                });
+
+                dockBoatLengthInput.addEventListener('input', function () {
+                    this.value = this.value.replace(/[^\d]/g, '');
+                });
+
+                dockBoatLengthInput.addEventListener('blur', function () {
+                    if (this.value === '') {
+                        this.value = '0 ft';
+                        pendingFilters.dock.hasMinBoatLength = null;
+                    } else {
+                        let val = parseInt(this.value);
+                        if (val > 55) val = 55;
+                        this.value = val >= 55 ? '55+ ft' : val + ' ft';
+
+                        // Update pending filters
+                        pendingFilters.dock.hasMinBoatLength = val > 0 ? val : null;
+
+                        // Update slider if present
+                        if (dockBoatLengthScrollBar) {
+                            const slider = dockBoatLengthScrollBar.querySelector('.dock-boat-slider');
+                            if (slider) slider.value = val;
+                            const thumb = dockBoatLengthScrollBar.querySelector('.dock-slider-thumb');
+                            if (thumb) {
+                                const percent = (val / 55) * 100;
+                                thumb.style.left = percent + '%';
+                            }
+                        }
+                    }
+                });
+            }
         }
 
         // Add this function to setupFilterSystem
@@ -3641,7 +5569,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
 
             if (!amenityItem || !amenitiesContainer) {
-                console.error('Required amenity elements not found');
                 return;
             }
 
@@ -3654,6 +5581,24 @@ document.addEventListener('DOMContentLoaded', function () {
                 } catch (error) {
                     return [];
                 }
+            }
+
+            function initializePendingAmenitiesState() {
+                pendingFilters.amenities = [...activeFilters.amenities];
+                updateAmenitiesUI();
+            }
+
+            function updateAmenitiesUI() {
+                const amenityButtons = amenitiesContainer.querySelectorAll('[data-amenity-id]');
+                amenityButtons.forEach(button => {
+                    const amenityId = parseInt(button.getAttribute('data-amenity-id'));
+                    const isSelected = pendingFilters.amenities.includes(amenityId);
+                    if (isSelected) {
+                        button.classList.add('selected');
+                    } else {
+                        button.classList.remove('selected');
+                    }
+                });
             }
 
             function createAmenityButton(amenity) {
@@ -3671,22 +5616,26 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Make sure the button is visible
                 button.style.display = 'flex';
 
+                // Add data attribute for tracking
+                button.setAttribute('data-amenity-id', amenity.id);
+
                 // Add click handler
                 button.addEventListener('click', () => {
-                    button.classList.toggle('selected');
-                    const isSelected = button.classList.contains('selected');
+                    const isSelected = pendingFilters.amenities.includes(amenity.id);
 
-                    // Update activeFilters
+                    // Update pendingFilters
                     if (isSelected) {
-                        if (!activeFilters.amenities.includes(amenity.id)) {
-                            activeFilters.amenities.push(amenity.id);
+                        const index = pendingFilters.amenities.indexOf(amenity.id);
+                        if (index > -1) {
+                            pendingFilters.amenities.splice(index, 1);
                         }
                     } else {
-                        const index = activeFilters.amenities.indexOf(amenity.id);
-                        if (index > -1) {
-                            activeFilters.amenities.splice(index, 1);
+                        if (!pendingFilters.amenities.includes(amenity.id)) {
+                            pendingFilters.amenities.push(amenity.id);
                         }
                     }
+
+                    updateAmenitiesUI();
                 });
 
                 return button;
@@ -3722,51 +5671,92 @@ document.addEventListener('DOMContentLoaded', function () {
 
             // Call initialize on setup
             initializeAmenities();
+
+            // Store initialization function for later use
+            setupAmenitiesSection.initialize = initializePendingAmenitiesState;
         }
 
         // Add this function before the return statement in setupFilterSystem
         function setupPetsSection() {
+            function initializePendingPetsState() {
+                pendingFilters.petsAllowed = activeFilters.petsAllowed;
+                updatePetsUI();
+            }
+
+            function updatePetsUI() {
+                if (petsAllowedCheckbox) {
+                    const isSelected = !!pendingFilters.petsAllowed;
+                    petsAllowedCheckbox.style.backgroundColor = isSelected ? '#000' : '#fff';
+                }
+            }
+
             // Initially set the checkbox style
             if (petsAllowedCheckbox) {
                 petsAllowedCheckbox.style.cursor = 'pointer';
-                petsAllowedCheckbox.style.backgroundColor = '#fff';
             }
 
             // Add click handler
             if (petsAllowedCheckbox) {
-                petsAllowedCheckbox.addEventListener('click', () => {
-                    // Get the current state by checking if the background is black
-                    const isCurrentlySelected = petsAllowedCheckbox.style.backgroundColor === 'rgb(0, 0, 0)' ||
-                        petsAllowedCheckbox.style.backgroundColor === '#000';
-
-                    // Toggle the background color
-                    petsAllowedCheckbox.style.backgroundColor = isCurrentlySelected ? '#fff' : '#000';
-
-                    // Update the filter state
-                    activeFilters.petsAllowed = !isCurrentlySelected;
-
-                    // Update the count only once
-                    updateFilterCount();
-                });
+                if (!petsAllowedCheckbox.hasAttribute('data-pets-listener-added')) {
+                    petsAllowedCheckbox.addEventListener('click', () => {
+                        // Toggle the pending state
+                        pendingFilters.petsAllowed = !pendingFilters.petsAllowed;
+                        updatePetsUI();
+                    });
+                    petsAllowedCheckbox.setAttribute('data-pets-listener-added', 'true');
+                }
             }
+
+            // Store initialization function for later use
+            setupPetsSection.initialize = initializePendingPetsState;
         }
+
+
+
+        // Note: The old setupBoatRentalFilterSystem() has been replaced with the modular boatModule above.
+        // Filter UI elements can now be wired to boatModule.setFilters() for cleaner separation of concerns.
+
+
+
 
         // Function to update filter count badge
         function updateFilterCount() {
             let count = 0;
 
-            // Count active filters
-            if (activeFilters.priceRange.min || (activeFilters.priceRange.max && activeFilters.priceRange.max < (apiFormats.dates.checkIn ? 12000 : 2000))) count++;
-            if (activeFilters.bedrooms) count++;
-            if (activeFilters.beds) count++;
-            if (activeFilters.bathrooms) count++;
-            // Change this line to count each amenity individually
+            // Phase 4: Updated price filter count logic
+            const datesSelected = hasDates();
+            const hasExtras = wantBoat() || wantChar();
+            const displayCap = hasExtras ? 15000 : (datesSelected ? 12000 : 2000);
+
+            // Count price filter (updated logic for new caps)
+            if (activeFilters.priceRange.min || (activeFilters.priceRange.max && activeFilters.priceRange.max < displayCap)) {
+                count++;
+            }
+
+            if (activeFilters.bedrooms) {
+                count++;
+            }
+            if (activeFilters.beds) {
+                count++;
+            }
+            if (activeFilters.bathrooms) {
+                count++;
+            }
+
+            // Count each amenity individually
             count += activeFilters.amenities.length;
-            if (activeFilters.petsAllowed !== null) count++;
+            if (activeFilters.amenities.length > 0) {
+            }
+
+            if (activeFilters.petsAllowed !== null) {
+                count++;
+            }
 
             // Count dock features
             const dockFeatures = Object.values(activeFilters.dock);
-            if (dockFeatures.some(feature => feature !== null)) count++;
+            if (dockFeatures.some(feature => feature !== null)) {
+                count++;
+            }
 
 
             // Update UI
@@ -3777,46 +5767,87 @@ document.addEventListener('DOMContentLoaded', function () {
                 } else {
                     activeFiltersCount.style.display = 'none';
                 }
+            } else {
             }
 
             return count;
         }
 
-        // Function to collect filter values from UI
+        // Function to apply pending filters to active filters
+        function applyPendingFilters() {
+            // Copy all pending filters to active filters
+            activeFilters.priceRange.min = pendingFilters.priceRange.min;
+            activeFilters.priceRange.max = pendingFilters.priceRange.max;
+            activeFilters.bedrooms = pendingFilters.bedrooms;
+            activeFilters.beds = pendingFilters.beds;
+            activeFilters.bathrooms = pendingFilters.bathrooms;
+
+            // Copy dock filters
+            Object.assign(activeFilters.dock, pendingFilters.dock);
+
+            // Copy amenities and pets
+            activeFilters.amenities = [...(pendingFilters.amenities || [])];
+            activeFilters.petsAllowed = pendingFilters.petsAllowed;
+        }
+
+        // Function to collect filter values from UI (kept for backward compatibility)
         function collectFilterValues() {
-            // Type
-            if (entireHomeToggle?.classList.contains('selected')) {
-                activeFilters.typeOfSearch = "Private Home";
-            } else if (homeAndBoatToggle?.classList.contains('selected')) {
-                activeFilters.typeOfSearch = "Home & Boat";
-            }
-
-            // Price range
-            const priceMin = priceMinInput?.value.replace(/[$,+]/g, '');
-            const priceMax = priceMaxInput?.value.replace(/[$,+]/g, '');
-            activeFilters.priceRange.min = priceMin ? parseFloat(priceMin) : null;
-            activeFilters.priceRange.max = priceMax && priceMax < (apiFormats.dates.checkIn ? 12000 : 2000) ? parseFloat(priceMax) : null;
-
-            // Rooms
-            activeFilters.bedrooms = bedroomsElements.getValue ? bedroomsElements.getValue() : null;
-            activeFilters.beds = bedsElements.getValue ? bedsElements.getValue() : null;
-            activeFilters.bathrooms = bathroomsElements.getValue ? bathroomsElements.getValue() : null;
-
-            // Dock features are already updated in real-time
+            // This function is now mainly for legacy support
+            // The pending filters are updated in real-time by the UI components
         }
 
         // Function to apply filters to listings
         function applyFiltersToListings(listings) {
-            if (!listings) return [];
-            unfilteredListings = [...listings];
+            const base = Array.isArray(unfilteredListings) && unfilteredListings.length
+                ? unfilteredListings
+                : (Array.isArray(listings) ? listings : []);
+            if (!base.length) return [];
 
-            return listings.filter(listing => {
-                // Price filter
-                const hasDates = apiFormats.dates.checkIn && apiFormats.dates.checkOut;
-                const price = hasDates ? listing.customDatesTotalPrice : listing.nightlyPrice;
 
-                if (activeFilters.priceRange.min && price < activeFilters.priceRange.min) return false;
-                if (activeFilters.priceRange.max && price > activeFilters.priceRange.max) return false;
+            let cardIndex = 0; // Track card index for boat rental text updates
+            return base.filter((listing, index) => {
+                // Phase 4: Price filter with new logic
+                const datesSelected = hasDates();
+                const hasExtras = wantBoat() || wantChar();
+                let priceToCompare;
+
+
+                // Determine price caps for "no max" logic
+                const displayCap = hasExtras ? 15000 : (datesSelected ? 12000 : 2000);
+                const userMax = activeFilters.priceRange.max;
+                const effectiveMax = (userMax && userMax >= displayCap) ? null : userMax; // null means no limit
+
+
+                if (!hasExtras && !datesSelected) {
+                    // Home-only & NO dates: compare nightly price
+                    priceToCompare = Number(listing.nightlyPrice || 0);
+                } else if (!hasExtras && datesSelected) {
+                    // Home-only & WITH dates: compare total stay price
+                    priceToCompare = Number(listing.customDatesTotalPrice || 0);
+                } else if (hasExtras && !datesSelected) {
+                    // Extras & NO dates: compare combined starting-at
+                    const homeStart = computeHomeStartNoDates(listing);
+                    if (homeStart == null) {
+                        return false; // Price unavailable, exclude from price-based filtering
+                    }
+                    const extrasStart = minBoat(listing) + minChar(listing);
+                    priceToCompare = homeStart + extrasStart;
+                } else {
+                    // Extras & WITH dates: compare combined total
+                    const base = Number(listing.customDatesTotalPrice || 0);
+                    const extrasPrice = minBoat(listing) + minChar(listing);
+                    priceToCompare = base + extrasPrice;
+
+                }
+
+
+                if (activeFilters.priceRange.min && priceToCompare < activeFilters.priceRange.min) {
+                    return false;
+                }
+                if (effectiveMax && priceToCompare > effectiveMax) {
+                    return false;
+                }
+
 
                 // Room filters
                 if (activeFilters.bedrooms && listing.num_bedrooms < activeFilters.bedrooms) return false;
@@ -3824,7 +5855,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (activeFilters.bathrooms && listing.num_bathrooms < activeFilters.bathrooms) return false;
 
                 // Dock features filter
-                if (activeFilters.dock.hasPrivateDock && !listing.has_private_dock) return false;
+                if (activeFilters.dock.hasPrivateDock && !listing.private_dock) return false;
                 if (activeFilters.dock.hasShorePower && !listing.dock_shorePower) return false;
                 if (activeFilters.dock.hasFreshWater && !listing.dock_freshWater) return false;
                 if (activeFilters.dock.hasCleaningStation && !listing.dock_cleaningStation) return false;
@@ -3834,6 +5865,21 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (activeFilters.dock.hasBoatSpecsLength && listing.dock_max_vessel_length < activeFilters.dock.hasBoatSpecsLength) return false;
                 if (activeFilters.dock.hasBoatSpecsDraft && listing.dock_max_vessel_draft < activeFilters.dock.hasBoatSpecsDraft) return false;
                 if (activeFilters.dock.hasBoatSpecsBeam && listing.dock_max_vessel_beam < activeFilters.dock.hasBoatSpecsBeam) return false;
+
+                // New dock boat length filter - extract numeric value from string like "55 ft"
+                if (activeFilters.dock.hasMinBoatLength) {
+                    const dockMaxLengthStr = listing.dock_maxBoatLength;
+                    if (dockMaxLengthStr) {
+                        // Extract numeric value from string like "55 ft"
+                        const dockMaxLength = parseInt(dockMaxLengthStr.replace(/[^\d]/g, ''));
+                        if (isNaN(dockMaxLength) || dockMaxLength < activeFilters.dock.hasMinBoatLength) {
+                            return false;
+                        }
+                    } else {
+                        // If no dock max length info available, exclude from filter
+                        return false;
+                    }
+                }
 
                 // Amenities filter
                 if (activeFilters.amenities.length > 0) {
@@ -3856,58 +5902,963 @@ document.addEventListener('DOMContentLoaded', function () {
                 // In the applyFiltersToListings function, make sure this condition is present
                 if (activeFilters.petsAllowed !== null && listing.pets_allowed !== activeFilters.petsAllowed) return false;
 
+                // --- CROSS-FEATURE GATING (boats + charters) ---
+                const boatEnabled = (currentSelections?.typeFlags?.boatRental === true);
+                const charterEnabled = (currentSelections?.typeFlags?.fishingCharter === true);
+
+                // Set module enabled states
+                if (boatEnabled) boatModule.setEnabled(true);
+                else boatModule.setEnabled(false);
+
+                if (charterEnabled) charterModule.setEnabled(true);
+                else charterModule.setEnabled(false);
+
+                // Check individual gates
+                const passesBoatGate = boatModule.listingPassesBoatGate(
+                    listing,
+                    apiFormats?.dates,
+                    apiFormats?.guests?.total
+                );
+
+                const passesCharterGate = charterModule.listingPassesCharterGate(
+                    listing,
+                    apiFormats?.dates,
+                    apiFormats?.guests?.total
+                );
+
+                // Apply cross-feature gating rules
+                if (!boatEnabled && !charterEnabled) {
+                    // Neither feature active - no gating
+                } else if (boatEnabled && !charterEnabled) {
+                    // Only boat active - require boat
+                    if (!passesBoatGate) {
+                        return false;
+                    }
+                } else if (charterEnabled && !boatEnabled) {
+                    // Only charter active - require charter
+                    if (!passesCharterGate) {
+                        return false;
+                    }
+                } else if (boatEnabled && charterEnabled) {
+                    // Both active - require both
+                    if (!passesBoatGate) {
+                        return false;
+                    }
+
+                    if (!passesCharterGate) {
+                        return false;
+                    }
+                }
+
                 return true;
             });
+
         }
 
+
+
         // Initialize all components
-        setupTypeToggle();
         setupPriceSlider();
         setupRoomControls();
         setupDockSection();
         setupAmenitiesSection();
         setupPetsSection();
 
+        // Simplified boat rental filter system using the boat module
+        function setupBoatRentalFilterSystem() {
+            const boatRentalFilter = document.querySelector('[data-element="boatRentalFilter"]');
+            const boatFilterModal = document.querySelector('[data-element="boatFilterModal"]');
+            const boatFilterBackground = document.querySelector('[data-element="boatFilter_background"]');
+            const boatFilterExit = document.querySelector('[data-element="boatFilter_exit"]');
+            const boatFilterViewResults = document.querySelector('[data-element="boatFilter_viewResultsButton"]');
+            const boatFilterClearFilters = document.querySelector('[data-element="boatFilter_clearFiltersButton"]');
+            const activeBoatFiltersCount = document.querySelector('[data-element="activeBoatFiltersCount"]');
+
+            // Guest section elements
+            const guestMinus = document.querySelector('[data-element="boatFilter_Guest_Minus"]');
+            const guestNumber = document.querySelector('[data-element="boatFilter_guest_number"]');
+            const guestPlus = document.querySelector('[data-element="boatFilter_guest_Plus"]');
+
+            // Dock delivery elements
+            const dockDeliveryCheckbox = document.querySelector('[data-element="boatFilter_dockDeliveryCheckbox"]');
+
+            // Days counter elements
+            const datesHowManyDaysContainer = document.querySelector('[data-element="boatFilter_datesHalfOrFull_howManyDays"]');
+
+            // Boat type elements
+            const centerConsoleCheckbox = document.querySelector('[data-element="boatFilter_selectBoat_typePopup_centerConsoleCheckbox"]');
+            const flatsBoatCheckbox = document.querySelector('[data-element="boatFilter_selectBoat_typePopup_flatsBoatCheckbox"]');
+            const deckBoatCheckbox = document.querySelector('[data-element="boatFilter_selectBoat_typePopup_deckBoatCheckbox"]');
+            const pontoonBoatCheckbox = document.querySelector('[data-element="boatFilter_selectBoat_typePopup_pontoonBoatCheckbox"]');
+
+            if (!boatRentalFilter || !boatFilterModal) {
+                return;
+            }
+
+            // --- Setup guest controls HTML if not present ---
+            // Only add button HTML if not already present (idempotent)
+            if (guestMinus && guestNumber && guestPlus && !guestMinus.innerHTML.trim()) {
+                guestMinus.innerHTML = `
+                    <svg width="20" height="20" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M6 12h12" stroke="#323232" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                    </svg>
+                `;
+                guestMinus.style.display = "flex";
+                guestMinus.style.alignItems = "center";
+                guestMinus.style.justifyContent = "center";
+                guestMinus.style.border = "none";
+                guestMinus.style.background = "none";
+                guestMinus.style.cursor = "pointer";
+                guestMinus.style.width = "48px";
+                guestMinus.style.height = "48px";
+                guestMinus.style.borderRadius = "8px 0 0 8px";
+                guestMinus.type = "button";
+                guestMinus.setAttribute("aria-label", "Decrease guests");
+            }
+            if (guestPlus && !guestPlus.innerHTML.trim()) {
+                guestPlus.innerHTML = `
+                    <svg width="20" height="20" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 6v12M6 12h12" stroke="#323232" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                    </svg>
+                `;
+                guestPlus.style.display = "flex";
+                guestPlus.style.alignItems = "center";
+                guestPlus.style.justifyContent = "center";
+                guestPlus.style.border = "none";
+                guestPlus.style.background = "none";
+                guestPlus.style.cursor = "pointer";
+                guestPlus.style.width = "48px";
+                guestPlus.style.height = "48px";
+                guestPlus.style.borderRadius = "0 8px 8px 0";
+                guestPlus.type = "button";
+                guestPlus.setAttribute("aria-label", "Increase guests");
+            }
+            if (guestNumber) {
+                guestNumber.style.flex = "1 1 0";
+                guestNumber.style.fontFamily = "'TT Fors', sans-serif";
+                guestNumber.style.fontWeight = "500";
+                guestNumber.style.textAlign = "center";
+                guestNumber.style.padding = "0 8px";
+                guestNumber.style.fontSize = "1.1rem";
+            }
+
+            // Initialize modal
+            boatFilterModal.style.display = 'none';
+            if (activeBoatFiltersCount) activeBoatFiltersCount.style.display = 'none';
+
+            // Modal handlers
+            boatRentalFilter.addEventListener('click', () => {
+                boatFilterModal.style.display = 'flex';
+                document.body.style.overflow = 'hidden';
+                // Initialize pending state when opening modal
+                boatModule.initializePendingState();
+                updateBoatFilterDisplay();
+            });
+
+            boatFilterBackground?.addEventListener('click', () => {
+                // Revert pending changes when closing without applying
+                boatModule.revertPendingFilters();
+                closeBoatFilterModal();
+            });
+
+            boatFilterExit?.addEventListener('click', () => {
+                // Revert pending changes when closing without applying
+                boatModule.revertPendingFilters();
+                closeBoatFilterModal();
+            });
+
+            boatFilterViewResults?.addEventListener('click', () => {
+                applyBoatFilters();
+                closeBoatFilterModal();
+            });
+
+            boatFilterClearFilters?.addEventListener('click', () => {
+                boatModule.resetPendingFilters();
+                updateBoatFilterDisplay();
+                // Don't update active filters display - that should only happen when Apply is clicked
+            });
+
+            function closeBoatFilterModal() {
+                boatFilterModal.style.display = 'none';
+                document.body.style.overflow = '';
+            }
+
+            function updateBoatFilterDisplay() {
+                const currentFilters = boatModule.getPendingFilters();
+
+                // Update guest count and button state
+                if (guestNumber) guestNumber.textContent = currentFilters.passengers;
+                if (guestMinus) {
+                    if (currentFilters.passengers <= 1) {
+                        guestMinus.disabled = true;
+                        guestMinus.style.opacity = '0.3';
+                        guestMinus.style.cursor = 'not-allowed';
+                    } else {
+                        guestMinus.disabled = false;
+                        guestMinus.style.opacity = '1';
+                        guestMinus.style.cursor = 'pointer';
+                    }
+                }
+
+                // Update dock delivery checkbox
+                if (dockDeliveryCheckbox) {
+                    dockDeliveryCheckbox.style.backgroundColor = currentFilters.dockDelivery ? '#000' : 'transparent';
+                }
+
+                // Update days counter display
+                if (datesHowManyDaysContainer) {
+                    const daysDisplay = datesHowManyDaysContainer.querySelector('.days-display');
+                    const daysMinus = datesHowManyDaysContainer.querySelector('.days-minus');
+
+                    if (daysDisplay) {
+                        if (currentFilters.days === 0.5) {
+                            daysDisplay.textContent = '1 Half Day';
+                        } else if (currentFilters.days === 1) {
+                            daysDisplay.textContent = '1 Full Day';
+                        } else {
+                            daysDisplay.textContent = `${currentFilters.days} Days`;
+                        }
+                    }
+
+                    if (daysMinus) {
+                        daysMinus.style.opacity = currentFilters.days <= 0.5 ? '0.3' : '1';
+                        daysMinus.style.cursor = currentFilters.days <= 0.5 ? 'not-allowed' : 'pointer';
+                    }
+                }
+
+                // Update boat type checkboxes
+                const boatTypeCheckboxes = [
+                    { checkbox: centerConsoleCheckbox, type: 'Center console' },
+                    { checkbox: flatsBoatCheckbox, type: 'Flats boat' },
+                    { checkbox: deckBoatCheckbox, type: 'Deck boat' },
+                    { checkbox: pontoonBoatCheckbox, type: 'Pontoon boat' }
+                ];
+
+                boatTypeCheckboxes.forEach(({ checkbox, type }) => {
+                    if (checkbox) {
+                        const isSelected = currentFilters.boatTypes.includes(type);
+                        checkbox.style.backgroundColor = isSelected ? '#000' : 'transparent';
+                    }
+                });
+            }
+
+            function updateActiveBoatFiltersDisplay() {
+                const filterCount = boatModule.getActiveFilterCount();
+                if (activeBoatFiltersCount) {
+                    if (filterCount > 0) {
+                        activeBoatFiltersCount.style.display = 'flex';
+                        activeBoatFiltersCount.textContent = filterCount.toString();
+                    } else {
+                        activeBoatFiltersCount.style.display = 'none';
+                    }
+                }
+            }
+
+            function applyBoatFilters() {
+                // Apply pending filters to active filters
+                boatModule.applyPendingFilters();
+
+                const filteredListings = filterSystem.applyFilters(unfilteredListings || currentListings);
+                currentPage = 1;
+                renderListingCards(filteredListings, false, 1);
+                updateMarkersVisibilityWithFilters(filteredListings);
+
+                // Fix: Update map markers when boat filters change (affects pricing)
+                if (window.currentMap && filteredListings.length > 0) {
+                    // Add delay to ensure badge calculations are complete
+                    setTimeout(() => {
+                        clearMapMarkers();
+                        addMarkersToMap(filteredListings);
+                    }, 50);
+                }
+
+                // Update both boat and charter badges when boat filters are applied
+                const shouldUpdateBoatBadges =
+                    currentSelections?.typeFlags?.boatRental === true ||
+                    apiFormats?.type?.boatRental === true;
+
+                const shouldUpdateCharterBadges =
+                    currentSelections?.typeFlags?.fishingCharter === true ||
+                    apiFormats?.type?.fishingCharter === true;
+
+                if (shouldUpdateBoatBadges) {
+                    updateBoatBadgeForAllVisibleCards(filteredListings);
+                }
+
+                if (shouldUpdateCharterBadges) {
+                    updateCharterBadgeForAllVisibleCards(filteredListings);
+                }
+
+                updateActiveBoatFiltersDisplay();
+            }
+
+            // Guest controls
+            if (guestMinus) {
+                guestMinus.addEventListener('click', () => {
+                    const current = boatModule.getPendingFilters();
+                    if (current.passengers > 1) {
+                        boatModule.setPendingFilters({ passengers: current.passengers - 1 });
+                        updateBoatFilterDisplay();
+                    }
+                });
+            }
+            if (guestPlus) {
+                guestPlus.addEventListener('click', () => {
+                    const current = boatModule.getPendingFilters();
+                    boatModule.setPendingFilters({ passengers: current.passengers + 1 });
+                    updateBoatFilterDisplay();
+                });
+            }
+
+            // Dock delivery toggle
+            dockDeliveryCheckbox?.addEventListener('click', () => {
+                const current = boatModule.getPendingFilters();
+                boatModule.setPendingFilters({ dockDelivery: !current.dockDelivery });
+                updateBoatFilterDisplay();
+            });
+
+            // Boat type toggles
+            const boatTypeCheckboxes = [
+                { checkbox: centerConsoleCheckbox, type: 'Center console' },
+                { checkbox: flatsBoatCheckbox, type: 'Flats boat' },
+                { checkbox: deckBoatCheckbox, type: 'Deck boat' },
+                { checkbox: pontoonBoatCheckbox, type: 'Pontoon boat' }
+            ];
+
+            boatTypeCheckboxes.forEach(({ checkbox, type }) => {
+                checkbox?.addEventListener('click', () => {
+                    const current = boatModule.getPendingFilters();
+                    const newTypes = current.boatTypes.includes(type)
+                        ? current.boatTypes.filter(t => t !== type)
+                        : [...current.boatTypes, type];
+
+                    boatModule.setPendingFilters({ boatTypes: newTypes });
+                    updateBoatFilterDisplay();
+                });
+            });
+
+            // Setup days counter
+            function setupDaysCounter() {
+                if (!datesHowManyDaysContainer) return;
+
+                // Clear and setup days counter
+                datesHowManyDaysContainer.innerHTML = `
+                    <div style="
+                        display: flex;
+                        align-items: center;
+                        width: 100%;
+                        padding: 0 0;
+                        border: 1px solid #e2e2e2;
+                        border-radius: 8px;
+                        background: #fff;
+                        min-height: 56px;
+                        box-sizing: border-box;
+                    ">
+                        <button class="days-minus" style="
+                            width: 48px;
+                            height: 56px;
+                            border: none;
+                            background: none;
+                            cursor: pointer;
+                            border-radius: 8px 0 0 8px;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            padding: 0;
+                        ">
+                            <svg width="20" height="20" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M15.5 4.5L7.5 12L15.5 19.5" stroke="#323232" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                            </svg>
+                        </button>
+                        <div class="days-display" style="
+                            flex: 1 1 0;
+                            font-family: 'TT Fors', sans-serif;
+                            font-weight: 500;
+                            min-width: 80px;
+                            text-align: center;
+                            padding: 0 8px;
+                            font-size: 1.1rem;
+                        ">1 Half Day</div>
+                        <button class="days-plus" style="
+                            width: 48px;
+                            height: 56px;
+                            border: none;
+                            background: none;
+                            cursor: pointer;
+                            border-radius: 0 8px 8px 0;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            padding: 0;
+                        ">
+                            <svg width="20" height="20" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M8.5 4.5L16.5 12L8.5 19.5" stroke="#323232" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                            </svg>
+                        </button>
+                    </div>
+                `;
+
+                const daysDisplay = datesHowManyDaysContainer.querySelector('.days-display');
+                const daysMinus = datesHowManyDaysContainer.querySelector('.days-minus');
+                const daysPlus = datesHowManyDaysContainer.querySelector('.days-plus');
+
+                // Add hover effects
+                [daysMinus, daysPlus].forEach(btn => {
+                    btn.addEventListener('mouseenter', () => btn.style.backgroundColor = 'whitesmoke');
+                    btn.addEventListener('mouseleave', () => btn.style.backgroundColor = '');
+                });
+
+                function updateDaysDisplay() {
+                    const currentFilters = boatModule.getPendingFilters();
+
+                    if (currentFilters.days === 0.5) {
+                        daysDisplay.textContent = '1 Half Day';
+                        boatModule.setPendingFilters({ lengthType: 'half' });
+                    } else if (currentFilters.days === 1) {
+                        daysDisplay.textContent = '1 Full Day';
+                        boatModule.setPendingFilters({ lengthType: 'full' });
+                    } else {
+                        daysDisplay.textContent = `${currentFilters.days} Full Days`;
+                        boatModule.setPendingFilters({ lengthType: 'full' });
+                    }
+
+                    // Update button states
+                    daysMinus.style.opacity = currentFilters.days <= 0.5 ? '0.3' : '1';
+                    daysMinus.style.cursor = currentFilters.days <= 0.5 ? 'not-allowed' : 'pointer';
+                }
+
+                daysMinus.addEventListener('click', () => {
+                    const current = boatModule.getPendingFilters();
+                    if (current.days > 0.5) {
+                        if (current.days === 1) {
+                            boatModule.setPendingFilters({ days: 0.5 });
+                        } else {
+                            boatModule.setPendingFilters({ days: current.days - 1 });
+                        }
+                        updateDaysDisplay();
+                        updateBoatFilterDisplay();
+                    }
+                });
+
+                daysPlus.addEventListener('click', () => {
+                    const current = boatModule.getPendingFilters();
+                    if (current.days === 0.5) {
+                        boatModule.setPendingFilters({ days: 1 });
+                    } else {
+                        boatModule.setPendingFilters({ days: current.days + 1 });
+                    }
+                    updateDaysDisplay();
+                    updateBoatFilterDisplay();
+                });
+
+                updateDaysDisplay();
+            }
+
+            setupDaysCounter();
+
+            // Initialize display
+            updateBoatFilterDisplay();
+            updateActiveBoatFiltersDisplay();
+        }
+
+        setupBoatRentalFilterSystem();
+
+        // Fishing charter filter system using the charter module
+        function setupFishingCharterFilterSystem() {
+            if (typeof charterModule === 'undefined') {
+                return;
+            }
+
+            const fishingChartersFilter = document.querySelector('[data-element="fishingChartersFilter"]');
+            const fishingCharterFilterModal = document.querySelector('[data-element="fishingCharterFilterModal"]');
+            const fishingCharterFilterBackground = document.querySelector('[data-element="fishingCharterFilter_background"]');
+            const fishingCharterFilterExit = document.querySelector('[data-element="fishingCharterFilter_exit"]');
+            const fishingCharterFilterViewResults = document.querySelector('[data-element="fishingCharterFilter_viewResultsButton"]');
+            const fishingCharterFilterClearFilters = document.querySelector('[data-element="fishingCharterFilter_clearFiltersButton"]');
+            const activeFishingChartersFiltersCount = document.querySelector('[data-element="activeFishingChartersFiltersCount"]');
+
+            // Guest section elements
+            const guestMinus = document.querySelector('[data-element="fishingCharterFilter_Guest_Minus"]');
+            const guestNumber = document.querySelector('[data-element="fishingCharterFilter_guest_number"]');
+            const guestPlus = document.querySelector('[data-element="fishingCharterFilter_guest_Plus"]');
+
+            // Dock delivery elements
+            const dockDeliveryCheckbox = document.querySelector('[data-element="fishingCharterFilter_dockDeliveryCheckbox"]');
+
+            // Days counter elements
+            const datesHowManyDaysContainer = document.querySelector('[data-element="fishingCharterFilter_datesHalfOrFull_howManyDays"]');
+
+            // Fishing type elements
+            const inshoreFishingCheckbox = document.querySelector('[data-element="fishingCharterFilter_inshoreFishingCheckbox"]');
+            const offshoreFishingCheckbox = document.querySelector('[data-element="fishingCharterFilter_offshoreFishingCheckbox"]');
+            const nearFishingCheckbox = document.querySelector('[data-element="fishingCharterFilter_nearFishingCheckbox"]');
+            const wreckFishingCheckbox = document.querySelector('[data-element="fishingCharterFilter_wreckFishingCheckbox"]');
+            const reefFishingCheckbox = document.querySelector('[data-element="fishingCharterFilter_reefFishingCheckbox"]');
+            const flatsFishingCheckbox = document.querySelector('[data-element="fishingCharterFilter_flatsFishingCheckbox"]');
+
+            // Debug: Check which elements are found
+            if (!fishingChartersFilter || !fishingCharterFilterModal) {
+                return;
+            }
+
+            // --- Setup guest controls HTML if not present ---
+            // Only add button HTML if not already present (idempotent)
+
+            if (guestMinus && guestNumber && guestPlus && !guestMinus.innerHTML.trim()) {
+                guestMinus.innerHTML = `
+                    <svg width="20" height="20" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M6 12h12" stroke="#323232" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                    </svg>
+                `;
+                guestMinus.style.display = "flex";
+                guestMinus.style.alignItems = "center";
+                guestMinus.style.justifyContent = "center";
+                guestMinus.style.border = "none";
+                guestMinus.style.background = "none";
+                guestMinus.style.cursor = "pointer";
+                guestMinus.style.width = "48px";
+                guestMinus.style.height = "48px";
+                guestMinus.style.borderRadius = "8px 0 0 8px";
+                guestMinus.type = "button";
+                guestMinus.setAttribute("aria-label", "Decrease guests");
+            }
+            if (guestPlus && !guestPlus.innerHTML.trim()) {
+                guestPlus.innerHTML = `
+                    <svg width="20" height="20" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 6v12M6 12h12" stroke="#323232" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                    </svg>
+                `;
+                guestPlus.style.display = "flex";
+                guestPlus.style.alignItems = "center";
+                guestPlus.style.justifyContent = "center";
+                guestPlus.style.border = "none";
+                guestPlus.style.background = "none";
+                guestPlus.style.cursor = "pointer";
+                guestPlus.style.width = "48px";
+                guestPlus.style.height = "48px";
+                guestPlus.style.borderRadius = "0 8px 8px 0";
+                guestPlus.type = "button";
+                guestPlus.setAttribute("aria-label", "Increase guests");
+            }
+            if (guestNumber) {
+                guestNumber.style.flex = "1 1 0";
+                guestNumber.style.fontFamily = "'TT Fors', sans-serif";
+                guestNumber.style.fontWeight = "500";
+                guestNumber.style.textAlign = "center";
+                guestNumber.style.padding = "0 8px";
+                guestNumber.style.fontSize = "1.1rem";
+            }
+
+            // Initialize modal
+            fishingCharterFilterModal.style.display = 'none';
+            if (activeFishingChartersFiltersCount) activeFishingChartersFiltersCount.style.display = 'none';
+
+            // Modal handlers
+            fishingChartersFilter.addEventListener('click', () => {
+                fishingCharterFilterModal.style.display = 'flex';
+                document.body.style.overflow = 'hidden';
+                // Initialize pending state when opening modal
+                if (typeof charterModule !== 'undefined') {
+                    charterModule.initializePendingState();
+                }
+                updateCharterFilterDisplay();
+            });
+
+            fishingCharterFilterBackground?.addEventListener('click', () => {
+                // Revert pending changes when closing without applying
+                if (typeof charterModule !== 'undefined') {
+                    charterModule.revertPendingFilters();
+                }
+                closeFishingCharterFilterModal();
+            });
+
+            fishingCharterFilterExit?.addEventListener('click', () => {
+                // Revert pending changes when closing without applying
+                if (typeof charterModule !== 'undefined') {
+                    charterModule.revertPendingFilters();
+                }
+                closeFishingCharterFilterModal();
+            });
+
+            fishingCharterFilterViewResults?.addEventListener('click', () => {
+                applyCharterFilters();
+                closeFishingCharterFilterModal();
+            });
+
+            fishingCharterFilterClearFilters?.addEventListener('click', () => {
+                if (typeof charterModule !== 'undefined') {
+                    charterModule.resetPendingFilters();
+                    updateCharterFilterDisplay();
+                    // Don't update active filters display - that should only happen when Apply is clicked
+                }
+            });
+
+            function closeFishingCharterFilterModal() {
+                fishingCharterFilterModal.style.display = 'none';
+                document.body.style.overflow = '';
+            }
+
+            function updateCharterFilterDisplay() {
+                if (typeof charterModule === 'undefined') return;
+                const currentFilters = charterModule.getPendingFilters();
+
+                // Update guest count and button state
+                if (guestNumber) guestNumber.textContent = currentFilters.guests;
+                if (guestMinus) {
+                    if (currentFilters.guests <= 1) {
+                        guestMinus.disabled = true;
+                        guestMinus.style.opacity = '0.3';
+                        guestMinus.style.cursor = 'not-allowed';
+                    } else {
+                        guestMinus.disabled = false;
+                        guestMinus.style.opacity = '1';
+                        guestMinus.style.cursor = 'pointer';
+                    }
+                }
+
+                // Update dock delivery checkbox
+                if (dockDeliveryCheckbox) {
+                    dockDeliveryCheckbox.style.backgroundColor = currentFilters.requirePrivateDockPickup ? '#000' : 'transparent';
+                }
+
+                // Update days counter display
+                if (datesHowManyDaysContainer) {
+                    const daysDisplay = datesHowManyDaysContainer.querySelector('.days-display');
+                    const daysMinus = datesHowManyDaysContainer.querySelector('.days-minus');
+
+                    if (daysDisplay) {
+                        daysDisplay.textContent = `${currentFilters.days} Day${currentFilters.days > 1 ? 's' : ''}`;
+                    }
+
+                    if (daysMinus) {
+                        daysMinus.style.opacity = currentFilters.days <= 1 ? '0.3' : '1';
+                        daysMinus.style.cursor = currentFilters.days <= 1 ? 'not-allowed' : 'pointer';
+                    }
+                }
+
+                // Update fishing type checkboxes
+                const fishingTypeCheckboxes = [
+                    { checkbox: inshoreFishingCheckbox, type: 'Inshore Fishing' },
+                    { checkbox: offshoreFishingCheckbox, type: 'Offshore Fishing' },
+                    { checkbox: nearFishingCheckbox, type: 'Nearshore Fishing' },
+                    { checkbox: wreckFishingCheckbox, type: 'Wreck Fishing' },
+                    { checkbox: reefFishingCheckbox, type: 'Reef Fishing' },
+                    { checkbox: flatsFishingCheckbox, type: 'Flats Fishing' }
+                ];
+
+                fishingTypeCheckboxes.forEach(({ checkbox, type }) => {
+                    if (checkbox) {
+                        const isSelected = currentFilters.fishingTypes.includes(type);
+                        checkbox.style.backgroundColor = isSelected ? '#000' : 'transparent';
+                    }
+                });
+            }
+
+            function updateActiveCharterFiltersDisplay() {
+                if (typeof charterModule === 'undefined') return;
+                const filterCount = charterModule.getActiveFilterCount();
+                if (activeFishingChartersFiltersCount) {
+                    if (filterCount > 0) {
+                        activeFishingChartersFiltersCount.style.display = 'flex';
+                        activeFishingChartersFiltersCount.textContent = filterCount.toString();
+                    } else {
+                        activeFishingChartersFiltersCount.style.display = 'none';
+                    }
+                }
+            }
+
+            function applyCharterFilters() {
+
+                // Apply pending filters to active filters
+                if (typeof charterModule !== 'undefined') {
+                    charterModule.applyPendingFilters();
+                }
+
+                const filteredListings = filterSystem.applyFilters(unfilteredListings || currentListings);
+                currentPage = 1;
+                renderListingCards(filteredListings, false, 1);
+                updateMarkersVisibilityWithFilters(filteredListings);
+
+                // Fix: Update map markers when charter filters change (affects pricing)
+
+                if (window.currentMap && filteredListings.length > 0) {
+                    // Add delay to ensure badge calculations are complete
+                    setTimeout(() => {
+                        clearMapMarkers();
+                        addMarkersToMap(filteredListings);
+                    }, 50);
+                }
+
+                // Update both boat and charter badges when charter filters are applied
+                const shouldUpdateBoatBadges =
+                    currentSelections?.typeFlags?.boatRental === true ||
+                    apiFormats?.type?.boatRental === true;
+
+                const shouldUpdateCharterBadges =
+                    currentSelections?.typeFlags?.fishingCharter === true ||
+                    apiFormats?.type?.fishingCharter === true;
+
+                if (shouldUpdateBoatBadges) {
+                    updateBoatBadgeForAllVisibleCards(filteredListings);
+                }
+
+                if (shouldUpdateCharterBadges) {
+                    updateCharterBadgeForAllVisibleCards(filteredListings);
+                }
+
+                updateActiveCharterFiltersDisplay();
+            }
+
+            // Guest controls
+            if (guestMinus) {
+                guestMinus.addEventListener('click', () => {
+                    if (typeof charterModule === 'undefined') return;
+                    const current = charterModule.getPendingFilters();
+                    if (current.guests > 1) {
+                        charterModule.setPendingFilters({ guests: current.guests - 1 });
+                        updateCharterFilterDisplay();
+                    }
+                });
+            }
+            if (guestPlus) {
+                guestPlus.addEventListener('click', () => {
+                    if (typeof charterModule === 'undefined') return;
+                    const current = charterModule.getPendingFilters();
+                    charterModule.setPendingFilters({ guests: current.guests + 1 });
+                    updateCharterFilterDisplay();
+                });
+            }
+
+            // Dock delivery toggle
+            dockDeliveryCheckbox?.addEventListener('click', () => {
+                if (typeof charterModule === 'undefined') return;
+                const current = charterModule.getPendingFilters();
+                charterModule.setPendingFilters({ requirePrivateDockPickup: !current.requirePrivateDockPickup });
+                updateCharterFilterDisplay();
+            });
+
+            // Fishing type toggles
+            const fishingTypeCheckboxes = [
+                { checkbox: inshoreFishingCheckbox, type: 'Inshore Fishing' },
+                { checkbox: offshoreFishingCheckbox, type: 'Offshore Fishing' },
+                { checkbox: nearFishingCheckbox, type: 'Nearshore Fishing' },
+                { checkbox: wreckFishingCheckbox, type: 'Wreck Fishing' },
+                { checkbox: reefFishingCheckbox, type: 'Reef Fishing' },
+                { checkbox: flatsFishingCheckbox, type: 'Flats Fishing' }
+            ];
+
+            fishingTypeCheckboxes.forEach(({ checkbox, type }) => {
+                checkbox?.addEventListener('click', () => {
+                    if (typeof charterModule === 'undefined') return;
+                    const current = charterModule.getPendingFilters();
+                    const newTypes = new Set(current.fishingTypes);
+                    if (newTypes.has(type)) {
+                        newTypes.delete(type);
+                    } else {
+                        newTypes.add(type);
+                    }
+
+                    charterModule.setPendingFilters({ fishingTypes: Array.from(newTypes) });
+                    updateCharterFilterDisplay();
+                });
+            });
+
+            // Setup days counter
+            function setupDaysCounter() {
+                if (!datesHowManyDaysContainer) return;
+
+                // Clear and setup days counter
+                datesHowManyDaysContainer.innerHTML = `
+                    <div style="
+                        display: flex;
+                        align-items: center;
+                        width: 100%;
+                        padding: 0 0;
+                        border: 1px solid #e2e2e2;
+                        border-radius: 8px;
+                        background: #fff;
+                        min-height: 56px;
+                        box-sizing: border-box;
+                    ">
+                        <button class="days-minus" style="
+                            width: 48px;
+                            height: 56px;
+                            border: none;
+                            background: none;
+                            cursor: pointer;
+                            border-radius: 8px 0 0 8px;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            padding: 0;
+                        ">
+                            <svg width="20" height="20" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M15.5 4.5L7.5 12L15.5 19.5" stroke="#323232" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                            </svg>
+                        </button>
+                        <div class="days-display" style="
+                            flex: 1 1 0;
+                            font-family: 'TT Fors', sans-serif;
+                            font-weight: 500;
+                            min-width: 80px;
+                            text-align: center;
+                            padding: 0 8px;
+                            font-size: 1.1rem;
+                        ">1 Day</div>
+                        <button class="days-plus" style="
+                            width: 48px;
+                            height: 56px;
+                            border: none;
+                            background: none;
+                            cursor: pointer;
+                            border-radius: 0 8px 8px 0;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            padding: 0;
+                        ">
+                            <svg width="20" height="20" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M8.5 4.5L16.5 12L8.5 19.5" stroke="#323232" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                            </svg>
+                        </button>
+                    </div>
+                `;
+
+                const daysDisplay = datesHowManyDaysContainer.querySelector('.days-display');
+                const daysMinus = datesHowManyDaysContainer.querySelector('.days-minus');
+                const daysPlus = datesHowManyDaysContainer.querySelector('.days-plus');
+
+                // Add hover effects
+                [daysMinus, daysPlus].forEach(btn => {
+                    btn.addEventListener('mouseenter', () => btn.style.backgroundColor = 'whitesmoke');
+                    btn.addEventListener('mouseleave', () => btn.style.backgroundColor = '');
+                });
+
+                function updateDaysDisplay() {
+                    if (typeof charterModule === 'undefined') {
+                        return;
+                    }
+                    const currentFilters = charterModule.getPendingFilters();
+
+                    daysDisplay.textContent = `${currentFilters.days} Day${currentFilters.days > 1 ? 's' : ''}`;
+
+                    // Update button states
+                    daysMinus.style.opacity = currentFilters.days <= 1 ? '0.3' : '1';
+                    daysMinus.style.cursor = currentFilters.days <= 1 ? 'not-allowed' : 'pointer';
+                }
+
+                daysMinus.addEventListener('click', () => {
+                    if (typeof charterModule === 'undefined') return;
+                    const current = charterModule.getPendingFilters();
+                    if (current.days > 1) {
+                        charterModule.setPendingFilters({ days: current.days - 1 });
+                        updateDaysDisplay();
+                        updateCharterFilterDisplay();
+                    }
+                });
+
+                daysPlus.addEventListener('click', () => {
+                    if (typeof charterModule === 'undefined') return;
+                    const current = charterModule.getPendingFilters();
+                    charterModule.setPendingFilters({ days: current.days + 1 });
+                    updateDaysDisplay();
+                    updateCharterFilterDisplay();
+                });
+
+                updateDaysDisplay();
+            }
+
+            setupDaysCounter();
+
+            // Initialize display
+            updateCharterFilterDisplay();
+            updateActiveCharterFiltersDisplay();
+        }
+
+        setupFishingCharterFilterSystem();
+
+        // Function to initialize all pending states from active states
+        function initializeAllPendingStates() {
+            if (setupPriceSlider.initialize) setupPriceSlider.initialize();
+            if (setupRoomControls.initialize) setupRoomControls.initialize();
+            if (setupDockSection.initialize) setupDockSection.initialize();
+            if (setupAmenitiesSection.initialize) setupAmenitiesSection.initialize();
+            if (setupPetsSection.initialize) setupPetsSection.initialize();
+        }
+
+        // Function to revert pending changes back to active state
+        function revertPendingFilterChanges() {
+            initializeAllPendingStates();
+        }
+
         // Event handlers
         filterButton?.addEventListener('click', () => {
+
             if (filterModal) {
                 filterModal.style.display = 'flex';
-                // Reset initial type tracking
-                initialType = currentSelections.type || defaultValues.type;
+                // Initialize pending state when opening modal
+                initializeAllPendingStates();
+
             }
         });
 
         filterModalBackground?.addEventListener('click', () => {
-            if (filterModal) filterModal.style.display = 'none';
+            if (filterModal) {
+                filterModal.style.display = 'none';
+                // Revert pending changes when closing without applying
+                revertPendingFilterChanges();
+            }
         });
 
         closeFilterButton?.addEventListener('click', () => {
-            if (filterModal) filterModal.style.display = 'none';
+            if (filterModal) {
+                filterModal.style.display = 'none';
+                // Revert pending changes when closing without applying
+                revertPendingFilterChanges();
+            }
         });
 
         applyFiltersButton?.addEventListener('click', async () => {
-            collectFilterValues();
+            // Apply pending filters to active filters
+            applyPendingFilters();
+
             updateFilterCount();
             if (filterModal) filterModal.style.display = 'none';
 
-            // Check if type changed
-            const typeChanged = activeFilters.typeOfSearch && activeFilters.typeOfSearch !== initialType;
+            // Just apply filters to existing results
 
-            if (typeChanged) {
-                // Update current selections with new type
-                currentSelections.type = activeFilters.typeOfSearch;
-                pendingSelections.type = activeFilters.typeOfSearch;
-                updateButtonText(typeButtonText, activeFilters.typeOfSearch, defaultValues.type);
+            const filteredListings = applyFiltersToListings(unfilteredListings || currentListings);
 
-                // Update API formats and fetch new results
-                await updateAPIFormats();
-                await fetchPropertySearchResults();
-            } else {
-                // Just apply filters to existing results
-                const filteredListings = applyFiltersToListings(window.allListings || currentListings);
-                currentPage = 1;
-                renderListingCards(filteredListings, false, 1);
-                updateMarkersVisibilityWithFilters(filteredListings);
+            currentPage = 1;
+            renderListingCards(filteredListings, false, 1);
+            updateMarkersVisibilityWithFilters(filteredListings);
+
+            // Fix: Update map marker prices when filters are applied
+
+            if (window.currentMap && filteredListings.length > 0) {
+                // Add delay to ensure all badge calculations are complete
+                setTimeout(() => {
+                    clearMapMarkers();
+                    addMarkersToMap(filteredListings);
+
+                }, 100);
+            }
+
+            // Update badges for enabled extras - ALWAYS update both when any filter is applied
+            const shouldUpdateBoatBadges =
+                currentSelections?.typeFlags?.boatRental === true ||
+                apiFormats?.type?.boatRental === true;
+
+            const shouldUpdateCharterBadges =
+                currentSelections?.typeFlags?.fishingCharter === true ||
+                apiFormats?.type?.fishingCharter === true;
+
+            if (shouldUpdateBoatBadges) {
+                updateBoatBadgeForAllVisibleCards(filteredListings);
+            }
+
+            if (shouldUpdateCharterBadges) {
+                updateCharterBadgeForAllVisibleCards(filteredListings);
             }
         });
 
@@ -3917,45 +6868,129 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Define clearAllFilters function here
         function clearAllFilters() {
-            // Reset filter state to initial values
-            activeFilters.typeOfSearch = null;
-            activeFilters.priceRange = { min: null, max: null };
-            activeFilters.bedrooms = null;
-            activeFilters.beds = null;
-            activeFilters.bathrooms = null;
-            activeFilters.dock = {
-                hasPrivateDock: null,
-                hasShorePower: null,
-                hasFreshWater: null,
-                hasCleaningStation: null,
-                hasDockLights: null,
-                hasBoatSpecsLength: null,
-                hasBoatSpecsDraft: null,
-                hasBoatSpecsBeam: null,
+            // Define the reset state
+            const resetState = {
+                priceRange: { min: null, max: null },
+                bedrooms: null,
+                beds: null,
+                bathrooms: null,
+                dock: {
+                    hasPrivateDock: null,
+                    hasShorePower: null,
+                    hasFreshWater: null,
+                    hasCleaningStation: null,
+                    hasDockLights: null,
+                    hasBoatSpecsLength: null,
+                    hasBoatSpecsDraft: null,
+                    hasBoatSpecsBeam: null,
+                    hasMinBoatLength: null,
+                },
+                amenities: [],
+                petsAllowed: null,
             };
-            activeFilters.amenities = [];
-            activeFilters.petsAllowed = null;
 
-            // Reset UI elements
-            setupTypeToggle();
-            setupPriceSlider();
-            setupRoomControls();
-            setupDockSection();
-            setupAmenitiesSection();
-            setupPetsSection();
+            // Reset ONLY pending states (not active filters - those should only change when Apply is clicked)
+            Object.assign(pendingFilters, JSON.parse(JSON.stringify(resetState)));
 
-            // Explicitly reset private dock checkbox
+            // Update UI elements to show the cleared state
+            // We need to manually update the UI instead of using initialize functions
+            // because initialize functions copy from active filters
+
+            // Update price UI manually
+            const maxPrice = apiFormats.dates.checkIn ? 12000 : 2000;
+            if (priceMinInput) priceMinInput.value = '$0';
+            if (priceMaxInput) {
+                priceMaxInput.value = `$${maxPrice.toLocaleString()}+`;
+            }
+
+            // Update price slider elements
+            if (priceScrollBar) {
+                const sliderMin = priceScrollBar.querySelector('.price-slider-min');
+                const sliderMax = priceScrollBar.querySelector('.price-slider-max');
+                const range = priceScrollBar.querySelector('.price-slider-range');
+                const thumbMin = priceScrollBar.querySelector('.price-slider-thumb-min');
+                const thumbMax = priceScrollBar.querySelector('.price-slider-thumb-max');
+
+                if (sliderMin) sliderMin.value = 0;
+                if (sliderMax) sliderMax.value = maxPrice;
+
+                if (range) {
+                    range.style.left = '0%';
+                    range.style.width = '100%';
+                }
+                if (thumbMin) thumbMin.style.left = '0%';
+                if (thumbMax) thumbMax.style.left = '100%';
+            }
+
+            // Update room UI manually
+            if (bedroomsElements.number) bedroomsElements.number.textContent = 'Any';
+            if (bedsElements.number) bedsElements.number.textContent = 'Any';
+            if (bathroomsElements.number) bathroomsElements.number.textContent = 'Any';
+
+            // Update minus button states
+            if (bedroomsElements.minus) {
+                bedroomsElements.minus.style.opacity = '0.3';
+                bedroomsElements.minus.disabled = true;
+            }
+            if (bedsElements.minus) {
+                bedsElements.minus.style.opacity = '0.3';
+                bedsElements.minus.disabled = true;
+            }
+            if (bathroomsElements.minus) {
+                bathroomsElements.minus.style.opacity = '0.3';
+                bathroomsElements.minus.disabled = true;
+            }
+
+            // Update dock UI manually
             if (privateDockCheckbox) {
                 privateDockCheckbox.style.backgroundColor = '#fff';
             }
             if (privateDockOptions) {
                 privateDockOptions.style.display = 'none';
             }
+
+            // Clear dock specs
+            Object.entries(dockSpecs).forEach(([key, element]) => {
+                if (element) {
+                    element.classList.remove('selected');
+                }
+            });
+
+            // Reset boat specs inputs
+            if (boatLengthInput) boatLengthInput.value = 'Any';
+            if (boatDraftInput) boatDraftInput.value = 'Any';
+            if (boatBeamInput) boatBeamInput.value = 'Any';
+
+            // Reset boat length slider
+            if (boatLengthScrollBar) {
+                const slider = boatLengthScrollBar.querySelector('.boat-slider');
+                const thumb = boatLengthScrollBar.querySelector('.slider-thumb');
+                if (slider) slider.value = 15;
+                if (thumb) thumb.style.left = '18.75%'; // 15/80 * 100
+            }
+
+            // Reset new dock boat length input and slider
+            if (dockBoatLengthInput) dockBoatLengthInput.value = '0 ft';
+            if (dockBoatLengthScrollBar) {
+                const dockSlider = dockBoatLengthScrollBar.querySelector('.dock-boat-slider');
+                const dockThumb = dockBoatLengthScrollBar.querySelector('.dock-slider-thumb');
+                if (dockSlider) dockSlider.value = 0;
+                if (dockThumb) dockThumb.style.left = '0%';
+            }
+
+            // Update pets UI manually
             if (petsAllowedCheckbox) {
                 petsAllowedCheckbox.style.backgroundColor = '#fff';
             }
 
-            updateFilterCount();
+            // Update amenities UI manually
+            const amenityButtons = document.querySelectorAll('[data-amenity-id]');
+            amenityButtons.forEach(button => {
+                button.classList.remove('selected');
+            });
+
+            // Don't update filter count yet - that should only happen when filters are applied
+            // Don't re-render results - that should only happen when Apply Changes is clicked
         }
 
         return {
@@ -3963,7 +6998,54 @@ document.addEventListener('DOMContentLoaded', function () {
             clearFilters: clearAllFilters,
             updateCount: updateFilterCount,
             getActiveFilters: () => activeFilters,
+            updatePriceFilter: () => {
 
+                // Clear price filters if pricing mode has changed
+                const filtersCleared = clearPriceFiltersOnModeChange();
+
+                // Safely reinitialize price slider when search state changes
+                try {
+                    setupPriceSlider();
+                } catch (e) {
+                }
+
+                // If filters were cleared, re-apply filters to update the listings
+                if (filtersCleared) {
+                    // Update filter count after clearing
+                    updateFilterCount();
+
+                    // Re-apply filters with cleared price filters
+                    const filteredListings = filterSystem.applyFilters(unfilteredListings || currentListings);
+                    currentPage = 1;
+                    renderListingCards(filteredListings, false, 1);
+                    updateMarkersVisibilityWithFilters(filteredListings);
+
+                    // Update map markers if needed
+                    if (window.currentMap && filteredListings.length > 0) {
+                        setTimeout(() => {
+                            clearMapMarkers();
+                            addMarkersToMap(filteredListings);
+                        }, 50);
+                    }
+
+                    // Update badges for enabled extras
+                    const shouldUpdateBoatBadges =
+                        currentSelections?.typeFlags?.boatRental === true ||
+                        apiFormats?.type?.boatRental === true;
+
+                    const shouldUpdateCharterBadges =
+                        currentSelections?.typeFlags?.fishingCharter === true ||
+                        apiFormats?.type?.fishingCharter === true;
+
+                    if (shouldUpdateBoatBadges) {
+                        updateBoatBadgeForAllVisibleCards(filteredListings);
+                    }
+
+                    if (shouldUpdateCharterBadges) {
+                        updateCharterBadgeForAllVisibleCards(filteredListings);
+                    }
+                }
+            }
         };
     }
 
@@ -4026,7 +7108,8 @@ document.addEventListener('DOMContentLoaded', function () {
         [data-element="listings-skeleton-container"] {
             display: none;
             flex-wrap: wrap;
-            gap: 20px;
+            column-gap: 20px;
+            row-gap: 20px !important;
             width: 100%;
             justify-content: flex-start;
         }
@@ -4034,10 +7117,11 @@ document.addEventListener('DOMContentLoaded', function () {
         /* Individual skeleton card styling */
         .skeleton-card {
             width: 48%;
-            min-width: 296px;
+            min-width: 264px;
             height: 320px;
+            max-height: 320px;
             background: #f0f0f0;
-            border-radius: 10px;
+            border-radius: 5px;
             position: relative;
             overflow: hidden;
             animation: skeleton-pulse 1.5s ease-in-out infinite;
@@ -4214,17 +7298,24 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
+
+
     // MODIFY the fetchPropertySearchResults function to include skeleton loading
     async function fetchPropertySearchResults() {
+        console.log("fetchPropertySearchResults called");
+        console.trace("Call stack for fetchPropertySearchResults");
 
         // Prevent multiple simultaneous searches
         if (isSearchInProgress) {
+            console.log("fetchPropertySearchResults blocked - already in progress");
             return;
         }
 
         try {
             isSearchInProgress = true;
 
+            // Wait for user data to be loaded (for age-based filtering)
+            await waitForUserData();
 
             // Show skeleton loading
             showSkeletonLoading();
@@ -4239,10 +7330,9 @@ document.addEventListener('DOMContentLoaded', function () {
             const params = new URLSearchParams();
 
             // Add parameters based on apiFormats object
-            // Type
-            if (apiFormats.type) {
-                params.append('type', apiFormats.type);
-            }
+            // Type flags (always send booleans)
+            params.append('boatRental', String(!!apiFormats.type?.boatRental));
+            params.append('fishingCharter', String(!!apiFormats.type?.fishingCharter));
 
             // Location
             if (apiFormats.location && apiFormats.location.name) {
@@ -4285,6 +7375,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const response = await fetch(apiUrl, {
                 method: 'GET'
             });
+            console.log("request is happening")
 
             // Remove loading state from search button
             if (searchButton) {
@@ -4294,22 +7385,60 @@ document.addEventListener('DOMContentLoaded', function () {
             // Check if the response is ok
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
-                console.error('Search API error:', response.status, errorData);
                 throw new Error(`API error: ${response.status}`);
             }
 
             // Parse the data
-            const data = await response.json();
+            const apiResponse = await response.json();
+            // The endpoint now returns { availableProperties: [...] }
+            const availableProperties = apiResponse.availableProperties || [];
+            boatRentals = apiResponse.boatRentals || [];
+            fishingCharters = apiResponse.fishingCharters || [];
+
+
 
             // Store results in localStorage
-            localStorage.setItem('propertySearchResults', JSON.stringify(data));
+            localStorage.setItem('propertySearchResults', JSON.stringify(availableProperties));
 
-            // Setup map and render listings
-            await setupMapIntegration(data);
+            // Set the base list for filtering
+            currentListings = Array.isArray(availableProperties) ? availableProperties : [];
+            unfilteredListings = [...currentListings];
 
-            return data;
+            boatModule.buildIndex(availableProperties || [], boatRentals || []);
+
+            // Build charter index after results are loaded
+            charterModule.buildIndex(availableProperties || [], fishingCharters || []);
+
+            // Now re-apply any active filters to the new base list
+            const filtered = filterSystem ? filterSystem.applyFilters(unfilteredListings) : unfilteredListings;
+            currentPage = 1;
+            renderListingCards(filtered, false, currentPage);
+            updateMarkersVisibilityWithFilters(filtered);
+
+            // Update badges if needed (boat/charter)
+
+            if (apiFormats?.type?.boatRental || currentSelections?.typeFlags?.boatRental) {
+                updateBoatBadgeForAllVisibleCards(filtered);
+            }
+            if (apiFormats?.type?.fishingCharter || currentSelections?.typeFlags?.fishingCharter) {
+                updateCharterBadgeForAllVisibleCards(filtered);
+            }
+
+            // Setup map with filtered results
+            await setupMapIntegration(filtered);
+
+            // Fix: Update map markers after search to reflect current pricing state
+
+            if (window.currentMap && filtered.length > 0) {
+                // Force marker recreation with current pricing logic
+                setTimeout(() => {
+                    clearMapMarkers();
+                    addMarkersToMap(filtered);
+                }, 100);
+            }
+
+            return availableProperties;
         } catch (error) {
-            console.error('Error fetching property search results:', error);
             return { error: true, message: error.message };
         } finally {
             // Always reset the search flag when done
@@ -4327,9 +7456,8 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // MODIFY setupMapIntegration to initialize map only once:
-    function setupMapIntegration(searchResults) {
-        // Apply filters before rendering
-        const filteredResults = filterSystem ? filterSystem.applyFilters(searchResults) : searchResults;
+    function setupMapIntegration(filteredResults) {
+        // filteredResults are already filtered, no need to re-apply filters
 
         // Load Google Maps API if not already loaded
         if (typeof google === 'undefined' || typeof google.maps === 'undefined') {
@@ -4346,14 +7474,9 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // MODIFY the renderSearchResults function to use the new approach:
-    function renderSearchResults(searchResults) {
-        currentPage = 1; // Reset to first page on new search
-
-        // Render listing cards
-        renderListingCards(searchResults);
-
-        // Update map with new results (instead of creating new map)
-        updateMapWithResults(searchResults);
+    function renderSearchResults(filteredResults) {
+        // Cards and badges are already rendered, just update map with filtered results
+        updateMapWithResults(filteredResults);
     }
 
     // Function to load Google Maps API with callback
@@ -4385,137 +7508,189 @@ document.addEventListener('DOMContentLoaded', function () {
         };
     }
 
-    function initializeSplideForCard(card, listing) {
-        // Find the splide element within the card
-        const splideElement = card.querySelector('.splide');
-        console.log({ splideElement })
+    function initializeCustomCarouselForCard(card, listing) {
+        // Find the images container within the card
+        const imagesContainer = card.querySelector('[data-element="listing-card-images-container"]');
 
-        if (!splideElement || !listing._images || listing._images.length === 0) {
-            return; // No slider element or no images
+        if (!imagesContainer || !listing._images || listing._images.length === 0) {
+            return; // No container or no images
         }
-        /*
-                // Check if Splide is already initialized on this element
-                if (splideElement.classList.contains('is-initialized')) {
-                    // If already initialized, reset to first slide and refresh
-                    const existingSlider = splideElement.splide;
-                    if (existingSlider) {
-                        try {
-                            existingSlider.go(0); // Go to first slide
-                            return;
-                        } catch (e) {
-                            // If there's an error, continue with reinitialization
-                            console.warn('Error resetting Splide position:', e);
-                        }
-        
-                    }
-                    return; // Already initialized
-                }*/
-        // LEAH MARK
-        // Initialize Splide for this slider
-        const slider = new Splide(splideElement, {
-            type: 'loop',   // Enable looping
-            perPage: 1,
-            arrows: true,
-            pagination: true
 
-        });
+        // Check if already initialized
+        if (imagesContainer.classList.contains('is-initialized')) {
+            return; // Already initialized
+        }
 
-        slider.on('pagination:mounted', function (data) {
-            // Limit the number of pagination dots to a maximum of 5
-            const maxDots = 5;
-
-            // Hide excess pagination dots beyond maxDots
-            data.items.forEach((item, i) => {
-                if (i >= maxDots) {
-                    item.li.style.display = 'none';
-                }
-            });
-        });
-
-        slider.on('move', function (newIndex) {
-            const maxDots = 5;
-
-            // Calculate which dot should be highlighted based on the current slide
-            const activeDotIndex = newIndex % maxDots;
-
-            // Get all pagination dots
-            const dots = splideElement.querySelectorAll('.splide__pagination__page');
-
-            // Remove active class from all dots
-            dots.forEach((dot) => {
-                dot.classList.remove('is-active');
-            });
-
-            // Add active class to the correct dot
-            if (dots[activeDotIndex]) {
-                dots[activeDotIndex].classList.add('is-active');
-            }
-        });
-
-        slider.mount();
-
-        splideElement.splide = slider;
-
-
-        // Store reference to the slider instance for later access
-
-
-        // Add slides for each image with optimized loading
-        listing._images.forEach((imageData, index) => {
+        // Create carousel structure
+        const carouselHTML = `
+            <div class="custom-carousel" style="position: relative; width: 100%; height: 100%; border-radius: 5px; overflow: hidden;">
+                <div class="carousel-track" style="display: flex; width: 100%; height: 100%; transition: transform 0.3s ease;">
+                    ${listing._images.map((imageData, index) => {
             if (imageData && imageData.property_image && imageData.property_image.url) {
-                const li = document.createElement('li');
-                li.classList.add('splide__slide');
-
-                // Load first 3 images eagerly, rest lazily
                 const loadingStrategy = index < 3 ? 'eager' : 'lazy';
-
-                li.innerHTML = `<img src="${imageData.property_image.url}" 
-                                   alt="${listing.property_name || 'Property Photo'}"
-                                   loading="${loadingStrategy}">`;
-                slider.add(li);
+                return `
+                                <div class="carousel-slide" style="flex: 0 0 100%; height: 100%;">
+                                    <img src="${imageData.property_image.url}" 
+                                         alt="${listing.property_name || 'Property Photo'}"
+                                         loading="${loadingStrategy}"
+                                         style="width: 100%; height: 100%; object-fit: cover;">
+                                </div>
+                            `;
             }
-        });
+            return '';
+        }).join('')}
+                </div>
+                
+                ${listing._images.length > 1 ? `
+                    <button class="image_arrow_prev" style="
+                        position: absolute;
+                        left: 10px;
+                        top: 50%;
+                        transform: translateY(-50%);
+                        background: rgba(255, 255, 255, 0.8);
+                        border: none;
+                        border-radius: 50%;
+                        width: 34px;
+                        height: 34px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        cursor: pointer;
+                        z-index: 100;
+                        box-shadow: 0px 0px 2px rgba(255, 255, 255, 0.4);
+                        opacity: 0.8;
+                        transition: opacity 0.2s ease;
+                    " onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.8'">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                            <path d="M15 18L9 12L15 6" stroke="#000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </button>
+                    
+                    <button class="image_arrow_next" style="
+                        position: absolute;
+                        right: 10px;
+                        top: 50%;
+                        transform: translateY(-50%);
+                        background: rgba(255, 255, 255, 0.8);
+                        border: none;
+                        border-radius: 50%;
+                        width: 34px;
+                        height: 34px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        cursor: pointer;
+                        z-index: 100;
+                        box-shadow: 0px 0px 2px rgba(255, 255, 255, 0.4);
+                        opacity: 0.8;
+                        transition: opacity 0.2s ease;
+                    " onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.8'">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                            <path d="M9 18L15 12L9 6" stroke="#000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </button>
+                    
+                    <div class="carousel-pagination" style="
+                        position: absolute;
+                        bottom: 10px;
+                        left: 50%;
+                        transform: translateX(-50%);
+                        display: flex;
+                        gap: 6px;
+                        z-index: 100;
+                    ">
+                        ${listing._images.slice(0, Math.min(5, listing._images.length)).map((_, index) => `
+                            <div class="carousel-dot" data-index="${index}" style="
+                                width: 8px;
+                                height: 8px;
+                                border-radius: 50%;
+                                background: rgba(255, 255, 255, 0.5);
+                                cursor: pointer;
+                                transition: background 0.2s ease;
+                                ${index === 0 ? 'background: white;' : ''}
+                            "></div>
+                        `).join('')}
+                    </div>
+                ` : ''}
+            </div>
+        `;
 
+        imagesContainer.innerHTML = carouselHTML;
 
+        // Initialize carousel functionality
+        let currentIndex = 0;
+        const totalImages = listing._images.length;
+        const track = imagesContainer.querySelector('.carousel-track');
+        const prevButton = imagesContainer.querySelector('.image_arrow_prev');
+        const nextButton = imagesContainer.querySelector('.image_arrow_next');
+        const dots = imagesContainer.querySelectorAll('.carousel-dot');
 
-        // Style the arrows
-        const prevArrow = splideElement.querySelector('.splide__arrow--prev');
-        const nextArrow = splideElement.querySelector('.splide__arrow--next');
-
-        // Style the arrows themselves (opacity and padding)
-        [prevArrow, nextArrow].forEach((arrow) => {
-            if (arrow) {
-                arrow.style.opacity = '0.8'; // Make less transparent
-                arrow.style.height = '34px';
-                arrow.style.width = '34px';
-                arrow.style.boxShadow = '0px 0px 2px rgba(255, 255, 255, 0.4)';
+        function updateCarousel(skipTransition = false) {
+            if (track) {
+                if (skipTransition) {
+                    track.style.transition = 'none';
+                    track.style.transform = `translateX(-${currentIndex * 100}%)`;
+                    // Re-enable transition after a brief delay
+                    requestAnimationFrame(() => {
+                        track.style.transition = 'transform 0.3s ease';
+                    });
+                } else {
+                    track.style.transform = `translateX(-${currentIndex * 100}%)`;
+                }
             }
-        });
 
-        // Ensure the icon inside the arrows (usually an SVG) remains visible
-        const arrowIcons = splideElement.querySelectorAll('.splide__arrow svg');
-        arrowIcons.forEach((icon) => {
-            icon.style.width = '16px'; // Set a fixed size for the icon
-            icon.style.height = '16px'; // Adjust as needed
-        });
+            // Update dots (max 5 dots, cycling through)
+            dots.forEach((dot, index) => {
+                const isActive = index === (currentIndex % Math.min(5, totalImages));
+                dot.style.background = isActive ? 'white' : 'rgba(255, 255, 255, 0.5)';
+            });
+        }
 
-        // Stop propagation when clicking on arrows
-        [prevArrow, nextArrow].forEach(arrow => {
-            if (arrow) {
-                arrow.addEventListener('click', (e) => {
-                    e.preventDefault(); // Prevent the link's default behavior
-                    e.stopPropagation();
-                });
+        function goToNext() {
+            const wasLastImage = currentIndex === totalImages - 1;
+            currentIndex = (currentIndex + 1) % totalImages;
+            updateCarousel(wasLastImage); // Skip transition when wrapping from last to first
+        }
+
+        function goToPrev() {
+            const wasFirstImage = currentIndex === 0;
+            if (currentIndex === 0) {
+                currentIndex = totalImages - 1;
+            } else {
+                currentIndex = currentIndex - 1;
             }
+            updateCarousel(wasFirstImage); // Skip transition when wrapping from first to last
+        }
+
+        // Add event listeners
+        if (prevButton) {
+            prevButton.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                goToPrev();
+            });
+        }
+
+        if (nextButton) {
+            nextButton.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                goToNext();
+            });
+        }
+
+        // Dot navigation
+        dots.forEach((dot, index) => {
+            dot.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                currentIndex = index;
+                updateCarousel();
+            });
         });
-
-        // Refresh the slider after adding slides
-        slider.refresh();
-        console.log(splideElement)
-
 
         // Mark as initialized
-        splideElement.classList.add('is-initialized');
+        imagesContainer.classList.add('is-initialized');
     }
 
 
@@ -4546,6 +7721,26 @@ document.addEventListener('DOMContentLoaded', function () {
                 renderListingCards(currentListings, false, currentPage);
                 renderPagination(totalListings);
                 updateMarkersVisibility(currentPage); // ADD THIS
+                // Update badges for paginated listings
+                const startIndex = (currentPage - 1) * listingsPerPage;
+                const endIndex = startIndex + listingsPerPage;
+                const paginatedListings = currentListings.slice(startIndex, endIndex);
+
+                const shouldUpdateBoatBadges =
+                    currentSelections?.typeFlags?.boatRental === true ||
+                    apiFormats?.type?.boatRental === true;
+
+                const shouldUpdateCharterBadges =
+                    currentSelections?.typeFlags?.fishingCharter === true ||
+                    apiFormats?.type?.fishingCharter === true;
+
+                if (shouldUpdateBoatBadges) {
+                    updateBoatBadgeForAllVisibleCards(paginatedListings);
+                }
+
+                if (shouldUpdateCharterBadges) {
+                    updateCharterBadgeForAllVisibleCards(paginatedListings);
+                }
             });
             paginationContainer.appendChild(prevBtn);
         }
@@ -4560,6 +7755,26 @@ document.addEventListener('DOMContentLoaded', function () {
                 renderListingCards(currentListings, false, currentPage);
                 renderPagination(totalListings);
                 updateMarkersVisibility(currentPage); // ADD THIS
+                // Update badges for paginated listings
+                const startIndex = (currentPage - 1) * listingsPerPage;
+                const endIndex = startIndex + listingsPerPage;
+                const paginatedListings = currentListings.slice(startIndex, endIndex);
+
+                const shouldUpdateBoatBadges =
+                    currentSelections?.typeFlags?.boatRental === true ||
+                    apiFormats?.type?.boatRental === true;
+
+                const shouldUpdateCharterBadges =
+                    currentSelections?.typeFlags?.fishingCharter === true ||
+                    apiFormats?.type?.fishingCharter === true;
+
+                if (shouldUpdateBoatBadges) {
+                    updateBoatBadgeForAllVisibleCards(paginatedListings);
+                }
+
+                if (shouldUpdateCharterBadges) {
+                    updateCharterBadgeForAllVisibleCards(paginatedListings);
+                }
             });
             paginationContainer.appendChild(pageBtn);
         }
@@ -4573,6 +7788,26 @@ document.addEventListener('DOMContentLoaded', function () {
                 renderListingCards(currentListings, false, currentPage);
                 renderPagination(totalListings);
                 updateMarkersVisibility(currentPage); // ADD THIS
+                // Update badges for paginated listings
+                const startIndex = (currentPage - 1) * listingsPerPage;
+                const endIndex = startIndex + listingsPerPage;
+                const paginatedListings = currentListings.slice(startIndex, endIndex);
+
+                const shouldUpdateBoatBadges =
+                    currentSelections?.typeFlags?.boatRental === true ||
+                    apiFormats?.type?.boatRental === true;
+
+                const shouldUpdateCharterBadges =
+                    currentSelections?.typeFlags?.fishingCharter === true ||
+                    apiFormats?.type?.fishingCharter === true;
+
+                if (shouldUpdateBoatBadges) {
+                    updateBoatBadgeForAllVisibleCards(paginatedListings);
+                }
+
+                if (shouldUpdateCharterBadges) {
+                    updateCharterBadgeForAllVisibleCards(paginatedListings);
+                }
             });
             paginationContainer.appendChild(nextBtn);
         }
@@ -4624,13 +7859,14 @@ document.addEventListener('DOMContentLoaded', function () {
 
 
 
-    // Function to render listing cards (modified to include Splide)
+    // Function to render listing cards (with custom carousel)
     function renderListingCards(listings, filteredOnly = false, page = 1) {
+
+        console.log("renderListingCards is happening")
         const listingCardTemplate = document.querySelector('[data-element="listingCard_block"]');
         const listingContainer = document.querySelector('[data-element="listings-container"]');
 
         if (!listingCardTemplate || !listingContainer) {
-            console.error('Listing template or container not found');
             return;
         }
 
@@ -4750,7 +7986,6 @@ document.addEventListener('DOMContentLoaded', function () {
             let card = listingContainer.querySelector(`[data-listing-id="${listing.id}"]`);
 
             if (!card) {
-                console.log("leah gets here card doesn't exist")
                 // Card doesn't exist, create a new one from template
                 card = listingCardTemplate.cloneNode(true);
                 card.style.display = ''; // Make sure the new card is visible
@@ -4758,12 +7993,14 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Update card content
                 const title = card.querySelector('[data-element="listing-card-title"]');
                 const subtitle = card.querySelector('[data-element="listing-card-subtitle"]');
-                const calendarText = card.querySelector('[data-element="ListingCardCalendarText"]');
                 const totalPrice = card.querySelector('[data-element="ListingCardTotalPrice"]');
+                const totalPriceSubText = card.querySelector('[data-element="ListingCardTotalPrice_subText"]');
                 const image = card.querySelector('[data-element="listing-card-image"]');
                 // Add review elements
                 const reviewAverage = card.querySelector('[data-element="ListingCardReviewAverage"]');
                 const reviewCount = card.querySelector('[data-element="ListingCardReviewCount"]');
+                // Add minNights element
+                const minNightsElement = card.querySelector('[data-element="listing-card-minNights"]');
 
                 // Set basic info
                 if (title) {
@@ -4788,53 +8025,94 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
                 }
 
-                // Handle dates and price display
-                if (calendarText) {
-                    if (apiFormats.dates.checkIn && apiFormats.dates.checkOut) {
-                        // Using search dates
-                        calendarText.textContent = formatDateRange(
-                            apiFormats.dates.checkIn,
-                            apiFormats.dates.checkOut
-                        );
+                // Handle minNights display
+                if (minNightsElement) {
+                    const hasExtras = wantBoat() || wantChar();
+                    const datesSelected = hasDates();
+
+                    if (hasExtras && !datesSelected) {
+                        // Show minNights when extras are selected but no dates
+                        const minNights = listing.min_nights || 1;
+                        minNightsElement.textContent = `${minNights} night${minNights > 1 ? 's' : ''}`;
+                        minNightsElement.style.display = 'flex';
                     } else {
-                        // Using default dates
-                        calendarText.textContent = formatDateRange(
-                            listing.default_startDate,
-                            listing.default_endDate
-                        );
+                        // Hide minNights in all other cases
+                        minNightsElement.style.display = 'none';
                     }
                 }
 
-                // Handle price display
+                // Phase 2-3: Handle price display with new logic
                 if (totalPrice) {
-                    let priceValue;
-                    if (apiFormats.dates.checkIn && apiFormats.dates.checkOut) {
-                        // Using custom dates price
-                        priceValue = listing.customDatesTotalPrice.toLocaleString('en-US', {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2
-                        });
+                    const hasExtras = wantBoat() || wantChar();
+                    const datesSelected = hasDates();
+
+                    if (!hasExtras && !datesSelected) {
+                        // Home-only & NO dates: Starting at nightly
+                        if (listing.nightlyPrice && Number.isFinite(Number(listing.nightlyPrice))) {
+                            const priceText = fmtMoney(listing.nightlyPrice);
+                            const minNights = listing.min_nights || 1;
+                            totalPrice.textContent = priceText;
+                            if (totalPriceSubText) totalPriceSubText.textContent = "per night (" + minNights + " night" + (minNights > 1 ? 's' : '') + " min)";
+                        } else {
+                            totalPrice.textContent = "Price unavailable";
+                            if (totalPriceSubText) totalPriceSubText.textContent = "";
+                        }
+                    } else if (!hasExtras && datesSelected) {
+                        // Home-only & WITH dates: Total stay price
+                        const stayPrice = Number(listing.customDatesTotalPrice || 0);
+                        const priceText = fmtMoney(stayPrice);
+                        totalPrice.textContent = priceText;
+                        if (totalPriceSubText) totalPriceSubText.textContent = "total before taxes";
+                    } else if (hasExtras && !datesSelected) {
+                        // Extras & NO dates: Combined starting at
+                        const homeStart = computeHomeStartNoDates(listing);
+                        if (homeStart == null) {
+                            totalPrice.textContent = "Price unavailable";
+                            if (totalPriceSubText) totalPriceSubText.textContent = "";
+                        } else {
+                            const extrasStart = minBoat(listing) + minChar(listing);
+                            const combinedPrice = homeStart + extrasStart;
+                            const priceText = "Starting at " + fmtMoney(combinedPrice);
+                            totalPrice.textContent = priceText;
+                            // Create dynamic subtext based on selected extras
+                            const hasBoat = wantBoat();
+                            const hasCharter = wantChar();
+                            let subtextParts = ['home'];
+                            if (hasBoat) subtextParts.push('boat');
+                            if (hasCharter) subtextParts.push('charter');
+                            const subtextContent = `(${subtextParts.join(' + ')})`;
+                            if (totalPriceSubText) totalPriceSubText.textContent = subtextContent;
+                        }
                     } else {
-                        // Using default dates price
-                        priceValue = listing.total_price.toLocaleString('en-US', {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2
-                        });
+                        // Extras & WITH dates: Combined total
+                        const base = Number(listing.customDatesTotalPrice || 0);
+                        const extrasPrice = minBoat(listing) + minChar(listing);
+                        const combinedPrice = base + extrasPrice;
+                        const priceText = "Starting at " + fmtMoney(combinedPrice);
+                        totalPrice.textContent = priceText;
+                        // Create dynamic subtext based on selected extras
+                        const hasBoat = wantBoat();
+                        const hasCharter = wantChar();
+                        let subtextParts = ['home'];
+                        if (hasBoat) subtextParts.push('boat');
+                        if (hasCharter) subtextParts.push('charter');
+                        const subtextContent = `(${subtextParts.join(' + ')})`;
+                        if (totalPriceSubText) totalPriceSubText.textContent = subtextContent;
                     }
-                    totalPrice.textContent = priceValue ? `$${priceValue}` : 'Price on request';
                 }
 
                 // Set data attribute for map interaction
                 card.setAttribute('data-listing-id', listing.id);
 
+
                 // Add click event to listingCard_bodyBlock for navigation
                 const bodyBlock = card.querySelector('[data-element="listingCard_bodyBlock"]');
                 if (bodyBlock) {
-                    console.log("leah gets here bodyBlock")
                     bodyBlock.addEventListener('click', (e) => {
-                        // Don't navigate if clicking on splide arrows or dots
-                        if (e.target.closest('.splide__arrow') ||
-                            e.target.closest('.splide__pagination')) {
+                        // Don't navigate if clicking on carousel arrows or dots
+                        if (e.target.closest('.image_arrow_prev') ||
+                            e.target.closest('.image_arrow_next') ||
+                            e.target.closest('.carousel-dot')) {
                             return;
                         }
 
@@ -4850,8 +8128,8 @@ document.addEventListener('DOMContentLoaded', function () {
                             checkInDate = formatDateToYYYYMMDD(apiFormats.dates.checkIn);
                             checkOutDate = formatDateToYYYYMMDD(apiFormats.dates.checkOut);
                         } else {
-                            checkInDate = formatDateToYYYYMMDD(listing.default_startDate);
-                            checkOutDate = formatDateToYYYYMMDD(listing.default_endDate);
+                            checkInDate = '';
+                            checkOutDate = '';
                         }
                         params.append('checkin', checkInDate);
                         params.append('checkout', checkOutDate);
@@ -4907,19 +8185,21 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Append to container
                 listingContainer.appendChild(card);
 
-                // Initialize Splide for this card after it's in the DOM
+                // Initialize custom carousel for this card after it's in the DOM
                 requestAnimationFrame(() => {
-                    console.log("leah gets here a")
-                    initializeSplideForCard(card, listing);
+
+                    initializeCustomCarouselForCard(card, listing);
                 });
             } else {
-                console.log("leah gets here")
+
                 // Card exists, update its content
-                const calendarText = card.querySelector('[data-element="ListingCardCalendarText"]');
                 const totalPrice = card.querySelector('[data-element="ListingCardTotalPrice"]');
+                const totalPriceSubText = card.querySelector('[data-element="ListingCardTotalPrice_subText"]');
                 // Add review elements
                 const reviewAverage = card.querySelector('[data-element="ListingCardReviewAverage"]');
                 const reviewCount = card.querySelector('[data-element="ListingCardReviewCount"]');
+                // Add minNights element
+                const minNightsElement = card.querySelector('[data-element="listing-card-minNights"]');
 
                 // Update review info
                 if (reviewAverage && reviewCount) {
@@ -4933,38 +8213,75 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
                 }
 
-                // Update dates if needed
-                if (calendarText) {
-                    if (apiFormats.dates.checkIn && apiFormats.dates.checkOut) {
-                        calendarText.textContent = formatDateRange(
-                            apiFormats.dates.checkIn,
-                            apiFormats.dates.checkOut
-                        );
+                // Handle minNights display for existing cards
+                if (minNightsElement) {
+                    const hasExtras = wantBoat() || wantChar();
+                    const datesSelected = hasDates();
+
+                    if (hasExtras && !datesSelected) {
+                        // Show minNights when extras are selected but no dates
+                        const minNights = listing.min_nights || 1;
+                        minNightsElement.textContent = `${minNights} night${minNights > 1 ? 's' : ''}`;
+                        minNightsElement.style.display = 'flex';
                     } else {
-                        calendarText.textContent = formatDateRange(
-                            listing.default_startDate,
-                            listing.default_endDate
-                        );
+                        // Hide minNights in all other cases
+                        minNightsElement.style.display = 'none';
                     }
                 }
 
-                // Update price if needed
+                // Phase 2-3: Update price display with new logic
                 if (totalPrice) {
-                    let priceValue;
-                    if (apiFormats.dates.checkIn && apiFormats.dates.checkOut) {
-                        // Using custom dates price
-                        priceValue = listing.customDatesTotalPrice.toLocaleString('en-US', {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2
-                        });
+                    const hasExtras = wantBoat() || wantChar();
+                    const datesSelected = hasDates();
+
+                    if (!hasExtras && !datesSelected) {
+                        // Home-only & NO dates: Starting at nightly
+                        if (listing.nightlyPrice && Number.isFinite(Number(listing.nightlyPrice))) {
+                            totalPrice.textContent = fmtMoney(listing.nightlyPrice);
+                            if (totalPriceSubText) totalPriceSubText.textContent = "per night (" + listing.min_nights + " night" + (listing.min_nights > 1 ? 's' : '') + " min)";
+                        } else {
+                            totalPrice.textContent = "Price unavailable";
+                            if (totalPriceSubText) totalPriceSubText.textContent = "";
+                        }
+                    } else if (!hasExtras && datesSelected) {
+                        // Home-only & WITH dates: Total stay price
+                        const stayPrice = Number(listing.customDatesTotalPrice || 0);
+                        totalPrice.textContent = fmtMoney(stayPrice);
+                        if (totalPriceSubText) totalPriceSubText.textContent = "total before taxes";
+                    } else if (hasExtras && !datesSelected) {
+                        // Extras & NO dates: Combined starting at
+                        const homeStart = computeHomeStartNoDates(listing);
+                        if (homeStart == null) {
+                            totalPrice.textContent = "Price unavailable";
+                            if (totalPriceSubText) totalPriceSubText.textContent = "";
+                        } else {
+                            const extrasStart = minBoat(listing) + minChar(listing);
+                            totalPrice.textContent = "Starting at " + fmtMoney(homeStart + extrasStart);
+                            // Create dynamic subtext based on selected extras
+                            const hasBoat = wantBoat();
+                            const hasCharter = wantChar();
+                            let subtextParts = ['home'];
+                            if (hasBoat) subtextParts.push('boat');
+                            if (hasCharter) subtextParts.push('charter');
+                            const subtextContent = `(${subtextParts.join(' + ')})`;
+                            if (totalPriceSubText) totalPriceSubText.textContent = subtextContent;
+                        }
                     } else {
-                        // Using default dates price
-                        priceValue = listing.total_price.toLocaleString('en-US', {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2
-                        });
+                        // Extras & WITH dates: Combined total
+                        const base = Number(listing.customDatesTotalPrice || 0);
+                        const extrasPrice = minBoat(listing) + minChar(listing);
+                        const combinedPrice = base + extrasPrice;
+                        totalPrice.textContent = "Starting at " + fmtMoney(combinedPrice);
+                        // Create dynamic subtext based on selected extras
+                        const hasBoat = wantBoat();
+                        const hasCharter = wantChar();
+                        let subtextParts = ['home'];
+                        if (hasBoat) subtextParts.push('boat');
+                        if (hasCharter) subtextParts.push('charter');
+                        const subtextContent = `(${subtextParts.join(' + ')})`;
+                        if (totalPriceSubText) totalPriceSubText.textContent = subtextContent;
+
                     }
-                    totalPrice.textContent = priceValue ? `$${priceValue}` : 'Price on request';
                 }
 
                 // Make the card visible
@@ -4979,9 +8296,9 @@ document.addEventListener('DOMContentLoaded', function () {
                     });
                 }
 
-                // Check if Splide needs to be initialized
+                // Check if custom carousel needs to be initialized
                 requestAnimationFrame(() => {
-                    initializeSplideForCard(card, listing);
+                    initializeCustomCarouselForCard(card, listing);
                 });
 
                 // Add/update click event handler for existing cards
@@ -4990,9 +8307,10 @@ document.addEventListener('DOMContentLoaded', function () {
                     bodyBlock.setAttribute('data-click-handler', 'true'); // Mark as having handler
 
                     bodyBlock.addEventListener('click', (e) => {
-                        // Don't navigate if clicking on splide arrows or dots
-                        if (e.target.closest('.splide__arrow') ||
-                            e.target.closest('.splide__pagination')) {
+                        // Don't navigate if clicking on carousel arrows or dots
+                        if (e.target.closest('.image_arrow_prev') ||
+                            e.target.closest('.image_arrow_next') ||
+                            e.target.closest('.carousel-dot')) {
                             return;
                         }
 
@@ -5200,48 +8518,7 @@ document.addEventListener('DOMContentLoaded', function () {
         background-color: #f5f5f5 !important;
     }
     
-    .map-card-splide .splide__arrow {
-        background: white;
-        opacity: 0.8;
-        width: 32px;
-        height: 32px;
-    }
-    
-    .map-card-splide .splide__arrow:hover {
-        opacity: 1;
-    }
-    
-    .map-card-splide .splide__pagination__page {
-        background: rgba(255, 255, 255, 0.5);
-    }
-    
-    .map-card-splide .splide__pagination__page.is-active {
-        background: white;
-    }
-    
-    .map-listing-card .splide__arrow {
-        position: absolute;
-        z-index: 1000;
-        cursor: pointer;
-        background: rgba(255, 255, 255, 0.9);
-        border-radius: 50%;
-        padding: 8px;
-        border: none;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-    }
 
-    .map-listing-card .splide__arrow:hover {
-        background: white;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-    }
-
-    .map-listing-card .splide__arrow--prev {
-        left: 10px;
-    }
-
-    .map-listing-card .splide__arrow--next {
-        right: 10px;
-    }
 `;
     document.head.appendChild(mapListingCardStyle);
 
@@ -5363,9 +8640,13 @@ document.addEventListener('DOMContentLoaded', function () {
     // Call fetchPropertySearchResults on page load to display initial properties
     fetchPropertySearchResults()
         .then(results => {
+            // Update extras visibility on initial load
+            updateExtrasVisibility();
+
+            // Initialize pricing mode tracking
+            previousPricingMode = getCurrentPricingMode();
         })
         .catch(error => {
-            console.error('Error loading initial properties:', error);
         });
 
     // Function to change marker background color
@@ -5412,7 +8693,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 const cardHTML = `
                     <div class="map-listing-card" style="
                         background: white;
-                        border-radius: 10px;
+                        border-radius: 5px;
                         box-shadow: 0 4px 12px rgba(0,0,0,0.15);
                         width: 300px;
                         cursor: pointer;
@@ -5439,58 +8720,137 @@ document.addEventListener('DOMContentLoaded', function () {
                             </svg>
                         </div>
                         
-                        <div class="splide map-card-splide" style="height: 200px;">
-                            <div class="splide__track">
-                                <ul class="splide__list">
-                                    ${this.listing._images && this.listing._images.length > 0 ?
-                        this.listing._images.map(img =>
-                            `<li class="splide__slide">
+                        <div class="map-custom-carousel" style="position: relative; width: 100%; height: 200px; border-radius: 5px 5px 0 0; overflow: hidden;">
+                            <div class="map-carousel-track" style="display: flex; width: 100%; height: 100%; transition: transform 0.3s ease;">
+                                ${this.listing._images && this.listing._images.length > 0 ?
+                        this.listing._images.map((img, index) =>
+                            `<div class="map-carousel-slide" style="flex: 0 0 100%; height: 100%;">
                                 <img src="${img.property_image?.url || ''}" 
                                      alt="${this.listing.property_name}" 
+                                     loading="${index < 3 ? 'eager' : 'lazy'}"
                                      style="width: 100%; height: 200px; object-fit: cover;">
-                            </li>`
+                            </div>`
                         ).join('') :
-                        `<li class="splide__slide">
+                        `<div class="map-carousel-slide" style="flex: 0 0 100%; height: 100%;">
                             <img src="${this.listing.image_url || ''}" 
                                  alt="${this.listing.property_name}" 
                                  style="width: 100%; height: 200px; object-fit: cover;">
-                        </li>`
+                        </div>`
                     }
-                                </ul>
                             </div>
-                            <div class="splide__arrows"></div>
-                            <ul class="splide__pagination"></ul>
+                            
+                            ${this.listing._images && this.listing._images.length > 1 ? `
+                                <button class="map-image_arrow_prev" style="
+                                    position: absolute;
+                                    left: 10px;
+                                    top: 50%;
+                                    transform: translateY(-50%);
+                                    background: rgba(255, 255, 255, 0.8);
+                                    border: none;
+                                    border-radius: 50%;
+                                    width: 34px;
+                                    height: 34px;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    cursor: pointer;
+                                    z-index: 1001;
+                                    box-shadow: 0px 0px 2px rgba(255, 255, 255, 0.4);
+                                    opacity: 0.8;
+                                    transition: opacity 0.2s ease;
+                                " onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.8'">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                                        <path d="M15 18L9 12L15 6" stroke="#000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                    </svg>
+                                </button>
+                                
+                                <button class="map-image_arrow_next" style="
+                                    position: absolute;
+                                    right: 10px;
+                                    top: 50%;
+                                    transform: translateY(-50%);
+                                    background: rgba(255, 255, 255, 0.8);
+                                    border: none;
+                                    border-radius: 50%;
+                                    width: 34px;
+                                    height: 34px;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    cursor: pointer;
+                                    z-index: 1001;
+                                    box-shadow: 0px 0px 2px rgba(255, 255, 255, 0.4);
+                                    opacity: 0.8;
+                                    transition: opacity 0.2s ease;
+                                " onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.8'">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                                        <path d="M9 18L15 12L9 6" stroke="#000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                    </svg>
+                                </button>
+                                
+                                <div class="map-carousel-pagination" style="
+                                    position: absolute;
+                                    bottom: 10px;
+                                    left: 50%;
+                                    transform: translateX(-50%);
+                                    display: flex;
+                                    gap: 6px;
+                                    z-index: 1001;
+                                ">
+                                    ${this.listing._images.slice(0, Math.min(5, this.listing._images.length)).map((_, index) => `
+                                        <div class="map-carousel-dot" data-index="${index}" style="
+                                            width: 8px;
+                                            height: 8px;
+                                            border-radius: 50%;
+                                            background: rgba(255, 255, 255, 0.5);
+                                            cursor: pointer;
+                                            transition: background 0.2s ease;
+                                            ${index === 0 ? 'background: white;' : ''}
+                                        "></div>
+                                    `).join('')}
+                                </div>
+                            ` : ''}
                         </div>
+                        
+                        ${this.getExtrasSection()}
                         
                         <div style="padding: 8px 8px 12px 8px; display: flex; align-items: top; align-items: stretch; flex-direction: column; gap: 2px; margin-top: 0px; font-family: 'TT Fors', sans-serif;">
                             <div style="display: flex; justify-content: space-between; align-items: flex-start; margin: 0; line-height: 1;">
-                                <h3 style="margin: 0; padding: 0; font-size: 15px; color: #000000; font-weight: 600; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 8px; font-family: 'TT Fors', sans-serif; line-height: 1;">
+                                <h3 style="margin: 0; padding: 0; font-size: 14px; color: #000000; font-weight: 600; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 8px; font-family: 'TT Fors', sans-serif; line-height: 1;">
                                     ${this.listing.property_name || 'Property'}
                                 </h3>
                                 <div style="display: flex; align-items: center; gap: 3px; font-family: 'TT Fors', sans-serif; line-height: 1; margin: 0; padding: 0;">
-                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="#000000" style="margin: 0; padding: 0; display: block;">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="#000000" style="margin: 0; padding: 0; display: block;">
                                         <path d="M12 2l2.59 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l7.41-1.01L12 2z" stroke="#000000" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
                                     </svg>
-                                    <span style="font-size: 15px; font-weight: 500; font-family: 'TT Fors', sans-serif; line-height: 1;">
-                                        ${this.listing.review_average || 'New'}
+                                    <span style="font-size: 14px; font-weight: 500; font-family: 'TT Fors', sans-serif; line-height: 1;">
+                                        ${(!this.listing.reviews_amount || !this.listing.review_average) ? 'New' : this.listing.review_average}
                                     </span>
-                                    ${this.listing.reviews_amount ?
-                        `<span style="font-size: 15px; color: #000000; font-family: 'TT Fors', sans-serif; line-height: 1;">(${this.listing.reviews_amount})</span>` :
+                                    ${(this.listing.reviews_amount && this.listing.review_average) ?
+                        `<span style="font-size: 14px; color: #000000; font-family: 'TT Fors', sans-serif; line-height: 1;">(${this.listing.reviews_amount})</span>` :
                         ''
                     }
                                 </div>
                             </div>
                             
-                            <p style="margin: 0; font-size: 15px; color: #000000; font-family: 'TT Fors', sans-serif;">
+                            <p style="margin: 0; font-size: 14px; color: #000000; font-family: 'TT Fors', sans-serif;">
                                 ${this.listing.listing_city_state || ''}
                             </p>
                             
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin: 0;">
-                                <span style="font-size: 15px; color: #000000; font-family: 'TT Fors', sans-serif;">
+                            ${this.getDateRange() ? `
+                            <div style="margin: 0;">
+                                <span style="font-size: 14px; color: #000000; font-family: 'TT Fors', sans-serif;">
                                     ${this.getDateRange()}
                                 </span>
-                                <span style="font-size: 15px; font-weight: 600; color: #000000; font-family: 'TT Fors', sans-serif;">
+                            </div>
+                            ` : ''}
+                            
+                            <div style="display: flex; flex-direction: horizontal; align-items: bottom; gap: 4px; margin: 0;">
+                                <span style="font-size: 14px; font-weight: 600; color: #000000; font-family: 'TT Fors', sans-serif;">
                                     ${this.getPrice()}
+                                </span>
+                                <span style="font-size: 14px; color: #000000; font-family: 'TT Fors', sans-serif;">
+                                    ${this.getPriceSubText()}
                                 </span>
                             </div>
                         </div>
@@ -5515,19 +8875,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Add click handler to card for navigation
                 const card = this.div.querySelector('.map-listing-card');
 
-                // Add click handlers for slider navigation buttons
-                const sliderNavButtons = card.querySelectorAll('.splide__arrow');
-                sliderNavButtons.forEach(button => {
-                    button.style.zIndex = '1000'; // Ensure buttons are above other content
-                    button.addEventListener('click', (e) => {
-                        e.stopPropagation(); // Prevent click from bubbling to card
-                    });
-                });
+                // Carousel navigation buttons will be handled by the carousel initialization
 
                 // Add click handler for the entire card
                 card.addEventListener('click', (e) => {
-                    // Don't navigate if clicking on slider navigation buttons
-                    if (e.target.closest('.splide__arrow') || e.target.closest('.close-btn')) {
+                    // Don't navigate if clicking on carousel navigation buttons
+                    if (e.target.closest('.map-image_arrow_prev') || e.target.closest('.map-image_arrow_next') || e.target.closest('.map-carousel-dot') || e.target.closest('.close-btn')) {
                         return;
                     }
 
@@ -5568,70 +8921,86 @@ document.addEventListener('DOMContentLoaded', function () {
                 const panes = this.getPanes();
                 panes.floatPane.appendChild(this.div);
 
-                // Initialize Splide after adding to DOM
-                setTimeout(() => {
-                    const splideElement = this.div.querySelector('.map-card-splide');
-                    if (splideElement && this.listing._images && this.listing._images.length > 1) {
-                        const splide = new Splide(splideElement, {
-                            type: 'loop',
-                            height: '200px',
-                            perPage: 1,
-                            arrows: true,
-                            pagination: true
-                        });
+                // Initialize custom carousel after adding to DOM
+                requestAnimationFrame(() => {
+                    const carouselElement = this.div.querySelector('.map-custom-carousel');
+                    if (carouselElement && this.listing._images && this.listing._images.length > 1) {
+                        // Initialize carousel functionality
+                        let currentIndex = 0;
+                        const totalImages = this.listing._images.length;
+                        const track = carouselElement.querySelector('.map-carousel-track');
+                        const prevButton = carouselElement.querySelector('.map-image_arrow_prev');
+                        const nextButton = carouselElement.querySelector('.map-image_arrow_next');
+                        const dots = carouselElement.querySelectorAll('.map-carousel-dot');
 
-                        // Add pagination dots limit
-                        splide.on('pagination:mounted', function (data) {
-                            // Limit the number of pagination dots to a maximum of 5
-                            const maxDots = 5;
-
-                            // Hide excess pagination dots beyond maxDots
-                            data.items.forEach((item, i) => {
-                                if (i >= maxDots) {
-                                    item.li.style.display = 'none';
+                        function updateCarousel(skipTransition = false) {
+                            if (track) {
+                                if (skipTransition) {
+                                    track.style.transition = 'none';
+                                    track.style.transform = `translateX(-${currentIndex * 100}%)`;
+                                    // Re-enable transition after a brief delay
+                                    requestAnimationFrame(() => {
+                                        track.style.transition = 'transform 0.3s ease';
+                                    });
+                                } else {
+                                    track.style.transform = `translateX(-${currentIndex * 100}%)`;
                                 }
-                            });
-                        });
-
-                        splide.on('move', function (newIndex) {
-                            const maxDots = 5;
-
-                            // Calculate which dot should be highlighted based on the current slide
-                            const activeDotIndex = newIndex % maxDots;
-
-                            // Get all pagination dots
-                            const dots = splideElement.querySelectorAll('.splide__pagination__page');
-
-                            // Remove active class from all dots
-                            dots.forEach((dot) => {
-                                dot.classList.remove('is-active');
-                            });
-
-                            // Add active class to the correct dot
-                            if (dots[activeDotIndex]) {
-                                dots[activeDotIndex].classList.add('is-active');
                             }
-                        });
 
-                        // Add click handlers to prevent map clicks
-                        const arrows = splideElement.querySelectorAll('.splide__arrow');
-                        const pagination = splideElement.querySelector('.splide__pagination');
-
-                        arrows.forEach(arrow => {
-                            arrow.addEventListener('click', (e) => {
-                                e.stopPropagation();
-                            });
-                        });
-
-                        if (pagination) {
-                            pagination.addEventListener('click', (e) => {
-                                e.stopPropagation();
+                            // Update dots (max 5 dots, cycling through)
+                            dots.forEach((dot, index) => {
+                                const isActive = index === (currentIndex % Math.min(5, totalImages));
+                                dot.style.background = isActive ? 'white' : 'rgba(255, 255, 255, 0.5)';
                             });
                         }
 
-                        splide.mount();
+                        function goToNext() {
+                            const wasLastImage = currentIndex === totalImages - 1;
+                            currentIndex = (currentIndex + 1) % totalImages;
+                            updateCarousel(wasLastImage); // Skip transition when wrapping from last to first
+                        }
+
+                        function goToPrev() {
+                            const wasFirstImage = currentIndex === 0;
+                            if (currentIndex === 0) {
+                                currentIndex = totalImages - 1;
+                            } else {
+                                currentIndex = currentIndex - 1;
+                            }
+                            updateCarousel(wasFirstImage); // Skip transition when wrapping from first to last
+                        }
+
+                        // Add event listeners with high z-index to prevent click-through
+                        if (prevButton) {
+                            prevButton.addEventListener('click', (e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                e.stopImmediatePropagation();
+                                goToPrev();
+                            });
+                        }
+
+                        if (nextButton) {
+                            nextButton.addEventListener('click', (e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                e.stopImmediatePropagation();
+                                goToNext();
+                            });
+                        }
+
+                        // Dot navigation
+                        dots.forEach((dot, index) => {
+                            dot.addEventListener('click', (e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                e.stopImmediatePropagation();
+                                currentIndex = index;
+                                updateCarousel();
+                            });
+                        });
                     }
-                }, 100);
+                }, 10);
             }
 
             draw() {
@@ -5657,26 +9026,145 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (apiFormats.dates.checkIn && apiFormats.dates.checkOut) {
                     return formatDateRange(apiFormats.dates.checkIn, apiFormats.dates.checkOut);
                 } else {
-                    return formatDateRange(this.listing.default_startDate, this.listing.default_endDate);
+                    // Check if we should show minimum nights (extras selected but no dates)
+                    const hasExtras = wantBoat() || wantChar();
+                    if (hasExtras) {
+                        const minNights = this.listing.min_nights || 1;
+                        return `${minNights} night${minNights > 1 ? 's' : ''}`;
+                    }
+                    return null; // Hide date section when no dates and no extras
                 }
             }
 
             getPrice() {
-                let priceValue;
-                if (apiFormats.dates.checkIn && apiFormats.dates.checkOut) {
-                    priceValue = this.listing.customDatesTotalPrice;
+                // Use the same price logic as listing cards
+                const hasExtras = wantBoat() || wantChar();
+                const datesSelected = hasDates();
+
+                if (!hasExtras && !datesSelected) {
+                    // Home-only & NO dates: Starting at nightly
+                    if (this.listing.nightlyPrice && Number.isFinite(Number(this.listing.nightlyPrice))) {
+                        return fmtMoney(this.listing.nightlyPrice);
+                    } else {
+                        return "Price unavailable";
+                    }
+                } else if (!hasExtras && datesSelected) {
+                    // Home-only & WITH dates: Total stay price
+                    const stayPrice = Number(this.listing.customDatesTotalPrice || 0);
+                    return fmtMoney(stayPrice);
+                } else if (hasExtras && !datesSelected) {
+                    // Extras & NO dates: Combined starting at
+                    const homeStart = computeHomeStartNoDates(this.listing);
+                    if (homeStart == null) {
+                        return "Price unavailable";
+                    } else {
+                        const extrasStart = minBoat(this.listing) + minChar(this.listing);
+                        const combinedPrice = homeStart + extrasStart;
+                        return "Starting at " + fmtMoney(combinedPrice);
+                    }
                 } else {
-                    priceValue = this.listing.total_price;
+                    // Extras & WITH dates: Combined total
+                    const base = Number(this.listing.customDatesTotalPrice || 0);
+                    const extrasPrice = minBoat(this.listing) + minChar(this.listing);
+                    const combinedPrice = base + extrasPrice;
+                    return "Starting at " + fmtMoney(combinedPrice);
+                }
+            }
+
+            getPriceSubText() {
+                // Use the same price subtext logic as listing cards
+                const hasExtras = wantBoat() || wantChar();
+                const datesSelected = hasDates();
+
+                if (!hasExtras && !datesSelected) {
+                    // Home-only & NO dates: per night
+                    if (this.listing.nightlyPrice && Number.isFinite(Number(this.listing.nightlyPrice))) {
+                        return "per night (" + this.listing.min_nights + " night" + (this.listing.min_nights > 1 ? 's' : '') + " min)";
+                    } else {
+                        return "";
+                    }
+                } else if (!hasExtras && datesSelected) {
+                    // Home-only & WITH dates: total before taxes
+                    return "total before taxes";
+                } else if (hasExtras && !datesSelected) {
+                    // Extras & NO dates: dynamic subtext
+                    const homeStart = computeHomeStartNoDates(this.listing);
+                    if (homeStart == null) {
+                        return "";
+                    } else {
+                        // Create dynamic subtext based on selected extras
+                        const hasBoat = wantBoat();
+                        const hasCharter = wantChar();
+                        let subtextParts = ['home'];
+                        if (hasBoat) subtextParts.push('boat');
+                        if (hasCharter) subtextParts.push('charter');
+                        return `(${subtextParts.join(' + ')})`;
+                    }
+                } else {
+                    // Extras & WITH dates: dynamic subtext
+                    const hasBoat = wantBoat();
+                    const hasCharter = wantChar();
+                    let subtextParts = ['home'];
+                    if (hasBoat) subtextParts.push('boat');
+                    if (hasCharter) subtextParts.push('charter');
+                    return `(${subtextParts.join(' + ')})`;
+                }
+            }
+
+            getExtrasSection() {
+                const hasBoatRental = wantBoat();
+                const hasFishingCharter = wantChar();
+
+                if (!hasBoatRental && !hasFishingCharter) {
+                    return '';
                 }
 
-                if (priceValue) {
-                    const formatted = priceValue.toLocaleString('en-US', {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2
-                    });
-                    return `$${formatted}`;
+                let extrasHtml = '';
+
+                if (hasBoatRental) {
+                    extrasHtml += `
+                        <div style="
+                            display: inline-flex;
+                            align-items: center;
+                            background: #f0f0f0;
+                            border-radius: 20px;
+                            padding: 6px 12px;
+                            margin: 4px 4px 0 0;
+                            font-family: 'TT Fors', sans-serif;
+                            font-size: 12px;
+                            font-weight: 500;
+                            color: #333;
+                        ">+ Boat Rental</div>
+                    `;
                 }
-                return 'Price on request';
+
+                if (hasFishingCharter) {
+                    extrasHtml += `
+                        <div style="
+                            display: inline-flex;
+                            align-items: center;
+                            background: #f0f0f0;
+                            border-radius: 20px;
+                            padding: 6px 12px;
+                            margin: 4px 4px 0 0;
+                            font-family: 'TT Fors', sans-serif;
+                            font-size: 12px;
+                            font-weight: 500;
+                            color: #333;
+                        ">+ Fishing Charter</div>
+                    `;
+                }
+
+                return `
+                    <div style="
+                        padding: 2px 2px 0 8px;
+                        display: flex;
+                        flex-wrap: wrap;
+                        gap: 0;
+                    ">
+                        ${extrasHtml}
+                    </div>
+                `;
             }
         }
 
@@ -5689,7 +9177,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
         const mapContainer = document.querySelector('[data-element="search_map"]');
         if (!mapContainer) {
-            console.error('Map container not found');
             return;
         }
 
@@ -5878,8 +9365,6 @@ document.addEventListener('DOMContentLoaded', function () {
             const currentBounds = map.getBounds();
             if (!currentBounds) return;
 
-            console.log("idle triggered, isUserExploring:", isUserExploring, "isCenteringOnMarker:", isCenteringOnMarker);
-
             // On initial load, set the search bounds and exit - don't trigger any updates
             if (isInitialLoad) {
                 searchBounds = currentBounds;
@@ -5902,7 +9387,7 @@ document.addEventListener('DOMContentLoaded', function () {
             requestAnimationFrame(() => {
                 // Store the original listings before filtering
                 if (!window.originalListings) {
-                    window.originalListings = window.allListings;
+                    window.originalListings = unfilteredListings;
                 }
 
                 // Filter listings based on current bounds
@@ -5964,12 +9449,14 @@ document.addEventListener('DOMContentLoaded', function () {
                         // Add a small delay to make the loading feel responsive
                         setTimeout(() => {
                             renderListingCards(filteredVisibleListings, true);
+                            updateBoatBadgeForAllVisibleCards(filteredVisibleListings);
                             hideSkeletonLoading();
                         }, 300);
                     } else {
                         // Just update the visible listings without skeleton for small changes
                         setTimeout(() => {
                             renderListingCards(filteredVisibleListings, true);
+                            updateBoatBadgeForAllVisibleCards(filteredVisibleListings);
                         }, 0);
                     }
                 }
@@ -6001,7 +9488,6 @@ document.addEventListener('DOMContentLoaded', function () {
     // Function to update map with new search results
     function updateMapWithResults(listings) {
         if (!window.currentMap) {
-            console.error('Map not initialized');
             return;
         }
 
@@ -6058,14 +9544,39 @@ document.addEventListener('DOMContentLoaded', function () {
                 const lng = parseFloat(listing.longitude);
 
                 if (!isNaN(lat) && !isNaN(lng)) {
-                    // Determine which price to show
+                    // Phase 3: Determine which price to show (mirror card logic)
                     let priceText;
-                    if (apiFormats.dates.checkIn && apiFormats.dates.checkOut) {
-                        const totalPrice = listing.customDatesTotalPrice || 0;
-                        priceText = `$${Math.ceil(totalPrice).toLocaleString()}`;
+                    const hasExtras = wantBoat() || wantChar();
+                    const datesSelected = hasDates();
+
+                    if (!hasExtras) {
+                        // Home-only: keep current logic exactly
+                        if (datesSelected) {
+                            const totalPrice = listing.customDatesTotalPrice || 0;
+                            priceText = `$${Math.round(totalPrice).toLocaleString()}`;
+                        } else {
+                            const nightlyPrice = listing.nightlyPrice || 0;
+                            priceText = `$${nightlyPrice}`;
+                        }
                     } else {
-                        const nightlyPrice = listing.nightlyPrice || 0;
-                        priceText = `$${nightlyPrice}`;
+                        // Extras active: compute combined value with trailing +
+                        if (!datesSelected) {
+                            // NO dates: homeStart + extras
+                            const homeStart = computeHomeStartNoDates(listing);
+                            if (homeStart == null) {
+                                priceText = "Unavailable";
+                            } else {
+                                const extrasStart = minBoat(listing) + minChar(listing);
+                                const combinedPrice = homeStart + extrasStart;
+                                priceText = `$${Math.round(combinedPrice).toLocaleString()}+`;
+                            }
+                        } else {
+                            // WITH dates: customDatesTotalPrice + extras
+                            const base = Number(listing.customDatesTotalPrice || 0);
+                            const extrasPrice = minBoat(listing) + minChar(listing);
+                            const combinedPrice = base + extrasPrice;
+                            priceText = `$${Math.round(combinedPrice).toLocaleString()}+`;
+                        }
                     }
                     // Create custom marker HTML
                     const markerHTML = `
@@ -6086,7 +9597,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         -webkit-user-select: none;
                         -moz-user-select: none;
                         -ms-user-select: none;
-                    " onmouseover="this.style.transform='scale(1.05)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)';" 
+                    " onmouseover="this.style.transform='scale(1)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)';" 
                        onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.1)';">
 
                         ${priceText}
@@ -6208,7 +9719,52 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    // Function to update extra type information visibility based on search selections
+    function updateExtrasVisibility() {
 
+        // Get the main search extras container
+        const searchExtrasContainer = document.querySelector('[data-element="searchExtrasFilter_container"]');
+        const boatRentalFilter = document.querySelector('[data-element="boatRentalFilter"]');
+        const fishingChartersFilter = document.querySelector('[data-element="fishingChartersFilter"]');
+
+        // Check if any extras are selected
+        const hasBoatRental = !!(currentSelections.typeFlags?.boatRental || apiFormats.type?.boatRental);
+        const hasFishingCharter = !!(currentSelections.typeFlags?.fishingCharter || apiFormats.type?.fishingCharter);
+        const hasAnyExtras = hasBoatRental || hasFishingCharter;
+
+
+        // Update search extras container visibility
+        if (searchExtrasContainer) {
+            searchExtrasContainer.style.display = hasAnyExtras ? 'flex' : 'none';
+        }
+
+        // Update individual filter visibility
+        if (boatRentalFilter) {
+            boatRentalFilter.style.display = hasBoatRental ? 'flex' : 'none';
+        }
+
+        if (fishingChartersFilter) {
+            fishingChartersFilter.style.display = hasFishingCharter ? 'flex' : 'none';
+        }
+
+        // Update all listing card extras containers
+        const listingExtrasContainers = document.querySelectorAll('[data-element="listing-card-extras-container"]');
+        const boatRentalBlocks = document.querySelectorAll('[data-element="listing-card-extras-boatRentalBlock"]');
+        const fishingCharterBlocks = document.querySelectorAll('[data-element="listing-card-extras-fishingCharterBlock"]');
+
+        // Show/hide listing card extras containers
+        listingExtrasContainers.forEach(container => {
+            container.style.display = hasAnyExtras ? 'flex' : 'none';
+        });
+
+        // Show/hide individual listing card extras blocks
+        boatRentalBlocks.forEach(block => {
+            block.style.display = hasBoatRental ? 'flex' : 'none';
+        });
+
+        fishingCharterBlocks.forEach(block => {
+            block.style.display = hasFishingCharter ? 'flex' : 'none';
+        });
+    }
 
 });
-
