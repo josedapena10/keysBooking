@@ -670,6 +670,8 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
+    // Note: Scroll blocking logic removed - users can scroll background when modals are open
+
     // Function to close all popups and remove all selected classes
     function closeAllPopups() {
         // Hide all popups
@@ -684,14 +686,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Remove selected class from guests container
         if (guestsSearchContainer) guestsSearchContainer.classList.remove('selected');
-
-        // Re-enable scrolling on body
-        const body = document.querySelector('[data-element="body"]');
-        if (body) {
-            body.style.overflow = '';
-            body.style.position = '';
-            body.style.height = '';
-        }
     }
 
     // Function to open a specific popup
@@ -733,14 +727,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (popupInfo.button) popupInfo.button.classList.add('selected');
             }
 
-            // Disable scrolling on body
-            const body = document.querySelector('[data-element="body"]');
-            if (body) {
-                body.style.overflow = 'hidden';
-                body.style.position = 'fixed';
-                body.style.height = '100%';
-                body.style.width = '100%';
-            }
+            // Note: Scroll blocking removed - background scrolling allowed
         }
     }
 
@@ -867,6 +854,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!isClickInsideAnyPopup && !isClickOnAnyButton && !searchButton.contains(e.target)) {
             closeAllPopups();
             revertPendingChanges();
+            // Note: Scroll blocking removed - background scrolling allowed
         }
     });
 
@@ -3009,25 +2997,13 @@ document.addEventListener('DOMContentLoaded', function () {
         // Function to show mobile popup
         function showMobilePopup() {
             navBarContainer.classList.add('show-mobile-popup');
-
-            // Disable body scroll
-            const body = document.querySelector('[data-element="body"]') || document.body;
-            body.style.overflow = 'hidden';
-            body.style.position = 'fixed';
-            body.style.width = '100%';
-            body.style.height = '100%';
+            // Note: Scroll blocking removed - background scrolling allowed
         }
 
         // Function to hide mobile popup
         function hideMobilePopup() {
             navBarContainer.classList.remove('show-mobile-popup');
-
-            // Re-enable body scroll
-            const body = document.querySelector('[data-element="body"]') || document.body;
-            body.style.overflow = '';
-            body.style.position = '';
-            body.style.width = '';
-            body.style.height = '';
+            // Note: Scroll blocking removed - background scrolling allowed
         }
 
         // Add click handler to phone view container
@@ -3061,6 +3037,8 @@ document.addEventListener('DOMContentLoaded', function () {
             if (window.innerWidth <= 991) {
                 hideMobilePopup();
             }
+
+            // Note: Scroll blocking removed - background scrolling allowed
         };
 
         // // Override the search button click to close mobile popup
@@ -3267,19 +3245,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Remove selected class from type button
                 if (typeButton) typeButton.classList.remove('selected');
 
-                // Re-enable body scroll only if no other popups are open
-                const otherPopupsOpen = [locationPopup, datesPopup, guestsPopup].some(popup =>
-                    popup && popup.style.display === 'flex'
-                );
-
-                if (!otherPopupsOpen) {
-                    const body = document.querySelector('[data-element="body"]');
-                    if (body) {
-                        body.style.overflow = '';
-                        body.style.position = '';
-                        body.style.height = '';
-                    }
-                }
+                // Note: Scroll blocking removed - background scrolling allowed
 
                 return false;
             });
@@ -3307,19 +3273,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Remove selected class from location button
                 if (locationButton) locationButton.classList.remove('selected');
 
-                // Re-enable body scroll only if no other popups are open
-                const otherPopupsOpen = [typePopup, datesPopup, guestsPopup].some(popup =>
-                    popup && popup.style.display === 'flex'
-                );
-
-                if (!otherPopupsOpen) {
-                    const body = document.querySelector('[data-element="body"]');
-                    if (body) {
-                        body.style.overflow = '';
-                        body.style.position = '';
-                        body.style.height = '';
-                    }
-                }
+                // Note: Scroll blocking removed - background scrolling allowed
 
                 // Don't revert changes - keep temp selections
                 return false; // ADD THIS to prevent further event handling
@@ -3348,19 +3302,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Remove selected class from dates button
                 if (datesButton) datesButton.classList.remove('selected');
 
-                // Re-enable body scroll only if no other popups are open
-                const otherPopupsOpen = [typePopup, locationPopup, guestsPopup].some(popup =>
-                    popup && popup.style.display === 'flex'
-                );
-
-                if (!otherPopupsOpen) {
-                    const body = document.querySelector('[data-element="body"]');
-                    if (body) {
-                        body.style.overflow = '';
-                        body.style.position = '';
-                        body.style.height = '';
-                    }
-                }
+                // Note: Scroll blocking removed - background scrolling allowed
 
                 // Don't revert changes - keep temp selections
                 return false; // ADD THIS to prevent further event handling
@@ -3389,19 +3331,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Remove selected class from guests container
                 if (guestsSearchContainer) guestsSearchContainer.classList.remove('selected');
 
-                // Re-enable body scroll only if no other popups are open
-                const otherPopupsOpen = [typePopup, locationPopup, datesPopup].some(popup =>
-                    popup && popup.style.display === 'flex'
-                );
-
-                if (!otherPopupsOpen) {
-                    const body = document.querySelector('[data-element="body"]');
-                    if (body) {
-                        body.style.overflow = '';
-                        body.style.position = '';
-                        body.style.height = '';
-                    }
-                }
+                // Note: Scroll blocking removed - background scrolling allowed
 
                 // Don't revert changes - keep temp selections
                 return false; // ADD THIS to prevent further event handling
@@ -4665,6 +4595,8 @@ document.addEventListener('DOMContentLoaded', function () {
     // Make charter module globally accessible for future UI integration
     window.charterModule = charterModule;
 
+    // Note: Scroll blocking logic removed - background scrolling is now allowed
+
     // Ensure charter module is available globally before filter system setup
     if (typeof window.charterModule === 'undefined') {
     }
@@ -5021,14 +4953,20 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
 
                 function handleDragStart(e, isMin) {
-                    e.preventDefault();
+                    // Handle both mouse events and touch objects
+                    if (e.preventDefault) {
+                        e.preventDefault();
+                    }
+
+                    const clientX = e.clientX || e.clientX === 0 ? e.clientX : (e.touches ? e.touches[0].clientX : e.clientX);
+
                     if (isMin) {
                         isDraggingMin = true;
-                        startX = e.clientX;
+                        startX = clientX;
                         startLeft = parseInt(sliderMin.value);
                     } else {
                         isDraggingMax = true;
-                        startX = e.clientX;
+                        startX = clientX;
                         startLeft = parseInt(sliderMax.value);
                     }
                 }
@@ -5038,7 +4976,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
                     const containerRect = container.getBoundingClientRect();
                     const containerWidth = containerRect.width;
-                    const moveX = e.clientX - startX;
+                    const clientX = e.clientX || e.clientX === 0 ? e.clientX : (e.touches ? e.touches[0].clientX : e.clientX);
+                    const moveX = clientX - startX;
                     const movePercent = (moveX / containerWidth) * 100;
                     const moveValue = Math.round((movePercent / 100) * maxPrice);
 
@@ -5069,46 +5008,52 @@ document.addEventListener('DOMContentLoaded', function () {
                 document.addEventListener('mousemove', handleDragMove);
                 document.addEventListener('mouseup', handleDragEnd);
 
-                // Add touch event listeners for mobile - use container-specific listeners instead of global
-                const sliderContainer = sliderMin.closest('.filter-section') || sliderMin.parentElement;
+                // Add touch event listeners for mobile - use container approach
+                const priceSliderContainer = container;
 
                 thumbMin.addEventListener('touchstart', (e) => {
-                    e.preventDefault();
+                    e.stopPropagation(); // Stop event from bubbling to container
                     handleDragStart(e.touches[0], true);
                 });
-                thumbMax.addEventListener('touchstart', (e) => {
-                    e.preventDefault();
-                    handleDragStart(e.touches[0], false);
-                });
 
-                // Add touch move/end listeners only to the slider container, not globally
-                if (sliderContainer) {
-                    sliderContainer.addEventListener('touchmove', (e) => {
-                        if (isDraggingMin || isDraggingMax) {
-                            e.preventDefault();
-                            handleDragMove(e.touches[0]);
-                        }
-                    }, { passive: false });
-
-                    sliderContainer.addEventListener('touchend', (e) => {
-                        if (isDraggingMin || isDraggingMax) {
-                            handleDragEnd();
-                        }
-                    });
-                }
-
-                // Fallback: minimal global listeners only for when dragging started on sliders
-                document.addEventListener('touchmove', (e) => {
-                    if ((isDraggingMin || isDraggingMax) && e.target.closest('.filter-section')) {
+                thumbMin.addEventListener('touchmove', (e) => {
+                    if (isDraggingMin) {
+                        e.preventDefault();
+                        e.stopPropagation();
                         handleDragMove(e.touches[0]);
                     }
-                }, { passive: true });
+                }, { passive: false });
 
-                document.addEventListener('touchend', (e) => {
-                    if (isDraggingMin || isDraggingMax) {
+                thumbMin.addEventListener('touchend', (e) => {
+                    if (isDraggingMin) {
+                        e.preventDefault();
+                        e.stopPropagation();
                         handleDragEnd();
                     }
                 });
+
+                thumbMax.addEventListener('touchstart', (e) => {
+                    e.stopPropagation(); // Stop event from bubbling to container
+                    handleDragStart(e.touches[0], false);
+                });
+
+                thumbMax.addEventListener('touchmove', (e) => {
+                    if (isDraggingMax) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleDragMove(e.touches[0]);
+                    }
+                }, { passive: false });
+
+                thumbMax.addEventListener('touchend', (e) => {
+                    if (isDraggingMax) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleDragEnd();
+                    }
+                });
+
+                // Container listeners are not needed since we handle everything directly on thumbs
 
                 // Keep the original input event listeners
                 sliderMin?.addEventListener('input', () => {
@@ -5400,9 +5345,14 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
 
                 function handleDragStart(e) {
-                    e.preventDefault();
+                    // Handle both mouse events and touch objects
+                    if (e.preventDefault) {
+                        e.preventDefault();
+                    }
+
                     isDragging = true;
-                    startX = e.clientX;
+                    const clientX = e.clientX || e.clientX === 0 ? e.clientX : (e.touches ? e.touches[0].clientX : e.clientX);
+                    startX = clientX;
                     startValue = parseInt(slider.value);
                 }
 
@@ -5411,7 +5361,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
                     const containerRect = container.getBoundingClientRect();
                     const containerWidth = containerRect.width;
-                    const moveX = e.clientX - startX;
+                    const clientX = e.clientX || e.clientX === 0 ? e.clientX : (e.touches ? e.touches[0].clientX : e.clientX);
+                    const moveX = clientX - startX;
                     const movePercent = (moveX / containerWidth) * 100;
                     const moveValue = Math.round((movePercent / 100) * 80);
                     const newValue = Math.max(0, Math.min(startValue + moveValue, 80));
@@ -5429,42 +5380,31 @@ document.addEventListener('DOMContentLoaded', function () {
                 document.addEventListener('mousemove', handleDragMove);
                 document.addEventListener('mouseup', handleDragEnd);
 
-                // Add touch event listeners for mobile - use container-specific listeners instead of global
-                const sliderContainer = slider.closest('.filter-section') || slider.parentElement;
+                // Add touch event listeners for mobile - use container approach
+                const roomSliderContainer = container;
 
                 thumb.addEventListener('touchstart', (e) => {
-                    e.preventDefault();
+                    e.stopPropagation(); // Stop event from bubbling to container
                     handleDragStart(e.touches[0]);
                 });
 
-                // Add touch move/end listeners only to the slider container, not globally
-                if (sliderContainer) {
-                    sliderContainer.addEventListener('touchmove', (e) => {
-                        if (isDragging) {
-                            e.preventDefault();
-                            handleDragMove(e.touches[0]);
-                        }
-                    }, { passive: false });
-
-                    sliderContainer.addEventListener('touchend', (e) => {
-                        if (isDragging) {
-                            handleDragEnd();
-                        }
-                    });
-                }
-
-                // Fallback: minimal global listeners only for when dragging started on sliders
-                document.addEventListener('touchmove', (e) => {
-                    if (isDragging && e.target.closest('.filter-section')) {
+                thumb.addEventListener('touchmove', (e) => {
+                    if (isDragging) {
+                        e.preventDefault();
+                        e.stopPropagation();
                         handleDragMove(e.touches[0]);
                     }
-                }, { passive: true });
+                }, { passive: false });
 
-                document.addEventListener('touchend', (e) => {
+                thumb.addEventListener('touchend', (e) => {
                     if (isDragging) {
+                        e.preventDefault();
+                        e.stopPropagation();
                         handleDragEnd();
                     }
                 });
+
+                // Container listeners are not needed since we handle everything directly on thumb
 
                 // Keep the original input event listener
                 slider?.addEventListener('input', () => {
@@ -5506,9 +5446,14 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
 
                 function handleDockDragStart(e) {
-                    e.preventDefault();
+                    // Handle both mouse events and touch objects
+                    if (e.preventDefault) {
+                        e.preventDefault();
+                    }
+
                     isDockDragging = true;
-                    dockStartX = e.clientX;
+                    const clientX = e.clientX || e.clientX === 0 ? e.clientX : (e.touches ? e.touches[0].clientX : e.clientX);
+                    dockStartX = clientX;
                     dockStartValue = parseInt(dockSlider.value);
                 }
 
@@ -5517,7 +5462,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
                     const containerRect = dockContainer.getBoundingClientRect();
                     const containerWidth = containerRect.width;
-                    const moveX = e.clientX - dockStartX;
+                    const clientX = e.clientX || e.clientX === 0 ? e.clientX : (e.touches ? e.touches[0].clientX : e.clientX);
+                    const moveX = clientX - dockStartX;
                     const movePercent = (moveX / containerWidth) * 100;
                     const moveValue = Math.round((movePercent / 100) * 55);
                     const newValue = Math.max(0, Math.min(dockStartValue + moveValue, 55));
@@ -5535,42 +5481,31 @@ document.addEventListener('DOMContentLoaded', function () {
                 document.addEventListener('mousemove', handleDockDragMove);
                 document.addEventListener('mouseup', handleDockDragEnd);
 
-                // Add touch event listeners for mobile - use container-specific listeners instead of global
-                const dockSliderContainer = dockSlider.closest('.filter-section') || dockSlider.parentElement;
+                // Add touch event listeners for mobile - use container approach
+                const dockSliderContainer = dockContainer;
 
                 dockThumb.addEventListener('touchstart', (e) => {
-                    e.preventDefault();
+                    e.stopPropagation(); // Stop event from bubbling to container
                     handleDockDragStart(e.touches[0]);
                 });
 
-                // Add touch move/end listeners only to the slider container, not globally
-                if (dockSliderContainer) {
-                    dockSliderContainer.addEventListener('touchmove', (e) => {
-                        if (isDockDragging) {
-                            e.preventDefault();
-                            handleDockDragMove(e.touches[0]);
-                        }
-                    }, { passive: false });
-
-                    dockSliderContainer.addEventListener('touchend', (e) => {
-                        if (isDockDragging) {
-                            handleDockDragEnd();
-                        }
-                    });
-                }
-
-                // Fallback: minimal global listeners only for when dragging started on sliders
-                document.addEventListener('touchmove', (e) => {
-                    if (isDockDragging && e.target.closest('.filter-section')) {
+                dockThumb.addEventListener('touchmove', (e) => {
+                    if (isDockDragging) {
+                        e.preventDefault();
+                        e.stopPropagation();
                         handleDockDragMove(e.touches[0]);
                     }
-                }, { passive: true });
+                }, { passive: false });
 
-                document.addEventListener('touchend', (e) => {
+                dockThumb.addEventListener('touchend', (e) => {
                     if (isDockDragging) {
+                        e.preventDefault();
+                        e.stopPropagation();
                         handleDockDragEnd();
                     }
                 });
+
+                // Container listeners are not needed since we handle everything directly on thumb
 
                 // Keep the original input event listener
                 dockSlider?.addEventListener('input', () => {
@@ -6152,7 +6087,7 @@ document.addEventListener('DOMContentLoaded', function () {
             // Modal handlers
             boatRentalFilter.addEventListener('click', () => {
                 boatFilterModal.style.display = 'flex';
-                document.body.style.overflow = 'hidden';
+                // Note: Scroll blocking removed - background scrolling allowed
                 // Initialize pending state when opening modal
                 boatModule.initializePendingState();
                 updateBoatFilterDisplay();
@@ -6183,7 +6118,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
             function closeBoatFilterModal() {
                 boatFilterModal.style.display = 'none';
-                document.body.style.overflow = '';
             }
 
             function updateBoatFilterDisplay() {
@@ -6559,7 +6493,7 @@ document.addEventListener('DOMContentLoaded', function () {
             // Modal handlers
             fishingChartersFilter.addEventListener('click', () => {
                 fishingCharterFilterModal.style.display = 'flex';
-                document.body.style.overflow = 'hidden';
+                // Note: Scroll blocking removed - background scrolling allowed
                 // Initialize pending state when opening modal
                 if (typeof charterModule !== 'undefined') {
                     charterModule.initializePendingState();
@@ -6598,7 +6532,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
             function closeFishingCharterFilterModal() {
                 fishingCharterFilterModal.style.display = 'none';
-                document.body.style.overflow = '';
             }
 
             function updateCharterFilterDisplay() {
@@ -6901,7 +6834,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 filterModal.style.display = 'flex';
                 // Initialize pending state when opening modal
                 initializeAllPendingStates();
-
             }
         });
 
@@ -6926,7 +6858,9 @@ document.addEventListener('DOMContentLoaded', function () {
             applyPendingFilters();
 
             updateFilterCount();
-            if (filterModal) filterModal.style.display = 'none';
+            if (filterModal) {
+                filterModal.style.display = 'none';
+            }
 
             // Just apply filters to existing results
 
