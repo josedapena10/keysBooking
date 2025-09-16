@@ -851,12 +851,7 @@ document.addEventListener('DOMContentLoaded', function () {
             pair.button && pair.button.contains(e.target)
         );
 
-        // Check if click is inside map listing overlay
-        const isClickInsideMapOverlay = window.currentListingOverlay &&
-            window.currentListingOverlay.div &&
-            window.currentListingOverlay.div.contains(e.target);
-
-        if (!isClickInsideAnyPopup && !isClickOnAnyButton && !searchButton.contains(e.target) && !isClickInsideMapOverlay) {
+        if (!isClickInsideAnyPopup && !isClickOnAnyButton && !searchButton.contains(e.target)) {
             closeAllPopups();
             revertPendingChanges();
             // Note: Scroll blocking removed - background scrolling allowed
@@ -9031,11 +9026,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 // Add click handler to close button
                 const closeBtn = this.div.querySelector('.close-btn');
-
-                // Handle both click and touch events for mobile compatibility
-                const handleClose = (e) => {
+                closeBtn.addEventListener('click', (e) => {
                     e.stopPropagation();
-                    e.preventDefault();
                     this.setMap(null);
                     // Reset marker color
                     setMarkerBackgroundColor(this.listing.id, 'white');
@@ -9043,24 +9035,12 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (window.currentListingOverlay === this) {
                         window.currentListingOverlay = null;
                     }
-                };
-
-                closeBtn.addEventListener('click', handleClose);
-                closeBtn.addEventListener('touchend', handleClose, { passive: false });
+                });
 
                 // Add click handler to card for navigation
                 const card = this.div.querySelector('.map-listing-card');
 
                 // Carousel navigation buttons will be handled by the carousel initialization
-
-                // Add mobile touch event handlers to prevent accidental closure
-                card.addEventListener('touchstart', (e) => {
-                    e.stopPropagation();
-                }, { passive: true });
-
-                card.addEventListener('touchend', (e) => {
-                    e.stopPropagation();
-                }, { passive: false });
 
                 // Add click handler for the entire card
                 card.addEventListener('click', (e) => {
@@ -9068,9 +9048,6 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (e.target.closest('.map-image_arrow_prev') || e.target.closest('.map-image_arrow_next') || e.target.closest('.map-carousel-dot') || e.target.closest('.close-btn')) {
                         return;
                     }
-
-                    // Stop propagation to prevent global click handlers from interfering
-                    e.stopPropagation();
 
                     // Build URL parameters
                     const params = new URLSearchParams();
@@ -9542,17 +9519,14 @@ document.addEventListener('DOMContentLoaded', function () {
         map.addListener('zoom_changed', () => {
             if (!isInitialLoad) {
                 userHasInteracted = true;
-            }
-        });
 
-        // Add map click handler to close overlay when clicking on empty map area
-        map.addListener('click', (e) => {
-            // Only close overlay if clicking on empty map area (not on markers)
-            if (window.currentListingOverlay && !e.domEvent.target.closest('.map-listing-card')) {
-                window.currentListingOverlay.setMap(null);
-                const listingId = window.currentListingOverlay.listing.id;
-                setMarkerBackgroundColor(listingId, 'white');
-                window.currentListingOverlay = null;
+                // Close any open listing overlay when user zooms (especially important for mobile pinch-to-zoom)
+                if (window.currentListingOverlay && !isCenteringOnMarker) {
+                    const listingId = window.currentListingOverlay.listing.id;
+                    window.currentListingOverlay.setMap(null);
+                    setMarkerBackgroundColor(listingId, 'white');
+                    window.currentListingOverlay = null;
+                }
             }
         });
 
@@ -9572,9 +9546,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
 
-            // If we're centering on a marker, don't trigger API requests - just reset the flag and return
+            // If we're centering on a marker, don't trigger API requests - but don't reset the flag here
+            // The flag will be reset by the marker click handler after overlay creation
             if (isCenteringOnMarker) {
-                isCenteringOnMarker = false;
                 return;
             }
 
@@ -9668,6 +9642,14 @@ document.addEventListener('DOMContentLoaded', function () {
         map.addListener('dragstart', () => {
             userHasInteracted = true;
             isUserExploring = true; // User is actively exploring
+
+            // Close any open listing overlay immediately when user starts dragging
+            if (window.currentListingOverlay) {
+                const listingId = window.currentListingOverlay.listing.id;
+                window.currentListingOverlay.setMap(null);
+                setMarkerBackgroundColor(listingId, 'white');
+                window.currentListingOverlay = null;
+            }
         });
 
         map.addListener('dragend', () => {
@@ -9820,17 +9802,22 @@ document.addEventListener('DOMContentLoaded', function () {
 
                         // Add click handler to center map on marker
                         marker.addListener('click', () => {
-                            // Prevent multiple rapid clicks on mobile
-                            if (window.markerClickTimeout) {
+                            // Prevent multiple rapid clicks
+                            if (window.markerClickInProgress) {
                                 return;
                             }
-
-                            window.markerClickTimeout = setTimeout(() => {
-                                window.markerClickTimeout = null;
-                            }, 300);
+                            window.markerClickInProgress = true;
 
                             // Set flag to prevent API request during centering
                             isCenteringOnMarker = true;
+
+                            // Close any existing overlay first
+                            if (window.currentListingOverlay) {
+                                window.currentListingOverlay.setMap(null);
+                                const prevListingId = window.currentListingOverlay.listing.id;
+                                setMarkerBackgroundColor(prevListingId, 'white');
+                                window.currentListingOverlay = null;
+                            }
 
                             // Center the map on this marker
                             window.currentMap.setCenter({ lat, lng });
@@ -9839,21 +9826,23 @@ document.addEventListener('DOMContentLoaded', function () {
                             // This ensures the card overlay above the marker stays visible
                             window.currentMap.panBy(0, -100);
 
-                            // Close any existing overlay
-                            if (window.currentListingOverlay) {
-                                window.currentListingOverlay.setMap(null);
-                                const prevListingId = window.currentListingOverlay.listing.id;
-                                setMarkerBackgroundColor(prevListingId, 'white');
-                            }
-
                             // Change marker background
                             setMarkerBackgroundColor(listing.id, '#9ecaff');
 
-                            // Create and show listing card overlay with slight delay to prevent race conditions
+                            // Create and show listing card overlay after a brief delay to prevent race conditions
                             setTimeout(() => {
-                                const position = new google.maps.LatLng(listing.latitude, listing.longitude);
-                                window.currentListingOverlay = createListingCardOverlay(listing, position, window.currentMap);
-                            }, 50);
+                                // Double-check no other overlay was created in the meantime
+                                if (!window.currentListingOverlay) {
+                                    const position = new google.maps.LatLng(listing.latitude, listing.longitude);
+                                    window.currentListingOverlay = createListingCardOverlay(listing, position, window.currentMap);
+                                }
+
+                                // Reset centering flag after overlay is created
+                                setTimeout(() => {
+                                    isCenteringOnMarker = false;
+                                    window.markerClickInProgress = false;
+                                }, 100);
+                            }, 150);
                         });
                     } else {
                         // Fallback to custom overlay
@@ -9878,17 +9867,22 @@ document.addEventListener('DOMContentLoaded', function () {
                                 this.div.firstElementChild.addEventListener('click', (e) => {
                                     e.stopPropagation();
 
-                                    // Prevent multiple rapid clicks on mobile
-                                    if (window.markerClickTimeout) {
+                                    // Prevent multiple rapid clicks
+                                    if (window.markerClickInProgress) {
                                         return;
                                     }
-
-                                    window.markerClickTimeout = setTimeout(() => {
-                                        window.markerClickTimeout = null;
-                                    }, 300);
+                                    window.markerClickInProgress = true;
 
                                     // Set flag to prevent API request during centering
                                     isCenteringOnMarker = true;
+
+                                    // Close any existing overlay first
+                                    if (window.currentListingOverlay) {
+                                        window.currentListingOverlay.setMap(null);
+                                        const prevListingId = window.currentListingOverlay.listing.id;
+                                        setMarkerBackgroundColor(prevListingId, 'white');
+                                        window.currentListingOverlay = null;
+                                    }
 
                                     // Center the map on this marker
                                     window.currentMap.setCenter({ lat: this.listing.latitude, lng: this.listing.longitude });
@@ -9897,21 +9891,23 @@ document.addEventListener('DOMContentLoaded', function () {
                                     // This ensures the card overlay above the marker stays visible
                                     window.currentMap.panBy(0, -100);
 
-                                    // Close any existing overlay
-                                    if (window.currentListingOverlay) {
-                                        window.currentListingOverlay.setMap(null);
-                                        const prevListingId = window.currentListingOverlay.listing.id;
-                                        setMarkerBackgroundColor(prevListingId, 'white');
-                                    }
-
                                     // Change marker background
                                     setMarkerBackgroundColor(this.listing.id, '#9ecaff');
 
-                                    // Create and show listing card overlay with slight delay to prevent race conditions
+                                    // Create and show listing card overlay after a brief delay to prevent race conditions
                                     setTimeout(() => {
-                                        const position = new google.maps.LatLng(this.listing.latitude, this.listing.longitude);
-                                        window.currentListingOverlay = createListingCardOverlay(this.listing, position, window.currentMap);
-                                    }, 50);
+                                        // Double-check no other overlay was created in the meantime
+                                        if (!window.currentListingOverlay) {
+                                            const position = new google.maps.LatLng(this.listing.latitude, this.listing.longitude);
+                                            window.currentListingOverlay = createListingCardOverlay(this.listing, position, window.currentMap);
+                                        }
+
+                                        // Reset centering flag after overlay is created
+                                        setTimeout(() => {
+                                            isCenteringOnMarker = false;
+                                            window.markerClickInProgress = false;
+                                        }, 100);
+                                    }, 150);
                                 });
                             }
 
