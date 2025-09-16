@@ -9519,12 +9519,15 @@ document.addEventListener('DOMContentLoaded', function () {
             userHasInteracted = true;
             isUserExploring = true; // User is actively exploring
 
-            // Close any open listing overlay immediately when user starts dragging
-            if (window.currentListingOverlay) {
-                const listingId = window.currentListingOverlay.listing.id;
-                window.currentListingOverlay.setMap(null);
-                setMarkerBackgroundColor(listingId, 'white');
-                window.currentListingOverlay = null;
+            // Only close overlay if this is user-initiated dragging, not programmatic centering
+            if (!isCenteringOnMarker && !window.markerClickInProgress) {
+                // Close any open listing overlay immediately when user starts dragging
+                if (window.currentListingOverlay) {
+                    const listingId = window.currentListingOverlay.listing.id;
+                    window.currentListingOverlay.setMap(null);
+                    setMarkerBackgroundColor(listingId, 'white');
+                    window.currentListingOverlay = null;
+                }
             }
         });
 
@@ -9532,8 +9535,8 @@ document.addEventListener('DOMContentLoaded', function () {
             if (!isInitialLoad) {
                 userHasInteracted = true;
 
-                // Close any open listing overlay when user zooms (especially important for mobile pinch-to-zoom)
-                if (window.currentListingOverlay && !isCenteringOnMarker) {
+                // Close any open listing overlay when user zooms, but not during marker centering
+                if (window.currentListingOverlay && !isCenteringOnMarker && !window.markerClickInProgress) {
                     const listingId = window.currentListingOverlay.listing.id;
                     window.currentListingOverlay.setMap(null);
                     setMarkerBackgroundColor(listingId, 'white');
@@ -9819,9 +9822,9 @@ document.addEventListener('DOMContentLoaded', function () {
                             if (window.markerClickInProgress) {
                                 return;
                             }
-                            window.markerClickInProgress = true;
 
-                            // Set flag to prevent API request during centering
+                            // Set flags IMMEDIATELY to prevent dragstart from closing overlay
+                            window.markerClickInProgress = true;
                             isCenteringOnMarker = true;
 
                             // Close any existing overlay first
@@ -9854,8 +9857,8 @@ document.addEventListener('DOMContentLoaded', function () {
                                 setTimeout(() => {
                                     isCenteringOnMarker = false;
                                     window.markerClickInProgress = false;
-                                }, 50);
-                            }, 100);
+                                }, 100);
+                            }, 150);
                         });
                     } else {
                         // Fallback to custom overlay
@@ -9884,9 +9887,9 @@ document.addEventListener('DOMContentLoaded', function () {
                                     if (window.markerClickInProgress) {
                                         return;
                                     }
-                                    window.markerClickInProgress = true;
 
-                                    // Set flag to prevent API request during centering
+                                    // Set flags IMMEDIATELY to prevent dragstart from closing overlay
+                                    window.markerClickInProgress = true;
                                     isCenteringOnMarker = true;
 
                                     // Close any existing overlay first
@@ -9919,8 +9922,8 @@ document.addEventListener('DOMContentLoaded', function () {
                                         setTimeout(() => {
                                             isCenteringOnMarker = false;
                                             window.markerClickInProgress = false;
-                                        }, 50);
-                                    }, 100);
+                                        }, 100);
+                                    }, 150);
                                 });
                             }
 
