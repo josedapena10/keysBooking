@@ -9557,6 +9557,7 @@ document.addEventListener('DOMContentLoaded', function () {
         // MODIFY the initializeMap function's idle listener:
         // Single idle listener with clear logic (FIXED VERSION)
         map.addListener('idle', () => {
+            console.log("Map idle event triggered - isCenteringOnMarker:", isCenteringOnMarker, "markerClickInProgress:", window.markerClickInProgress);
             const currentBounds = map.getBounds();
             if (!currentBounds) return;
 
@@ -9564,12 +9565,14 @@ document.addEventListener('DOMContentLoaded', function () {
             if (isInitialLoad) {
                 searchBounds = currentBounds;
                 isInitialLoad = false;
+                console.log("Initial load - setting search bounds and exiting");
                 return;
             }
 
             // If we're centering on a marker, don't trigger API requests - but don't reset the flag here
             // The flag will be reset by the marker click handler after overlay creation
             if (isCenteringOnMarker) {
+                console.log("Idle event blocked - centering on marker");
                 return;
             }
 
@@ -9636,8 +9639,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
                     searchTimeout = setTimeout(() => {
                         // Double-check we're not centering on marker before making API call
+                        console.log("Idle timeout executing - isCenteringOnMarker:", isCenteringOnMarker, "markerClickInProgress:", window.markerClickInProgress);
                         if (!isCenteringOnMarker) {
                             fetchPropertySearchResults();
+                        } else {
+                            console.log("API call blocked by isCenteringOnMarker flag");
                         }
                     }, 500);
 
@@ -9835,6 +9841,7 @@ document.addEventListener('DOMContentLoaded', function () {
                             // Set flags IMMEDIATELY to prevent dragstart from closing overlay
                             window.markerClickInProgress = true;
                             isCenteringOnMarker = true;
+                            console.log("Marker clicked - flags set:", { isCenteringOnMarker, markerClickInProgress: window.markerClickInProgress });
 
                             // Close any existing overlay first
                             if (window.currentListingOverlay) {
@@ -9862,11 +9869,12 @@ document.addEventListener('DOMContentLoaded', function () {
                                     window.currentListingOverlay = createListingCardOverlay(listing, position, window.currentMap);
                                 }
 
-                                // Reset centering flag after overlay is created
+                                // Reset centering flag after overlay is created - increase delay to ensure all idle events are blocked
                                 setTimeout(() => {
                                     isCenteringOnMarker = false;
                                     window.markerClickInProgress = false;
-                                }, 100);
+                                    console.log("Marker click flags reset:", { isCenteringOnMarker, markerClickInProgress: window.markerClickInProgress });
+                                }, 600); // Increased to 600ms to be longer than the idle timeout (500ms)
                             }, 150);
                         });
                     } else {
@@ -9900,6 +9908,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                     // Set flags IMMEDIATELY to prevent dragstart from closing overlay
                                     window.markerClickInProgress = true;
                                     isCenteringOnMarker = true;
+                                    console.log("Custom marker clicked - flags set:", { isCenteringOnMarker, markerClickInProgress: window.markerClickInProgress });
 
                                     // Close any existing overlay first
                                     if (window.currentListingOverlay) {
@@ -9927,11 +9936,12 @@ document.addEventListener('DOMContentLoaded', function () {
                                             window.currentListingOverlay = createListingCardOverlay(this.listing, position, window.currentMap);
                                         }
 
-                                        // Reset centering flag after overlay is created
+                                        // Reset centering flag after overlay is created - increase delay to ensure all idle events are blocked
                                         setTimeout(() => {
                                             isCenteringOnMarker = false;
                                             window.markerClickInProgress = false;
-                                        }, 100);
+                                            console.log("Custom marker click flags reset:", { isCenteringOnMarker, markerClickInProgress: window.markerClickInProgress });
+                                        }, 600); // Increased to 600ms to be longer than the idle timeout (500ms)
                                     }, 150);
                                 });
                             }
