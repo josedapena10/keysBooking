@@ -7345,6 +7345,12 @@ document.addEventListener('DOMContentLoaded', function () {
         console.log("fetchPropertySearchResults called");
         console.trace("Call stack for fetchPropertySearchResults");
 
+        // Prevent API calls when centering on marker
+        if (isCenteringOnMarker) {
+            console.log("fetchPropertySearchResults blocked - centering on marker");
+            return;
+        }
+
         // Prevent multiple simultaneous searches
         if (isSearchInProgress) {
             console.log("fetchPropertySearchResults blocked - already in progress");
@@ -9629,7 +9635,10 @@ document.addEventListener('DOMContentLoaded', function () {
                     isUserExploring = true;
 
                     searchTimeout = setTimeout(() => {
-                        fetchPropertySearchResults();
+                        // Double-check we're not centering on marker before making API call
+                        if (!isCenteringOnMarker) {
+                            fetchPropertySearchResults();
+                        }
                     }, 500);
 
                     searchBounds = currentBounds;
@@ -9666,11 +9675,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 isUserExploring = false;
             }, 1000);
 
-            // Safety reset: Ensure marker click flags are cleared after drag ends
+            // Safety reset: Only clear markerClickInProgress if no overlay is present
+            // Don't reset isCenteringOnMarker here - let marker click handler manage it
             setTimeout(() => {
                 if (!window.currentListingOverlay) {
                     window.markerClickInProgress = false;
-                    isCenteringOnMarker = false;
                 }
             }, 200);
         });
