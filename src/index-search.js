@@ -2009,7 +2009,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 flex-direction: column;
                 gap: 20px;
                 overflow-y: auto;
-                max-height: 72vh;
+                max-height: 68vh;
                 padding: 0 10px;
             }
             
@@ -3330,6 +3330,8 @@ document.addEventListener('DOMContentLoaded', function () {
             locationPopupNextButton.addEventListener('click', (e) => {
                 e.stopPropagation();
                 navigateToNextPopup(locationPopup, datesPopup);
+                // Remove selected class from location button
+                if (locationButton) locationButton.classList.remove('selected');
             });
         }
 
@@ -3369,6 +3371,8 @@ document.addEventListener('DOMContentLoaded', function () {
             datesPopupNextButton.addEventListener('click', (e) => {
                 e.stopPropagation();
                 navigateToNextPopup(datesPopup, guestsPopup);
+                // Remove selected class from dates button
+                if (datesButton) datesButton.classList.remove('selected');
             });
         }
 
@@ -7625,6 +7629,17 @@ document.addEventListener('DOMContentLoaded', function () {
         const nextButton = imagesContainer.querySelector('.image_arrow_next');
         const dots = imagesContainer.querySelectorAll('.carousel-dot');
 
+        // Touch/scroll variables
+        let startX = 0;
+        let currentX = 0;
+        let isDragging = false;
+        let startTime = 0;
+        let hasMoved = false;
+        const SWIPE_THRESHOLD = 50; // Minimum distance for a swipe
+        const SWIPE_VELOCITY_THRESHOLD = 0.3; // Minimum velocity for a swipe
+        const CLICK_THRESHOLD = 10; // Maximum movement to still be considered a click
+        const CLICK_TIME_THRESHOLD = 300; // Maximum time for a click (ms)
+
         function updateCarousel(skipTransition = false) {
             if (track) {
                 if (skipTransition) {
@@ -7662,6 +7677,86 @@ document.addEventListener('DOMContentLoaded', function () {
             updateCarousel(wasFirstImage); // Skip transition when wrapping from first to last
         }
 
+        // Touch/Mouse event handlers
+        function handleStart(e) {
+            isDragging = true;
+            hasMoved = false;
+            startTime = Date.now();
+            startX = e.type.includes('mouse') ? e.clientX : e.touches[0].clientX;
+            currentX = startX;
+        }
+
+        function handleMove(e) {
+            if (!isDragging) return;
+
+            currentX = e.type.includes('mouse') ? e.clientX : e.touches[0].clientX;
+            const deltaX = currentX - startX;
+
+            // Only start preventing default and showing visual feedback if user has moved significantly
+            if (Math.abs(deltaX) > CLICK_THRESHOLD && !hasMoved) {
+                hasMoved = true;
+                // Now disable transition and prevent default
+                if (track) {
+                    track.style.transition = 'none';
+                }
+            }
+
+            // Only prevent default and show visual feedback if user has moved significantly
+            if (hasMoved) {
+                e.preventDefault();
+                e.stopPropagation();
+                const translateX = -currentIndex * 100 + (deltaX / track.offsetWidth) * 100;
+
+                if (track) {
+                    track.style.transform = `translateX(${translateX}%)`;
+                }
+            }
+        }
+
+        function handleEnd(e) {
+            if (!isDragging) return;
+
+            const deltaX = currentX - startX;
+            const deltaTime = Date.now() - startTime;
+            const velocity = Math.abs(deltaX) / deltaTime;
+
+            // Check if this was a click: short time AND minimal movement
+            const isClick = deltaTime < CLICK_TIME_THRESHOLD && Math.abs(deltaX) <= CLICK_THRESHOLD && !hasMoved;
+
+            if (isClick) {
+                isDragging = false;
+                hasMoved = false;
+                return; // Let the click event handle navigation
+            }
+
+            // User did drag, so prevent any click events and handle swipe
+            e.preventDefault();
+            e.stopPropagation();
+            isDragging = false;
+            hasMoved = false;
+
+            // Re-enable transition
+            if (track) {
+                track.style.transition = 'transform 0.3s ease';
+            }
+
+            // Determine if we should change slides
+            const shouldSwipe = Math.abs(deltaX) > SWIPE_THRESHOLD || velocity > SWIPE_VELOCITY_THRESHOLD;
+
+            if (shouldSwipe) {
+                if (deltaX > 0) {
+                    // Swipe right - go to previous
+                    goToPrev();
+                } else {
+                    // Swipe left - go to next
+                    goToNext();
+                }
+            } else {
+                // Snap back to current slide
+                updateCarousel();
+            }
+        }
+
         // Add event listeners
         if (prevButton) {
             prevButton.addEventListener('click', (e) => {
@@ -7679,6 +7774,27 @@ document.addEventListener('DOMContentLoaded', function () {
             });
         }
 
+        // Add touch/mouse event listeners to the carousel
+        const carousel = imagesContainer.querySelector('.custom-carousel');
+        if (carousel) {
+            // Touch events for mobile
+            carousel.addEventListener('touchstart', handleStart, { passive: false });
+            carousel.addEventListener('touchmove', handleMove, { passive: false });
+            carousel.addEventListener('touchend', handleEnd, { passive: false });
+
+            // Mouse events for desktop
+            carousel.addEventListener('mousedown', handleStart);
+            carousel.addEventListener('mousemove', handleMove);
+            carousel.addEventListener('mouseup', handleEnd);
+            carousel.addEventListener('mouseleave', handleEnd); // Handle mouse leaving the area
+
+            // Prevent default drag behavior on images
+            const images = carousel.querySelectorAll('img');
+            images.forEach(img => {
+                img.addEventListener('dragstart', (e) => e.preventDefault());
+            });
+        }
+
         // Dot navigation
         dots.forEach((dot, index) => {
             dot.addEventListener('click', (e) => {
@@ -7691,6 +7807,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Mark as initialized
         imagesContainer.classList.add('is-initialized');
+
+        // Store drag state on the card for access by click handlers
+        card._dragState = {
+            isDragging: () => isDragging,
+            hasMoved: () => hasMoved
+        };
     }
 
 
@@ -8116,6 +8238,11 @@ document.addEventListener('DOMContentLoaded', function () {
                             return;
                         }
 
+                        // Don't navigate if user was dragging
+                        if (card._dragState && (card._dragState.isDragging() || card._dragState.hasMoved())) {
+                            return;
+                        }
+
                         // Build URL parameters
                         const params = new URLSearchParams();
 
@@ -8311,6 +8438,11 @@ document.addEventListener('DOMContentLoaded', function () {
                         if (e.target.closest('.image_arrow_prev') ||
                             e.target.closest('.image_arrow_next') ||
                             e.target.closest('.carousel-dot')) {
+                            return;
+                        }
+
+                        // Don't navigate if user was dragging
+                        if (card._dragState && (card._dragState.isDragging() || card._dragState.hasMoved())) {
                             return;
                         }
 
