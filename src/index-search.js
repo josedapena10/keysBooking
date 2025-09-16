@@ -110,6 +110,9 @@ document.addEventListener('DOMContentLoaded', function () {
     // ADD a flag to track when we're centering on a marker (to prevent API requests)
     let isCenteringOnMarker = false;
 
+    // Initialize marker click progress flag
+    window.markerClickInProgress = false;
+
     // ADD THIS: Pagination state variables
     let currentPage = 1;
     const listingsPerPage = 20;
@@ -9511,9 +9514,18 @@ document.addEventListener('DOMContentLoaded', function () {
                 currentSW.lng() < searchSW.lng();
         }
 
-        // Add listeners to detect user interaction
+        // Add listeners to detect user interaction  
         map.addListener('dragstart', () => {
             userHasInteracted = true;
+            isUserExploring = true; // User is actively exploring
+
+            // Close any open listing overlay immediately when user starts dragging
+            if (window.currentListingOverlay) {
+                const listingId = window.currentListingOverlay.listing.id;
+                window.currentListingOverlay.setMap(null);
+                setMarkerBackgroundColor(listingId, 'white');
+                window.currentListingOverlay = null;
+            }
         });
 
         map.addListener('zoom_changed', () => {
@@ -9550,6 +9562,13 @@ document.addEventListener('DOMContentLoaded', function () {
             // The flag will be reset by the marker click handler after overlay creation
             if (isCenteringOnMarker) {
                 return;
+            }
+
+            // Safety reset: If we reach idle and no overlay is present, clear click flags
+            if (!window.currentListingOverlay && window.markerClickInProgress) {
+                setTimeout(() => {
+                    window.markerClickInProgress = false;
+                }, 100);
             }
 
             // Only proceed if user has actually interacted with the map
@@ -9637,26 +9656,20 @@ document.addEventListener('DOMContentLoaded', function () {
             });
         });
 
-        // ALSO ADD dragstart listener to detect when user starts dragging:
-        // Add listeners to detect user interaction
-        map.addListener('dragstart', () => {
-            userHasInteracted = true;
-            isUserExploring = true; // User is actively exploring
-
-            // Close any open listing overlay immediately when user starts dragging
-            if (window.currentListingOverlay) {
-                const listingId = window.currentListingOverlay.listing.id;
-                window.currentListingOverlay.setMap(null);
-                setMarkerBackgroundColor(listingId, 'white');
-                window.currentListingOverlay = null;
-            }
-        });
 
         map.addListener('dragend', () => {
             // Reset exploration flag after a short delay
             setTimeout(() => {
                 isUserExploring = false;
             }, 1000);
+
+            // Safety reset: Ensure marker click flags are cleared after drag ends
+            setTimeout(() => {
+                if (!window.currentListingOverlay) {
+                    window.markerClickInProgress = false;
+                    isCenteringOnMarker = false;
+                }
+            }, 200);
         });
 
         map.addListener('zoom_changed', () => {
@@ -9841,8 +9854,8 @@ document.addEventListener('DOMContentLoaded', function () {
                                 setTimeout(() => {
                                     isCenteringOnMarker = false;
                                     window.markerClickInProgress = false;
-                                }, 100);
-                            }, 150);
+                                }, 50);
+                            }, 100);
                         });
                     } else {
                         // Fallback to custom overlay
@@ -9906,8 +9919,8 @@ document.addEventListener('DOMContentLoaded', function () {
                                         setTimeout(() => {
                                             isCenteringOnMarker = false;
                                             window.markerClickInProgress = false;
-                                        }, 100);
-                                    }, 150);
+                                        }, 50);
+                                    }, 100);
                                 });
                             }
 
