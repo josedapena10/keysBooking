@@ -5069,11 +5069,46 @@ document.addEventListener('DOMContentLoaded', function () {
                 document.addEventListener('mousemove', handleDragMove);
                 document.addEventListener('mouseup', handleDragEnd);
 
-                // Add touch event listeners for mobile
-                thumbMin.addEventListener('touchstart', (e) => handleDragStart(e.touches[0], true));
-                thumbMax.addEventListener('touchstart', (e) => handleDragStart(e.touches[0], false));
-                document.addEventListener('touchmove', (e) => handleDragMove(e.touches[0]));
-                document.addEventListener('touchend', handleDragEnd);
+                // Add touch event listeners for mobile - use container-specific listeners instead of global
+                const sliderContainer = sliderMin.closest('.filter-section') || sliderMin.parentElement;
+
+                thumbMin.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    handleDragStart(e.touches[0], true);
+                });
+                thumbMax.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    handleDragStart(e.touches[0], false);
+                });
+
+                // Add touch move/end listeners only to the slider container, not globally
+                if (sliderContainer) {
+                    sliderContainer.addEventListener('touchmove', (e) => {
+                        if (isDraggingMin || isDraggingMax) {
+                            e.preventDefault();
+                            handleDragMove(e.touches[0]);
+                        }
+                    }, { passive: false });
+
+                    sliderContainer.addEventListener('touchend', (e) => {
+                        if (isDraggingMin || isDraggingMax) {
+                            handleDragEnd();
+                        }
+                    });
+                }
+
+                // Fallback: minimal global listeners only for when dragging started on sliders
+                document.addEventListener('touchmove', (e) => {
+                    if ((isDraggingMin || isDraggingMax) && e.target.closest('.filter-section')) {
+                        handleDragMove(e.touches[0]);
+                    }
+                }, { passive: true });
+
+                document.addEventListener('touchend', (e) => {
+                    if (isDraggingMin || isDraggingMax) {
+                        handleDragEnd();
+                    }
+                });
 
                 // Keep the original input event listeners
                 sliderMin?.addEventListener('input', () => {
@@ -5394,10 +5429,42 @@ document.addEventListener('DOMContentLoaded', function () {
                 document.addEventListener('mousemove', handleDragMove);
                 document.addEventListener('mouseup', handleDragEnd);
 
-                // Add touch event listeners for mobile
-                thumb.addEventListener('touchstart', (e) => handleDragStart(e.touches[0]));
-                document.addEventListener('touchmove', (e) => handleDragMove(e.touches[0]));
-                document.addEventListener('touchend', handleDragEnd);
+                // Add touch event listeners for mobile - use container-specific listeners instead of global
+                const sliderContainer = slider.closest('.filter-section') || slider.parentElement;
+
+                thumb.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    handleDragStart(e.touches[0]);
+                });
+
+                // Add touch move/end listeners only to the slider container, not globally
+                if (sliderContainer) {
+                    sliderContainer.addEventListener('touchmove', (e) => {
+                        if (isDragging) {
+                            e.preventDefault();
+                            handleDragMove(e.touches[0]);
+                        }
+                    }, { passive: false });
+
+                    sliderContainer.addEventListener('touchend', (e) => {
+                        if (isDragging) {
+                            handleDragEnd();
+                        }
+                    });
+                }
+
+                // Fallback: minimal global listeners only for when dragging started on sliders
+                document.addEventListener('touchmove', (e) => {
+                    if (isDragging && e.target.closest('.filter-section')) {
+                        handleDragMove(e.touches[0]);
+                    }
+                }, { passive: true });
+
+                document.addEventListener('touchend', (e) => {
+                    if (isDragging) {
+                        handleDragEnd();
+                    }
+                });
 
                 // Keep the original input event listener
                 slider?.addEventListener('input', () => {
@@ -5468,10 +5535,42 @@ document.addEventListener('DOMContentLoaded', function () {
                 document.addEventListener('mousemove', handleDockDragMove);
                 document.addEventListener('mouseup', handleDockDragEnd);
 
-                // Add touch event listeners for mobile
-                dockThumb.addEventListener('touchstart', (e) => handleDockDragStart(e.touches[0]));
-                document.addEventListener('touchmove', (e) => handleDockDragMove(e.touches[0]));
-                document.addEventListener('touchend', handleDockDragEnd);
+                // Add touch event listeners for mobile - use container-specific listeners instead of global
+                const dockSliderContainer = dockSlider.closest('.filter-section') || dockSlider.parentElement;
+
+                dockThumb.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    handleDockDragStart(e.touches[0]);
+                });
+
+                // Add touch move/end listeners only to the slider container, not globally
+                if (dockSliderContainer) {
+                    dockSliderContainer.addEventListener('touchmove', (e) => {
+                        if (isDockDragging) {
+                            e.preventDefault();
+                            handleDockDragMove(e.touches[0]);
+                        }
+                    }, { passive: false });
+
+                    dockSliderContainer.addEventListener('touchend', (e) => {
+                        if (isDockDragging) {
+                            handleDockDragEnd();
+                        }
+                    });
+                }
+
+                // Fallback: minimal global listeners only for when dragging started on sliders
+                document.addEventListener('touchmove', (e) => {
+                    if (isDockDragging && e.target.closest('.filter-section')) {
+                        handleDockDragMove(e.touches[0]);
+                    }
+                }, { passive: true });
+
+                document.addEventListener('touchend', (e) => {
+                    if (isDockDragging) {
+                        handleDockDragEnd();
+                    }
+                });
 
                 // Keep the original input event listener
                 dockSlider?.addEventListener('input', () => {
@@ -9330,6 +9429,7 @@ document.addEventListener('DOMContentLoaded', function () {
             mapTypeControl: false,
             streetViewControl: false,
             disableDoubleClickZoom: true,  // Disable double click zoom
+            gestureHandling: 'greedy',  // Allow single-finger panning on mobile
             restriction: {
                 latLngBounds: floridaKeysBounds,
                 strictBounds: false
