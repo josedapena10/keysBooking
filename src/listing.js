@@ -4480,7 +4480,7 @@ function validateExtrasWithinReservationDates() {
   if (hasRemovedExtras) {
     // Update pricing displays
     if (window.updatePricingDisplayForExtras) {
-      window.updatePricingDisplayForExtras();
+      window.updatePricingDisplayForExtras().catch(err => console.error('Error updating pricing:', err));
     }
     if (window.updateListingOnlyPricing) {
       window.updateListingOnlyPricing();
@@ -4493,7 +4493,7 @@ function validateExtrasWithinReservationDates() {
 
     // Update fishing charter blocks
     if (window.fishingCharterService && window.fishingCharterService.populateSelectedFishingCharterBlock) {
-      window.fishingCharterService.populateSelectedFishingCharterBlock();
+      window.fishingCharterService.populateSelectedFishingCharterBlock().catch(err => console.error('Error populating fishing charter:', err));
     }
   }
 }
@@ -10520,7 +10520,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
           try {
             const res = await fetch(`${base}/${charterId}`);
-            if (!res.ok) continue;
+
+            if (!res.ok) {
+              console.warn(`Failed to fetch fishing charter ${charterId}: ${res.status}`);
+              continue;
+            }
             const charter = await res.json();
 
             // Find the selected trip for this numbered group
@@ -10554,9 +10558,11 @@ document.addEventListener('DOMContentLoaded', () => {
               };
 
               selectedTrips.push(tripData);
+            } else {
+              console.warn(`No matching trip found for charter ${charterId}, trip ${tripId}`);
             }
           } catch (error) {
-
+            console.error(`Error fetching fishing charter ${charterId}:`, error);
             // skip failures
           }
         }
@@ -10810,7 +10816,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       // Handle removing a specific fishing charter by its number
-      handleRemoveSpecificFishingCharter(numberToRemove) {
+      async handleRemoveSpecificFishingCharter(numberToRemove) {
         const url = new URL(window.location);
         const allNumbers = this.getAllFishingCharterNumbers();
 
@@ -10876,11 +10882,11 @@ document.addEventListener('DOMContentLoaded', () => {
         window.history.pushState({}, '', url);
 
         // Re-render the blocks with updated data
-        this.populateSelectedFishingCharterBlock();
+        await this.populateSelectedFishingCharterBlock();
 
         // Update pricing display for extras
         if (window.updatePricingDisplayForExtras) {
-          window.updatePricingDisplayForExtras();
+          await window.updatePricingDisplayForExtras();
         }
 
         // Update listing-only pricing display
@@ -11111,11 +11117,11 @@ document.addEventListener('DOMContentLoaded', () => {
         // Update button state
         this.updateButtonState();
 
-        this.populateSelectedFishingCharterBlock();
+        this.populateSelectedFishingCharterBlock().catch(err => console.error('Error populating fishing charter block:', err));
 
         // Update pricing display if any fishing charters are selected
         if (this.hasAnyFishingCharters() && window.updatePricingDisplayForExtras) {
-          window.updatePricingDisplayForExtras();
+          window.updatePricingDisplayForExtras().catch(err => console.error('Error updating pricing:', err));
         }
       }
 
@@ -14717,7 +14723,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
       }
 
-      handleAddToReservation(charterId, trip) {
+      async handleAddToReservation(charterId, trip) {
         // Prevent multiple rapid calls
         if (this.isAddingToReservation) {
 
@@ -14781,11 +14787,11 @@ document.addEventListener('DOMContentLoaded', () => {
           this.clearPrivateDockFilter();
 
 
-          this.populateSelectedFishingCharterBlock();
+          await this.populateSelectedFishingCharterBlock();
 
           // Update pricing display for extras
           if (window.updatePricingDisplayForExtras) {
-            window.updatePricingDisplayForExtras();
+            await window.updatePricingDisplayForExtras();
           }
 
           // Update mobile handlers immediately after charter is added
@@ -15192,7 +15198,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
 
-      handleRemoveAllFishingCharters() {
+      async handleRemoveAllFishingCharters() {
         if (!window.fishingCharterService) return;
 
         const allNumbers = window.fishingCharterService.getAllFishingCharterNumbers();
@@ -15219,11 +15225,11 @@ document.addEventListener('DOMContentLoaded', () => {
         // Update fishing charter service state
         window.fishingCharterService.initializeFromURL();
         window.fishingCharterService.updateButtonState();
-        window.fishingCharterService.populateSelectedFishingCharterBlock();
+        await window.fishingCharterService.populateSelectedFishingCharterBlock();
 
         // Update pricing displays
         if (window.updatePricingDisplayForExtras) {
-          window.updatePricingDisplayForExtras();
+          await window.updatePricingDisplayForExtras();
         }
         if (window.updateListingOnlyPricing) {
           window.updateListingOnlyPricing();
@@ -15665,13 +15671,13 @@ document.addEventListener('DOMContentLoaded', () => {
           }
 
           // Update fishing charter UI
-          if (window.populateSelectedFishingCharterBlock) {
-            window.populateSelectedFishingCharterBlock();
+          if (window.fishingCharterService && window.fishingCharterService.populateSelectedFishingCharterBlock) {
+            window.fishingCharterService.populateSelectedFishingCharterBlock().catch(err => console.error('Error populating fishing charter:', err));
           }
 
           // Update pricing display
           if (window.updatePricingDisplayForExtras) {
-            window.updatePricingDisplayForExtras();
+            window.updatePricingDisplayForExtras().catch(err => console.error('Error updating pricing:', err));
           }
         }
       }
