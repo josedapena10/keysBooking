@@ -4391,7 +4391,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                 console.log(`Set last updated date for container ${index}:`, `${formattedDate} at ${formattedTime}`);
                             } else {
                                 // Display a fallback message when last_updated is missing
-                                lastUpdatedElement.textContent = "Initial sync pending";
+                                lastUpdatedElement.textContent = "Initial sync pending (Syncs in 5 minutes or less)";
                                 console.log(`Set default last updated message for container ${index}`);
                             }
                         }

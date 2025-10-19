@@ -68,13 +68,148 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 })();
 
+// Host Navigation Dropdown functionality
+(async function () {
+    try {
+        const hostNavBarBlock = document.querySelector('[data-element="hostNavBar_navBarBlock"]');
+        const hostNavBarDropdown = document.querySelector('[data-element="hostNavBar_dropdown"]');
+        const hostNavBarBlockText = document.querySelector('[data-element="hostNavBar_navBarBlockText"]');
+        let isHostDropdownOpen = false;
+
+        if (!hostNavBarBlock || !hostNavBarDropdown) return;
+
+        // Close the dropdown initially
+        hostNavBarDropdown.style.display = 'none';
+
+        // Function to get current page from URL
+        const getCurrentPage = () => {
+            const path = window.location.pathname;
+            if (path.includes('/host/dashboard')) return 'dashboard';
+            if (path.includes('/host/listings')) return 'listings';
+            if (path.includes('/host/calendar')) return 'calendar';
+            if (path.includes('/host/reservations')) return 'reservations';
+            return null;
+        };
+
+        // Function to update the navbar block text and hide current page from dropdown
+        const updateNavBarForCurrentPage = () => {
+            const currentPage = getCurrentPage();
+            const dashboardItem = document.querySelector('[data-element="hostNavBar_dashboard"]');
+            const listingsItem = document.querySelector('[data-element="hostNavBar_listings"]');
+            const calendarItem = document.querySelector('[data-element="hostNavBar_calendar"]');
+            const reservationsItem = document.querySelector('[data-element="hostNavBar_reservations"]');
+
+            // Show all items first
+            [dashboardItem, listingsItem, calendarItem, reservationsItem].forEach(item => {
+                if (item) item.style.display = 'block';
+            });
+
+            // Update text and hide current page item
+            switch (currentPage) {
+                case 'dashboard':
+                    if (hostNavBarBlockText) hostNavBarBlockText.textContent = 'Dashboard';
+                    if (dashboardItem) dashboardItem.style.display = 'none';
+                    break;
+                case 'listings':
+                    if (hostNavBarBlockText) hostNavBarBlockText.textContent = 'Listings';
+                    if (listingsItem) listingsItem.style.display = 'none';
+                    break;
+                case 'calendar':
+                    if (hostNavBarBlockText) hostNavBarBlockText.textContent = 'Calendar';
+                    if (calendarItem) calendarItem.style.display = 'none';
+                    break;
+                case 'reservations':
+                    if (hostNavBarBlockText) hostNavBarBlockText.textContent = 'Reservations';
+                    if (reservationsItem) reservationsItem.style.display = 'none';
+                    break;
+                default:
+                    if (hostNavBarBlockText) hostNavBarBlockText.textContent = 'Host';
+                    break;
+            }
+        };
+
+        // Initialize the navbar for current page
+        updateNavBarForCurrentPage();
+
+        // Function to toggle the dropdown
+        const toggleHostDropdown = () => {
+            isHostDropdownOpen = !isHostDropdownOpen;
+            hostNavBarDropdown.style.display = isHostDropdownOpen ? 'flex' : 'none';
+        };
+
+        // Event listener for host navbar block click
+        hostNavBarBlock.addEventListener('click', function () {
+            toggleHostDropdown();
+        });
+
+        // Event listener for body click to close the dropdown
+        document.body.addEventListener('click', function (evt) {
+            if (!hostNavBarBlock.contains(evt.target) && !hostNavBarDropdown.contains(evt.target)) {
+                isHostDropdownOpen = false;
+                hostNavBarDropdown.style.display = 'none';
+            }
+        });
+
+        // Navigation handlers
+        const setupNavigationHandler = (elementSelector, targetPath) => {
+            const element = document.querySelector(`[data-element="${elementSelector}"]`);
+            if (element) {
+                element.addEventListener('click', function () {
+                    isHostDropdownOpen = false;
+                    hostNavBarDropdown.style.display = 'none';
+                    window.location.href = targetPath;
+                });
+            }
+        };
+
+        // Setup navigation handlers for each menu item
+        setupNavigationHandler('hostNavBar_dashboard', '/host/dashboard');
+        setupNavigationHandler('hostNavBar_listings', '/host/listings');
+        setupNavigationHandler('hostNavBar_calendar', '/host/calendar');
+        setupNavigationHandler('hostNavBar_reservations', '/host/reservations');
+
+    } catch (err) {
+        console.error('Host navigation dropdown error:', err);
+    }
+})();
+
+// Initialize loader on page load
+(function () {
+    const loader = document.querySelector('[data-element="loader"]');
+    if (loader) {
+        loader.style.display = 'flex';
+    }
+})();
+
+// Track when content is visually loaded
+let contentVisuallyLoaded = false;
+let dataFetchingComplete = false;
+
+// Function to hide loader only when both conditions are met
+function checkAndHideLoader() {
+    const loader = document.querySelector('[data-element="loader"]');
+    if (loader && contentVisuallyLoaded && dataFetchingComplete) {
+        // Use requestAnimationFrame twice to ensure all rendering and layout is complete
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                // Add a small additional delay to ensure all dynamic content has settled
+                setTimeout(() => {
+                    loader.style.display = 'none';
+                }, 100);
+            });
+        });
+    }
+}
+
+// Wait for all visual content to load (images, fonts, etc.)
+window.addEventListener('load', () => {
+    contentVisuallyLoaded = true;
+    checkAndHideLoader();
+});
+
 // Initialize Wized and get host ID
 window.Wized = window.Wized || [];
 window.Wized.push((async (Wized) => {
-    // Show loader before starting any data fetching
-    const loader = document.querySelector('[data-element="loader"]');
-    if (loader) loader.style.display = 'flex';
-
     await Wized.requests.waitFor('Load_user');
     const hostId = Wized.data.r.Load_user.data.id;
 
@@ -84,8 +219,9 @@ window.Wized.push((async (Wized) => {
         initializeNotifications(hostId)
     ]);
 
-    // Hide loader after all data is loaded
-    if (loader) loader.style.display = 'none';
+    // Mark data fetching as complete
+    dataFetchingComplete = true;
+    checkAndHideLoader();
 }));
 
 

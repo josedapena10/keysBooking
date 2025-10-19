@@ -73,6 +73,40 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 })();
 
+// Initialize loader on page load
+(function () {
+    const loader = document.querySelector('[data-element="loader"]');
+    if (loader) {
+        loader.style.display = 'flex';
+    }
+})();
+
+// Track when content is visually loaded
+let contentVisuallyLoaded = false;
+let dataFetchingComplete = false;
+
+// Function to hide loader only when both conditions are met
+function checkAndHideLoader() {
+    const loader = document.querySelector('[data-element="loader"]');
+    if (loader && contentVisuallyLoaded && dataFetchingComplete) {
+        // Use requestAnimationFrame twice to ensure all rendering and layout is complete
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                // Add a small additional delay to ensure all dynamic content has settled
+                setTimeout(() => {
+                    loader.style.display = 'none';
+                }, 100);
+            });
+        });
+    }
+}
+
+// Wait for all visual content to load (images, fonts, etc.)
+window.addEventListener('load', () => {
+    contentVisuallyLoaded = true;
+    checkAndHideLoader();
+});
+
 // Initialize Wized and get host ID
 window.Wized = window.Wized || [];
 window.Wized.push((async (Wized) => {
@@ -83,10 +117,6 @@ window.Wized.push((async (Wized) => {
 
 // Main function to fetch and display reservations
 async function initializeReservations(hostId) {
-    // Show loader while fetching and processing data
-    const loader = document.querySelector('[data-element="loader"]');
-    if (loader) loader.style.display = 'flex';
-
     try {
         // Fetch reservations
         const response = await fetch(`https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/host_reservations?host_id=${hostId}`, {
@@ -148,23 +178,15 @@ async function initializeReservations(hostId) {
             }
         }
 
-        // Use requestAnimationFrame to ensure the DOM is fully updated,
-        // then use a small timeout to give browser time to paint everything
-        requestAnimationFrame(() => {
-            setTimeout(() => {
-                // Hide loader after all content has been rendered
-                if (loader) loader.style.display = 'none';
-            }, 300); // 300ms delay should be enough for most rendering
-        });
+        // Mark data fetching as complete
+        dataFetchingComplete = true;
+        checkAndHideLoader();
 
     } catch (error) {
         console.error('Error fetching reservations:', error);
-        // Hide loader in case of error (also with delay to be consistent)
-        requestAnimationFrame(() => {
-            setTimeout(() => {
-                if (loader) loader.style.display = 'none';
-            }, 300);
-        });
+        // Mark data fetching as complete even on error
+        dataFetchingComplete = true;
+        checkAndHideLoader();
     }
 }
 

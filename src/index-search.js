@@ -1,5 +1,11 @@
 document.addEventListener('DOMContentLoaded', function () {
 
+    // Keep loader visible until skeleton shows
+    const loaderElement = document.querySelector('[data-element="loader"]');
+    if (loaderElement) {
+        loaderElement.style.display = 'flex';
+    }
+
     // Global variable to store user age
     let userAge = null;
     let userDataLoaded = false;
@@ -178,7 +184,20 @@ document.addEventListener('DOMContentLoaded', function () {
     const wantBoat = () => Boolean(currentSelections?.typeFlags?.boatRental);
     const wantChar = () => Boolean(currentSelections?.typeFlags?.fishingCharter);
 
+    // Helper function to get the number of nights from selected dates
+    const getSelectedNights = () => {
+        if (!hasDates()) return null;
+
+        const checkIn = new Date(apiFormats.dates.checkIn);
+        const checkOut = new Date(apiFormats.dates.checkOut);
+        const timeDiff = checkOut.getTime() - checkIn.getTime();
+        const nights = Math.ceil(timeDiff / (1000 * 3600 * 24));
+
+        return nights > 0 ? nights : null;
+    };
+
     // Home "starting-at" (NO DATES): includes cleaning & serviceFee multiplier
+    // Now considers boat/charter filter days when calculating the stay duration
     const computeHomeStartNoDates = (listing) => {
         const minNights = Number(listing?.min_nights) || 1;
         const nightly = Number(listing?.nightlyPrice);
@@ -187,9 +206,39 @@ document.addEventListener('DOMContentLoaded', function () {
             return null; // signals "Price unavailable"
         }
 
+        // Get the effective nights based on filters and property minimum
+        let effectiveNights = minNights;
+
+        // Check if boat or charter filters are active and get their days
+        const hasExtras = wantBoat() || wantChar();
+        if (hasExtras) {
+            let maxFilterDays = 0;
+
+            // Get boat rental days if boat is active
+            if (wantBoat() && typeof boatModule !== 'undefined') {
+                const boatFilters = boatModule.getCurrentFilters();
+                if (boatFilters && boatFilters.days) {
+                    maxFilterDays = Math.max(maxFilterDays, boatFilters.days);
+                }
+            }
+
+            // Get charter days if charter is active
+            if (wantChar() && typeof charterModule !== 'undefined') {
+                const charterFilters = charterModule.getCurrentFilters();
+                if (charterFilters && charterFilters.days) {
+                    maxFilterDays = Math.max(maxFilterDays, charterFilters.days);
+                }
+            }
+
+            // Use the higher value between property min nights and filter days
+            if (maxFilterDays > 0) {
+                effectiveNights = Math.max(minNights, maxFilterDays);
+            }
+        }
+
         const cleaning = Number(listing?.cleaning_fee) || 0;
         const svcMult = 1 + (Number(listing?.serviceFee) || 0); // e.g. 1 + 0.12 = 1.12
-        const result = (minNights * nightly + cleaning) * svcMult;
+        const result = (effectiveNights * nightly + cleaning) * svcMult;
         return result;
     };
 
@@ -780,7 +829,6 @@ document.addEventListener('DOMContentLoaded', function () {
         const originalGlobalSearchClick = searchButton.onclick;
 
         searchButton.onclick = async function (e) {
-            console.log("Main search handler executing");
             e.preventDefault();
             e.stopPropagation();  // Prevent event bubbling
 
@@ -824,6 +872,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
             // Update extras visibility based on type selections
             updateExtrasVisibility();
+
+            // Update quick search visibility after selections are confirmed
+            if (window.quickSearchHandlers && window.quickSearchHandlers.updateVisibility) {
+                window.quickSearchHandlers.updateVisibility();
+            }
 
             // Phase 4: Update price filter when search state changes
             if (typeof filterSystem !== 'undefined' && filterSystem.updatePriceFilter) {
@@ -954,6 +1007,11 @@ document.addEventListener('DOMContentLoaded', function () {
             pendingSelections.typeFlags = { boatRental: pendingBoat, fishingCharter: pendingFishing };
             updateButtonText(typeButtonText, text, defaultValues.type);
             applyToggleVisibility(flags);
+
+            // Update quick search visibility when type selection changes
+            if (window.quickSearchHandlers && window.quickSearchHandlers.updateVisibility) {
+                window.quickSearchHandlers.updateVisibility();
+            }
         }
 
         // Toggle helpers
@@ -997,6 +1055,122 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Make functions available outside
         return { updateTypeSelectionVisual, revertPendingType };
+    }
+
+    // Quick search extras functionality
+    function setupQuickSearchExtras() {
+        const quickSearchContainer = document.querySelector('[data-element="searchExtrasQuickSearch"]');
+        const boatRentalButton = document.querySelector('[data-element="searchExtrasQuickSearch_boatRental"]');
+        const fishingCharterButton = document.querySelector('[data-element="searchExtrasQuickSearch_fishingCharters"]');
+
+        if (!quickSearchContainer || !boatRentalButton || !fishingCharterButton) {
+            return;
+        }
+
+        // Function to update visibility based on current selections
+        function updateQuickSearchVisibility() {
+            const hasBoat = !!(currentSelections?.typeFlags?.boatRental || apiFormats?.type?.boatRental);
+            const hasCharter = !!(currentSelections?.typeFlags?.fishingCharter || apiFormats?.type?.fishingCharter);
+
+            // Show/hide individual buttons
+            boatRentalButton.style.display = hasBoat ? 'none' : 'flex';
+            fishingCharterButton.style.display = hasCharter ? 'none' : 'flex';
+
+            // Show/hide entire container - hide if both extras are selected
+            if (hasBoat && hasCharter) {
+                quickSearchContainer.style.display = 'none';
+            } else {
+                quickSearchContainer.style.display = 'flex';
+            }
+        }
+
+        // Function to add extra to search and trigger new search
+        async function addExtraAndSearch(extraType) {
+            try {
+                // Update current selections to include the extra
+                if (!currentSelections.typeFlags) {
+                    currentSelections.typeFlags = {};
+                }
+
+                if (extraType === 'boat') {
+                    currentSelections.typeFlags.boatRental = true;
+                } else if (extraType === 'charter') {
+                    currentSelections.typeFlags.fishingCharter = true;
+                }
+
+                // Update the type text
+                const parts = ['Home'];
+                if (currentSelections.typeFlags.boatRental) parts.push('Boat');
+                if (currentSelections.typeFlags.fishingCharter) parts.push('Charter');
+                currentSelections.type = parts.join(' + ');
+
+                // Update apiFormats to match
+                if (!apiFormats.type) {
+                    apiFormats.type = {};
+                }
+                apiFormats.type.boatRental = !!currentSelections.typeFlags.boatRental;
+                apiFormats.type.fishingCharter = !!currentSelections.typeFlags.fishingCharter;
+
+                // Update the type button text in the UI
+                const typeButtonText = document.querySelector('[data-element="navBarSearch_typeButton_text"]');
+                if (typeButtonText) {
+                    typeButtonText.textContent = currentSelections.type;
+                }
+
+                // Enable the appropriate module
+                if (extraType === 'boat' && typeof boatModule !== 'undefined') {
+                    boatModule.setEnabled(true);
+                } else if (extraType === 'charter' && typeof charterModule !== 'undefined') {
+                    charterModule.setEnabled(true);
+                }
+
+                // Update visibility immediately
+                updateQuickSearchVisibility();
+
+                // Update extras filter visibility immediately
+                updateExtrasVisibility();
+
+                // Update the type popup visual state to stay in sync
+                if (window.typePopupHandlers && window.typePopupHandlers.updateTypeSelectionVisual) {
+                    window.typePopupHandlers.updateTypeSelectionVisual();
+                }
+
+                // Trigger new search with the added extra
+                await fetchPropertySearchResults();
+
+                // Update filter system price filter since search state changed
+                if (filterSystem && filterSystem.updatePriceFilter) {
+                    filterSystem.updatePriceFilter();
+                }
+
+                // Ensure extras visibility is updated after search completes
+                setTimeout(() => {
+                    updateExtrasVisibility();
+                }, 100);
+
+            } catch (error) {
+                console.error('Error in addExtraAndSearch:', error);
+            }
+        }
+
+        // Add click handlers
+        boatRentalButton.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            addExtraAndSearch('boat');
+        });
+
+        fishingCharterButton.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            addExtraAndSearch('charter');
+        });
+
+        // Initialize visibility
+        updateQuickSearchVisibility();
+
+        // Return update function for external use
+        return { updateVisibility: updateQuickSearchVisibility };
     }
 
     // Location popup functionality
@@ -1898,7 +2072,6 @@ document.addEventListener('DOMContentLoaded', function () {
         if (searchButton) {
             const originalSearchClickHandler = searchButton.onclick;
             searchButton.onclick = function (e) {
-                console.log("Guest search handler executing");
                 // Update confirmed guests with current selections
                 confirmedGuests = { ...guests };
 
@@ -2095,6 +2268,49 @@ document.addEventListener('DOMContentLoaded', function () {
             // Update navigation buttons only for desktop view
             if (!isMobile) {
                 updateNavigationButtons();
+            } else {
+                // Mobile: Auto-scroll to selected month if specified
+                if (window.scrollToMonth) {
+                    setTimeout(() => {
+                        scrollToSelectedMonth(window.scrollToMonth.month, window.scrollToMonth.year);
+                        window.scrollToMonth = null; // Clear after use
+                    }, 100); // Small delay to ensure DOM is rendered
+                }
+            }
+        }
+
+        // Function to scroll to a specific month on mobile
+        function scrollToSelectedMonth(targetMonth, targetYear) {
+            const monthsContainer = calendarContainer.querySelector('.months-container');
+            if (!monthsContainer) return;
+
+            // Find the target month element
+            const monthCalendars = monthsContainer.querySelectorAll('.month-calendar');
+            let targetIndex = -1;
+
+            // Calculate the index of the target month
+            let currentMonthIndex = currentMonth;
+            let currentYearIndex = currentYear;
+
+            for (let i = 0; i < monthCalendars.length; i++) {
+                if (currentMonthIndex === targetMonth && currentYearIndex === targetYear) {
+                    targetIndex = i;
+                    break;
+                }
+
+                currentMonthIndex++;
+                if (currentMonthIndex > 11) {
+                    currentMonthIndex = 0;
+                    currentYearIndex++;
+                }
+            }
+
+            // Scroll to the target month
+            if (targetIndex >= 0 && monthCalendars[targetIndex]) {
+                monthCalendars[targetIndex].scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'start'
+                });
             }
         }
 
@@ -2621,11 +2837,28 @@ document.addEventListener('DOMContentLoaded', function () {
                         // Also update temp selections
                         tempSelectedDates = { ...selectedDates };
 
+                        // Replace the existing logic with:
                         selectingCheckOut = false;
 
-                        // Set current month to show check-in date
-                        currentMonth = checkInMonth;
-                        currentYear = checkInYear;
+                        // For mobile: always start from current month but scroll to selected month
+                        // For desktop: navigate directly to selected month
+                        const isMobile = window.innerWidth <= 650;
+                        if (!isMobile) {
+                            // Desktop: navigate to selected month
+                            currentMonth = checkInMonth;
+                            currentYear = checkInYear;
+                        } else {
+                            // Mobile: always start from current month (to show all 24 months)
+                            const today = new Date();
+                            currentMonth = today.getMonth();
+                            currentYear = today.getFullYear();
+
+                            // Store the selected month info for scrolling after render
+                            window.scrollToMonth = {
+                                month: checkInMonth,
+                                year: checkInYear
+                            };
+                        }
                     }
                 }
 
@@ -2637,7 +2870,6 @@ document.addEventListener('DOMContentLoaded', function () {
         if (searchButton) {
             const originalSearchClickHandler = searchButton.onclick;
             searchButton.onclick = function (e) {
-                console.log("Dates search handler executing");
 
                 // Check if dates popup is open and selection is incomplete
                 if (datesPopup && datesPopup.style.display === 'flex' &&
@@ -3190,6 +3422,54 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         }
 
+        // Function to transfer date selections from calendar to pending selections
+        function transferDatesFromCalendarToPending() {
+            // Check if we can access the current dates button text to see if dates are selected
+            const currentDatesText = datesButtonText ? datesButtonText.textContent.trim() : '';
+
+            // If the button shows a date range (not the default text), preserve it in pending
+            if (currentDatesText && currentDatesText !== defaultValues.dates && currentDatesText !== 'Add dates') {
+                // The date is already in pendingSelections.dates from the calendar's updateDatesButtonText function
+                // We just need to make sure it stays there and create the selectedDatesObj if possible
+
+                // Try to parse the date range to create selectedDatesObj
+                const dateRangeMatch = currentDatesText.match(/([A-Za-z]+)\s+(\d+)\s+-\s+([A-Za-z]+)\s+(\d+)/);
+
+                if (dateRangeMatch) {
+                    const months = {
+                        'Jan': 0, 'Feb': 1, 'Mar': 2, 'Apr': 3, 'May': 4, 'Jun': 5,
+                        'Jul': 6, 'Aug': 7, 'Sep': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11
+                    };
+
+                    const checkInMonth = months[dateRangeMatch[1]];
+                    const checkInDay = parseInt(dateRangeMatch[2]);
+                    const checkOutMonth = months[dateRangeMatch[3]];
+                    const checkOutDay = parseInt(dateRangeMatch[4]);
+
+                    // Determine year (assume current year or next year)
+                    const currentDate = new Date();
+                    let checkInYear = currentDate.getFullYear();
+                    let checkOutYear = currentDate.getFullYear();
+
+                    // If the month is before current month, assume next year
+                    if (checkInMonth < currentDate.getMonth()) {
+                        checkInYear++;
+                    }
+                    if (checkOutMonth < currentDate.getMonth()) {
+                        checkOutYear++;
+                    }
+
+                    pendingSelections.selectedDatesObj = {
+                        checkIn: new Date(checkInYear, checkInMonth, checkInDay),
+                        checkOut: new Date(checkOutYear, checkOutMonth, checkOutDay)
+                    };
+
+                    // Make sure the dates text is also in pending
+                    pendingSelections.dates = currentDatesText;
+                }
+            }
+        }
+
         // Add event handlers for navBar_Container level buttons
         if (navBarCloseButton) {
             navBarCloseButton.addEventListener('click', (e) => {
@@ -3299,6 +3579,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 e.stopPropagation();
                 e.stopImmediatePropagation(); // ADD THIS to prevent all other handlers
 
+                // Transfer any complete date selections to pending before closing
+                transferDatesFromCalendarToPending();
+
                 // Only hide this specific popup, don't close entire container
                 if (datesPopup) datesPopup.style.display = 'none';
 
@@ -3315,6 +3598,10 @@ document.addEventListener('DOMContentLoaded', function () {
         if (datesPopupNextButton) {
             datesPopupNextButton.addEventListener('click', (e) => {
                 e.stopPropagation();
+
+                // Transfer any complete date selections to pending before navigating
+                transferDatesFromCalendarToPending();
+
                 navigateToNextPopup(datesPopup, guestsPopup);
                 // Remove selected class from dates button
                 if (datesButton) datesButton.classList.remove('selected');
@@ -3396,6 +3683,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 // Update extras visibility based on type selections
                 updateExtrasVisibility();
+
+                // Update quick search visibility after selections are confirmed
+                if (window.quickSearchHandlers && window.quickSearchHandlers.updateVisibility) {
+                    window.quickSearchHandlers.updateVisibility();
+                }
 
                 // Phase 4: Update price filter when search state changes
                 if (typeof filterSystem !== 'undefined' && filterSystem.updatePriceFilter) {
@@ -3484,6 +3776,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 // Update extras visibility based on type selections
                 updateExtrasVisibility();
+
+                // Update quick search visibility after selections are confirmed
+                if (window.quickSearchHandlers && window.quickSearchHandlers.updateVisibility) {
+                    window.quickSearchHandlers.updateVisibility();
+                }
 
                 // Phase 4: Update price filter when search state changes
                 if (typeof filterSystem !== 'undefined' && filterSystem.updatePriceFilter) {
@@ -3581,9 +3878,14 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Initialize the popups
     const typePopupHandlers = setupTypePopup();
+    const quickSearchHandlers = setupQuickSearchExtras();
     setupLocationPopup();
     setupDatesPopup();
     setupGuestsPopup();
+
+    // Make handlers globally available for synchronization
+    window.typePopupHandlers = typePopupHandlers;
+    window.quickSearchHandlers = quickSearchHandlers;
 
     /***** BOAT MODULE (boats only; charter-ready shape) *****/
     const boatModule = (() => {
@@ -3823,7 +4125,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const filtered = filterBoatsForListing(listing, dates, guestCount);
 
             if (!filtered.length) {
-                return { count: 0, minPrice: null, formatted: "0 Boats" };
+                return { count: 0, minPrice: null, formatted: "0 Boats Available" };
             }
 
             // Calculate minimum price using sophisticated pricing logic from commented code
@@ -3890,9 +4192,23 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
             });
 
-            const boatLabel = filtered.length === 1 ? 'Boat' : 'Boats';
+            const boatLabel = filtered.length === 1 ? 'Boat Available' : 'Boats Available';
+
+            // Get current boat filter days to show in badge (only if different from default)
+            let daysText = '';
+            if (min != null) {
+                const currentFilters = getCurrentFilters();
+                if (currentFilters && currentFilters.days !== undefined && currentFilters.days !== 0.5) {
+                    if (currentFilters.days === 1) {
+                        daysText = ' (1 Day)';
+                    } else if (currentFilters.days > 1) {
+                        daysText = ` (${currentFilters.days} Days)`;
+                    }
+                }
+            }
+
             const formatted = min != null
-                ? `${filtered.length} ${boatLabel} • $${min.toLocaleString()}+`.trim()
+                ? `${filtered.length} ${boatLabel} • $${min.toLocaleString()}+${daysText}`.trim()
                 : `${filtered.length} ${boatLabel}`;
 
             return { count: filtered.length, minPrice: min, formatted };
@@ -4323,22 +4639,21 @@ document.addEventListener('DOMContentLoaded', function () {
             // Listing must have a private dock
             if (!listing.private_dock) return false;
 
-            const listingCity = getCity(listing);
+            const listingNeighborhood = lc(listing.listing_neighborhood || '');
 
-            // If no specific cities listed, assume they can serve anywhere (within distance)
-            if (!company.privateDockPickupCity || company.privateDockPickupCity.length === 0) {
+            // If no specific areas listed, assume they can serve anywhere (within distance)
+            if (!company.privateDockPickupAreas || company.privateDockPickupAreas.length === 0) {
                 return true;
             }
 
-            // Check if listing city is in the pickup cities
-            if (listingCity) {
-                const normalizedListingCity = lc(listingCity);
-                return company.privateDockPickupCity.some(cityObj =>
-                    lc(cityObj.city || '') === normalizedListingCity
+            // Check if listing neighborhood is in the pickup areas
+            if (listingNeighborhood) {
+                return company.privateDockPickupAreas.some(areaObj =>
+                    lc(areaObj.region || '') === listingNeighborhood
                 );
             }
 
-            return true; // If no listing city provided, don't filter
+            return true; // If no listing neighborhood provided, don't filter
         }
 
         // --- Build index once per results load ---
@@ -4459,15 +4774,24 @@ document.addEventListener('DOMContentLoaded', function () {
             const eligibleTrips = filterChartersForListing(listing, dates, guestCount);
 
             if (!eligibleTrips.length) {
-                return { count: 0, minPrice: null, formatted: "0 Charters" };
+                return { count: 0, minPrice: null, formatted: "0 Charters Available" };
             }
 
             // Calculate minimum price per day
             const minPricePerDay = Math.min(...eligibleTrips.map(trip => trip.basePricePerDay));
             const totalEstimate = minPricePerDay * filters.days;
 
-            const charterLabel = eligibleTrips.length === 1 ? 'Charter' : 'Charters';
-            let formatted = `${eligibleTrips.length} ${charterLabel} • $${totalEstimate.toLocaleString()}+`;
+            const charterLabel = eligibleTrips.length === 1 ? 'Charter Available' : 'Charters Available';
+
+            // Get current charter filter days to show in badge (only if different from default)
+            let daysText = '';
+            if (filters.days !== undefined && filters.days !== 1) {
+                if (filters.days > 1) {
+                    daysText = ` (${filters.days} Days)`;
+                }
+            }
+
+            let formatted = `${eligibleTrips.length} ${charterLabel} • $${totalEstimate.toLocaleString()}+${daysText}`;
 
 
             return {
@@ -6149,6 +6473,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (datesHowManyDaysContainer) {
                     const daysDisplay = datesHowManyDaysContainer.querySelector('.days-display');
                     const daysMinus = datesHowManyDaysContainer.querySelector('.days-minus');
+                    const daysPlus = datesHowManyDaysContainer.querySelector('.days-plus');
+                    const selectedNights = getSelectedNights();
 
                     if (daysDisplay) {
                         if (currentFilters.days === 0.5) {
@@ -6163,6 +6489,19 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (daysMinus) {
                         daysMinus.style.opacity = currentFilters.days <= 0.5 ? '0.3' : '1';
                         daysMinus.style.cursor = currentFilters.days <= 0.5 ? 'not-allowed' : 'pointer';
+                    }
+
+                    // Update plus button based on selected nights limit
+                    if (daysPlus) {
+                        if (selectedNights !== null && currentFilters.days >= selectedNights) {
+                            daysPlus.style.opacity = '0.3';
+                            daysPlus.style.cursor = 'not-allowed';
+                            daysPlus.disabled = true;
+                        } else {
+                            daysPlus.style.opacity = '1';
+                            daysPlus.style.cursor = 'pointer';
+                            daysPlus.disabled = false;
+                        }
                     }
                 }
 
@@ -6350,6 +6689,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 function updateDaysDisplay() {
                     const currentFilters = boatModule.getPendingFilters();
+                    const selectedNights = getSelectedNights();
 
                     if (currentFilters.days === 0.5) {
                         daysDisplay.textContent = '1 Half Day';
@@ -6365,6 +6705,17 @@ document.addEventListener('DOMContentLoaded', function () {
                     // Update button states
                     daysMinus.style.opacity = currentFilters.days <= 0.5 ? '0.3' : '1';
                     daysMinus.style.cursor = currentFilters.days <= 0.5 ? 'not-allowed' : 'pointer';
+
+                    // Update plus button state based on selected nights limit
+                    if (selectedNights !== null && currentFilters.days >= selectedNights) {
+                        daysPlus.style.opacity = '0.3';
+                        daysPlus.style.cursor = 'not-allowed';
+                        daysPlus.disabled = true;
+                    } else {
+                        daysPlus.style.opacity = '1';
+                        daysPlus.style.cursor = 'pointer';
+                        daysPlus.disabled = false;
+                    }
                 }
 
                 daysMinus.addEventListener('click', () => {
@@ -6382,13 +6733,22 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 daysPlus.addEventListener('click', () => {
                     const current = boatModule.getPendingFilters();
+                    const selectedNights = getSelectedNights();
+
+                    // Check if we can increase days
+                    let newDays;
                     if (current.days === 0.5) {
-                        boatModule.setPendingFilters({ days: 1 });
+                        newDays = 1;
                     } else {
-                        boatModule.setPendingFilters({ days: current.days + 1 });
+                        newDays = current.days + 1;
                     }
-                    updateDaysDisplay();
-                    updateBoatFilterDisplay();
+
+                    // Don't exceed selected nights limit
+                    if (selectedNights === null || newDays <= selectedNights) {
+                        boatModule.setPendingFilters({ days: newDays });
+                        updateDaysDisplay();
+                        updateBoatFilterDisplay();
+                    }
                 });
 
                 updateDaysDisplay();
@@ -6435,6 +6795,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const wreckFishingCheckbox = document.querySelector('[data-element="fishingCharterFilter_wreckFishingCheckbox"]');
             const reefFishingCheckbox = document.querySelector('[data-element="fishingCharterFilter_reefFishingCheckbox"]');
             const flatsFishingCheckbox = document.querySelector('[data-element="fishingCharterFilter_flatsFishingCheckbox"]');
+            const backcountryFishingCheckbox = document.querySelector('[data-element="fishingCharterFilter_backcountryFishingCheckbox"]');
 
             // Debug: Check which elements are found
             if (!fishingChartersFilter || !fishingCharterFilterModal) {
@@ -6564,6 +6925,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (datesHowManyDaysContainer) {
                     const daysDisplay = datesHowManyDaysContainer.querySelector('.days-display');
                     const daysMinus = datesHowManyDaysContainer.querySelector('.days-minus');
+                    const daysPlus = datesHowManyDaysContainer.querySelector('.days-plus');
+                    const selectedNights = getSelectedNights();
 
                     if (daysDisplay) {
                         daysDisplay.textContent = `${currentFilters.days} Day${currentFilters.days > 1 ? 's' : ''}`;
@@ -6572,6 +6935,19 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (daysMinus) {
                         daysMinus.style.opacity = currentFilters.days <= 1 ? '0.3' : '1';
                         daysMinus.style.cursor = currentFilters.days <= 1 ? 'not-allowed' : 'pointer';
+                    }
+
+                    // Update plus button based on selected nights limit
+                    if (daysPlus) {
+                        if (selectedNights !== null && currentFilters.days >= selectedNights) {
+                            daysPlus.style.opacity = '0.3';
+                            daysPlus.style.cursor = 'not-allowed';
+                            daysPlus.disabled = true;
+                        } else {
+                            daysPlus.style.opacity = '1';
+                            daysPlus.style.cursor = 'pointer';
+                            daysPlus.disabled = false;
+                        }
                     }
                 }
 
@@ -6582,7 +6958,8 @@ document.addEventListener('DOMContentLoaded', function () {
                     { checkbox: nearFishingCheckbox, type: 'Nearshore Fishing' },
                     { checkbox: wreckFishingCheckbox, type: 'Wreck Fishing' },
                     { checkbox: reefFishingCheckbox, type: 'Reef Fishing' },
-                    { checkbox: flatsFishingCheckbox, type: 'Flats Fishing' }
+                    { checkbox: flatsFishingCheckbox, type: 'Flats Fishing' },
+                    { checkbox: backcountryFishingCheckbox, type: 'Backcountry Fishing' }
                 ];
 
                 fishingTypeCheckboxes.forEach(({ checkbox, type }) => {
@@ -6683,7 +7060,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 { checkbox: nearFishingCheckbox, type: 'Nearshore Fishing' },
                 { checkbox: wreckFishingCheckbox, type: 'Wreck Fishing' },
                 { checkbox: reefFishingCheckbox, type: 'Reef Fishing' },
-                { checkbox: flatsFishingCheckbox, type: 'Flats Fishing' }
+                { checkbox: flatsFishingCheckbox, type: 'Flats Fishing' },
+                { checkbox: backcountryFishingCheckbox, type: 'Backcountry Fishing' }
             ];
 
             fishingTypeCheckboxes.forEach(({ checkbox, type }) => {
@@ -6778,12 +7156,24 @@ document.addEventListener('DOMContentLoaded', function () {
                         return;
                     }
                     const currentFilters = charterModule.getPendingFilters();
+                    const selectedNights = getSelectedNights();
 
                     daysDisplay.textContent = `${currentFilters.days} Day${currentFilters.days > 1 ? 's' : ''}`;
 
                     // Update button states
                     daysMinus.style.opacity = currentFilters.days <= 1 ? '0.3' : '1';
                     daysMinus.style.cursor = currentFilters.days <= 1 ? 'not-allowed' : 'pointer';
+
+                    // Update plus button state based on selected nights limit
+                    if (selectedNights !== null && currentFilters.days >= selectedNights) {
+                        daysPlus.style.opacity = '0.3';
+                        daysPlus.style.cursor = 'not-allowed';
+                        daysPlus.disabled = true;
+                    } else {
+                        daysPlus.style.opacity = '1';
+                        daysPlus.style.cursor = 'pointer';
+                        daysPlus.disabled = false;
+                    }
                 }
 
                 daysMinus.addEventListener('click', () => {
@@ -6799,9 +7189,15 @@ document.addEventListener('DOMContentLoaded', function () {
                 daysPlus.addEventListener('click', () => {
                     if (typeof charterModule === 'undefined') return;
                     const current = charterModule.getPendingFilters();
-                    charterModule.setPendingFilters({ days: current.days + 1 });
-                    updateDaysDisplay();
-                    updateCharterFilterDisplay();
+                    const selectedNights = getSelectedNights();
+
+                    // Check if we can increase days (don't exceed selected nights limit)
+                    const newDays = current.days + 1;
+                    if (selectedNights === null || newDays <= selectedNights) {
+                        charterModule.setPendingFilters({ days: newDays });
+                        updateDaysDisplay();
+                        updateCharterFilterDisplay();
+                    }
                 });
 
                 updateDaysDisplay();
@@ -7285,6 +7681,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
             // Show skeleton container
             skeletonContainer.style.display = 'flex';
+
+            // Hide the main loader now that skeleton is showing
+            if (loaderElement) {
+                loaderElement.style.display = 'none';
+            }
         });
     }
 
@@ -7342,18 +7743,14 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // MODIFY the fetchPropertySearchResults function to include skeleton loading
     async function fetchPropertySearchResults() {
-        console.log("fetchPropertySearchResults called");
-        console.trace("Call stack for fetchPropertySearchResults");
 
         // Prevent API calls when centering on marker
         if (isCenteringOnMarker) {
-            console.log("fetchPropertySearchResults blocked - centering on marker");
             return;
         }
 
         // Prevent multiple simultaneous searches
         if (isSearchInProgress) {
-            console.log("fetchPropertySearchResults blocked - already in progress");
             return;
         }
 
@@ -7421,7 +7818,6 @@ document.addEventListener('DOMContentLoaded', function () {
             const response = await fetch(apiUrl, {
                 method: 'GET'
             });
-            console.log("request is happening")
 
             // Remove loading state from search button
             if (searchButton) {
@@ -8026,7 +8422,6 @@ document.addEventListener('DOMContentLoaded', function () {
     // Function to render listing cards (with custom carousel)
     function renderListingCards(listings, filteredOnly = false, page = 1) {
 
-        console.log("renderListingCards is happening")
         const listingCardTemplate = document.querySelector('[data-element="listingCard_block"]');
         const listingContainer = document.querySelector('[data-element="listings-container"]');
 
@@ -8195,9 +8590,34 @@ document.addEventListener('DOMContentLoaded', function () {
                     const datesSelected = hasDates();
 
                     if (hasExtras && !datesSelected) {
-                        // Show minNights when extras are selected but no dates
+                        // Calculate effective nights considering filters
                         const minNights = listing.min_nights || 1;
-                        minNightsElement.textContent = `${minNights} night${minNights > 1 ? 's' : ''}`;
+                        let effectiveNights = minNights;
+
+                        let maxFilterDays = 0;
+
+                        // Get boat rental days if boat is active
+                        if (wantBoat() && typeof boatModule !== 'undefined') {
+                            const boatFilters = boatModule.getCurrentFilters();
+                            if (boatFilters && boatFilters.days) {
+                                maxFilterDays = Math.max(maxFilterDays, boatFilters.days);
+                            }
+                        }
+
+                        // Get charter days if charter is active
+                        if (wantChar() && typeof charterModule !== 'undefined') {
+                            const charterFilters = charterModule.getCurrentFilters();
+                            if (charterFilters && charterFilters.days) {
+                                maxFilterDays = Math.max(maxFilterDays, charterFilters.days);
+                            }
+                        }
+
+                        // Use the higher value between property min nights and filter days
+                        if (maxFilterDays > 0) {
+                            effectiveNights = Math.max(minNights, maxFilterDays);
+                        }
+
+                        minNightsElement.textContent = `${effectiveNights} night${effectiveNights > 1 ? 's' : ''}`;
                         minNightsElement.style.display = 'flex';
                     } else {
                         // Hide minNights in all other cases
@@ -8388,9 +8808,34 @@ document.addEventListener('DOMContentLoaded', function () {
                     const datesSelected = hasDates();
 
                     if (hasExtras && !datesSelected) {
-                        // Show minNights when extras are selected but no dates
+                        // Calculate effective nights considering filters
                         const minNights = listing.min_nights || 1;
-                        minNightsElement.textContent = `${minNights} night${minNights > 1 ? 's' : ''}`;
+                        let effectiveNights = minNights;
+
+                        let maxFilterDays = 0;
+
+                        // Get boat rental days if boat is active
+                        if (wantBoat() && typeof boatModule !== 'undefined') {
+                            const boatFilters = boatModule.getCurrentFilters();
+                            if (boatFilters && boatFilters.days) {
+                                maxFilterDays = Math.max(maxFilterDays, boatFilters.days);
+                            }
+                        }
+
+                        // Get charter days if charter is active
+                        if (wantChar() && typeof charterModule !== 'undefined') {
+                            const charterFilters = charterModule.getCurrentFilters();
+                            if (charterFilters && charterFilters.days) {
+                                maxFilterDays = Math.max(maxFilterDays, charterFilters.days);
+                            }
+                        }
+
+                        // Use the higher value between property min nights and filter days
+                        if (maxFilterDays > 0) {
+                            effectiveNights = Math.max(minNights, maxFilterDays);
+                        }
+
+                        minNightsElement.textContent = `${effectiveNights} night${effectiveNights > 1 ? 's' : ''}`;
                         minNightsElement.style.display = 'flex';
                     } else {
                         // Hide minNights in all other cases
@@ -8821,6 +9266,11 @@ document.addEventListener('DOMContentLoaded', function () {
             previousPricingMode = getCurrentPricingMode();
         })
         .catch(error => {
+            console.error('❌ Error in fetchPropertySearchResults:', error);
+            // Hide loader on error
+            if (loaderElement) {
+                loaderElement.style.display = 'none';
+            }
         });
 
     // Function to change marker background color
@@ -9062,30 +9512,26 @@ document.addEventListener('DOMContentLoaded', function () {
                     const params = new URLSearchParams();
                     params.append('id', this.listing.id);
 
-                    let checkInDate, checkOutDate;
+                    let checkInDate = '';
+                    let checkOutDate = '';
                     if (apiFormats.dates.checkIn && apiFormats.dates.checkOut) {
                         checkInDate = formatDateToYYYYMMDD(apiFormats.dates.checkIn);
                         checkOutDate = formatDateToYYYYMMDD(apiFormats.dates.checkOut);
-                    } else {
-                        checkInDate = formatDateToYYYYMMDD(this.listing.default_startDate);
-                        checkOutDate = formatDateToYYYYMMDD(this.listing.default_endDate);
                     }
                     params.append('checkin', checkInDate);
                     params.append('checkout', checkOutDate);
 
-                    // Add guest parameters if they exist
-                    if (apiFormats.guests && apiFormats.guests.total > 0) {
-                        const guestParams = {
-                            guests: apiFormats.guests.total,
-                            adults: apiFormats.guests.adults || 0,
-                            children: apiFormats.guests.children || 0,
-                            infants: apiFormats.guests.infants || 0,
-                            pets: apiFormats.guests.pets || 0
-                        };
-                        Object.entries(guestParams).forEach(([key, value]) => {
-                            params.append(key, value);
-                        });
-                    }
+                    // Add guest parameters - default to 1 guest and 1 adult if none selected
+                    const guestParams = {
+                        guests: (apiFormats.guests && apiFormats.guests.total > 0) ? apiFormats.guests.total : 1,
+                        adults: (apiFormats.guests && apiFormats.guests.adults > 0) ? apiFormats.guests.adults : 1,
+                        children: (apiFormats.guests && apiFormats.guests.children > 0) ? apiFormats.guests.children : 0,
+                        infants: (apiFormats.guests && apiFormats.guests.infants > 0) ? apiFormats.guests.infants : 0,
+                        pets: (apiFormats.guests && apiFormats.guests.pets > 0) ? apiFormats.guests.pets : 0
+                    };
+                    Object.entries(guestParams).forEach(([key, value]) => {
+                        params.append(key, value);
+                    });
 
                     // Open in new tab
                     const url = `/listing/page?${params.toString()}`;
@@ -9203,8 +9649,34 @@ document.addEventListener('DOMContentLoaded', function () {
                     // Check if we should show minimum nights (extras selected but no dates)
                     const hasExtras = wantBoat() || wantChar();
                     if (hasExtras) {
+                        // Calculate effective nights considering filters
                         const minNights = this.listing.min_nights || 1;
-                        return `${minNights} night${minNights > 1 ? 's' : ''}`;
+                        let effectiveNights = minNights;
+
+                        let maxFilterDays = 0;
+
+                        // Get boat rental days if boat is active
+                        if (wantBoat() && typeof boatModule !== 'undefined') {
+                            const boatFilters = boatModule.getCurrentFilters();
+                            if (boatFilters && boatFilters.days) {
+                                maxFilterDays = Math.max(maxFilterDays, boatFilters.days);
+                            }
+                        }
+
+                        // Get charter days if charter is active
+                        if (wantChar() && typeof charterModule !== 'undefined') {
+                            const charterFilters = charterModule.getCurrentFilters();
+                            if (charterFilters && charterFilters.days) {
+                                maxFilterDays = Math.max(maxFilterDays, charterFilters.days);
+                            }
+                        }
+
+                        // Use the higher value between property min nights and filter days
+                        if (maxFilterDays > 0) {
+                            effectiveNights = Math.max(minNights, maxFilterDays);
+                        }
+
+                        return `${effectiveNights} night${effectiveNights > 1 ? 's' : ''}`;
                     }
                     return null; // Hide date section when no dates and no extras
                 }
@@ -9557,7 +10029,6 @@ document.addEventListener('DOMContentLoaded', function () {
         // MODIFY the initializeMap function's idle listener:
         // Single idle listener with clear logic (FIXED VERSION)
         map.addListener('idle', () => {
-            console.log("Map idle event triggered - isCenteringOnMarker:", isCenteringOnMarker, "markerClickInProgress:", window.markerClickInProgress);
             const currentBounds = map.getBounds();
             if (!currentBounds) return;
 
@@ -9565,14 +10036,12 @@ document.addEventListener('DOMContentLoaded', function () {
             if (isInitialLoad) {
                 searchBounds = currentBounds;
                 isInitialLoad = false;
-                console.log("Initial load - setting search bounds and exiting");
                 return;
             }
 
             // If we're centering on a marker, don't trigger API requests - but don't reset the flag here
             // The flag will be reset by the marker click handler after overlay creation
             if (isCenteringOnMarker) {
-                console.log("Idle event blocked - centering on marker");
                 return;
             }
 
@@ -9639,11 +10108,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
                     searchTimeout = setTimeout(() => {
                         // Double-check we're not centering on marker before making API call
-                        console.log("Idle timeout executing - isCenteringOnMarker:", isCenteringOnMarker, "markerClickInProgress:", window.markerClickInProgress);
                         if (!isCenteringOnMarker) {
                             fetchPropertySearchResults();
-                        } else {
-                            console.log("API call blocked by isCenteringOnMarker flag");
                         }
                     }, 500);
 
@@ -9841,7 +10307,6 @@ document.addEventListener('DOMContentLoaded', function () {
                             // Set flags IMMEDIATELY to prevent dragstart from closing overlay
                             window.markerClickInProgress = true;
                             isCenteringOnMarker = true;
-                            console.log("Marker clicked - flags set:", { isCenteringOnMarker, markerClickInProgress: window.markerClickInProgress });
 
                             // Close any existing overlay first
                             if (window.currentListingOverlay) {
@@ -9873,7 +10338,6 @@ document.addEventListener('DOMContentLoaded', function () {
                                 setTimeout(() => {
                                     isCenteringOnMarker = false;
                                     window.markerClickInProgress = false;
-                                    console.log("Marker click flags reset:", { isCenteringOnMarker, markerClickInProgress: window.markerClickInProgress });
                                 }, 600); // Increased to 600ms to be longer than the idle timeout (500ms)
                             }, 150);
                         });
@@ -9908,7 +10372,6 @@ document.addEventListener('DOMContentLoaded', function () {
                                     // Set flags IMMEDIATELY to prevent dragstart from closing overlay
                                     window.markerClickInProgress = true;
                                     isCenteringOnMarker = true;
-                                    console.log("Custom marker clicked - flags set:", { isCenteringOnMarker, markerClickInProgress: window.markerClickInProgress });
 
                                     // Close any existing overlay first
                                     if (window.currentListingOverlay) {
@@ -9940,7 +10403,6 @@ document.addEventListener('DOMContentLoaded', function () {
                                         setTimeout(() => {
                                             isCenteringOnMarker = false;
                                             window.markerClickInProgress = false;
-                                            console.log("Custom marker click flags reset:", { isCenteringOnMarker, markerClickInProgress: window.markerClickInProgress });
                                         }, 600); // Increased to 600ms to be longer than the idle timeout (500ms)
                                     }, 150);
                                 });

@@ -2522,6 +2522,12 @@ function validateLocation() {
                 listingData.addressChosen = selectedAddressType;
                 listingData.addressNotSelected = selectedAddressType === 'suggested' ? enteredAddress : result.formattedAddress;
 
+                // Set initial neighborhood based on coordinates if not already set
+                if (!listingData.address.neighborhood && result.latitude && result.longitude) {
+                    listingData.address.neighborhood = determineNeighborhood(result.latitude, result.longitude);
+                    console.log('Initial neighborhood determined:', listingData.address.neighborhood);
+                }
+
                 // Add click handlers for address selection
                 if (confirmSuggestedContainer && confirmEnteredContainer) {
                     updateAddressSelection();
@@ -2543,11 +2549,14 @@ function validateLocation() {
                             unit = addressLine2Input.value.trim(); // Fallback to entered unit
                         }
 
+                        // Determine neighborhood from coordinates
+                        const neighborhood = determineNeighborhood(result.latitude, result.longitude);
+
                         listingData.address = {
                             addressLine1: addressLine1,
                             addressLine2: addressParts.slice(1).join(',').trim(),
                             cityState: `${addressParts[1]}, ${addressParts[2].split(' ')[0]}`,
-                            neighborhood: '',
+                            neighborhood: neighborhood,
                             unit: unit,
                             city: addressParts[1],
                             state: addressParts[2].split(' ')[0],
@@ -2558,17 +2567,22 @@ function validateLocation() {
                         listingData.addressNotSelected = enteredAddress;
                         updateAddressSelection();
                         console.log('Listing data:', listingData);
+                        console.log('Determined neighborhood:', neighborhood);
                     };
 
                     confirmEnteredContainer.onclick = () => {
                         selectedAddressType = 'entered';
                         listingData.addressChosen = 'entered';
-                        // Revert to originally entered address but keep coordinates
+
+                        // Determine neighborhood from coordinates
+                        const neighborhood = determineNeighborhood(result.latitude, result.longitude);
+
+                        // Revert to originally entered address but keep coordinates and neighborhood
                         listingData.address = {
                             addressLine1: addressLine1Input.value.trim(),
                             addressLine2: addressCityInput.value.trim() + ', ' + addressStateInput.value.trim() + ' ' + addressZipcodeInput.value.trim(),
                             cityState: `${addressCityInput.value.trim()}, ${addressStateInput.value.trim()}`,
-                            neighborhood: '',
+                            neighborhood: neighborhood,
                             unit: addressLine2Input.value.trim(),
                             city: addressCityInput.value.trim(),
                             state: addressStateInput.value.trim(),
@@ -2578,6 +2592,7 @@ function validateLocation() {
                         };
                         listingData.addressNotSelected = result.formattedAddress;
                         updateAddressSelection();
+                        console.log('Determined neighborhood:', neighborhood);
                     };
                 }
 
@@ -2598,6 +2613,53 @@ function validateLocation() {
             }
         });
     });
+}
+
+// Function to determine neighborhood based on precise lat/lon coordinates
+function determineNeighborhood(latitude, longitude) {
+    // Parse and truncate to 3 decimal places for consistent matching
+    const lat = Math.floor(parseFloat(latitude) * 1000) / 1000;
+    const lon = Math.floor(Math.abs(parseFloat(longitude)) * 1000) / 1000; // Convert to positive and truncate
+
+    if (!lat || !lon) return '';
+
+    // Upper Keys
+    if (lat >= 25.190 && lat <= 25.330 && lon >= 80.280 && lon <= 80.400) return 'North Key Largo';
+    if (lat >= 25.030 && lat <= 25.190 && lon >= 80.350 && lon <= 80.530) return 'Key Largo';
+    if (lat >= 24.970 && lat <= 25.030 && lon >= 80.480 && lon <= 80.560) return 'Tavernier';
+    if (lat >= 24.920 && lat <= 24.970 && lon >= 80.520 && lon <= 80.600) return 'Plantation Key';
+    if (lat >= 24.880 && lat <= 24.920 && lon >= 80.600 && lon <= 80.660) return 'Windley Key';
+    if (lat >= 24.850 && lat <= 24.880 && lon >= 80.660 && lon <= 80.750) return 'Upper Matecumbe Key';
+    if (lat >= 24.800 && lat <= 24.850 && lon >= 80.740 && lon <= 80.820) return 'Lower Matecumbe Key';
+
+    // Middle Keys
+    if (lat >= 24.800 && lat <= 24.850 && lon >= 80.820 && lon <= 80.880) return 'Long Key';
+    if (lat >= 24.780 && lat <= 24.800 && lon >= 80.870 && lon <= 80.900) return 'Conch Key';
+    if (lat >= 24.760 && lat <= 24.780 && lon >= 80.900 && lon <= 80.920) return 'Duck Key';
+    if (lat >= 24.730 && lat <= 24.750 && lon >= 81.020 && lon <= 81.030) return 'Coco Plum Beach';
+    if (lat >= 24.720 && lat <= 24.730 && lon >= 81.000 && lon <= 81.020) return 'Key Colony Beach';
+    if (lat >= 24.685 && lat <= 24.705 && lon >= 81.070 && lon <= 81.095) return 'Sombrero Beach';
+    if (lat >= 24.750 && lat <= 24.780 && lon >= 81.030 && lon <= 81.150) return 'Marathon';
+    if (lat >= 24.705 && lat <= 24.730 && lon >= 81.020 && lon <= 81.150) return 'Marathon';
+    if (lat >= 24.680 && lat <= 24.685 && lon >= 81.070 && lon <= 81.150) return 'Marathon';
+
+    // Lower Keys
+    if (lat >= 24.650 && lat <= 24.720 && lon >= 81.300 && lon <= 81.380) return 'Big Pine Key';
+    if (lat >= 24.640 && lat <= 24.670 && lon >= 81.370 && lon <= 81.400) return 'Little Torch Key';
+    if (lat >= 24.630 && lat <= 24.650 && lon >= 81.400 && lon <= 81.420) return 'Ramrod Key';
+    if (lat >= 24.630 && lat <= 24.650 && lon >= 81.420 && lon <= 81.450) return 'Summerland Key';
+    if (lat >= 24.640 && lat <= 24.660 && lon >= 81.470 && lon <= 81.490) return 'Cudjoe Key';
+    if (lat >= 24.650 && lat <= 24.670 && lon >= 81.500 && lon <= 81.540) return 'Upper Sugarloaf Key';
+    if (lat >= 24.630 && lat <= 24.650 && lon >= 81.540 && lon <= 81.570) return 'Lower Sugarloaf Key';
+    if (lat >= 24.620 && lat <= 24.640 && lon >= 81.580 && lon <= 81.610) return 'Saddlebunch Keys';
+    if (lat >= 24.600 && lat <= 24.620 && lon >= 81.630 && lon <= 81.650) return 'Shark Key';
+    if (lat >= 24.590 && lat <= 24.600 && lon >= 81.640 && lon <= 81.660) return 'Big Coppitt Key';
+    if (lat >= 24.580 && lat <= 24.590 && lon >= 81.720 && lon <= 81.740) return 'Key Haven';
+    if (lat >= 24.560 && lat <= 24.580 && lon >= 81.740 && lon <= 81.750) return 'Stock Island';
+    if (lat >= 24.520 && lat <= 24.590 && lon >= 81.760 && lon <= 81.820) return 'Key West';
+
+    // Default fallback
+    return 'Florida Keys';
 }
 
 function updateAddressSelection() {

@@ -8,25 +8,25 @@ document.body.appendChild(script);
 // for no scroll background when modal is open
 // when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
-    // Add responsive behavior for different screen sizes
-    function handleResponsiveLayout() {
-        const editContainer = document.querySelector('[data-element="editListing_bodyContainer"]');
-        const cantEditContainer = document.querySelector('[data-element="cantEditListing_bodyContainer"]');
+    // // Add responsive behavior for different screen sizes
+    // function handleResponsiveLayout() {
+    //     const editContainer = document.querySelector('[data-element="editListing_bodyContainer"]');
+    //     const cantEditContainer = document.querySelector('[data-element="cantEditListing_bodyContainer"]');
 
-        if (window.innerWidth <= 768) {
-            // For tablet and mobile: show the "can't edit" container
-            if (cantEditContainer) cantEditContainer.style.display = 'flex';
-            if (editContainer) editContainer.style.display = 'none';
-        } else {
-            // For desktop: show the edit container
-            if (cantEditContainer) cantEditContainer.style.display = 'none';
-            if (editContainer) editContainer.style.display = 'flex';
-        }
-    }
+    //     if (window.innerWidth <= 768) {
+    //         // For tablet and mobile: show the "can't edit" container
+    //         if (cantEditContainer) cantEditContainer.style.display = 'flex';
+    //         if (editContainer) editContainer.style.display = 'none';
+    //     } else {
+    //         // For desktop: show the edit container
+    //         if (cantEditContainer) cantEditContainer.style.display = 'none';
+    //         if (editContainer) editContainer.style.display = 'flex';
+    //     }
+    // }
 
-    // Run initially and add window resize event listener
-    handleResponsiveLayout();
-    window.addEventListener('resize', handleResponsiveLayout);
+    // // Run initially and add window resize event listener
+    // handleResponsiveLayout();
+    // window.addEventListener('resize', handleResponsiveLayout);
 
     // on .open-modal click
     document.querySelectorAll('.open_modal').forEach(trigger => {
@@ -87,6 +87,112 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (err) {
     }
 })();
+
+// Host Navigation Dropdown functionality
+(async function () {
+    try {
+        const hostNavBarBlock = document.querySelector('[data-element="hostNavBar_navBarBlock"]');
+        const hostNavBarDropdown = document.querySelector('[data-element="hostNavBar_dropdown"]');
+        const hostNavBarBlockText = document.querySelector('[data-element="hostNavBar_navBarBlockText"]');
+        let isHostDropdownOpen = false;
+
+        if (!hostNavBarBlock || !hostNavBarDropdown) return;
+
+        // Close the dropdown initially
+        hostNavBarDropdown.style.display = 'none';
+
+        // Function to get current page from URL
+        const getCurrentPage = () => {
+            const path = window.location.pathname;
+            if (path.includes('/host/dashboard')) return 'dashboard';
+            if (path.includes('/host/listings')) return 'listings';
+            if (path.includes('/host/calendar')) return 'calendar';
+            if (path.includes('/host/reservations')) return 'reservations';
+            return null;
+        };
+
+        // Function to update the navbar block text and hide current page from dropdown
+        const updateNavBarForCurrentPage = () => {
+            const currentPage = getCurrentPage();
+            const dashboardItem = document.querySelector('[data-element="hostNavBar_dashboard"]');
+            const listingsItem = document.querySelector('[data-element="hostNavBar_listings"]');
+            const calendarItem = document.querySelector('[data-element="hostNavBar_calendar"]');
+            const reservationsItem = document.querySelector('[data-element="hostNavBar_reservations"]');
+
+            // Show all items first
+            [dashboardItem, listingsItem, calendarItem, reservationsItem].forEach(item => {
+                if (item) item.style.display = 'block';
+            });
+
+            // Update text and hide current page item
+            switch (currentPage) {
+                case 'dashboard':
+                    if (hostNavBarBlockText) hostNavBarBlockText.textContent = 'Dashboard';
+                    if (dashboardItem) dashboardItem.style.display = 'none';
+                    break;
+                case 'listings':
+                    if (hostNavBarBlockText) hostNavBarBlockText.textContent = 'Listings';
+                    if (listingsItem) listingsItem.style.display = 'none';
+                    break;
+                case 'calendar':
+                    if (hostNavBarBlockText) hostNavBarBlockText.textContent = 'Calendar';
+                    if (calendarItem) calendarItem.style.display = 'none';
+                    break;
+                case 'reservations':
+                    if (hostNavBarBlockText) hostNavBarBlockText.textContent = 'Reservations';
+                    if (reservationsItem) reservationsItem.style.display = 'none';
+                    break;
+                default:
+                    if (hostNavBarBlockText) hostNavBarBlockText.textContent = 'Host';
+                    break;
+            }
+        };
+
+        // Initialize the navbar for current page
+        updateNavBarForCurrentPage();
+
+        // Function to toggle the dropdown
+        const toggleHostDropdown = () => {
+            isHostDropdownOpen = !isHostDropdownOpen;
+            hostNavBarDropdown.style.display = isHostDropdownOpen ? 'flex' : 'none';
+        };
+
+        // Event listener for host navbar block click
+        hostNavBarBlock.addEventListener('click', function () {
+            toggleHostDropdown();
+        });
+
+        // Event listener for body click to close the dropdown
+        document.body.addEventListener('click', function (evt) {
+            if (!hostNavBarBlock.contains(evt.target) && !hostNavBarDropdown.contains(evt.target)) {
+                isHostDropdownOpen = false;
+                hostNavBarDropdown.style.display = 'none';
+            }
+        });
+
+        // Navigation handlers
+        const setupNavigationHandler = (elementSelector, targetPath) => {
+            const element = document.querySelector(`[data-element="${elementSelector}"]`);
+            if (element) {
+                element.addEventListener('click', function () {
+                    isHostDropdownOpen = false;
+                    hostNavBarDropdown.style.display = 'none';
+                    window.location.href = targetPath;
+                });
+            }
+        };
+
+        // Setup navigation handlers for each menu item
+        setupNavigationHandler('hostNavBar_dashboard', '/host/dashboard');
+        setupNavigationHandler('hostNavBar_listings', '/host/listings');
+        setupNavigationHandler('hostNavBar_calendar', '/host/calendar');
+        setupNavigationHandler('hostNavBar_reservations', '/host/reservations');
+
+    } catch (err) {
+        console.error('Host navigation dropdown error:', err);
+    }
+})();
+
 
 // Include jQuery first
 var jQueryScript = document.createElement('script');
@@ -6097,6 +6203,74 @@ document.addEventListener('DOMContentLoaded', function () {
     detailsButton.addEventListener('click', () => switchSection(true));
     preferencesButton.addEventListener('click', () => switchSection(false));
 
+    // Function to check if screen is mobile (990px or less)
+    function isMobile() {
+        return window.innerWidth <= 990;
+    }
+
+    // Function to show section container for mobile
+    function showSectionContainerMobile() {
+        const sectionContainer = document.querySelector('[data-element="editListingSectionContainer"]');
+        if (sectionContainer && isMobile()) {
+            sectionContainer.style.display = 'flex';
+        }
+    }
+
+    // Function to hide section container for mobile
+    function hideSectionContainerMobile() {
+        const sectionContainer = document.querySelector('[data-element="editListingSectionContainer"]');
+        if (sectionContainer && isMobile()) {
+            sectionContainer.style.display = 'none';
+        }
+    }
+
+    // Function to handle section opening (works for both desktop and mobile)
+    function openSection(type, button, section, detailsButton) {
+        hideAllSubsections();
+        section.style.display = 'flex';
+        button.style.border = '1.2px solid black';
+        button.style.boxShadow = '0 1px 20px 0 rgba(0, 0, 0, 0.1)';
+
+        if (detailsButton) {
+            detailsButton.style.border = '1.2px solid black';
+        }
+
+        // Show section container for mobile
+        showSectionContainerMobile();
+    }
+
+    // Function to handle section closing (mobile specific)
+    function closeSection() {
+        hideAllSubsections();
+        hideSectionContainerMobile();
+    }
+
+    // Add X button click handlers for mobile
+    const xButtonElements = [
+        'edit_photos_xButton',
+        'edit_basicInfo_xButton',
+        'edit_checkInAndOut_xButton',
+        'edit_availability_xButton',
+        'edit_title_xButton',
+        'edit_description_xButton',
+        'edit_dock_xButton',
+        'edit_amenities_xButton',
+        'edit_location_xButton',
+        'edit_hostInfo_xButton',
+        'edit_rules_xButton',
+        'edit_safety_xButton',
+        'edit_cancellationPolicy_xButton',
+        'edit_status_xButton',
+        'edit_delete_xButton'
+    ];
+
+    xButtonElements.forEach(buttonElement => {
+        const xButton = document.querySelector(`[data-element="${buttonElement}"]`);
+        if (xButton) {
+            xButton.addEventListener('click', closeSection);
+        }
+    });
+
     // Handle subsection visibility within details section
     subsectionTypes.forEach(type => {
         const button = document.querySelector(`[data-element="edit_${type}"]`);
@@ -6104,46 +6278,39 @@ document.addEventListener('DOMContentLoaded', function () {
         const detailsButton = document.querySelector(`[data-element="edit_${type}_detalsSection"]`);
 
         if (button && section) {
-            // Add hover effect
+            // Add hover effect (only for desktop)
             button.addEventListener('mouseenter', () => {
-                if (section.style.display !== 'flex') {
+                if (!isMobile() && section.style.display !== 'flex') {
                     button.style.boxShadow = '0 1px 20px 0 rgba(0, 0, 0, 0.1)';
                 }
             });
 
             button.addEventListener('mouseleave', () => {
-                if (section.style.display !== 'flex') {
+                if (!isMobile() && section.style.display !== 'flex') {
                     button.style.boxShadow = 'none';
                 }
             });
 
             button.addEventListener('click', () => {
-                hideAllSubsections();
-                section.style.display = 'flex';
-                button.style.border = '1.2px solid black';
-                button.style.boxShadow = '0 1px 20px 0 rgba(0, 0, 0, 0.1)';
+                openSection(type, button, section, detailsButton);
             });
 
             // Add same click handler for details section button if it exists
             if (detailsButton) {
                 detailsButton.addEventListener('mouseenter', () => {
-                    if (section.style.display !== 'flex') {
+                    if (!isMobile() && section.style.display !== 'flex') {
                         detailsButton.style.boxShadow = '0 1px 20px 0 rgba(0, 0, 0, 0.1)';
                     }
                 });
 
                 detailsButton.addEventListener('mouseleave', () => {
-                    if (section.style.display !== 'flex') {
+                    if (!isMobile() && section.style.display !== 'flex') {
                         detailsButton.style.boxShadow = 'none';
                     }
                 });
 
                 detailsButton.addEventListener('click', () => {
-                    hideAllSubsections();
-                    section.style.display = 'flex';
-                    button.style.border = '1.2px solid black';
-                    detailsButton.style.border = '1.2px solid black';
-                    button.style.boxShadow = '0 1px 20px 0 rgba(0, 0, 0, 0.1)';
+                    openSection(type, button, section, detailsButton);
                 });
             }
         }

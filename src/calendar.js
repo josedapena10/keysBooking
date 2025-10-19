@@ -73,20 +73,148 @@ document.addEventListener('DOMContentLoaded', () => {
 })();
 
 
+// Host Navigation Dropdown functionality
+(async function () {
+    try {
+        const hostNavBarBlock = document.querySelector('[data-element="hostNavBar_navBarBlock"]');
+        const hostNavBarDropdown = document.querySelector('[data-element="hostNavBar_dropdown"]');
+        const hostNavBarBlockText = document.querySelector('[data-element="hostNavBar_navBarBlockText"]');
+        let isHostDropdownOpen = false;
+
+        if (!hostNavBarBlock || !hostNavBarDropdown) return;
+
+        // Close the dropdown initially
+        hostNavBarDropdown.style.display = 'none';
+
+        // Function to get current page from URL
+        const getCurrentPage = () => {
+            const path = window.location.pathname;
+            if (path.includes('/host/dashboard')) return 'dashboard';
+            if (path.includes('/host/listings')) return 'listings';
+            if (path.includes('/host/calendar')) return 'calendar';
+            if (path.includes('/host/reservations')) return 'reservations';
+            return null;
+        };
+
+        // Function to update the navbar block text and hide current page from dropdown
+        const updateNavBarForCurrentPage = () => {
+            const currentPage = getCurrentPage();
+            const dashboardItem = document.querySelector('[data-element="hostNavBar_dashboard"]');
+            const listingsItem = document.querySelector('[data-element="hostNavBar_listings"]');
+            const calendarItem = document.querySelector('[data-element="hostNavBar_calendar"]');
+            const reservationsItem = document.querySelector('[data-element="hostNavBar_reservations"]');
+
+            // Show all items first
+            [dashboardItem, listingsItem, calendarItem, reservationsItem].forEach(item => {
+                if (item) item.style.display = 'block';
+            });
+
+            // Update text and hide current page item
+            switch (currentPage) {
+                case 'dashboard':
+                    if (hostNavBarBlockText) hostNavBarBlockText.textContent = 'Dashboard';
+                    if (dashboardItem) dashboardItem.style.display = 'none';
+                    break;
+                case 'listings':
+                    if (hostNavBarBlockText) hostNavBarBlockText.textContent = 'Listings';
+                    if (listingsItem) listingsItem.style.display = 'none';
+                    break;
+                case 'calendar':
+                    if (hostNavBarBlockText) hostNavBarBlockText.textContent = 'Calendar';
+                    if (calendarItem) calendarItem.style.display = 'none';
+                    break;
+                case 'reservations':
+                    if (hostNavBarBlockText) hostNavBarBlockText.textContent = 'Reservations';
+                    if (reservationsItem) reservationsItem.style.display = 'none';
+                    break;
+                default:
+                    if (hostNavBarBlockText) hostNavBarBlockText.textContent = 'Host';
+                    break;
+            }
+        };
+
+        // Initialize the navbar for current page
+        updateNavBarForCurrentPage();
+
+        // Function to toggle the dropdown
+        const toggleHostDropdown = () => {
+            isHostDropdownOpen = !isHostDropdownOpen;
+            hostNavBarDropdown.style.display = isHostDropdownOpen ? 'flex' : 'none';
+        };
+
+        // Event listener for host navbar block click
+        hostNavBarBlock.addEventListener('click', function () {
+            toggleHostDropdown();
+        });
+
+        // Event listener for body click to close the dropdown
+        document.body.addEventListener('click', function (evt) {
+            if (!hostNavBarBlock.contains(evt.target) && !hostNavBarDropdown.contains(evt.target)) {
+                isHostDropdownOpen = false;
+                hostNavBarDropdown.style.display = 'none';
+            }
+        });
+
+        // Navigation handlers
+        const setupNavigationHandler = (elementSelector, targetPath) => {
+            const element = document.querySelector(`[data-element="${elementSelector}"]`);
+            if (element) {
+                element.addEventListener('click', function () {
+                    isHostDropdownOpen = false;
+                    hostNavBarDropdown.style.display = 'none';
+                    window.location.href = targetPath;
+                });
+            }
+        };
+
+        // Setup navigation handlers for each menu item
+        setupNavigationHandler('hostNavBar_dashboard', '/host/dashboard');
+        setupNavigationHandler('hostNavBar_listings', '/host/listings');
+        setupNavigationHandler('hostNavBar_calendar', '/host/calendar');
+        setupNavigationHandler('hostNavBar_reservations', '/host/reservations');
+
+    } catch (err) {
+        console.error('Host navigation dropdown error:', err);
+    }
+})();
 
 
-
-document.addEventListener('DOMContentLoaded', function () {
-    var calendarEl = document.querySelector('[data-element="calendarLibraryContainer"]');
-
-    // Show loader at the beginning
+// Initialize loader on page load
+(function () {
     const loader = document.querySelector('[data-element="loader"]');
     if (loader) {
         loader.style.display = 'flex';
     }
+})();
 
-    // Track loading state
-    let isDataLoading = true;
+// Track when content is visually loaded
+let contentVisuallyLoaded = false;
+let dataFetchingComplete = false;
+
+// Function to hide loader only when both conditions are met
+function checkAndHideLoader() {
+    const loader = document.querySelector('[data-element="loader"]');
+    if (loader && contentVisuallyLoaded && dataFetchingComplete) {
+        // Use requestAnimationFrame twice to ensure all rendering and layout is complete
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                // Add a small additional delay to ensure all dynamic content has settled
+                setTimeout(() => {
+                    loader.style.display = 'none';
+                }, 100);
+            });
+        });
+    }
+}
+
+// Wait for all visual content to load (images, fonts, etc.)
+window.addEventListener('load', () => {
+    contentVisuallyLoaded = true;
+    checkAndHideLoader();
+});
+
+document.addEventListener('DOMContentLoaded', function () {
+    var calendarEl = document.querySelector('[data-element="calendarLibraryContainer"]');
 
     // Initialize variables for user and property data
     let userId = null;
@@ -134,63 +262,21 @@ document.addEventListener('DOMContentLoaded', function () {
             // Fetch calendar data once we have the user ID
             fetchCalendarData();
         } catch (error) {
-            isDataLoading = false;
+            dataFetchingComplete = true;
             initializeCalendar(); // Initialize calendar even if there's an error
-            hideLoaderIfReady();
+            checkAndHideLoader();
         }
     }));
 
-    // Track key elements that need to be populated before we hide loader
-    let allContentLoaded = false;
-
-    // Function to hide loader if all data is ready
+    // Function to mark data fetching as complete
     function hideLoaderIfReady() {
-        if (!isDataLoading && loader) {
-            // Use a much longer delay to ensure everything is fully rendered
-            setTimeout(() => {
-                // Before hiding, verify that key elements have content
-                verifyContentLoaded(() => {
-                    loader.style.display = 'none';
-                });
-            }, 1500); // Increase to 1.5 seconds to ensure DOM is fully rendered
-        }
+        dataFetchingComplete = true;
+        checkAndHideLoader();
     }
 
-    // Function to verify essential content has been loaded
+    // Function to verify essential content has been loaded (kept for compatibility)
     function verifyContentLoaded(callback) {
-        // Check if we already verified content is loaded
-        if (allContentLoaded) {
-            callback();
-            return;
-        }
-
-        // Create a list of key elements that must have content before we hide loader
-        const keyElements = [
-            // Current property/listing name element
-            document.querySelector('[data-element="currentListingName"]'),
-            // Check if calendar has any visible events
-            document.querySelector('.fc-event'),
-            // Calendar month titles should be populated
-            document.querySelector('.fc-multimonth-title')
-        ];
-
-        // Check for property data in calendar events
-        const hasCalendarData = calendarEvents && calendarEvents.length > 0;
-
-        // Check calendar has been rendered properly
-        const calendarRendered = document.querySelector('.fc-view-harness') &&
-            document.querySelector('.fc-daygrid-body');
-
-        // Verify all key elements have content and calendar data is present
-        const allElementsPopulated = keyElements.every(el => el && (el.textContent || el.innerText));
-
-        if (hasCalendarData && calendarRendered && allElementsPopulated) {
-            allContentLoaded = true;
-            callback();
-        } else {
-            // If content is not ready yet, check again after a short delay
-            setTimeout(() => verifyContentLoaded(callback), 300);
-        }
+        callback();
     }
 
     // Function to fetch host reservations
@@ -219,7 +305,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // Function to fetch calendar data from API
     async function fetchCalendarData(selectedPropertyId = null, options = {}) {
         if (!userId) {
-            isDataLoading = false;
+            dataFetchingComplete = true;
             initializeCalendar();
             hideLoaderIfReady();
             return;
@@ -278,13 +364,11 @@ document.addEventListener('DOMContentLoaded', function () {
             }
 
             processCalendarData(data);
-            isDataLoading = false;
             initializeCalendar();
             hideLoaderIfReady();
             // After calendar data is loaded, hide months beyond 2 years
             setTimeout(hideMonthsBeyondTwoYears, 100);
         } catch (error) {
-            isDataLoading = false;
             initializeCalendar(); // Initialize calendar even if there's an error
             hideLoaderIfReady();
         }
@@ -375,9 +459,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Process the API response data into calendar events
     function processCalendarData(data) {
-        // Reset content loaded flag whenever processing new data
-        allContentLoaded = false;
-
         calendarEvents = [];
 
         // Process reservations if they exist
@@ -1052,9 +1133,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Initialize and render the calendar
     function initializeCalendar() {
-        // Reset content loaded flag when initializing calendar
-        allContentLoaded = false;
-
         if (calendar) {
             calendar.removeAllEvents();
             calendar.addEventSource(calendarEvents);
@@ -1087,7 +1165,7 @@ document.addEventListener('DOMContentLoaded', function () {
             setTimeout(checkAllLoaded, 1600); // Check after 1.6 seconds
 
             function checkAllLoaded() {
-                if (!isDataLoading) {
+                if (dataFetchingComplete) {
                     hideLoaderIfReady();
                 }
             }
@@ -1933,7 +2011,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 popup.style.display = 'none';
 
                 // Add message
-                popup.innerHTML = 'Please use a laptop or desktop to edit calendar settings <button id="close-mobile-notice" style="background:none;border:none;color:white;margin-left:10px;font-size:16px;cursor:pointer">×</button>';
+                popup.innerHTML = 'Please use a laptop or desktop to edit calendar settings. Or email us at support@keysbooking.com and we will help you out. <button id="close-mobile-notice" style="background:none;border:none;color:white;margin-left:10px;font-size:16px;cursor:pointer">×</button>';
 
                 // Add to document
                 document.body.appendChild(popup);
@@ -5405,7 +5483,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                 lastUpdatedElement.textContent = `Last updated ${formattedDate} at ${formattedTime}`;
                             } else {
                                 // Display a fallback message when last_updated is missing
-                                lastUpdatedElement.textContent = "Initial sync pending";
+                                lastUpdatedElement.textContent = "Initial sync pending (Syncs in 5 minutes or less)";
                             }
 
                         }
@@ -5453,7 +5531,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
 
                 // Show confirmation dialog
-                const confirmDelete = confirm('Are you sure you want to delete this calendar connection? This action cannot be undone.');
+                const confirmDelete = confirm('Are you sure you want to delete this calendar connection? This action cannot be undone. (Syncs in 5 minutes or less)');
                 if (!confirmDelete) {
                     return;
                 }
