@@ -8225,7 +8225,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const cancellationPolicy = document.querySelector('[data-element="boatDetails_cancellationPolicy"]');
         if (cancellationPolicy) {
-          cancellationPolicy.textContent = boat.cancellationPolicy || '';
+          cancellationPolicy.textContent = "Free cancellation up to " + boat.cancellationPolicy_daysNotice + " days prior to trip" || '';
         }
 
         // Handle delivery checkbox functionality
@@ -8346,27 +8346,6 @@ document.addEventListener('DOMContentLoaded', () => {
           let currentIndex = 0;
           const maxIndex = Math.max(0, sortedPhotos.length - visibleCount); // Show based on screen size
 
-          // Create counter first so it can be referenced in navigation
-          const counter = document.createElement('div');
-          counter.style.cssText = `
-            position: absolute;
-            bottom: 12px;
-            right: 12px;
-            background: rgba(0, 0, 0, 0.7);
-            color: white;
-            padding: 4px 8px;
-            border-radius: 12px;
-            font-size: 12px;
-            font-family: 'TT Fors', sans-serif;
-            z-index: 10;
-          `;
-
-          const updateCounter = () => {
-            const startImage = currentIndex + 1;
-            const endImage = Math.min(currentIndex + visibleCount, sortedPhotos.length);
-            counter.textContent = `${startImage}-${endImage} of ${sortedPhotos.length}`;
-          };
-
           // Left navigation button
           const leftButton = document.createElement('button');
           leftButton.innerHTML = `
@@ -8431,7 +8410,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const translateX = -(currentIndex * movePercentage);
             imagesTrack.style.transform = `translateX(${translateX}%)`;
             updateButtonStates();
-            updateCounter();
           };
 
           leftButton.addEventListener('click', () => {
@@ -8465,30 +8443,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
           // Initial states
           updateButtonStates();
-          updateCounter();
 
           carouselWrapper.appendChild(leftButton);
           carouselWrapper.appendChild(rightButton);
-          carouselWrapper.appendChild(counter);
-        }
-
-        // Add simple counter for 1-2 images
-        else if (sortedPhotos.length > 1) {
-          const counter = document.createElement('div');
-          counter.style.cssText = `
-            position: absolute;
-            bottom: 12px;
-            right: 12px;
-            background: rgba(0, 0, 0, 0.7);
-            color: white;
-            padding: 4px 8px;
-            border-radius: 12px;
-            font-size: 12px;
-            font-family: 'TT Fors', sans-serif;
-            z-index: 10;
-          `;
-          counter.textContent = isMobile ? `1 of ${sortedPhotos.length}` : `1-${sortedPhotos.length} of ${sortedPhotos.length}`;
-          carouselWrapper.appendChild(counter);
         }
 
         imagesContainer.appendChild(carouselWrapper);
@@ -8566,22 +8523,6 @@ document.addEventListener('DOMContentLoaded', () => {
             transition: background-color 0.2s ease;
           `;
 
-        // Image counter
-        const counter = document.createElement('div');
-        counter.style.cssText = `
-          position: fixed;
-          bottom: 20px;
-          left: 50%;
-          transform: translateX(-50%);
-          background: rgba(0, 0, 0, 0.7);
-          color: white;
-          padding: 8px 16px;
-          border-radius: 20px;
-          font-size: 14px;
-          font-family: 'TT Fors', sans-serif;
-          z-index: 10001;
-        `;
-
         // Navigation buttons (only show if more than 1 image)
         let prevButton, nextButton;
         if (photos.length > 1) {
@@ -8634,12 +8575,11 @@ document.addEventListener('DOMContentLoaded', () => {
           `;
         }
 
-        // Update image and counter
+        // Update image
         const updateImage = () => {
           const photo = photos[currentIndex];
           img.src = photo.image.url;
           img.alt = `Boat image ${currentIndex + 1}`;
-          counter.textContent = `${currentIndex + 1} of ${photos.length}`;
 
           // Update navigation button states
           if (photos.length > 1) {
@@ -8741,7 +8681,6 @@ document.addEventListener('DOMContentLoaded', () => {
         imageContainer.appendChild(img);
         modal.appendChild(imageContainer);
         modal.appendChild(closeButton);
-        modal.appendChild(counter);
 
         if (photos.length > 1) {
           modal.appendChild(prevButton);
@@ -12564,12 +12503,6 @@ document.addEventListener('DOMContentLoaded', () => {
             z-index: 10;
           `;
 
-          const updateCounter = () => {
-            const startImage = currentIndex + 1;
-            const endImage = Math.min(currentIndex + visibleCount, sortedImages.length);
-            counter.textContent = `${startImage}-${endImage} of ${sortedImages.length}`;
-          };
-
           // Left navigation button
           const leftButton = document.createElement('button');
           leftButton.innerHTML = `
@@ -12634,7 +12567,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const translateX = -(currentIndex * movePercentage);
             imagesTrack.style.transform = `translateX(${translateX}%)`;
             updateButtonStates();
-            updateCounter();
           };
 
           leftButton.addEventListener('click', () => {
@@ -12668,32 +12600,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
           // Initial states
           updateButtonStates();
-          updateCounter();
 
           carouselWrapper.appendChild(leftButton);
           carouselWrapper.appendChild(rightButton);
-          carouselWrapper.appendChild(counter);
-        }
-
-        // Add simple counter for 1-2 images
-        else if (sortedImages.length > 1) {
-          const counter = document.createElement('div');
-          counter.style.cssText = `
-            position: absolute;
-            bottom: 12px;
-            right: 12px;
-            background: rgba(0, 0, 0, 0.7);
-            color: white;
-            padding: 4px 8px;
-            border-radius: 12px;
-            font-size: 12px;
-            font-family: 'TT Fors', sans-serif;
-            z-index: 10;
-          `;
-          const isMobile = window.innerWidth < 767;
-          const displayCount = isMobile ? 1 : sortedImages.length;
-          counter.textContent = isMobile ? `1 of ${sortedImages.length}` : `1-${sortedImages.length} of ${sortedImages.length}`;
-          carouselWrapper.appendChild(counter);
         }
 
         imagesContainer.appendChild(carouselWrapper);
