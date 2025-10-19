@@ -4446,9 +4446,12 @@ function populateFishingCharterCancellationPolicyFromCache(block, tripData) {
   cancellationTextElement.textContent = isManual ? `${charter.name || 'Fishing Charter'}: Details communicated with fishing charter.` : "";
 }
 
+// Save reference to the async function before it gets overwritten
+const updatePricingDisplayForExtrasAsync = updatePricingDisplayForExtras;
+
 // Wrapper function to handle async pricing updates
 function updatePricingDisplayForExtrasSync() {
-  updatePricingDisplayForExtras().catch(error => {
+  updatePricingDisplayForExtrasAsync().catch(error => {
 
   });
 }
