@@ -6535,11 +6535,9 @@ document.addEventListener('DOMContentLoaded', () => {
           // Find photo with order = 1
           const mainPhoto = boat.photos.find(photo => photo.order === 1);
           if (mainPhoto && mainPhoto.image && mainPhoto.image.url) {
-            photoElement.style.backgroundImage = `url('${mainPhoto.image.url}')`;
-            photoElement.style.backgroundSize = 'cover';
-            photoElement.style.backgroundPosition = 'center';
+            photoElement.src = mainPhoto.image.url;
+            photoElement.alt = boat.name || 'Boat Photo';
           }
-
         }
 
         // Populate review ratings
