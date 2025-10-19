@@ -8,7 +8,6 @@ document.body.appendChild(script);
   const loadingTracker = {
     propertyDetailsLoaded: false,
     calendarQueryLoaded: false,
-    //  imagesLoaded: false,
     reservationLogicInitialized: false
   };
 
@@ -19,13 +18,11 @@ document.body.appendChild(script);
     console.log('🔍 Loader: Checking loading status:', {
       propertyDetailsLoaded: loadingTracker.propertyDetailsLoaded,
       calendarQueryLoaded: loadingTracker.calendarQueryLoaded,
-      //  imagesLoaded: loadingTracker.imagesLoaded,
       reservationLogicInitialized: loadingTracker.reservationLogicInitialized
     });
 
     const allLoaded = loadingTracker.propertyDetailsLoaded &&
       loadingTracker.calendarQueryLoaded &&
-      //   loadingTracker.imagesLoaded &&
       loadingTracker.reservationLogicInitialized;
 
     if (allLoaded) {
@@ -129,11 +126,9 @@ document.body.appendChild(script);
 
   // Track when images are loaded
   window.trackImagesLoaded = function () {
-    console.log('🖼️ Loader: trackImagesLoaded() called');
     const splideElement = document.querySelector('.splide');
     if (!splideElement) {
       console.warn('⚠️ Loader: Splide element not found, marking images as loaded');
-      //  loadingTracker.imagesLoaded = true;
       checkAllContentLoaded();
       return;
     }
@@ -145,7 +140,6 @@ document.body.appendChild(script);
 
     if (firstFiveImages.length === 0) {
       console.warn('⚠️ Loader: No images found, marking as loaded');
-      //   loadingTracker.imagesLoaded = true;
       checkAllContentLoaded();
       return;
     }
@@ -165,7 +159,6 @@ document.body.appendChild(script);
           console.log(`✅ Loader: Image ${index + 1} loaded successfully (${loadedCount}/${totalToLoad})`);
           if (loadedCount >= totalToLoad) {
             console.log('🎨 Loader: All required images loaded!');
-            //    loadingTracker.imagesLoaded = true;
             checkAllContentLoaded();
           }
         });
@@ -174,7 +167,6 @@ document.body.appendChild(script);
           console.log(`❌ Loader: Image ${index + 1} failed to load (${loadedCount}/${totalToLoad})`);
           if (loadedCount >= totalToLoad) {
             console.log('🎨 Loader: All images processed (some may have failed)');
-            //   loadingTracker.imagesLoaded = true;
             checkAllContentLoaded();
           }
         });
@@ -183,19 +175,10 @@ document.body.appendChild(script);
 
     if (loadedCount >= totalToLoad) {
       console.log(`✅ Loader: All ${loadedCount} images already loaded!`);
-      //  loadingTracker.imagesLoaded = true;
       checkAllContentLoaded();
     }
 
-    // Fallback: hide loader after 5 seconds regardless
-    console.log('⏰ Loader: Setting 5-second fallback timeout for images');
-    setTimeout(() => {
-      if (!loadingTracker.imagesLoaded) {
-        console.warn('⚠️ Loader: Image loading timeout reached (5s), forcing images as loaded');
-        //    loadingTracker.imagesLoaded = true;
-        checkAllContentLoaded();
-      }
-    }, 5000);
+
   };
 
   // Fallback: Ensure loader is hidden after maximum wait time
@@ -1984,12 +1967,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Refresh the slider after adding slides
         slider.refresh();
 
-        // Track when images are loaded to hide the loader
-        //  if (window.trackImagesLoaded) {
-        //    setTimeout(() => {
-        //     window.trackImagesLoaded();
-        //   }, 100);
-        //   }
+
 
       }
     });
