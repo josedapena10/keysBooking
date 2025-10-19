@@ -5266,8 +5266,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // Boat details X button handler (mobile only)
         if (this.boatDetailsXButton) {
           this.boatDetailsXButton.addEventListener('click', () => this.closeModal());
-          // Set initial visibility based on mobile view
-          this.updateBoatDetailsXButtonVisibility();
+          // // Set initial visibility based on mobile view
+          // this.updateBoatDetailsXButtonVisibility();
         }
 
         // Filter handlers
@@ -5314,8 +5314,8 @@ document.addEventListener('DOMContentLoaded', () => {
           }
           // Update dates done button text on resize (mobile/desktop switch)
           this.updateDatesDoneButtonText();
-          // Update boat details X button visibility on resize
-          this.updateBoatDetailsXButtonVisibility();
+          // // Update boat details X button visibility on resize
+          // this.updateBoatDetailsXButtonVisibility();
           // Update reservation block visibility on resize
           this.updateReservationBlockVisibility();
         });
@@ -7833,8 +7833,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // Update dates done button text
         this.updateDatesDoneButtonText();
 
-        // Update X button visibility
-        this.updateBoatDetailsXButtonVisibility();
+        // // Update X button visibility
+        // this.updateBoatDetailsXButtonVisibility();
 
         // Update reservation block visibility
         this.updateReservationBlockVisibility();
@@ -9279,16 +9279,16 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
 
-      // Update boat details X button visibility based on mobile view
-      updateBoatDetailsXButtonVisibility() {
-        if (!this.boatDetailsXButton) return;
+      // // Update boat details X button visibility based on mobile view
+      // updateBoatDetailsXButtonVisibility() {
+      //   if (!this.boatDetailsXButton) return;
 
-        if (this.isMobileView()) {
-          this.boatDetailsXButton.style.display = 'flex';
-        } else {
-          this.boatDetailsXButton.style.display = 'none';
-        }
-      }
+      //   if (this.isMobileView()) {
+      //     this.boatDetailsXButton.style.display = 'flex';
+      //   } else {
+      //     this.boatDetailsXButton.style.display = 'none';
+      //   }
+      // }
 
       // Update reservation block visibility based on mobile/desktop view
       updateReservationBlockVisibility() {
@@ -10021,8 +10021,8 @@ document.addEventListener('DOMContentLoaded', () => {
             // Update mobile footer with current boat data
             this.updateMobileFooter(boatToEdit);
 
-            // Update X button visibility
-            this.updateBoatDetailsXButtonVisibility();
+            // // Update X button visibility
+            // this.updateBoatDetailsXButtonVisibility();
 
             // Update reservation block visibility
             this.updateReservationBlockVisibility();
