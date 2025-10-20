@@ -3929,8 +3929,25 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Try to get the primary service city (usually servicesTo_city1)
                 for (let i = 1; i <= 10; i++) {
                     const cityField = `servicesTo_city${i}`;
-                    if (v._boatcompany[cityField] && typeof v._boatcompany[cityField] === 'string' && v._boatcompany[cityField].trim()) {
-                        return lc(v._boatcompany[cityField]);
+                    const fieldValue = v._boatcompany[cityField];
+
+                    if (fieldValue) {
+                        let cityString = '';
+
+                        // Handle different data types
+                        if (typeof fieldValue === 'string') {
+                            cityString = fieldValue.trim();
+                        } else if (typeof fieldValue === 'object' && fieldValue.city) {
+                            cityString = String(fieldValue.city || '').trim();
+                        } else if (typeof fieldValue === 'object' && fieldValue.name) {
+                            cityString = String(fieldValue.name || '').trim();
+                        } else {
+                            cityString = String(fieldValue || '').trim();
+                        }
+
+                        if (cityString) {
+                            return lc(cityString);
+                        }
                     }
                 }
             }
@@ -3946,8 +3963,26 @@ document.addEventListener('DOMContentLoaded', function () {
             if (boat?._boatcompany) {
                 for (let i = 1; i <= 10; i++) {
                     const cityField = `servicesTo_city${i}`;
-                    if (boat._boatcompany[cityField] && typeof boat._boatcompany[cityField] === 'string' && boat._boatcompany[cityField].trim()) {
-                        cities.push(lc(boat._boatcompany[cityField]));
+                    const fieldValue = boat._boatcompany[cityField];
+
+                    // More flexible type checking - handle various data formats
+                    if (fieldValue) {
+                        let cityString = '';
+
+                        // Handle different data types
+                        if (typeof fieldValue === 'string') {
+                            cityString = fieldValue.trim();
+                        } else if (typeof fieldValue === 'object' && fieldValue.city) {
+                            cityString = String(fieldValue.city || '').trim();
+                        } else if (typeof fieldValue === 'object' && fieldValue.name) {
+                            cityString = String(fieldValue.name || '').trim();
+                        } else {
+                            cityString = String(fieldValue || '').trim();
+                        }
+
+                        if (cityString) {
+                            cities.push(lc(cityString));
+                        }
                     }
                 }
             }
@@ -4002,8 +4037,33 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (boat?._boatcompany) {
                     for (let i = 1; i <= 10; i++) {
                         const cityField = `servicesTo_city${i}`;
-                        if (boat._boatcompany[cityField] && typeof boat._boatcompany[cityField] === 'string' && boat._boatcompany[cityField].trim()) {
-                            serviceCities.push(lc(boat._boatcompany[cityField]));
+                        const fieldValue = boat._boatcompany[cityField];
+
+                        // More flexible type checking - handle various data formats
+                        if (fieldValue) {
+                            let cityString = '';
+
+                            // Handle different data types
+                            if (typeof fieldValue === 'string') {
+                                cityString = fieldValue.trim();
+                            } else if (typeof fieldValue === 'object' && fieldValue.city) {
+                                // Handle if it's an object with a city property
+                                cityString = String(fieldValue.city || '').trim();
+                            } else if (typeof fieldValue === 'object' && fieldValue.name) {
+                                // Handle if it's an object with a name property
+                                cityString = String(fieldValue.name || '').trim();
+                            } else {
+                                // Try to convert to string as fallback
+                                cityString = String(fieldValue || '').trim();
+                            }
+
+                            if (cityString) {
+                                const normalizedCity = lc(cityString);
+                                serviceCities.push(normalizedCity);
+
+                                // Debug logging (comment out in production)
+                                console.log(`Boat ${boat.name || boat.id}: servicesTo_city${i} = "${cityString}" -> "${normalizedCity}"`);
+                            }
                         }
                     }
                 }
@@ -4011,6 +4071,14 @@ document.addEventListener('DOMContentLoaded', function () {
                 const boatCity = getCity(boat);
                 const deliveryCities = (boat?._boatcompany?.privateDockDeliveryCity || []).map(cityObj => lc(cityObj?.city || ""));
 
+                // Debug logging (comment out in production)
+                if (serviceCities.includes('marathon') || serviceCities.includes('duck key')) {
+                    console.log(`Boat ${boat.name || boat.id}:`, {
+                        boatCity,
+                        serviceCities,
+                        deliveryCities
+                    });
+                }
 
                 // candidate listing ids = primary city + all service cities + all delivery cities
                 const candidateListingIds = new Set([
