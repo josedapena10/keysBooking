@@ -4289,6 +4289,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 return true; // feature not selected → do not gate
             }
 
+            // If dock delivery filter is enabled, listing MUST have a private dock
+            if (filters.dockDelivery && !listing.private_dock) {
+                return false;
+            }
+
             const hasBoats = filterBoatsForListing(listing, dates, guestCount).length > 0;
             return hasBoats;
         }
