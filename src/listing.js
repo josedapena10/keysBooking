@@ -4907,6 +4907,10 @@ document.addEventListener('DOMContentLoaded', () => {
         this.deckBoatCheckbox = document.querySelector('[data-element="addBoatModal_selectBoat_typePopup_deckBoatCheckbox"]');
         this.pontoonBoatBlock = document.querySelector('[data-element="addBoatModal_selectBoat_typePopup_pontoonBoatBlock"]');
         this.pontoonBoatCheckbox = document.querySelector('[data-element="addBoatModal_selectBoat_typePopup_pontoonBoatCheckbox"]');
+        this.bayBoatBlock = document.querySelector('[data-element="addBoatModal_selectBoat_typePopup_bayBoatBlock"]');
+        this.bayBoatCheckbox = document.querySelector('[data-element="addBoatModal_selectBoat_typePopup_bayBoatCheckbox"]');
+        this.dualConsoleBoatBlock = document.querySelector('[data-element="addBoatModal_selectBoat_typePopup_dualConsoleBoatBlock"]');
+        this.dualConsoleBoatCheckbox = document.querySelector('[data-element="addBoatModal_selectBoat_typePopup_dualConsoleBoatCheckbox"]');
 
         // Filter state
         this.selectedDates = [];
@@ -7680,7 +7684,9 @@ document.addEventListener('DOMContentLoaded', () => {
           { block: this.centerConsoleBlock, checkbox: this.centerConsoleCheckbox, type: 'Center console' },
           { block: this.flatsBoatBlock, checkbox: this.flatsBoatCheckbox, type: 'Flats boat' },
           { block: this.deckBoatBlock, checkbox: this.deckBoatCheckbox, type: 'Deck boat' },
-          { block: this.pontoonBoatBlock, checkbox: this.pontoonBoatCheckbox, type: 'Pontoon boat' }
+          { block: this.pontoonBoatBlock, checkbox: this.pontoonBoatCheckbox, type: 'Pontoon boat' },
+          { block: this.bayBoatBlock, checkbox: this.bayBoatCheckbox, type: 'Bay boat' },
+          { block: this.dualConsoleBoatBlock, checkbox: this.dualConsoleBoatCheckbox, type: 'Dual console' }
         ];
 
         boatTypeCategories.forEach(({ block, checkbox, type }) => {
@@ -7723,7 +7729,9 @@ document.addEventListener('DOMContentLoaded', () => {
           this.centerConsoleCheckbox,
           this.flatsBoatCheckbox,
           this.deckBoatCheckbox,
-          this.pontoonBoatCheckbox
+          this.pontoonBoatCheckbox,
+          this.bayBoatCheckbox,
+          this.dualConsoleBoatCheckbox
         ];
 
         checkboxes.forEach(checkbox => {

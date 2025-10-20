@@ -6423,6 +6423,8 @@ document.addEventListener('DOMContentLoaded', function () {
             const flatsBoatCheckbox = document.querySelector('[data-element="boatFilter_selectBoat_typePopup_flatsBoatCheckbox"]');
             const deckBoatCheckbox = document.querySelector('[data-element="boatFilter_selectBoat_typePopup_deckBoatCheckbox"]');
             const pontoonBoatCheckbox = document.querySelector('[data-element="boatFilter_selectBoat_typePopup_pontoonBoatCheckbox"]');
+            const bayBoatCheckbox = document.querySelector('[data-element="boatFilter_selectBoat_typePopup_bayBoatCheckbox"]');
+            const dualConsoleBoatCheckbox = document.querySelector('[data-element="boatFilter_selectBoat_typePopup_dualConsoleBoatCheckbox"]');
 
             if (!boatRentalFilter || !boatFilterModal) {
                 return;
@@ -6578,7 +6580,9 @@ document.addEventListener('DOMContentLoaded', function () {
                     { checkbox: centerConsoleCheckbox, type: 'Center console' },
                     { checkbox: flatsBoatCheckbox, type: 'Flats boat' },
                     { checkbox: deckBoatCheckbox, type: 'Deck boat' },
-                    { checkbox: pontoonBoatCheckbox, type: 'Pontoon boat' }
+                    { checkbox: pontoonBoatCheckbox, type: 'Pontoon boat' },
+                    { checkbox: bayBoatCheckbox, type: 'Bay boat' },
+                    { checkbox: dualConsoleBoatCheckbox, type: 'Dual console' }
                 ];
 
                 boatTypeCheckboxes.forEach(({ checkbox, type }) => {
@@ -6669,7 +6673,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 { checkbox: centerConsoleCheckbox, type: 'Center console' },
                 { checkbox: flatsBoatCheckbox, type: 'Flats boat' },
                 { checkbox: deckBoatCheckbox, type: 'Deck boat' },
-                { checkbox: pontoonBoatCheckbox, type: 'Pontoon boat' }
+                { checkbox: pontoonBoatCheckbox, type: 'Pontoon boat' },
+                { checkbox: bayBoatCheckbox, type: 'Bay boat' },
+                { checkbox: dualConsoleBoatCheckbox, type: 'Dual console' }
             ];
 
             boatTypeCheckboxes.forEach(({ checkbox, type }) => {
