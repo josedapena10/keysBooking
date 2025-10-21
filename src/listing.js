@@ -6303,8 +6303,15 @@ document.addEventListener('DOMContentLoaded', () => {
       showSkeletonCards() {
         if (!this.cardWrapper) return;
 
-        // Clear existing content
-        this.cardWrapper.innerHTML = '';
+        // Hide all existing cards (including template)
+        const existingCards = this.cardWrapper.querySelectorAll('[data-element="addBoatModal_selectBoat_card"]');
+        existingCards.forEach(card => {
+          card.style.display = 'none';
+        });
+
+        // Remove any old skeleton cards
+        const oldSkeletons = this.cardWrapper.querySelectorAll('[data-skeleton="true"]');
+        oldSkeletons.forEach(skeleton => skeleton.remove());
 
         // Create 6 skeleton cards
         for (let i = 0; i < 6; i++) {
@@ -11859,8 +11866,19 @@ document.addEventListener('DOMContentLoaded', () => {
       showSkeletonCards() {
         if (!this.cardWrapper) return;
 
-        // Clear existing content
-        this.cardWrapper.innerHTML = '';
+        // Hide all existing cards (including template)
+        const existingCards = this.cardWrapper.querySelectorAll('[data-element="addFishingCharterModal_selectFishingCharter_card"]');
+        existingCards.forEach(card => {
+          card.style.display = 'none';
+        });
+
+        // Remove any old skeleton cards
+        const oldSkeletons = this.cardWrapper.querySelectorAll('[data-skeleton="true"]');
+        oldSkeletons.forEach(skeleton => skeleton.remove());
+
+        // Hide any no results message
+        const noResultsMessage = this.cardWrapper.querySelector('.no-results-message');
+        if (noResultsMessage) noResultsMessage.style.display = 'none';
 
         // Create 6 skeleton cards
         for (let i = 0; i < 6; i++) {
