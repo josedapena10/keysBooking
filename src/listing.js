@@ -5586,7 +5586,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (this.halfDayBtn) {
           this.halfDayBtn.addEventListener('click', () => {
-            if (this.selectedDates.length === 1) {
+            // Allow half day selection for 0 or 1 date
+            if (this.selectedDates.length <= 1) {
               this.selectedLengthType = 'half';
               this.updateLengthTypeButtons();
               this.updateDatesFilterText();
@@ -5962,6 +5963,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Generate all dates in the range
             this.selectedDates = this.generateDateRange(startDateStr, endDateStr);
+
+            // If multiple dates selected, switch to full day
+            if (this.selectedDates.length > 1 && this.selectedLengthType === 'half') {
+              this.selectedLengthType = 'full';
+            }
           }
         }
         // If multiple dates selected (range exists), clear and start new selection
@@ -9652,6 +9658,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Generate all dates in the range
             this.selectedDates = this.generateDateRange(startDateStr, endDateStr);
+
+            // If multiple dates selected, switch to full day
+            if (this.selectedDates.length > 1 && this.selectedLengthType === 'half') {
+              this.selectedLengthType = 'full';
+            }
           }
         }
         // If multiple dates selected (range exists), clear and start new selection
@@ -9843,7 +9854,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (this.boatDetailsHalfDayBtn) {
           this.boatDetailsHalfDayBtn.addEventListener('click', () => {
-            if (this.selectedDates.length === 1) {
+            // Allow half day selection for 0 or 1 date
+            if (this.selectedDates.length <= 1) {
               this.selectedLengthType = 'half';
               this.initializeBoatDetailsDateFilter();
               this.updateURLParams();
