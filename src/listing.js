@@ -9516,6 +9516,22 @@ document.addEventListener('DOMContentLoaded', () => {
             if (this.boatDetailsPopup) this.boatDetailsPopup.style.display = 'flex';
             if (this.boatDetailsGuestsPopup) this.boatDetailsGuestsPopup.style.display = 'none';
 
+            // Hide back navigation elements and their parent containers on mobile when popup opens
+            if (this.isMobileView()) {
+              if (this.detailsBackButton) {
+                this.detailsBackButton.style.display = 'none';
+                // Also hide parent container if it exists
+                const parentContainer = this.detailsBackButton.parentElement;
+                if (parentContainer) parentContainer.style.display = 'none';
+              }
+              if (this.boatDetailsXButton) {
+                this.boatDetailsXButton.style.display = 'none';
+                // Also hide parent container if it exists
+                const parentContainer = this.boatDetailsXButton.parentElement;
+                if (parentContainer) parentContainer.style.display = 'none';
+              }
+            }
+
             // Update dates done button text
             this.updateDatesDoneButtonText();
           });
@@ -9525,6 +9541,22 @@ document.addEventListener('DOMContentLoaded', () => {
         if (this.boatDetailsPopupExit) {
           this.boatDetailsPopupExit.addEventListener('click', () => {
             if (this.boatDetailsPopup) this.boatDetailsPopup.style.display = 'none';
+
+            // Show back navigation elements and their parent containers on mobile when popup closes
+            if (this.isMobileView()) {
+              if (this.detailsBackButton) {
+                this.detailsBackButton.style.display = 'flex';
+                // Also show parent container if it exists
+                const parentContainer = this.detailsBackButton.parentElement;
+                if (parentContainer) parentContainer.style.display = 'flex';
+              }
+              if (this.boatDetailsXButton) {
+                this.boatDetailsXButton.style.display = 'flex';
+                // Also show parent container if it exists
+                const parentContainer = this.boatDetailsXButton.parentElement;
+                if (parentContainer) parentContainer.style.display = 'flex';
+              }
+            }
           });
         }
 
@@ -9532,6 +9564,22 @@ document.addEventListener('DOMContentLoaded', () => {
         if (this.boatDetailsPopupDone) {
           this.boatDetailsPopupDone.addEventListener('click', () => {
             if (this.boatDetailsPopup) this.boatDetailsPopup.style.display = 'none';
+
+            // Show back navigation elements and their parent containers on mobile when popup closes
+            if (this.isMobileView()) {
+              if (this.detailsBackButton) {
+                this.detailsBackButton.style.display = 'flex';
+                // Also show parent container if it exists
+                const parentContainer = this.detailsBackButton.parentElement;
+                if (parentContainer) parentContainer.style.display = 'flex';
+              }
+              if (this.boatDetailsXButton) {
+                this.boatDetailsXButton.style.display = 'flex';
+                // Also show parent container if it exists
+                const parentContainer = this.boatDetailsXButton.parentElement;
+                if (parentContainer) parentContainer.style.display = 'flex';
+              }
+            }
 
             // In mobile view, if guests haven't been selected, open guests popup
             if (this.isMobileView() && (!this.selectedGuests || this.selectedGuests === 0)) {
@@ -9561,6 +9609,22 @@ document.addEventListener('DOMContentLoaded', () => {
             // Show boat details guests popup
             if (this.boatDetailsGuestsPopup) this.boatDetailsGuestsPopup.style.display = 'flex';
             if (this.boatDetailsPopup) this.boatDetailsPopup.style.display = 'none';
+
+            // Hide back navigation elements and their parent containers on mobile when popup opens
+            if (this.isMobileView()) {
+              if (this.detailsBackButton) {
+                this.detailsBackButton.style.display = 'none';
+                // Also hide parent container if it exists
+                const parentContainer = this.detailsBackButton.parentElement;
+                if (parentContainer) parentContainer.style.display = 'none';
+              }
+              if (this.boatDetailsXButton) {
+                this.boatDetailsXButton.style.display = 'none';
+                // Also hide parent container if it exists
+                const parentContainer = this.boatDetailsXButton.parentElement;
+                if (parentContainer) parentContainer.style.display = 'none';
+              }
+            }
           });
         }
 
@@ -9568,6 +9632,22 @@ document.addEventListener('DOMContentLoaded', () => {
         if (this.boatDetailsGuestsPopupExit) {
           this.boatDetailsGuestsPopupExit.addEventListener('click', () => {
             if (this.boatDetailsGuestsPopup) this.boatDetailsGuestsPopup.style.display = 'none';
+
+            // Show back navigation elements and their parent containers on mobile when popup closes
+            if (this.isMobileView()) {
+              if (this.detailsBackButton) {
+                this.detailsBackButton.style.display = 'flex';
+                // Also show parent container if it exists
+                const parentContainer = this.detailsBackButton.parentElement;
+                if (parentContainer) parentContainer.style.display = 'flex';
+              }
+              if (this.boatDetailsXButton) {
+                this.boatDetailsXButton.style.display = 'flex';
+                // Also show parent container if it exists
+                const parentContainer = this.boatDetailsXButton.parentElement;
+                if (parentContainer) parentContainer.style.display = 'flex';
+              }
+            }
           });
         }
 
@@ -9575,6 +9655,22 @@ document.addEventListener('DOMContentLoaded', () => {
         if (this.boatDetailsGuestsPopupDone) {
           this.boatDetailsGuestsPopupDone.addEventListener('click', () => {
             if (this.boatDetailsGuestsPopup) this.boatDetailsGuestsPopup.style.display = 'none';
+
+            // Show back navigation elements and their parent containers on mobile when popup closes
+            if (this.isMobileView()) {
+              if (this.detailsBackButton) {
+                this.detailsBackButton.style.display = 'flex';
+                // Also show parent container if it exists
+                const parentContainer = this.detailsBackButton.parentElement;
+                if (parentContainer) parentContainer.style.display = 'flex';
+              }
+              if (this.boatDetailsXButton) {
+                this.boatDetailsXButton.style.display = 'flex';
+                // Also show parent container if it exists
+                const parentContainer = this.boatDetailsXButton.parentElement;
+                if (parentContainer) parentContainer.style.display = 'flex';
+              }
+            }
           });
         }
 
@@ -13936,6 +14032,9 @@ document.addEventListener('DOMContentLoaded', () => {
           if (this.detailsGuestsPopup) this.detailsGuestsPopup.style.display = 'none';
         };
 
+        // Get reference to fishing charter details back button
+        const fishingCharterDetailsBack = document.querySelector('[data-element="fishingCharterDetails_back"]');
+
         // Details dates filter handlers
         if (this.detailsDatesFilter) {
           this.detailsDatesFilter.addEventListener('click', (e) => {
@@ -13946,6 +14045,14 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
 
             }
+
+            // Hide back navigation element and its parent container on mobile when popup opens
+            if (this.isMobileView() && fishingCharterDetailsBack) {
+              fishingCharterDetailsBack.style.display = 'none';
+              // Also hide parent container if it exists
+              const parentContainer = fishingCharterDetailsBack.parentElement;
+              if (parentContainer) parentContainer.style.display = 'none';
+            }
           });
         } else {
 
@@ -13955,6 +14062,14 @@ document.addEventListener('DOMContentLoaded', () => {
           this.detailsDatesPopupExit.addEventListener('click', (e) => {
             e.stopPropagation();
             if (this.detailsDatesPopup) this.detailsDatesPopup.style.display = 'none';
+
+            // Show back navigation element and its parent container on mobile when popup closes
+            if (this.isMobileView() && fishingCharterDetailsBack) {
+              fishingCharterDetailsBack.style.display = 'flex';
+              // Also show parent container if it exists
+              const parentContainer = fishingCharterDetailsBack.parentElement;
+              if (parentContainer) parentContainer.style.display = 'flex';
+            }
           });
         }
 
@@ -13968,6 +14083,14 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
 
             }
+
+            // Hide back navigation element and its parent container on mobile when popup opens
+            if (this.isMobileView() && fishingCharterDetailsBack) {
+              fishingCharterDetailsBack.style.display = 'none';
+              // Also hide parent container if it exists
+              const parentContainer = fishingCharterDetailsBack.parentElement;
+              if (parentContainer) parentContainer.style.display = 'none';
+            }
           });
         } else {
 
@@ -13977,6 +14100,14 @@ document.addEventListener('DOMContentLoaded', () => {
           this.detailsGuestsPopupExit.addEventListener('click', (e) => {
             e.stopPropagation();
             if (this.detailsGuestsPopup) this.detailsGuestsPopup.style.display = 'none';
+
+            // Show back navigation element and its parent container on mobile when popup closes
+            if (this.isMobileView() && fishingCharterDetailsBack) {
+              fishingCharterDetailsBack.style.display = 'flex';
+              // Also show parent container if it exists
+              const parentContainer = fishingCharterDetailsBack.parentElement;
+              if (parentContainer) parentContainer.style.display = 'flex';
+            }
           });
         }
 
