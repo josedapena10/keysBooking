@@ -5306,7 +5306,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 priceDescription.textContent = description;
             }
 
-            // Create range slider
+            // Create range slider with larger touch targets for mobile
             if (priceScrollBar) {
                 priceScrollBar.innerHTML = `
             <div class="price-slider-container" style="position: relative; width: 100%; height: 32px; margin: 20px 0;">
@@ -5314,8 +5314,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 <div class="price-slider-range" style="position: absolute; top: 50%; transform: translateY(-50%); height: 4px; background: #000; border-radius: 2px;"></div>
                 <input type="range" class="price-slider-min" min="0" max="${maxPrice}" value="0" style="position: absolute; width: 100%; opacity: 0; cursor: pointer;">
                 <input type="range" class="price-slider-max" min="0" max="${maxPrice}" value="${maxPrice}" style="position: absolute; width: 100%; opacity: 0; cursor: pointer;">
-                <div class="price-slider-thumb-min" style="position: absolute; top: 50%; transform: translate(-50%, -50%); width: 24px; height: 24px; background: white; border: 1px solid #000; border-radius: 50%; cursor: pointer;"></div>
-                <div class="price-slider-thumb-max" style="position: absolute; top: 50%; transform: translate(-50%, -50%); width: 24px; height: 24px; background: white; border: 1px solid #000; border-radius: 50%; cursor: pointer;"></div>
+                <div class="price-slider-thumb-min" style="position: absolute; top: 50%; transform: translate(-50%, -50%); width: 40px; height: 40px; background: white; border: 2px solid #000; border-radius: 50%; cursor: pointer; touch-action: none; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"></div>
+                <div class="price-slider-thumb-max" style="position: absolute; top: 50%; transform: translate(-50%, -50%); width: 40px; height: 40px; background: white; border: 2px solid #000; border-radius: 50%; cursor: pointer; touch-action: none; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"></div>
             </div>
         `;
 
