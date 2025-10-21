@@ -7738,15 +7738,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const maxLength = 50;
 
-        // Create range slider
+        // Create range slider with larger touch targets for mobile
         this.lengthScrollBar.innerHTML = `
           <div class="length-slider-container" style="position: relative; width: 100%; height: 32px; margin: 20px 0;">
             <div class="length-slider-track" style="position: absolute; top: 50%; transform: translateY(-50%); width: 100%; height: 4px; background: #E5E5E5; border-radius: 2px;"></div>
             <div class="length-slider-range" style="position: absolute; top: 50%; transform: translateY(-50%); height: 4px; background: #000; border-radius: 2px;"></div>
             <input type="range" class="length-slider-min" min="0" max="${maxLength}" value="0" style="position: absolute; width: 100%; opacity: 0; cursor: pointer;">
             <input type="range" class="length-slider-max" min="0" max="${maxLength}" value="${maxLength}" style="position: absolute; width: 100%; opacity: 0; cursor: pointer;">
-            <div class="length-slider-thumb-min" style="position: absolute; top: 50%; transform: translate(-50%, -50%); width: 24px; height: 24px; background: white; border: 1px solid #000; border-radius: 50%; cursor: pointer;"></div>
-            <div class="length-slider-thumb-max" style="position: absolute; top: 50%; transform: translate(-50%, -50%); width: 24px; height: 24px; background: white; border: 1px solid #000; border-radius: 50%; cursor: pointer;"></div>
+            <div class="length-slider-thumb-min" style="position: absolute; top: 50%; transform: translate(-50%, -50%); width: 40px; height: 40px; background: white; border: 2px solid #000; border-radius: 50%; cursor: pointer; touch-action: none; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"></div>
+            <div class="length-slider-thumb-max" style="position: absolute; top: 50%; transform: translate(-50%, -50%); width: 40px; height: 40px; background: white; border: 2px solid #000; border-radius: 50%; cursor: pointer; touch-action: none; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"></div>
           </div>
         `;
 
@@ -7791,14 +7791,20 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         const handleDragStart = (e, isMin) => {
-          e.preventDefault();
+          // Handle both mouse events and touch objects
+          if (e.preventDefault) {
+            e.preventDefault();
+          }
+
+          const clientX = e.clientX || e.clientX === 0 ? e.clientX : (e.touches ? e.touches[0].clientX : e.clientX);
+
           if (isMin) {
             isDraggingMin = true;
-            startX = e.clientX;
+            startX = clientX;
             startLeft = parseInt(sliderMin.value);
           } else {
             isDraggingMax = true;
-            startX = e.clientX;
+            startX = clientX;
             startLeft = parseInt(sliderMax.value);
           }
         };
@@ -7808,7 +7814,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
           const containerRect = container.getBoundingClientRect();
           const containerWidth = containerRect.width;
-          const moveX = e.clientX - startX;
+          const clientX = e.clientX || e.clientX === 0 ? e.clientX : (e.touches ? e.touches[0].clientX : e.clientX);
+          const moveX = clientX - startX;
           const movePercent = (moveX / containerWidth) * 100;
           const moveValue = Math.round((movePercent / 100) * maxLength);
 
@@ -7834,11 +7841,48 @@ document.addEventListener('DOMContentLoaded', () => {
         document.addEventListener('mousemove', handleDragMove);
         document.addEventListener('mouseup', handleDragEnd);
 
-        // Add touch event listeners for mobile
-        thumbMin.addEventListener('touchstart', (e) => handleDragStart(e.touches[0], true));
-        thumbMax.addEventListener('touchstart', (e) => handleDragStart(e.touches[0], false));
-        document.addEventListener('touchmove', (e) => handleDragMove(e.touches[0]));
-        document.addEventListener('touchend', handleDragEnd);
+        // Add touch event listeners for mobile with proper event handling
+        thumbMin.addEventListener('touchstart', (e) => {
+          e.stopPropagation();
+          handleDragStart(e.touches[0], true);
+        });
+
+        thumbMin.addEventListener('touchmove', (e) => {
+          if (isDraggingMin) {
+            e.preventDefault();
+            e.stopPropagation();
+            handleDragMove(e.touches[0]);
+          }
+        }, { passive: false });
+
+        thumbMin.addEventListener('touchend', (e) => {
+          if (isDraggingMin) {
+            e.preventDefault();
+            e.stopPropagation();
+            handleDragEnd();
+          }
+        });
+
+        thumbMax.addEventListener('touchstart', (e) => {
+          e.stopPropagation();
+          handleDragStart(e.touches[0], false);
+        });
+
+        thumbMax.addEventListener('touchmove', (e) => {
+          if (isDraggingMax) {
+            e.preventDefault();
+            e.stopPropagation();
+            handleDragMove(e.touches[0]);
+          }
+        }, { passive: false });
+
+        thumbMax.addEventListener('touchend', (e) => {
+          if (isDraggingMax) {
+            e.preventDefault();
+            e.stopPropagation();
+            handleDragEnd();
+          }
+        });
 
         // Input event listeners
         sliderMin?.addEventListener('input', () => {
@@ -8701,6 +8745,44 @@ document.addEventListener('DOMContentLoaded', () => {
 
           // Initial states
           updateButtonStates();
+
+          // Add swipe functionality for mobile
+          let touchStartX = 0;
+          let touchEndX = 0;
+          let isSwiping = false;
+
+          carouselWrapper.addEventListener('touchstart', (e) => {
+            touchStartX = e.changedTouches[0].screenX;
+            isSwiping = true;
+          }, { passive: true });
+
+          carouselWrapper.addEventListener('touchmove', (e) => {
+            if (!isSwiping) return;
+            touchEndX = e.changedTouches[0].screenX;
+          }, { passive: true });
+
+          carouselWrapper.addEventListener('touchend', () => {
+            if (!isSwiping) return;
+            isSwiping = false;
+
+            const swipeThreshold = 50; // Minimum swipe distance in pixels
+            const swipeDistance = touchStartX - touchEndX;
+
+            if (Math.abs(swipeDistance) > swipeThreshold) {
+              if (swipeDistance > 0 && currentIndex < maxIndex) {
+                // Swiped left - go to next
+                currentIndex++;
+                updateCarousel();
+              } else if (swipeDistance < 0 && currentIndex > 0) {
+                // Swiped right - go to previous
+                currentIndex--;
+                updateCarousel();
+              }
+            }
+
+            touchStartX = 0;
+            touchEndX = 0;
+          });
 
           carouselWrapper.appendChild(leftButton);
           carouselWrapper.appendChild(rightButton);
@@ -10652,6 +10734,7 @@ document.addEventListener('DOMContentLoaded', () => {
         this.typeX = document.querySelector('[data-element="addFishingCharterModal_selectFishingCharter_typeX"]');
         this.typePopup = document.querySelector('[data-element="addFishingCharterModal_selectFishingCharter_typePopup"]');
         this.typePopupExit = document.querySelector('[data-element="addFishingCharterModal_selectFishingCharter_typePopup_exit"]');
+        this.typeClearBtn = document.querySelector('[data-element="fishingCharter_typePopup_clearButton"]');
 
         // Fishing type checkboxes
         this.fishingTypes = {
@@ -11788,6 +11871,13 @@ document.addEventListener('DOMContentLoaded', () => {
             });
           }
         });
+
+        // Setup clear button
+        if (this.typeClearBtn) {
+          this.typeClearBtn.addEventListener('click', () => {
+            this.clearFishingTypeFilter();
+          });
+        }
 
         // Initialize filter text
         this.updateFishingTypeFilterText();
@@ -12996,6 +13086,44 @@ document.addEventListener('DOMContentLoaded', () => {
 
           // Initial states
           updateButtonStates();
+
+          // Add swipe functionality for mobile
+          let touchStartX = 0;
+          let touchEndX = 0;
+          let isSwiping = false;
+
+          carouselWrapper.addEventListener('touchstart', (e) => {
+            touchStartX = e.changedTouches[0].screenX;
+            isSwiping = true;
+          }, { passive: true });
+
+          carouselWrapper.addEventListener('touchmove', (e) => {
+            if (!isSwiping) return;
+            touchEndX = e.changedTouches[0].screenX;
+          }, { passive: true });
+
+          carouselWrapper.addEventListener('touchend', () => {
+            if (!isSwiping) return;
+            isSwiping = false;
+
+            const swipeThreshold = 50; // Minimum swipe distance in pixels
+            const swipeDistance = touchStartX - touchEndX;
+
+            if (Math.abs(swipeDistance) > swipeThreshold) {
+              if (swipeDistance > 0 && currentIndex < maxIndex) {
+                // Swiped left - go to next
+                currentIndex++;
+                updateCarousel();
+              } else if (swipeDistance < 0 && currentIndex > 0) {
+                // Swiped right - go to previous
+                currentIndex--;
+                updateCarousel();
+              }
+            }
+
+            touchStartX = 0;
+            touchEndX = 0;
+          });
 
           carouselWrapper.appendChild(leftButton);
           carouselWrapper.appendChild(rightButton);
