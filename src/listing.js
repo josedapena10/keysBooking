@@ -5747,6 +5747,30 @@ document.addEventListener('DOMContentLoaded', () => {
         });
       }
 
+      getMonthYearHeader(startDateStr, endDateStr) {
+        const [startYear, startMonth] = startDateStr.split('-').map(Number);
+        const [endYear, endMonth] = endDateStr.split('-').map(Number);
+
+        const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+          'July', 'August', 'September', 'October', 'November', 'December'];
+
+        const startMonthName = monthNames[startMonth - 1];
+        const endMonthName = monthNames[endMonth - 1];
+
+        // Same month and year
+        if (startMonth === endMonth && startYear === endYear) {
+          return `${startMonthName} ${startYear}`;
+        }
+        // Different months, same year
+        else if (startYear === endYear) {
+          return `${startMonthName} & ${endMonthName} ${startYear}`;
+        }
+        // Different years
+        else {
+          return `${startMonthName} ${startYear} & ${endMonthName} ${endYear}`;
+        }
+      }
+
       renderDateSelection() {
         if (!this.selectDatesSection) return;
 
@@ -5767,6 +5791,17 @@ document.addEventListener('DOMContentLoaded', () => {
         calendarContainer.style.display = 'flex';
         calendarContainer.style.flexDirection = 'column';
         calendarContainer.style.gap = '6px';
+
+        // Create month/year header
+        const monthYearHeader = document.createElement('div');
+        monthYearHeader.textContent = this.getMonthYearHeader(checkin, checkout);
+        monthYearHeader.style.fontSize = '16px';
+        monthYearHeader.style.fontFamily = 'TT Fors, sans-serif';
+        monthYearHeader.style.fontWeight = '500';
+        monthYearHeader.style.color = '#000000';
+        monthYearHeader.style.textAlign = 'center';
+        monthYearHeader.style.marginBottom = '12px';
+        calendarContainer.appendChild(monthYearHeader);
 
         // Create days of week header
         const daysHeader = document.createElement('div');
@@ -9470,6 +9505,17 @@ document.addEventListener('DOMContentLoaded', () => {
         calendarContainer.style.display = 'flex';
         calendarContainer.style.flexDirection = 'column';
         calendarContainer.style.gap = '6px';
+
+        // Create month/year header
+        const monthYearHeader = document.createElement('div');
+        monthYearHeader.textContent = this.getMonthYearHeader(checkin, checkout);
+        monthYearHeader.style.fontSize = '16px';
+        monthYearHeader.style.fontFamily = 'TT Fors, sans-serif';
+        monthYearHeader.style.fontWeight = '500';
+        monthYearHeader.style.color = '#000000';
+        monthYearHeader.style.textAlign = 'center';
+        monthYearHeader.style.marginBottom = '12px';
+        calendarContainer.appendChild(monthYearHeader);
 
         // Create days of week header
         const daysHeader = document.createElement('div');
@@ -13903,6 +13949,30 @@ document.addEventListener('DOMContentLoaded', () => {
         return `${monthNames[month - 1]} ${day}`;
       }
 
+      getMonthYearHeader(startDateStr, endDateStr) {
+        const [startYear, startMonth] = startDateStr.split('-').map(Number);
+        const [endYear, endMonth] = endDateStr.split('-').map(Number);
+
+        const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+          'July', 'August', 'September', 'October', 'November', 'December'];
+
+        const startMonthName = monthNames[startMonth - 1];
+        const endMonthName = monthNames[endMonth - 1];
+
+        // Same month and year
+        if (startMonth === endMonth && startYear === endYear) {
+          return `${startMonthName} ${startYear}`;
+        }
+        // Different months, same year
+        else if (startYear === endYear) {
+          return `${startMonthName} & ${endMonthName} ${startYear}`;
+        }
+        // Different years
+        else {
+          return `${startMonthName} ${startYear} & ${endMonthName} ${endYear}`;
+        }
+      }
+
       renderDateSelection() {
         if (!this.datesPopupSelectDates) return;
 
@@ -13920,6 +13990,17 @@ document.addEventListener('DOMContentLoaded', () => {
         calendarContainer.style.display = 'flex';
         calendarContainer.style.flexDirection = 'column';
         calendarContainer.style.gap = '6px';
+
+        // Create month/year header
+        const monthYearHeader = document.createElement('div');
+        monthYearHeader.textContent = this.getMonthYearHeader(checkin, checkout);
+        monthYearHeader.style.fontSize = '16px';
+        monthYearHeader.style.fontFamily = 'TT Fors, sans-serif';
+        monthYearHeader.style.fontWeight = '500';
+        monthYearHeader.style.color = '#000000';
+        monthYearHeader.style.textAlign = 'center';
+        monthYearHeader.style.marginBottom = '12px';
+        calendarContainer.appendChild(monthYearHeader);
 
         const daysHeader = document.createElement('div');
         daysHeader.style.display = 'grid';
@@ -14462,6 +14543,17 @@ document.addEventListener('DOMContentLoaded', () => {
         calendarContainer.style.display = 'flex';
         calendarContainer.style.flexDirection = 'column';
         calendarContainer.style.gap = '6px';
+
+        // Create month/year header
+        const monthYearHeader = document.createElement('div');
+        monthYearHeader.textContent = this.getMonthYearHeader(checkin, checkout);
+        monthYearHeader.style.fontSize = '16px';
+        monthYearHeader.style.fontFamily = 'TT Fors, sans-serif';
+        monthYearHeader.style.fontWeight = '500';
+        monthYearHeader.style.color = '#000000';
+        monthYearHeader.style.textAlign = 'center';
+        monthYearHeader.style.marginBottom = '12px';
+        calendarContainer.appendChild(monthYearHeader);
 
         const daysHeader = document.createElement('div');
         daysHeader.style.display = 'grid';
