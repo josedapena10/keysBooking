@@ -4944,8 +4944,8 @@ document.addEventListener('DOMContentLoaded', () => {
         this.pontoonBoatCheckbox = document.querySelector('[data-element="addBoatModal_selectBoat_typePopup_pontoonBoatCheckbox"]');
         this.bayBoatBlock = document.querySelector('[data-element="addBoatModal_selectBoat_typePopup_bayBoatBlock"]');
         this.bayBoatCheckbox = document.querySelector('[data-element="addBoatModal_selectBoat_typePopup_bayBoatCheckbox"]');
-        this.dualConsoleBoatBlock = document.querySelector('[data-element="addBoatModal_selectBoat_typePopup_dualConsoleBoatBlock"]');
-        this.dualConsoleBoatCheckbox = document.querySelector('[data-element="addBoatModal_selectBoat_typePopup_dualConsoleBoatCheckbox"]');
+        this.dualConsoleBoatBlock = document.querySelector('[data-element="addBoatModal_selectBoat_typePopup_dualConsoleBlock"]');
+        this.dualConsoleBoatCheckbox = document.querySelector('[data-element="addBoatModal_selectBoat_typePopup_dualConsoleCheckbox"]');
 
         // Filter state
         this.selectedDates = [];
@@ -6296,10 +6296,16 @@ document.addEventListener('DOMContentLoaded', () => {
             return false;
           }
 
-          // Filter by boat type
+          // Filter by boat type (case-insensitive)
           if (this.selectedBoatTypes.length > 0) {
             const boatType = boat.boatType;
-            if (!this.selectedBoatTypes.includes(boatType)) {
+            if (!boatType) {
+              return false;
+            }
+            // Normalize to lowercase for case-insensitive comparison
+            const boatTypeLower = boatType.toLowerCase();
+            const selectedTypesLower = this.selectedBoatTypes.map(type => type.toLowerCase());
+            if (!selectedTypesLower.includes(boatTypeLower)) {
               return false;
             }
           }
@@ -7392,10 +7398,16 @@ document.addEventListener('DOMContentLoaded', () => {
             return false;
           }
 
-          // Filter by boat type
+          // Filter by boat type (case-insensitive)
           if (this.selectedBoatTypes.length > 0) {
             const boatType = boat.boatType;
-            if (!this.selectedBoatTypes.includes(boatType)) {
+            if (!boatType) {
+              return false;
+            }
+            // Normalize to lowercase for case-insensitive comparison
+            const boatTypeLower = boatType.toLowerCase();
+            const selectedTypesLower = this.selectedBoatTypes.map(type => type.toLowerCase());
+            if (!selectedTypesLower.includes(boatTypeLower)) {
               return false;
             }
           }
