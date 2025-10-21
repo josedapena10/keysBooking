@@ -6300,19 +6300,130 @@ document.addEventListener('DOMContentLoaded', () => {
         });
       }
 
+      showSkeletonCards() {
+        if (!this.cardWrapper) return;
+
+        // Clear existing content
+        this.cardWrapper.innerHTML = '';
+
+        // Create 6 skeleton cards
+        for (let i = 0; i < 6; i++) {
+          const skeleton = document.createElement('div');
+          skeleton.className = 'skeleton-card';
+          skeleton.setAttribute('data-skeleton', 'true');
+          skeleton.innerHTML = `
+            <div class="skeleton-image"></div>
+            <div class="skeleton-content">
+              <div class="skeleton-line skeleton-title"></div>
+              <div class="skeleton-line skeleton-subtitle"></div>
+              <div class="skeleton-line skeleton-price"></div>
+            </div>
+          `;
+          this.cardWrapper.appendChild(skeleton);
+        }
+
+        // Add styles if not already added
+        if (!document.getElementById('boat-skeleton-styles')) {
+          const style = document.createElement('style');
+          style.id = 'boat-skeleton-styles';
+          style.textContent = `
+            .skeleton-card {
+              width: 31.5%;
+              height: 340px;
+              background: #f9f9f9;
+              border-radius: 5px;
+              overflow: hidden;
+              display: flex;
+              flex-direction: column;
+              background-clip: padding-box;
+            }
+            
+            @media (max-width: 990px) {
+              .skeleton-card {
+                width: 100%;
+              }
+            }
+            
+            .skeleton-image {
+              width: 100%;
+              height: 200px;
+              background: linear-gradient(to right, #f9f9f9 25%, #f0f0f0 50%, #f9f9f9 75%);
+              background-size: 200% 100%;
+              animation: skeleton-loading 1s infinite linear;
+            }
+            
+            .skeleton-content {
+              padding: 16px;
+              display: flex;
+              flex-direction: column;
+              gap: 12px;
+            }
+            
+            .skeleton-line {
+              height: 16px;
+              background: linear-gradient(to right, #f9f9f9 25%, #f0f0f0 50%, #f9f9f9 75%);
+              background-size: 200% 100%;
+              animation: skeleton-loading 1s infinite linear;
+              border-radius: 5px;
+              background-clip: padding-box;
+            }
+            
+            .skeleton-title {
+              width: 80%;
+              height: 20px;
+            }
+            
+            .skeleton-subtitle {
+              width: 60%;
+            }
+            
+            .skeleton-price {
+              width: 40%;
+              margin-top: auto;
+            }
+            
+            @keyframes skeleton-loading {
+              0% {
+                background-position: -100% 0;
+              }
+              100% {
+                background-position: 100% 0;
+              }
+            }
+          `;
+          document.head.appendChild(style);
+        }
+      }
+
+      hideSkeletonCards() {
+        if (!this.cardWrapper) return;
+
+        // Remove all skeleton cards
+        const skeletons = this.cardWrapper.querySelectorAll('[data-skeleton="true"]');
+        skeletons.forEach(skeleton => skeleton.remove());
+      }
+
       async fetchAndRenderBoats() {
         try {
+          // Show skeleton cards while loading
+          this.showSkeletonCards();
+
           // Fetch all boat options (user age is loaded inside fetchBoatOptions)
           const allBoats = await this.fetchBoatOptions();
 
           // Filter boats based on guest count
           const filteredBoats = this.filterBoats(allBoats);
 
+          // Hide skeleton cards
+          this.hideSkeletonCards();
+
           // Render the filtered boats
           this.renderBoatCards(filteredBoats);
 
           return filteredBoats;
         } catch (error) {
+          // Hide skeleton cards on error too
+          this.hideSkeletonCards();
           this.renderBoatCards([]);
           return [];
         }
@@ -11745,8 +11856,114 @@ document.addEventListener('DOMContentLoaded', () => {
         this.renderDetailsDateSelection();
       }
 
+      showSkeletonCards() {
+        if (!this.cardWrapper) return;
+
+        // Clear existing content
+        this.cardWrapper.innerHTML = '';
+
+        // Create 6 skeleton cards
+        for (let i = 0; i < 6; i++) {
+          const skeleton = document.createElement('div');
+          skeleton.className = 'skeleton-card-charter';
+          skeleton.setAttribute('data-skeleton', 'true');
+          skeleton.innerHTML = `
+            <div class="skeleton-image-charter"></div>
+            <div class="skeleton-content-charter">
+              <div class="skeleton-line-charter skeleton-title-charter"></div>
+              <div class="skeleton-line-charter skeleton-subtitle-charter"></div>
+              <div class="skeleton-line-charter skeleton-price-charter"></div>
+            </div>
+          `;
+          this.cardWrapper.appendChild(skeleton);
+        }
+
+        // Add styles if not already added
+        if (!document.getElementById('charter-skeleton-styles')) {
+          const style = document.createElement('style');
+          style.id = 'charter-skeleton-styles';
+          style.textContent = `
+            .skeleton-card-charter {
+              width: 31.5%;
+              height: 360px;
+              background: #f9f9f9;
+              border-radius: 5px;
+              overflow: hidden;
+              display: flex;
+              flex-direction: column;
+              background-clip: padding-box;
+            }
+            
+            @media (max-width: 990px) {
+              .skeleton-card-charter {
+                width: 100%;
+              }
+            }
+            
+            .skeleton-image-charter {
+              width: 100%;
+              height: 220px;
+              background: linear-gradient(to right, #f9f9f9 25%, #f0f0f0 50%, #f9f9f9 75%);
+              background-size: 200% 100%;
+              animation: skeleton-loading-charter 1s infinite linear;
+            }
+            
+            .skeleton-content-charter {
+              padding: 16px;
+              display: flex;
+              flex-direction: column;
+              gap: 12px;
+            }
+            
+            .skeleton-line-charter {
+              height: 16px;
+              background: linear-gradient(to right, #f9f9f9 25%, #f0f0f0 50%, #f9f9f9 75%);
+              background-size: 200% 100%;
+              animation: skeleton-loading-charter 1s infinite linear;
+              border-radius: 5px;
+              background-clip: padding-box;
+            }
+            
+            .skeleton-title-charter {
+              width: 80%;
+              height: 20px;
+            }
+            
+            .skeleton-subtitle-charter {
+              width: 60%;
+            }
+            
+            .skeleton-price-charter {
+              width: 40%;
+              margin-top: auto;
+            }
+            
+            @keyframes skeleton-loading-charter {
+              0% {
+                background-position: -100% 0;
+              }
+              100% {
+                background-position: 100% 0;
+              }
+            }
+          `;
+          document.head.appendChild(style);
+        }
+      }
+
+      hideSkeletonCards() {
+        if (!this.cardWrapper) return;
+
+        // Remove all skeleton cards
+        const skeletons = this.cardWrapper.querySelectorAll('[data-skeleton="true"]');
+        skeletons.forEach(skeleton => skeleton.remove());
+      }
+
       async fetchAndRenderFishingCharters() {
         try {
+          // Show skeleton cards while loading
+          this.showSkeletonCards();
+
           // Fetch all fishing charter options
           const allCharters = await this.fetchFishingCharterOptions();
           this.allFishingCharters = allCharters;
@@ -11754,12 +11971,16 @@ document.addEventListener('DOMContentLoaded', () => {
           // Filter charters based on current filters
           const filteredCharters = this.filterFishingCharters(allCharters);
 
+          // Hide skeleton cards
+          this.hideSkeletonCards();
+
           // Render the filtered charters
           this.renderFishingCharterCards(filteredCharters);
 
           return filteredCharters;
         } catch (error) {
-
+          // Hide skeleton cards on error too
+          this.hideSkeletonCards();
           this.renderFishingCharterCards([]);
           return [];
         }
