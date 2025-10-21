@@ -7887,12 +7887,12 @@ document.addEventListener('DOMContentLoaded', () => {
       setupBoatTypeFilter() {
         // Setup boat type category selections
         const boatTypeCategories = [
-          { block: this.centerConsoleBlock, checkbox: this.centerConsoleCheckbox, type: 'Center console' },
-          { block: this.flatsBoatBlock, checkbox: this.flatsBoatCheckbox, type: 'Flats boat' },
-          { block: this.deckBoatBlock, checkbox: this.deckBoatCheckbox, type: 'Deck boat' },
-          { block: this.pontoonBoatBlock, checkbox: this.pontoonBoatCheckbox, type: 'Pontoon boat' },
+          { block: this.centerConsoleBlock, checkbox: this.centerConsoleCheckbox, type: 'Center Console' },
+          { block: this.flatsBoatBlock, checkbox: this.flatsBoatCheckbox, type: 'Flats Boat' },
+          { block: this.deckBoatBlock, checkbox: this.deckBoatCheckbox, type: 'Deck Boat' },
+          { block: this.pontoonBoatBlock, checkbox: this.pontoonBoatCheckbox, type: 'Pontoon Boat' },
           { block: this.bayBoatBlock, checkbox: this.bayBoatCheckbox, type: 'Bay boat' },
-          { block: this.dualConsoleBoatBlock, checkbox: this.dualConsoleBoatCheckbox, type: 'Dual console' }
+          { block: this.dualConsoleBoatBlock, checkbox: this.dualConsoleBoatCheckbox, type: 'Dual Console' }
         ];
 
         boatTypeCategories.forEach(({ block, checkbox, type }) => {
@@ -8482,7 +8482,7 @@ document.addEventListener('DOMContentLoaded', () => {
           width: 100%;
           height: 320px;
           overflow: hidden;
-          border-radius: 12px;
+          border-radius: 5px;
         `;
 
         const imagesTrack = document.createElement('div');
@@ -8510,7 +8510,7 @@ document.addEventListener('DOMContentLoaded', () => {
           imageWrapper.style.cssText = `
             width: 100%;
             height: 100%;
-            border-radius: 8px;
+            border-radius: 5px;
             overflow: hidden;
             background-color: #f0f0f0;
             cursor: pointer;
@@ -8709,7 +8709,7 @@ document.addEventListener('DOMContentLoaded', () => {
           max-width: 100%;
           max-height: 100%;
           object-fit: contain;
-          border-radius: 8px;
+          border-radius: 5px;
           box-shadow: 0 4px 30px rgba(255, 255, 255, 0.1);
         `;
 
@@ -10493,7 +10493,7 @@ document.addEventListener('DOMContentLoaded', () => {
               background-color: #323232;
               color: white;
               padding: 12px 24px;
-              border-radius: 8px;
+              border-radius: 5px;
               z-index: 9999;
               display: none;
               font-family: 'TT Fors', sans-serif;
@@ -12762,7 +12762,7 @@ document.addEventListener('DOMContentLoaded', () => {
           width: 100%;
           height: 320px;
           overflow: hidden;
-          border-radius: 12px;
+          border-radius: 5px;
         `;
 
         const imagesTrack = document.createElement('div');
@@ -12790,7 +12790,7 @@ document.addEventListener('DOMContentLoaded', () => {
           imageWrapper.style.cssText = `
             width: 100%;
             height: 100%;
-            border-radius: 8px;
+            border-radius: 5px;
             overflow: hidden;
             background-color: #f0f0f0;
             cursor: pointer;
@@ -12849,7 +12849,7 @@ document.addEventListener('DOMContentLoaded', () => {
             background: rgba(0, 0, 0, 0.7);
             color: white;
             padding: 4px 8px;
-            border-radius: 12px;
+            border-radius: 5px;
             font-size: 12px;
             font-family: 'TT Fors, sans-serif';
             z-index: 10;
@@ -13006,7 +13006,7 @@ document.addEventListener('DOMContentLoaded', () => {
           max-width: 90vw;
           max-height: 90vh;
           object-fit: contain;
-          border-radius: 8px;
+          border-radius: 5px;
           display: block;
         `;
 
@@ -15164,7 +15164,7 @@ document.addEventListener('DOMContentLoaded', () => {
               background-color: #323232;
               color: white;
               padding: 12px 24px;
-              border-radius: 8px;
+              border-radius: 5px;
               z-index: 9999;
               display: none;
               font-family: 'TT Fors', sans-serif;
@@ -15592,7 +15592,7 @@ document.addEventListener('DOMContentLoaded', () => {
               background-color: #323232;
               color: white;
               padding: 12px 24px;
-              border-radius: 8px;
+              border-radius: 5px;
               z-index: 9999;
               display: none;
               font-family: 'TT Fors', sans-serif;
