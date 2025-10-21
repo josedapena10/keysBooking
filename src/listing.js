@@ -8752,10 +8752,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const reservationBlock = document.querySelector('[data-element="boatRental_listingPage_reservationBlock"]');
             if (reservationBlock && this.isMobileView()) {
               reservationBlock.style.display = 'flex';
-
-              // Hide boat details navigation when reservation block opens
-              const navContainer = document.querySelector('[data-element="boatDetails_stickyHeader"]');
-              if (navContainer) navContainer.style.display = 'none';
             }
 
             // Determine what's missing and take appropriate action
@@ -8859,10 +8855,6 @@ document.addEventListener('DOMContentLoaded', () => {
           if (reservationBlock) {
             reservationBlock.style.display = 'none';
           }
-
-          // Show boat details navigation when reservation block closes
-          const navContainer = document.querySelector('[data-element="boatDetails_stickyHeader"]');
-          if (navContainer) navContainer.style.display = 'flex';
         }
 
         // Ensure proper visibility: selectBoatWrapper as flex, boatDetailsWrapper hidden
@@ -9510,20 +9502,6 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       setupBoatDetailsHandlers() {
-        // Helper function to hide boat details navigation on mobile
-        const hideBoatDetailsNav = () => {
-          if (!this.isMobileView()) return;
-          const navContainer = document.querySelector('[data-element="boatDetails_stickyHeader"]');
-          if (navContainer) navContainer.style.display = 'none';
-        };
-
-        // Helper function to show boat details navigation on mobile
-        const showBoatDetailsNav = () => {
-          if (!this.isMobileView()) return;
-          const navContainer = document.querySelector('[data-element="boatDetails_stickyHeader"]');
-          if (navContainer) navContainer.style.display = 'flex';
-        };
-
         // Boat details date filter handler
         if (this.boatDetailsDateFilter) {
           this.boatDetailsDateFilter.addEventListener('click', () => {
@@ -9538,9 +9516,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (this.boatDetailsPopup) this.boatDetailsPopup.style.display = 'flex';
             if (this.boatDetailsGuestsPopup) this.boatDetailsGuestsPopup.style.display = 'none';
 
-            // Hide navigation on mobile
-            hideBoatDetailsNav();
-
             // Update dates done button text
             this.updateDatesDoneButtonText();
           });
@@ -9550,9 +9525,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (this.boatDetailsPopupExit) {
           this.boatDetailsPopupExit.addEventListener('click', () => {
             if (this.boatDetailsPopup) this.boatDetailsPopup.style.display = 'none';
-
-            // Show navigation on mobile
-            showBoatDetailsNav();
           });
         }
 
@@ -9560,11 +9532,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (this.boatDetailsPopupDone) {
           this.boatDetailsPopupDone.addEventListener('click', () => {
             if (this.boatDetailsPopup) this.boatDetailsPopup.style.display = 'none';
-
-            // Show navigation on mobile (unless guests popup will open)
-            if (!this.isMobileView() || (this.selectedGuests && this.selectedGuests > 0)) {
-              showBoatDetailsNav();
-            }
 
             // In mobile view, if guests haven't been selected, open guests popup
             if (this.isMobileView() && (!this.selectedGuests || this.selectedGuests === 0)) {
@@ -9594,9 +9561,6 @@ document.addEventListener('DOMContentLoaded', () => {
             // Show boat details guests popup
             if (this.boatDetailsGuestsPopup) this.boatDetailsGuestsPopup.style.display = 'flex';
             if (this.boatDetailsPopup) this.boatDetailsPopup.style.display = 'none';
-
-            // Hide navigation on mobile
-            hideBoatDetailsNav();
           });
         }
 
@@ -9604,9 +9568,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (this.boatDetailsGuestsPopupExit) {
           this.boatDetailsGuestsPopupExit.addEventListener('click', () => {
             if (this.boatDetailsGuestsPopup) this.boatDetailsGuestsPopup.style.display = 'none';
-
-            // Show navigation on mobile
-            showBoatDetailsNav();
           });
         }
 
@@ -9614,9 +9575,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (this.boatDetailsGuestsPopupDone) {
           this.boatDetailsGuestsPopupDone.addEventListener('click', () => {
             if (this.boatDetailsGuestsPopup) this.boatDetailsGuestsPopup.style.display = 'none';
-
-            // Show navigation on mobile
-            showBoatDetailsNav();
           });
         }
 
@@ -13978,20 +13936,6 @@ document.addEventListener('DOMContentLoaded', () => {
           if (this.detailsGuestsPopup) this.detailsGuestsPopup.style.display = 'none';
         };
 
-        // Helper function to hide fishing charter details navigation on mobile
-        const hideFishingCharterNav = () => {
-          if (!this.isMobileView()) return;
-          const navContainer = document.querySelector('[data-element="fishingCharterDetails_stickyHeader"]');
-          if (navContainer) navContainer.style.display = 'none';
-        };
-
-        // Helper function to show fishing charter details navigation on mobile
-        const showFishingCharterNav = () => {
-          if (!this.isMobileView()) return;
-          const navContainer = document.querySelector('[data-element="fishingCharterDetails_stickyHeader"]');
-          if (navContainer) navContainer.style.display = 'flex';
-        };
-
         // Details dates filter handlers
         if (this.detailsDatesFilter) {
           this.detailsDatesFilter.addEventListener('click', (e) => {
@@ -14002,9 +13946,6 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
 
             }
-
-            // Hide navigation on mobile
-            hideFishingCharterNav();
           });
         } else {
 
@@ -14014,9 +13955,6 @@ document.addEventListener('DOMContentLoaded', () => {
           this.detailsDatesPopupExit.addEventListener('click', (e) => {
             e.stopPropagation();
             if (this.detailsDatesPopup) this.detailsDatesPopup.style.display = 'none';
-
-            // Show navigation on mobile
-            showFishingCharterNav();
           });
         }
 
@@ -14030,9 +13968,6 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
 
             }
-
-            // Hide navigation on mobile
-            hideFishingCharterNav();
           });
         } else {
 
@@ -14042,9 +13977,6 @@ document.addEventListener('DOMContentLoaded', () => {
           this.detailsGuestsPopupExit.addEventListener('click', (e) => {
             e.stopPropagation();
             if (this.detailsGuestsPopup) this.detailsGuestsPopup.style.display = 'none';
-
-            // Show navigation on mobile
-            showFishingCharterNav();
           });
         }
 
