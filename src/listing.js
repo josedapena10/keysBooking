@@ -1363,6 +1363,17 @@ document.addEventListener('DOMContentLoaded', function () {
         selectedStartDate = date;
         selectedEndDate = null;
         selectingCheckOut = true;
+
+        // Clear URL parameters when starting new selection
+        const url = new URL(window.location);
+        url.searchParams.set('checkin', '');
+        url.searchParams.set('checkout', '');
+        window.history.replaceState({}, '', url);
+
+        // Update Wized parameters
+        Wized.data.n.parameter.checkin = "";
+        Wized.data.n.parameter.checkout = "";
+
         updateInputs();
         createCalendar();
         createMobileCalendar();
@@ -1376,6 +1387,17 @@ document.addEventListener('DOMContentLoaded', function () {
           selectedStartDate = date;
           selectedEndDate = null;
           selectingCheckOut = true;
+
+          // Clear URL parameters when restarting selection
+          const url = new URL(window.location);
+          url.searchParams.set('checkin', '');
+          url.searchParams.set('checkout', '');
+          window.history.replaceState({}, '', url);
+
+          // Update Wized parameters
+          Wized.data.n.parameter.checkin = "";
+          Wized.data.n.parameter.checkout = "";
+
           updateInputs();
           createCalendar();
           createMobileCalendar();
@@ -1422,6 +1444,17 @@ document.addEventListener('DOMContentLoaded', function () {
         selectedStartDate = date;
         selectedEndDate = null;
         selectingCheckOut = true;
+
+        // Clear URL parameters when starting new selection
+        const url = new URL(window.location);
+        url.searchParams.set('checkin', '');
+        url.searchParams.set('checkout', '');
+        window.history.replaceState({}, '', url);
+
+        // Update Wized parameters
+        Wized.data.n.parameter.checkin = "";
+        Wized.data.n.parameter.checkout = "";
+
         updateInputs();
       }
 
