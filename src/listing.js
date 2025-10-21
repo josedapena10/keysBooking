@@ -2622,52 +2622,49 @@ document.addEventListener('DOMContentLoaded', () => {
       let shouldBeVisible = true;
       let headingText = "Add dates for pricing";
 
-      if (r.Load_Property_Calendar_Query && r.Load_Property_Calendar_Query.isRequesting) {
+      // If both dates are not selected, always show the heading
+      if (!datesSelected) {
+        shouldBeVisible = true;
+        headingText = "Add dates for pricing";
+      }
+      // If dates are selected, check their validity
+      else if (r.Load_Property_Calendar_Query && r.Load_Property_Calendar_Query.isRequesting) {
         shouldBeVisible = false;
       } else if (!r.Load_Property_Calendar_Query ||
         !r.Load_Property_Calendar_Query.hasRequested ||
         (r.Load_Property_Calendar_Query.hasRequested &&
           r.Load_Property_Calendar_Query.status != 200)) {
         shouldBeVisible = true;
-        // Only show "Invalid Dates" if dates are actually selected
-        headingText = (datesSelected && r.Load_Property_Calendar_Query && r.Load_Property_Calendar_Query.hasRequested)
-          ? "Invalid Dates"
-          : "Add dates for pricing";
+        headingText = "Invalid Dates";
       } else if (r.Load_Property_Calendar_Query.status == 200 &&
         r.Load_Property_Details &&
         r.Load_Property_Details.data) {
-        // Only validate dates if they're actually selected
-        if (datesSelected) {
-          // Check if dates are valid
-          const propertyCalendarRange = r.Load_Property_Calendar_Query.data.property_calendar_range;
-          const minNights = r.Load_Property_Details.data.property.min_nights;
+        // Check if dates are valid
+        const propertyCalendarRange = r.Load_Property_Calendar_Query.data.property_calendar_range;
+        const minNights = r.Load_Property_Details.data.property.min_nights;
 
-          let allAvailable = true;
-          let consecutiveAvailableDays = 0;
-          let meetsMinNights = false;
+        let allAvailable = true;
+        let consecutiveAvailableDays = 0;
+        let meetsMinNights = false;
 
-          for (let i = 0; i < propertyCalendarRange.length; i++) {
-            if (propertyCalendarRange[i].status === "available") {
-              consecutiveAvailableDays++;
-              if (consecutiveAvailableDays >= minNights) {
-                meetsMinNights = true;
-              }
-            } else {
-              consecutiveAvailableDays = 0;
-              allAvailable = false;
+        for (let i = 0; i < propertyCalendarRange.length; i++) {
+          if (propertyCalendarRange[i].status === "available") {
+            consecutiveAvailableDays++;
+            if (consecutiveAvailableDays >= minNights) {
+              meetsMinNights = true;
             }
-          }
-
-          if (!allAvailable || !meetsMinNights) {
-            shouldBeVisible = true;
-            headingText = "Invalid Dates";
           } else {
-            shouldBeVisible = false;
+            consecutiveAvailableDays = 0;
+            allAvailable = false;
           }
-        } else {
-          // If no dates selected, keep default message
+        }
+
+        if (!allAvailable || !meetsMinNights) {
           shouldBeVisible = true;
-          headingText = "Add dates for pricing";
+          headingText = "Invalid Dates";
+        } else {
+          // Valid dates selected - hide heading and show total container
+          shouldBeVisible = false;
         }
       }
 
@@ -2678,6 +2675,11 @@ document.addEventListener('DOMContentLoaded', () => {
           heading.textContent = headingText;
         }
       });
+
+      // Update total container visibility - show only when heading is hidden and dates are valid
+      if (window.updateReservationTotalContainer) {
+        window.updateReservationTotalContainer();
+      }
     }
 
     // Make updateAddDatesHeading available globally
