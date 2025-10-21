@@ -8752,6 +8752,18 @@ document.addEventListener('DOMContentLoaded', () => {
             const reservationBlock = document.querySelector('[data-element="boatRental_listingPage_reservationBlock"]');
             if (reservationBlock && this.isMobileView()) {
               reservationBlock.style.display = 'flex';
+
+              // Hide back navigation elements and their parent containers when reservation block is shown
+              if (this.detailsBackButton) {
+                this.detailsBackButton.style.display = 'none';
+                const parentContainer = this.detailsBackButton.parentElement;
+                if (parentContainer) parentContainer.style.display = 'none';
+              }
+              if (this.boatDetailsXButton) {
+                this.boatDetailsXButton.style.display = 'none';
+                const parentContainer = this.boatDetailsXButton.parentElement;
+                if (parentContainer) parentContainer.style.display = 'none';
+              }
             }
 
             // Determine what's missing and take appropriate action
@@ -8854,6 +8866,18 @@ document.addEventListener('DOMContentLoaded', () => {
           const reservationBlock = document.querySelector('[data-element="boatRental_listingPage_reservationBlock"]');
           if (reservationBlock) {
             reservationBlock.style.display = 'none';
+          }
+
+          // Show back navigation elements and their parent containers when reservation block is hidden
+          if (this.detailsBackButton) {
+            this.detailsBackButton.style.display = 'flex';
+            const parentContainer = this.detailsBackButton.parentElement;
+            if (parentContainer) parentContainer.style.display = 'flex';
+          }
+          if (this.boatDetailsXButton) {
+            this.boatDetailsXButton.style.display = 'flex';
+            const parentContainer = this.boatDetailsXButton.parentElement;
+            if (parentContainer) parentContainer.style.display = 'flex';
           }
         }
 
