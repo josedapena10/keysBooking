@@ -10103,7 +10103,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Initialize boat details guest filter text
         if (this.boatDetailsGuestsFilterText) {
           if (this.selectedGuests === 0) {
-            this.boatDetailsGuestsFilterText.textContent = 'Who\'s coming?';
+            this.boatDetailsGuestsFilterText.textContent = 'Boat Passengers';
           } else {
             this.boatDetailsGuestsFilterText.textContent = `${this.selectedGuests} passenger${this.selectedGuests !== 1 ? 's' : ''}`;
           }
@@ -10133,14 +10133,14 @@ document.addEventListener('DOMContentLoaded', () => {
         this.boatDetailsGuestPlus.parentNode.replaceChild(newPlusButton, this.boatDetailsGuestPlus);
         this.boatDetailsGuestPlus = newPlusButton; // Update reference
 
-        // Style and setup minus button
-        this.boatDetailsGuestMinus.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        // Style and setup minus button (doubled size)
+        this.boatDetailsGuestMinus.innerHTML = `<svg width="32" height="32" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
           <path d="M15.5 4.5L7.5 12L15.5 19.5" stroke="#323232" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
         </svg>`;
         this.styleBoatDetailsGuestButton(this.boatDetailsGuestMinus);
 
-        // Style and setup plus button
-        this.boatDetailsGuestPlus.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        // Style and setup plus button (doubled size)
+        this.boatDetailsGuestPlus.innerHTML = `<svg width="32" height="32" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
           <path d="M8.5 4.5L16.5 12L8.5 19.5" stroke="#323232" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
         </svg>`;
         this.styleBoatDetailsGuestButton(this.boatDetailsGuestPlus);
@@ -10268,7 +10268,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!this.boatDetailsGuestsFilterText) return;
 
         if (this.selectedGuests === 0) {
-          this.boatDetailsGuestsFilterText.textContent = 'Who\'s coming?';
+          this.boatDetailsGuestsFilterText.textContent = 'Boat Passengers';
         } else {
           this.boatDetailsGuestsFilterText.textContent = `${this.selectedGuests} passenger${this.selectedGuests !== 1 ? 's' : ''}`;
         }
