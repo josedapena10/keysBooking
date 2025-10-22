@@ -10754,6 +10754,7 @@ document.addEventListener('DOMContentLoaded', () => {
         this.detailsViewTripsButton = document.querySelector('[data-element="fishingCharterDetails_viewTripsButton"]');
         this.detailsContentContainer = document.querySelector('[data-element="fishingCharterDetails_contentContainer"]');
         this.detailsTripTypeContainer = document.querySelector('[data-element="fishingCharterDetails_tripType_container"]');
+        this.fishingCharterDetailsXButton = document.querySelector('[data-element="fishingCharterDetails_xButton"]');
 
         // Details section filters
         this.detailsDatesFilter = document.querySelector('[data-element="fishingCharterDetailsModal_selectFishingCharter_dates"]');
@@ -11391,6 +11392,11 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         });
         this.exitButton.addEventListener('click', () => this.closeModal());
+
+        // Fishing charter details X button handler
+        if (this.fishingCharterDetailsXButton) {
+          this.fishingCharterDetailsXButton.addEventListener('click', () => this.closeModal());
+        }
 
         // Set initial button state based on dates
         this.updateButtonAvailability();
