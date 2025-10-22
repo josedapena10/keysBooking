@@ -10149,14 +10149,14 @@ document.addEventListener('DOMContentLoaded', () => {
         this.boatDetailsGuestPlus.parentNode.replaceChild(newPlusButton, this.boatDetailsGuestPlus);
         this.boatDetailsGuestPlus = newPlusButton; // Update reference
 
-        // Style and setup minus button (doubled size)
-        this.boatDetailsGuestMinus.innerHTML = `<svg width="32" height="32" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        // Style and setup minus button (matching boat rental style)
+        this.boatDetailsGuestMinus.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
           <path d="M15.5 4.5L7.5 12L15.5 19.5" stroke="#323232" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
         </svg>`;
         this.styleBoatDetailsGuestButton(this.boatDetailsGuestMinus);
 
-        // Style and setup plus button (doubled size)
-        this.boatDetailsGuestPlus.innerHTML = `<svg width="32" height="32" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        // Style and setup plus button (matching boat rental style)
+        this.boatDetailsGuestPlus.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
           <path d="M8.5 4.5L16.5 12L8.5 19.5" stroke="#323232" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
         </svg>`;
         this.styleBoatDetailsGuestButton(this.boatDetailsGuestPlus);
@@ -11645,15 +11645,15 @@ document.addEventListener('DOMContentLoaded', () => {
       setupGuestButtons() {
         if (!this.guestMinus || !this.guestPlus) return;
 
-        // Style and setup minus button
-        this.guestMinus.innerHTML = `<svg width="32" height="32" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-          <path d="M15.5 4.5L7.5 12L15.5 19.5" stroke="#323232" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        // Style and setup minus button (matching boat rental style)
+        this.guestMinus.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M15.5 4.5L7.5 12L15.5 19.5" stroke="#323232" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
         </svg>`;
         this.styleFishingCharterGuestButton(this.guestMinus);
 
-        // Style and setup plus button
-        this.guestPlus.innerHTML = `<svg width="32" height="32" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-          <path d="M8.5 4.5L16.5 12L8.5 19.5" stroke="#323232" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        // Style and setup plus button (matching boat rental style)
+        this.guestPlus.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M8.5 4.5L16.5 12L8.5 19.5" stroke="#323232" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
         </svg>`;
         this.styleFishingCharterGuestButton(this.guestPlus);
 
