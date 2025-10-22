@@ -139,6 +139,7 @@ document.addEventListener('DOMContentLoaded', function () {
             hasFreshWater: null,
             hasCleaningStation: null,
             hasDockLights: null,
+            hasIceMaker: null,
             hasBoatSpecsLength: null,
             hasBoatSpecsDraft: null,
             hasBoatSpecsBeam: null,
@@ -163,6 +164,7 @@ document.addEventListener('DOMContentLoaded', function () {
             hasFreshWater: null,
             hasCleaningStation: null,
             hasDockLights: null,
+            hasIceMaker: null,
             hasBoatSpecsLength: null,
             hasBoatSpecsDraft: null,
             hasBoatSpecsBeam: null,
@@ -5209,7 +5211,8 @@ document.addEventListener('DOMContentLoaded', function () {
             shorePower: document.querySelector('[data-element="filterModalDock_shorePower"]'),
             freshWater: document.querySelector('[data-element="filterModalDock_freshWater"]'),
             cleaningStation: document.querySelector('[data-element="filterModalDock_cleaningStation"]'),
-            dockLights: document.querySelector('[data-element="filterModalDock_dockLights"]')
+            dockLights: document.querySelector('[data-element="filterModalDock_dockLights"]'),
+            iceMaker: document.querySelector('[data-element="filterModalDock_iceMaker"]')
         };
         const boatLengthScrollBar = document.querySelector('[data-element="filterModalDock_boatLengthScrollBar"]');
         const boatLengthInput = document.querySelector('[data-element="filterModalDock_boatLengthInput"]');
@@ -6298,6 +6301,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (activeFilters.dock.hasFreshWater && !listing.dock_freshWater) return false;
                 if (activeFilters.dock.hasCleaningStation && !listing.dock_cleaningStation) return false;
                 if (activeFilters.dock.hasDockLights && !listing.dock_light) return false;
+                if (activeFilters.dock.hasIceMaker && !listing.dock_iceMaker) return false;
 
                 // Boat specs
                 if (activeFilters.dock.hasBoatSpecsLength && listing.dock_max_vessel_length < activeFilters.dock.hasBoatSpecsLength) return false;
@@ -7395,6 +7399,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     hasFreshWater: null,
                     hasCleaningStation: null,
                     hasDockLights: null,
+                    hasIceMaker: null,
                     hasBoatSpecsLength: null,
                     hasBoatSpecsDraft: null,
                     hasBoatSpecsBeam: null,
