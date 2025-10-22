@@ -8724,6 +8724,8 @@ document.addEventListener('DOMContentLoaded', () => {
           height: 320px;
           overflow: hidden;
           border-radius: 5px;
+          touch-action: pan-x;
+          overscroll-behavior: contain;
         `;
 
         const imagesTrack = document.createElement('div');
@@ -8894,20 +8896,38 @@ document.addEventListener('DOMContentLoaded', () => {
           let touchStartX = 0;
           let touchEndX = 0;
           let isSwiping = false;
+          let touchStartY = 0;
 
           carouselWrapper.addEventListener('touchstart', (e) => {
             touchStartX = e.changedTouches[0].screenX;
+            touchStartY = e.changedTouches[0].screenY;
             isSwiping = true;
-          }, { passive: true });
+            // Prevent body scrolling during swipe
+            document.body.style.touchAction = 'none';
+          }, { passive: false });
 
           carouselWrapper.addEventListener('touchmove', (e) => {
             if (!isSwiping) return;
-            touchEndX = e.changedTouches[0].screenX;
-          }, { passive: true });
+
+            const touchCurrentX = e.changedTouches[0].screenX;
+            const touchCurrentY = e.changedTouches[0].screenY;
+            const deltaX = Math.abs(touchCurrentX - touchStartX);
+            const deltaY = Math.abs(touchCurrentY - touchStartY);
+
+            // If horizontal swipe is dominant, prevent page scroll
+            if (deltaX > deltaY) {
+              e.preventDefault();
+            }
+
+            touchEndX = touchCurrentX;
+          }, { passive: false });
 
           carouselWrapper.addEventListener('touchend', () => {
             if (!isSwiping) return;
             isSwiping = false;
+
+            // Re-enable body scrolling
+            document.body.style.touchAction = '';
 
             const swipeThreshold = 50; // Minimum swipe distance in pixels
             const swipeDistance = touchStartX - touchEndX;
@@ -13093,6 +13113,8 @@ document.addEventListener('DOMContentLoaded', () => {
           height: 320px;
           overflow: hidden;
           border-radius: 5px;
+          touch-action: pan-x;
+          overscroll-behavior: contain;
         `;
 
         const imagesTrack = document.createElement('div');
@@ -13278,20 +13300,38 @@ document.addEventListener('DOMContentLoaded', () => {
           let touchStartX = 0;
           let touchEndX = 0;
           let isSwiping = false;
+          let touchStartY = 0;
 
           carouselWrapper.addEventListener('touchstart', (e) => {
             touchStartX = e.changedTouches[0].screenX;
+            touchStartY = e.changedTouches[0].screenY;
             isSwiping = true;
-          }, { passive: true });
+            // Prevent body scrolling during swipe
+            document.body.style.touchAction = 'none';
+          }, { passive: false });
 
           carouselWrapper.addEventListener('touchmove', (e) => {
             if (!isSwiping) return;
-            touchEndX = e.changedTouches[0].screenX;
-          }, { passive: true });
+
+            const touchCurrentX = e.changedTouches[0].screenX;
+            const touchCurrentY = e.changedTouches[0].screenY;
+            const deltaX = Math.abs(touchCurrentX - touchStartX);
+            const deltaY = Math.abs(touchCurrentY - touchStartY);
+
+            // If horizontal swipe is dominant, prevent page scroll
+            if (deltaX > deltaY) {
+              e.preventDefault();
+            }
+
+            touchEndX = touchCurrentX;
+          }, { passive: false });
 
           carouselWrapper.addEventListener('touchend', () => {
             if (!isSwiping) return;
             isSwiping = false;
+
+            // Re-enable body scrolling
+            document.body.style.touchAction = '';
 
             const swipeThreshold = 50; // Minimum swipe distance in pixels
             const swipeDistance = touchStartX - touchEndX;
