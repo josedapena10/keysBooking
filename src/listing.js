@@ -3896,7 +3896,15 @@ function calculateBoatBasePrice(boatData, numDates) {
 
   // Handle single day or half day
   if (numDates === 1) {
-    return boatData.pricePerDay || 0;
+    // Check if it's a half day rental
+    const urlParams = new URLSearchParams(window.location.search);
+    const lengthType = urlParams.get('boatLengthType') || 'full';
+
+    if (lengthType === 'half') {
+      return boatData.pricePerHalfDay || 0;
+    } else {
+      return boatData.pricePerDay || 0;
+    }
   }
 
   // Handle weekly pricing (7 days)
@@ -4662,9 +4670,11 @@ function removeBoatFromReservation() {
 
     // Update filter texts and styles
     window.boatRentalService.updateDatesFilterText();
+    window.boatRentalService.updatePickupTimeFilterText();
     window.boatRentalService.updateGuestsFilterText();
     window.boatRentalService.updatePrivateDockFilterText();
     window.boatRentalService.updateBoatDetailsDateFilterText();
+    window.boatRentalService.updateBoatDetailsPickupTimeFilterText();
     window.boatRentalService.updateBoatDetailsGuestsFilterText();
     window.boatRentalService.updateFilterStyles();
 
@@ -4851,6 +4861,12 @@ document.addEventListener('DOMContentLoaded', () => {
         this.selectDatesSection = document.querySelector('[data-element="addBoatModal_selectBoat_datesPopup_selectDates"]');
         this.fullDayBtn = document.querySelector('[data-element="addBoatModal_selectBoat_datesPopup_fullDay"]');
         this.halfDayBtn = document.querySelector('[data-element="addBoatModal_selectBoat_datesPopup_halfDay"]');
+        // Pickup time filter elements (separate from dates now)
+        this.pickupTimeFilter = document.querySelector('[data-element="addBoatModal_selectBoat_pickupTime"]');
+        this.pickupTimeFilterText = document.querySelector('[data-element="addBoatModal_selectBoat_pickupTimeText"]');
+        this.pickupTimePopup = document.querySelector('[data-element="addBoatModal_selectBoat_pickupTimePopup"]');
+        this.pickupTimePopupExit = document.querySelector('[data-element="addBoatModal_selectBoat_pickupTimePopup_exit"]');
+
         this.pickupTimePills = {
           '8am': document.querySelector('[data-element="pickupTime_8am"]'),
           '9am': document.querySelector('[data-element="pickupTime_9am"]'),
@@ -4860,20 +4876,26 @@ document.addEventListener('DOMContentLoaded', () => {
           '1pm': document.querySelector('[data-element="pickupTime_1pm"]'),
           '2pm': document.querySelector('[data-element="pickupTime_2pm"]'),
           '3pm': document.querySelector('[data-element="pickupTime_3pm"]'),
-          '4pm': document.querySelector('[data-element="pickupTime_4pm"]'),
-          '5pm': document.querySelector('[data-element="pickupTime_5pm"]'),
-          '6pm': document.querySelector('[data-element="pickupTime_6pm"]')
+          '4pm': document.querySelector('[data-element="pickupTime_4pm"]')
         };
 
-        // Boat details date filter elements
-        this.boatDetailsDateFilter = document.querySelector('[data-element="boatDetails_reservation_dateTime"]');
-        this.boatDetailsDateFilterText = document.querySelector('[data-element="boatDetails_reservation_dateTimeText"]');
+        // Boat details date filter elements (renamed from dateTime to date)
+        this.boatDetailsDateFilter = document.querySelector('[data-element="boatDetails_reservation_date"]');
+        this.boatDetailsDateFilterText = document.querySelector('[data-element="boatDetails_reservation_dateText"]');
         this.boatDetailsPopup = document.querySelector('[data-element="addBoatModal_boatDetails_datesPopup"]');
         this.boatDetailsPopupExit = document.querySelector('[data-element="addBoatModal_boatDetails_datesPopup_exit"]');
         this.boatDetailsPopupDone = document.querySelector('[data-element="addBoatModal_boatDetails_datesPopup_doneButton"]');
         this.boatDetailsSelectDatesSection = document.querySelector('[data-element="addBoatModal_boatDetails_datesPopup_selectDates"]');
         this.boatDetailsFullDayBtn = document.querySelector('[data-element="addBoatModal_boatDetails_datesPopup_fullDay"]');
         this.boatDetailsHalfDayBtn = document.querySelector('[data-element="addBoatModal_boatDetails_datesPopup_halfDay"]');
+
+        // Boat details pickup time filter elements (separate from dates now)
+        this.boatDetailsPickupTimeFilter = document.querySelector('[data-element="boatDetails_reservation_pickupTime"]');
+        this.boatDetailsPickupTimeFilterText = document.querySelector('[data-element="boatDetails_reservation_pickupTimeText"]');
+        this.boatDetailsPickupTimePopup = document.querySelector('[data-element="addBoatModal_boatDetails_boatDetails_reservation_pickupTimePopup"]');
+        this.boatDetailsPickupTimePopupExit = document.querySelector('[data-element="addBoatModal_boatDetails_pickupTimePopup_exit"]');
+        this.boatDetailsPickupTimePopupDone = document.querySelector('[data-element="addBoatModal_boatDetails_pickupTimePopup_doneButton"]');
+
         this.boatDetailsPickupTimePills = {
           '8am': document.querySelector('[data-element="boatDetailsPickupTime_8am"]'),
           '9am': document.querySelector('[data-element="boatDetailsPickupTime_9am"]'),
@@ -4883,9 +4905,7 @@ document.addEventListener('DOMContentLoaded', () => {
           '1pm': document.querySelector('[data-element="boatDetailsPickupTime_1pm"]'),
           '2pm': document.querySelector('[data-element="boatDetailsPickupTime_2pm"]'),
           '3pm': document.querySelector('[data-element="boatDetailsPickupTime_3pm"]'),
-          '4pm': document.querySelector('[data-element="boatDetailsPickupTime_4pm"]'),
-          '5pm': document.querySelector('[data-element="boatDetailsPickupTime_5pm"]'),
-          '6pm': document.querySelector('[data-element="boatDetailsPickupTime_6pm"]')
+          '4pm': document.querySelector('[data-element="boatDetailsPickupTime_4pm"]')
         };
 
         // Boat details guest filter elements
@@ -4913,6 +4933,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // X button elements
         this.datesFilterX = document.querySelector('[data-element="addBoatModal_selectBoat_datesX"]');
+        this.pickupTimeFilterX = document.querySelector('[data-element="addBoatModal_selectBoat_pickupTimeX"]');
         this.guestsFilterX = document.querySelector('[data-element="addBoatModal_selectBoat_guestsX"]');
 
         // Price filter elements
@@ -5037,9 +5058,7 @@ document.addEventListener('DOMContentLoaded', () => {
           '1pm': 13,
           '2pm': 14,
           '3pm': 15,
-          '4pm': 16,
-          '5pm': 17,
-          '6pm': 18
+          '4pm': 16
         };
 
         return timeMap[pickupTime] || null;
@@ -5047,7 +5066,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Helper method to get all pickup times in chronological order
       getAllPickupTimesInOrder() {
-        return ['8am', '9am', '10am', '11am', '12pm', '1pm', '2pm', '3pm', '4pm', '5pm', '6pm'];
+        return ['8am', '9am', '10am', '11am', '12pm', '1pm', '2pm', '3pm', '4pm'];
       }
 
       // Method to check if pickup time gating should be enforced
@@ -5216,11 +5235,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
               // Update UI and state
               this.updateDatesFilterText();
+              this.updatePickupTimeFilterText();
               this.updateFilterStyles();
               this.updateURLParams();
 
               if (isBoatDetails) {
                 this.updateBoatDetailsDateFilterText();
+                this.updateBoatDetailsPickupTimeFilterText();
                 this.updateBoatDetailsPrice();
                 this.clearErrorIfResolved(this.boatDetailsErrorElement);
                 this.updateBoatDetailsDateButtonStyles();
@@ -5273,11 +5294,13 @@ document.addEventListener('DOMContentLoaded', () => {
         this.cardTemplate.style.display = 'none';
 
         if (this.datesPopup) this.datesPopup.style.display = 'none';
+        if (this.pickupTimePopup) this.pickupTimePopup.style.display = 'none';
         if (this.guestsPopup) this.guestsPopup.style.display = 'none';
         if (this.pricePopup) this.pricePopup.style.display = 'none';
         if (this.lengthPopup) this.lengthPopup.style.display = 'none';
         if (this.typePopup) this.typePopup.style.display = 'none';
         if (this.boatDetailsPopup) this.boatDetailsPopup.style.display = 'none';
+        if (this.boatDetailsPickupTimePopup) this.boatDetailsPickupTimePopup.style.display = 'none';
         if (this.boatDetailsGuestsPopup) this.boatDetailsGuestsPopup.style.display = 'none';
 
         // Add click handlers for all buttons
@@ -5445,6 +5468,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             this.updateDatesFilterText();
+            this.updatePickupTimeFilterText();
             this.updateFilterStyles();
             this.updateURLParams();
             this.updateExistingCards();
@@ -5530,7 +5554,9 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         this.updateDatesFilterText();
+        this.updatePickupTimeFilterText();
         this.updateBoatDetailsDateFilterText();
+        this.updateBoatDetailsPickupTimeFilterText();
         this.updateBoatDetailsGuestsFilterText();
         this.updateFilterStyles();
         this.renderDateSelection();
@@ -5541,6 +5567,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Function to close all popups
         const closeAllPopups = () => {
           if (this.datesPopup) this.datesPopup.style.display = 'none';
+          if (this.pickupTimePopup) this.pickupTimePopup.style.display = 'none';
           if (this.guestsPopup) this.guestsPopup.style.display = 'none';
           if (this.pricePopup) this.pricePopup.style.display = 'none';
           if (this.lengthPopup) this.lengthPopup.style.display = 'none';
@@ -5585,6 +5612,30 @@ document.addEventListener('DOMContentLoaded', () => {
           });
         }
 
+        // Pickup time filter handlers (separate from dates now)
+        if (this.pickupTimeFilter) {
+          this.pickupTimeFilter.addEventListener('click', () => {
+            closeAllPopups();
+            this.pickupTimePopup.style.display = 'flex';
+
+            // Apply gating when pickup time popup opens
+            requestAnimationFrame(() => {
+              this.applyPickupTimeGating(this.pickupTimePills, false);
+            });
+          });
+        }
+
+        if (this.pickupTimePopupExit) {
+          this.pickupTimePopupExit.addEventListener('click', () => {
+            closeAllPopups();
+
+            // Apply gating when popup closes
+            requestAnimationFrame(() => {
+              this.applyPickupTimeGating(this.pickupTimePills, false);
+            });
+          });
+        }
+
         // Day type handlers
         if (this.fullDayBtn) {
           this.fullDayBtn.addEventListener('click', () => {
@@ -5592,6 +5643,7 @@ document.addEventListener('DOMContentLoaded', () => {
               this.selectedLengthType = 'full';
               this.updateLengthTypeButtons();
               this.updateDatesFilterText();
+              this.updatePickupTimeFilterText();
               this.updateFilterStyles();
               this.updateExistingCards();
               this.updateURLParams();
@@ -5608,6 +5660,7 @@ document.addEventListener('DOMContentLoaded', () => {
               this.selectedLengthType = 'half';
               this.updateLengthTypeButtons();
               this.updateDatesFilterText();
+              this.updatePickupTimeFilterText();
               this.updateFilterStyles();
               this.updateExistingCards();
               this.updateURLParams();
@@ -5998,6 +6051,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Update length type options
         this.updateLengthTypeButtons();
         this.updateDatesFilterText();
+        this.updatePickupTimeFilterText();
         this.updateFilterStyles();
         this.fetchAndRenderBoats();
         this.updateURLParams();
@@ -6113,8 +6167,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (this.selectedDates.length === 1) {
           const dateStr = this.selectedDates[0];
           const formattedDate = this.formatDateStringForDisplay(dateStr);
-          const timeText = this.selectedPickupTime ? ` at ${this.selectedPickupTime}` : '';
-          this.datesFilterText.textContent = `${formattedDate} (${this.selectedLengthType} day${timeText})`;
+          this.datesFilterText.textContent = `${formattedDate} (${this.selectedLengthType} day)`;
         } else {
           // Sort dates to get start and end
           const sortedDates = [...this.selectedDates].sort();
@@ -6138,9 +6191,27 @@ document.addEventListener('DOMContentLoaded', () => {
             dateRange = `${startMonthName} ${startDay} - ${endMonthName} ${endDay}`;
           }
 
-          const timeText = this.selectedPickupTime ? ` at ${this.selectedPickupTime}` : '';
-          this.datesFilterText.textContent = `${dateRange}${timeText}`;
+          this.datesFilterText.textContent = `${dateRange}`;
         }
+      }
+
+      updatePickupTimeFilterText() {
+        if (!this.pickupTimeFilterText) return;
+
+        if (!this.selectedPickupTime) {
+          this.pickupTimeFilterText.textContent = 'Select time';
+        } else {
+          // Format time like "9am" to "9:00 pickup"
+          const formattedTime = this.formatPickupTimeForDisplay(this.selectedPickupTime);
+          this.pickupTimeFilterText.textContent = formattedTime;
+        }
+      }
+
+      formatPickupTimeForDisplay(time) {
+        // Convert "9am" to "9:00am", "12pm" to "12:00pm", "1pm" to "1:00pm", etc.
+        const hour = time.replace(/[apm]/gi, '');
+        const period = time.includes('pm') ? 'pm' : 'am';
+        return `${hour}:00${period} pickup`;
       }
 
       formatDateStringForDisplay(dateStr) {
@@ -6158,8 +6229,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (this.selectedDates.length === 1) {
           const dateStr = this.selectedDates[0];
           const formattedDate = this.formatDateStringForDisplay(dateStr);
-          const timeText = this.selectedPickupTime ? ` at ${this.selectedPickupTime}` : '';
-          this.boatDetailsDateFilterText.textContent = `${formattedDate} (${this.selectedLengthType} day${timeText})`;
+          this.boatDetailsDateFilterText.textContent = `${formattedDate} (${this.selectedLengthType} day)`;
         } else {
           // Sort dates to get start and end
           const sortedDates = [...this.selectedDates].sort();
@@ -6183,8 +6253,19 @@ document.addEventListener('DOMContentLoaded', () => {
             dateRange = `${startMonthName} ${startDay} - ${endMonthName} ${endDay}`;
           }
 
-          const timeText = this.selectedPickupTime ? ` at ${this.selectedPickupTime}` : '';
-          this.boatDetailsDateFilterText.textContent = `${dateRange}${timeText}`;
+          this.boatDetailsDateFilterText.textContent = `${dateRange}`;
+        }
+      }
+
+      updateBoatDetailsPickupTimeFilterText() {
+        if (!this.boatDetailsPickupTimeFilterText) return;
+
+        if (!this.selectedPickupTime) {
+          this.boatDetailsPickupTimeFilterText.textContent = 'Select time';
+        } else {
+          // Format time like "9am" to "9:00 pickup"
+          const formattedTime = this.formatPickupTimeForDisplay(this.selectedPickupTime);
+          this.boatDetailsPickupTimeFilterText.textContent = formattedTime;
         }
       }
 
@@ -6811,7 +6892,7 @@ document.addEventListener('DOMContentLoaded', () => {
       calculateSelectedPriceText(boat) {
         // Use unified pricing calculation
         const quote = this.computeBoatQuote(boat);
-        return `$${quote.total.toLocaleString()} total price`;
+        return `$${quote.total.toLocaleString()} total before taxes`;
       }
 
       updateExistingCards() {
@@ -6880,12 +6961,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Update all filter texts
         this.updateDatesFilterText();
+        this.updatePickupTimeFilterText();
         this.updateGuestsFilterText();
         this.updatePriceFilterText();
         this.updateLengthFilterText();
         this.updateBoatTypeFilterText();
         this.updatePrivateDockFilterText();
         this.updateBoatDetailsDateFilterText();
+        this.updateBoatDetailsPickupTimeFilterText();
         this.updateBoatDetailsGuestsFilterText();
 
         // Update filter styles
@@ -7062,6 +7145,7 @@ document.addEventListener('DOMContentLoaded', () => {
             this.renderDateSelection();
             this.updateButtonState();
             this.updateDatesFilterText();
+            this.updatePickupTimeFilterText();
             this.updateFilterStyles();
 
             // Also update boat details section if it exists
@@ -7082,6 +7166,14 @@ document.addEventListener('DOMContentLoaded', () => {
           this.datesFilterX.addEventListener('click', (e) => {
             e.stopPropagation(); // Prevent opening the popup
             this.clearDatesFilter();
+          });
+        }
+
+        // Setup pickup time X button
+        if (this.pickupTimeFilterX) {
+          this.pickupTimeFilterX.addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevent opening the popup
+            this.clearPickupTimeFilter();
           });
         }
 
@@ -7130,20 +7222,36 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       clearDatesFilter() {
-        // Clear all date-related filters
+        // Clear date-related filters (excluding pickup time now)
         this.selectedDates = [];
         this.selectedLengthType = 'full';
+
+        // Update UI elements
+        this.updateLengthTypeButtons();
+        this.updateDatesFilterText();
+        this.updateDateButtonStyles();
+        this.updateFilterStyles();
+        this.updateExistingCards();
+        this.updateURLParams();
+        // Re-filter boats to show all boats again
+        this.fetchAndRenderBoats();
+      }
+
+      clearPickupTimeFilter() {
+        // Clear pickup time filter
         this.selectedPickupTime = '';
 
         // Reset pickup time pills
         Object.values(this.pickupTimePills).forEach(pill => {
           if (pill) pill.style.borderColor = '';
         });
+        Object.values(this.boatDetailsPickupTimePills).forEach(pill => {
+          if (pill) pill.style.borderColor = '';
+        });
 
         // Update UI elements
-        this.updateLengthTypeButtons();
-        this.updateDatesFilterText();
-        this.updateDateButtonStyles();
+        this.updatePickupTimeFilterText();
+        this.updateBoatDetailsPickupTimeFilterText();
         this.updateFilterStyles();
         this.updateExistingCards();
         this.updateURLParams();
@@ -7164,9 +7272,9 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       updateFilterStyles() {
-        // Update dates filter button style
+        // Update dates filter button style (only for dates, not pickup time)
         if (this.datesFilter && this.datesFilterText) {
-          const hasDatesFilter = this.selectedDates.length > 0 || this.selectedPickupTime;
+          const hasDatesFilter = this.selectedDates.length > 0;
 
           if (hasDatesFilter) {
             this.datesFilter.style.backgroundColor = '#000000';
@@ -7176,6 +7284,21 @@ document.addEventListener('DOMContentLoaded', () => {
             this.datesFilter.style.backgroundColor = '';
             this.datesFilter.style.color = '';
             this.datesFilterText.style.color = '';
+          }
+        }
+
+        // Update pickup time filter button style (separate from dates now)
+        if (this.pickupTimeFilter && this.pickupTimeFilterText) {
+          const hasPickupTimeFilter = this.selectedPickupTime !== '';
+
+          if (hasPickupTimeFilter) {
+            this.pickupTimeFilter.style.backgroundColor = '#000000';
+            this.pickupTimeFilter.style.color = '#ffffff';
+            this.pickupTimeFilterText.style.color = '#ffffff';
+          } else {
+            this.pickupTimeFilter.style.backgroundColor = '';
+            this.pickupTimeFilter.style.color = '';
+            this.pickupTimeFilterText.style.color = '';
           }
         }
 
@@ -7257,10 +7380,16 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       updateXButtonVisibility() {
-        // Show/hide dates X button
+        // Show/hide dates X button (only for dates, not pickup time anymore)
         if (this.datesFilterX) {
-          const hasDatesFilter = this.selectedDates.length > 0 || this.selectedPickupTime;
+          const hasDatesFilter = this.selectedDates.length > 0;
           this.datesFilterX.style.display = hasDatesFilter ? 'flex' : 'none';
+        }
+
+        // Show/hide pickup time X button
+        if (this.pickupTimeFilterX) {
+          const hasPickupTimeFilter = this.selectedPickupTime !== '';
+          this.pickupTimeFilterX.style.display = hasPickupTimeFilter ? 'flex' : 'none';
         }
 
         // Show/hide guests X button
@@ -8153,6 +8282,7 @@ document.addEventListener('DOMContentLoaded', () => {
           this.guestNumber.textContent = this.selectedGuests;
         }
         this.updateDatesFilterText();
+        this.updatePickupTimeFilterText();
         this.updateGuestsFilterText();
         this.updatePrivateDockFilterText();
         this.updateLengthTypeButtons();
@@ -8344,8 +8474,15 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const boatDetailsBoatModel = document.querySelector('[data-element="boatDetails_boatModel"]');
+        const boatDetailsBoatModelContainer = document.querySelector('[data-element="boatDetails_boatModelContainer"]');
         if (boatDetailsBoatModel) {
-          boatDetailsBoatModel.textContent = boat.model || '';
+          if (boat.model) {
+            boatDetailsBoatModel.textContent = boat.model;
+            if (boatDetailsBoatModelContainer) boatDetailsBoatModelContainer.style.display = '';
+          } else {
+            boatDetailsBoatModel.textContent = '';
+            if (boatDetailsBoatModelContainer) boatDetailsBoatModelContainer.style.display = 'none';
+          }
         }
 
         const boatDetailsBoatType = document.querySelector('[data-element="boatDetails_boatType"]');
@@ -8606,7 +8743,7 @@ document.addEventListener('DOMContentLoaded', () => {
           imageContainer.style.cssText = `
             flex: 0 0 ${flexBasis};
             height: 320px;
-            padding: 0 0px;
+            padding: 0 4px;
             box-sizing: border-box;
           `;
 
@@ -8618,7 +8755,6 @@ document.addEventListener('DOMContentLoaded', () => {
             overflow: hidden;
             background-color: #f0f0f0;
             cursor: pointer;
-            transition: transform 0.2s ease;
           `;
 
           const img = document.createElement('img');
@@ -8635,14 +8771,6 @@ document.addEventListener('DOMContentLoaded', () => {
           img.onerror = () => {
             imageWrapper.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #888; font-size: 14px;">Image unavailable</div>';
           };
-
-          // Add hover effect
-          imageWrapper.addEventListener('mouseenter', () => {
-            imageWrapper.style.transform = 'scale(1.02)';
-          });
-          imageWrapper.addEventListener('mouseleave', () => {
-            imageWrapper.style.transform = 'scale(1)';
-          });
 
           // Add click handler to open full-size modal
           imageWrapper.addEventListener('click', () => {
@@ -9329,7 +9457,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isChecked) {
           checkbox.style.backgroundColor = '#000000';
           checkbox.style.borderColor = '#000000';
-          checkbox.innerHTML = '✓';
+          checkbox.innerHTML = '';
           checkbox.style.color = 'white';
           checkbox.style.textAlign = 'center';
           checkbox.style.lineHeight = checkbox.style.height || '20px';
@@ -9611,8 +9739,7 @@ document.addEventListener('DOMContentLoaded', () => {
           } else if (this.selectedDates.length === 1) {
             const dateStr = this.selectedDates[0];
             const formattedDate = this.formatDateStringForDisplay(dateStr);
-            const timeText = this.selectedPickupTime ? ` at ${this.selectedPickupTime}` : '';
-            this.boatDetailsDateFilterText.textContent = `${formattedDate} (${this.selectedLengthType} day${timeText})`;
+            this.boatDetailsDateFilterText.textContent = `${formattedDate} (${this.selectedLengthType} day)`;
           } else {
             // Sort dates to get start and end
             const sortedDates = [...this.selectedDates].sort();
@@ -9636,8 +9763,7 @@ document.addEventListener('DOMContentLoaded', () => {
               dateRange = `${startMonthName} ${startDay} - ${endMonthName} ${endDay}`;
             }
 
-            const timeText = this.selectedPickupTime ? ` at ${this.selectedPickupTime}` : '';
-            this.boatDetailsDateFilterText.textContent = `${dateRange}${timeText}`;
+            this.boatDetailsDateFilterText.textContent = `${dateRange}`;
           }
         }
 
@@ -9912,6 +10038,51 @@ document.addEventListener('DOMContentLoaded', () => {
           this.updateDatesDoneButtonText();
         }
 
+        // Boat details pickup time filter handler (separate from dates now)
+        if (this.boatDetailsPickupTimeFilter) {
+          this.boatDetailsPickupTimeFilter.addEventListener('click', () => {
+            // Close all other popups first
+            if (this.datesPopup) this.datesPopup.style.display = 'none';
+            if (this.boatDetailsPopup) this.boatDetailsPopup.style.display = 'none';
+            if (this.boatDetailsGuestsPopup) this.boatDetailsGuestsPopup.style.display = 'none';
+            if (this.pricePopup) this.pricePopup.style.display = 'none';
+            if (this.lengthPopup) this.lengthPopup.style.display = 'none';
+            if (this.typePopup) this.typePopup.style.display = 'none';
+
+            // Show boat details pickup time popup
+            if (this.boatDetailsPickupTimePopup) this.boatDetailsPickupTimePopup.style.display = 'flex';
+
+            // Apply gating when popup opens
+            requestAnimationFrame(() => {
+              this.applyPickupTimeGating(this.boatDetailsPickupTimePills, true);
+            });
+          });
+        }
+
+        // Boat details pickup time popup exit handler
+        if (this.boatDetailsPickupTimePopupExit) {
+          this.boatDetailsPickupTimePopupExit.addEventListener('click', () => {
+            if (this.boatDetailsPickupTimePopup) this.boatDetailsPickupTimePopup.style.display = 'none';
+
+            // Apply gating when popup closes
+            requestAnimationFrame(() => {
+              this.applyPickupTimeGating(this.boatDetailsPickupTimePills, true);
+            });
+          });
+        }
+
+        // Boat details pickup time popup done handler
+        if (this.boatDetailsPickupTimePopupDone) {
+          this.boatDetailsPickupTimePopupDone.addEventListener('click', () => {
+            if (this.boatDetailsPickupTimePopup) this.boatDetailsPickupTimePopup.style.display = 'none';
+
+            // Apply gating when popup closes
+            requestAnimationFrame(() => {
+              this.applyPickupTimeGating(this.boatDetailsPickupTimePills, true);
+            });
+          });
+        }
+
         // Boat details guest filter handler
         if (this.boatDetailsGuestsFilter) {
           this.boatDetailsGuestsFilter.addEventListener('click', () => {
@@ -9975,6 +10146,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             this.initializeBoatDetailsDateFilter();
+            this.updateBoatDetailsPickupTimeFilterText();
             this.updateURLParams();
             this.updateBoatDetailsPrice();
 
@@ -10097,7 +10269,9 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         this.updateDatesFilterText();
+        this.updatePickupTimeFilterText();
         this.updateBoatDetailsDateFilterText();
+        this.updateBoatDetailsPickupTimeFilterText();
         this.updateBoatDetailsGuestsFilterText();
         this.updateFilterStyles();
         this.renderDateSelection();
@@ -12950,7 +13124,6 @@ document.addEventListener('DOMContentLoaded', () => {
             overflow: hidden;
             background-color: #f0f0f0;
             cursor: pointer;
-            transition: transform 0.2s ease;
           `;
 
           const img = document.createElement('img');
@@ -12967,14 +13140,6 @@ document.addEventListener('DOMContentLoaded', () => {
           img.onerror = () => {
             imageWrapper.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #888; font-size: 14px;">Image unavailable</div>';
           };
-
-          // Add hover effect
-          imageWrapper.addEventListener('mouseenter', () => {
-            imageWrapper.style.transform = 'scale(1.02)';
-          });
-          imageWrapper.addEventListener('mouseleave', () => {
-            imageWrapper.style.transform = 'scale(1)';
-          });
 
           // Add click handler to open full-size modal
           imageWrapper.addEventListener('click', () => {
@@ -16241,9 +16406,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Update filter texts and styles
         window.boatRentalService.updateDatesFilterText();
+        window.boatRentalService.updatePickupTimeFilterText();
         window.boatRentalService.updateGuestsFilterText();
         window.boatRentalService.updatePrivateDockFilterText();
         window.boatRentalService.updateBoatDetailsDateFilterText();
+        window.boatRentalService.updateBoatDetailsPickupTimeFilterText();
         window.boatRentalService.updateBoatDetailsGuestsFilterText();
         window.boatRentalService.updateFilterStyles();
 
