@@ -11,25 +11,18 @@ document.body.appendChild(script);
     reservationLogicInitialized: false
   };
 
-  console.log('🔄 Loader: Initializing page loader...');
+
 
   // Function to check if all critical content is loaded
   function checkAllContentLoaded() {
-    console.log('🔍 Loader: Checking loading status:', {
-      propertyDetailsLoaded: loadingTracker.propertyDetailsLoaded,
-      calendarQueryLoaded: loadingTracker.calendarQueryLoaded,
-      reservationLogicInitialized: loadingTracker.reservationLogicInitialized
-    });
 
     const allLoaded = loadingTracker.propertyDetailsLoaded &&
       loadingTracker.calendarQueryLoaded &&
       loadingTracker.reservationLogicInitialized;
 
     if (allLoaded) {
-      console.log('✅ Loader: All content loaded! Hiding loader...');
       hideLoader();
     } else {
-      console.log('⏳ Loader: Still waiting for content...');
     }
   }
 
@@ -37,28 +30,22 @@ document.body.appendChild(script);
   function hideLoader() {
     const loader = document.querySelector('[data-element="loader"]');
     if (loader && loader.style.display !== 'none') {
-      console.log('🎉 Loader: Hiding loader with fade effect');
       // Add fade out effect
       loader.style.opacity = '0';
       setTimeout(() => {
         loader.style.display = 'none';
-        console.log('✨ Loader: Hidden successfully');
       }, 300);
     } else {
-      console.log('⚠️ Loader: Loader element not found or already hidden');
     }
   }
 
   // Make loader visible on page load
   window.addEventListener('DOMContentLoaded', () => {
-    console.log('📄 Loader: DOM Content Loaded');
     const loader = document.querySelector('[data-element="loader"]');
     if (loader) {
       loader.style.display = 'flex';
       loader.style.opacity = '1';
-      console.log('👁️ Loader: Loader made visible');
     } else {
-      console.warn('⚠️ Loader: Loader element not found in DOM');
     }
   });
 
@@ -66,28 +53,22 @@ document.body.appendChild(script);
   window.addEventListener('DOMContentLoaded', () => {
     window.Wized = window.Wized || [];
     window.Wized.push((Wized) => {
-      console.log('🔌 Loader: Wized initialized, listening for requests...');
 
       Wized.on('requestend', (event) => {
-        console.log(`📥 Loader: Wized request completed: ${event.name}`);
 
         if (event.name === 'Load_Property_Details') {
-          console.log('🏠 Loader: Property Details loaded!');
           loadingTracker.propertyDetailsLoaded = true;
           checkAllContentLoaded();
         }
         if (event.name === 'Load_Property_Calendar_Query') {
-          console.log('📅 Loader: Calendar Query loaded!');
           loadingTracker.calendarQueryLoaded = true;
           checkAllContentLoaded();
         }
       });
 
       // Wait for Property Details first (required)
-      console.log('⏰ Loader: Waiting for Property Details...');
       Wized.requests.waitFor('Load_Property_Details')
         .then(() => {
-          console.log('✅ Loader: Property Details ready!');
 
           // Check if dates are in URL (calendar query might be needed)
           const urlParams = new URLSearchParams(window.location.search);
@@ -95,24 +76,20 @@ document.body.appendChild(script);
           const hasCheckout = urlParams.has('checkout') && urlParams.get('checkout') !== '';
 
           if (hasCheckin && hasCheckout) {
-            console.log('📅 Loader: Dates detected, waiting for Calendar Query...');
             // Wait for calendar query with a 3-second timeout
             Promise.race([
               Wized.requests.waitFor('Load_Property_Calendar_Query'),
               new Promise((resolve) => setTimeout(() => {
-                console.warn('⚠️ Loader: Calendar Query timeout (3s), proceeding without it');
                 resolve();
               }, 3000))
             ]).then(() => {
               if (!loadingTracker.calendarQueryLoaded) {
-                console.log('📅 Loader: Marking calendar as loaded (timeout or completed)');
                 loadingTracker.calendarQueryLoaded = true;
               }
               loadingTracker.reservationLogicInitialized = true;
               checkAllContentLoaded();
             });
           } else {
-            console.log('📅 Loader: No dates in URL, skipping Calendar Query');
             loadingTracker.calendarQueryLoaded = true;
             loadingTracker.reservationLogicInitialized = true;
             checkAllContentLoaded();
@@ -136,7 +113,6 @@ document.body.appendChild(script);
     // Wait for first 5 header images to load
     const images = splideElement.querySelectorAll('img');
     const firstFiveImages = Array.from(images).slice(0, 5);
-    console.log(`🖼️ Loader: Found ${images.length} total images, tracking first ${firstFiveImages.length} images`);
 
     if (firstFiveImages.length === 0) {
       console.warn('⚠️ Loader: No images found, marking as loaded');
@@ -146,27 +122,20 @@ document.body.appendChild(script);
 
     let loadedCount = 0;
     const totalToLoad = Math.min(firstFiveImages.length, 5);
-    console.log(`🖼️ Loader: Need to load ${totalToLoad} images`);
 
     firstFiveImages.forEach((img, index) => {
       if (img.complete && img.naturalHeight !== 0) {
         loadedCount++;
-        console.log(`✅ Loader: Image ${index + 1} already loaded (${loadedCount}/${totalToLoad})`);
       } else {
-        console.log(`⏳ Loader: Image ${index + 1} not yet loaded, adding listeners`);
         img.addEventListener('load', () => {
           loadedCount++;
-          console.log(`✅ Loader: Image ${index + 1} loaded successfully (${loadedCount}/${totalToLoad})`);
           if (loadedCount >= totalToLoad) {
-            console.log('🎨 Loader: All required images loaded!');
             checkAllContentLoaded();
           }
         });
         img.addEventListener('error', () => {
           loadedCount++;
-          console.log(`❌ Loader: Image ${index + 1} failed to load (${loadedCount}/${totalToLoad})`);
           if (loadedCount >= totalToLoad) {
-            console.log('🎨 Loader: All images processed (some may have failed)');
             checkAllContentLoaded();
           }
         });
@@ -174,7 +143,6 @@ document.body.appendChild(script);
     });
 
     if (loadedCount >= totalToLoad) {
-      console.log(`✅ Loader: All ${loadedCount} images already loaded!`);
       checkAllContentLoaded();
     }
 
@@ -182,9 +150,7 @@ document.body.appendChild(script);
   };
 
   // Fallback: Ensure loader is hidden after maximum wait time
-  console.log('⏰ Loader: Setting 10-second maximum fallback timeout');
   setTimeout(() => {
-    console.warn('⚠️ Loader: Maximum timeout reached (10s), forcing loader to hide');
     hideLoader();
   }, 10000);
 })();
@@ -3076,6 +3042,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Function to update reservation total display
     function updateReservationTotal() {
+      // Don't update if extras are selected - let the extras pricing handle it
+      if (hasAnyExtrasSelected()) {
+        console.log('=== UPDATE RESERVATION TOTAL (Regular Pricing) ===');
+        console.log('Skipping - extras are selected, letting extras pricing handle Reservation_Total');
+        return;
+      }
+
       const totalElements = document.querySelectorAll('[data-element="Reservation_Total"]');
       const totalAmountElements = document.querySelectorAll('[data-element="Reservation_TotalAmount"]');
 
@@ -3089,6 +3062,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const totalPrice = Math.floor(r.Load_Property_Calendar_Query.data.dateRange_totalPrice);
       const formattedPrice = "$" + totalPrice.toLocaleString();
+
+      console.log('=== UPDATE RESERVATION TOTAL (Regular Pricing) ===');
+      console.log('dateRange_totalPrice from API:', totalPrice);
+      console.log('Setting Reservation_Total to:', formattedPrice);
 
       // Update all total elements (desktop and mobile)
       totalElements.forEach(element => {
@@ -3316,24 +3293,34 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       // Update Reservation Total
-      const reservationTotalElements = document.querySelectorAll('[data-element="Reservation_Total"]');
-      const reservationTotalAmountElements = document.querySelectorAll('[data-element="Reservation_TotalAmount"]');
-      if (r.Load_Property_Calendar_Query.data.dateRange_totalPrice) {
-        const amount = Math.floor(r.Load_Property_Calendar_Query.data.dateRange_totalPrice);
-        const formattedAmount = `$${amount.toLocaleString()}`;
+      // Don't update if extras are selected - let the extras pricing handle it
+      if (!hasAnyExtrasSelected()) {
+        const reservationTotalElements = document.querySelectorAll('[data-element="Reservation_Total"]');
+        const reservationTotalAmountElements = document.querySelectorAll('[data-element="Reservation_TotalAmount"]');
+        if (r.Load_Property_Calendar_Query.data.dateRange_totalPrice) {
+          const amount = Math.floor(r.Load_Property_Calendar_Query.data.dateRange_totalPrice);
+          const formattedAmount = `$${amount.toLocaleString()}`;
 
-        // Update all reservation total elements (desktop and mobile)
-        reservationTotalElements.forEach(element => {
-          if (element) {
-            element.textContent = formattedAmount;
-          }
-        });
+          console.log('=== UPDATE RESERVATION TOTAL (Property Calendar Update) ===');
+          console.log('dateRange_totalPrice from API:', amount);
+          console.log('Setting Reservation_Total to:', formattedAmount);
 
-        reservationTotalAmountElements.forEach(element => {
-          if (element) {
-            element.textContent = formattedAmount;
-          }
-        });
+          // Update all reservation total elements (desktop and mobile)
+          reservationTotalElements.forEach(element => {
+            if (element) {
+              element.textContent = formattedAmount;
+            }
+          });
+
+          reservationTotalAmountElements.forEach(element => {
+            if (element) {
+              element.textContent = formattedAmount;
+            }
+          });
+        }
+      } else {
+        console.log('=== UPDATE RESERVATION TOTAL (Property Calendar Update) ===');
+        console.log('Skipping - extras are selected, letting extras pricing handle Reservation_Total');
       }
 
       // Update Free Cancellation Date Text
@@ -3796,15 +3783,30 @@ async function updatePricingDisplayForExtras() {
       // Calculate fishing charter pricing components
       const fishingCharterPricing = await calculateFishingCharterPricing();
 
-      // Calculate combined taxes (only boat is taxed if not Manual integration, fishing charters are not taxed)
+      // Calculate boat taxes only (stay taxes already included in stayPricing.total)
       const boatTaxableAmount = window.selectedBoatData && window.selectedBoatData._boat_company.integration_type !== 'Manual'
         ? boatPricing.totalWithFees
         : 0;
       const combinedTaxes = calculateCombinedTaxes(r, boatTaxableAmount);
 
       // Calculate grand total
+      // Note: stayPricing.total already includes stay taxes (from dateRange_totalPrice)
+      // So we only add boat taxes, not combinedTaxes.total which includes stay taxes again
       const extrasTotalWithFees = boatPricing.totalWithFees + fishingCharterPricing.totalWithFees;
-      const grandTotal = stayPricing.total + extrasTotalWithFees + combinedTaxes.total;
+      const grandTotal = stayPricing.total + extrasTotalWithFees + combinedTaxes.boat;
+
+      console.log('=== GRAND TOTAL CALCULATION ===');
+      console.log('stayPricing.subtotal (displayed, no taxes):', stayPricing.subtotal);
+      console.log('stayPricing.total (for calculation, includes stay taxes):', stayPricing.total);
+      console.log('boatPricing.totalWithFees:', boatPricing.totalWithFees);
+      console.log('fishingCharterPricing.totalWithFees:', fishingCharterPricing.totalWithFees);
+      console.log('extrasTotalWithFees:', extrasTotalWithFees);
+      console.log('combinedTaxes.stay (already in stayPricing.total):', combinedTaxes.stay);
+      console.log('combinedTaxes.boat (added separately):', combinedTaxes.boat);
+      console.log('combinedTaxes.total (displayed in StayBoatTaxes_Amount):', combinedTaxes.total);
+      console.log('grandTotal:', grandTotal);
+      console.log('grandTotal formula: stayPricing.total + extrasTotalWithFees + combinedTaxes.boat');
+      console.log(`${stayPricing.total} + ${extrasTotalWithFees} + ${combinedTaxes.boat} = ${grandTotal}`);
 
       // Update all pricing elements
       updatePricingElements(stayPricing, boatPricing, fishingCharterPricing, combinedTaxes, grandTotal);
@@ -3819,17 +3821,28 @@ async function updatePricingDisplayForExtras() {
   }
 }
 
-// Calculate stay pricing (nightly + cleaning + service fees)
+// Calculate stay pricing (use API's dateRange_totalPrice which includes ALL fees and taxes)
 function calculateStayPricing(r) {
   const nightlyTotal = Math.floor(r.Load_Property_Calendar_Query.data.dateRange_nightsTotal || 0);
   const cleaningFee = Math.floor(r.Load_Property_Calendar_Query.data.dateRange_cleaningFee || 0);
   const serviceFee = Math.floor(r.Load_Property_Calendar_Query.data.dateRange_serviceFee || 0);
+  const dateRangeTotalPrice = Math.floor(r.Load_Property_Calendar_Query.data.dateRange_totalPrice || 0);
+  const totalWithoutTaxes = nightlyTotal + cleaningFee + serviceFee;
+
+  console.log('=== STAY PRICING CALCULATION ===');
+  console.log('nightlyTotal:', nightlyTotal);
+  console.log('cleaningFee:', cleaningFee);
+  console.log('serviceFee:', serviceFee);
+  console.log('Total without taxes (for display):', totalWithoutTaxes);
+  console.log('dateRange_totalPrice from API (includes taxes):', dateRangeTotalPrice);
+  console.log('Difference (stay taxes):', dateRangeTotalPrice - totalWithoutTaxes);
 
   return {
     nightly: nightlyTotal,
     cleaning: cleaningFee,
     service: serviceFee,
-    total: nightlyTotal + cleaningFee + serviceFee
+    subtotal: totalWithoutTaxes,  // For display purposes (without taxes)
+    total: dateRangeTotalPrice     // For grand total calculation (includes stay taxes)
   };
 }
 
@@ -4029,11 +4042,11 @@ function calculateCombinedTaxes(r, boatTotalWithFees) {
 
 // Update all pricing elements in the DOM
 function updatePricingElements(stayPricing, boatPricing, fishingCharterPricing, combinedTaxes, grandTotal) {
-  // Update Stay Price Amount
+  // Update Stay Price Amount (use subtotal which excludes taxes)
   const stayPriceElements = document.querySelectorAll('[data-element="Stay_Price_Amount"]');
   stayPriceElements.forEach(element => {
     if (element) {
-      element.textContent = `$${stayPricing.total.toLocaleString()}`;
+      element.textContent = `$${stayPricing.subtotal.toLocaleString()}`;
     }
   });
 
@@ -4094,6 +4107,10 @@ function updatePricingElements(stayPricing, boatPricing, fishingCharterPricing, 
   });
 
   // Also update the main Reservation_Total to show the combined total when extras are selected
+  console.log('=== UPDATE RESERVATION TOTAL (With Extras) ===');
+  console.log('Overriding Reservation_Total with grandTotal:', Math.round(grandTotal));
+  console.log('This includes: stay + boat + fishing charters + taxes');
+
   const reservationTotalElements = document.querySelectorAll('[data-element="Reservation_Total"]');
   reservationTotalElements.forEach(element => {
     if (element) {
@@ -6592,7 +6609,6 @@ document.addEventListener('DOMContentLoaded', () => {
               }
               return boat;
             });
-            console.log(mergedBoats);
             return mergedBoats;
           }
 
