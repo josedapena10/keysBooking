@@ -9757,7 +9757,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const taxes = priceWithDelivery * taxRate;
             const totalPrice = priceWithDelivery + taxes;
 
-            reservationTotal.textContent = `$${Math.round(totalPrice).toLocaleString()} total price`;
+            reservationTotal.textContent = `$${Math.round(totalPrice).toLocaleString()}`;
           } else {
             reservationTotal.textContent = this.getStartingPriceText(boat);
           }
