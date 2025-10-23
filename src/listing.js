@@ -9882,6 +9882,25 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
 
+      // Update pickup time popup "Done" button text based on mobile view and guests
+      updatePickupTimeDoneButtonText() {
+        const doneButtonText = document.querySelector('[data-element="addBoatModal_boatDetails_pickupTimePopup_doneButton_text"]');
+        if (!doneButtonText) return;
+
+        // In mobile view, show "Next" if guests are missing
+        if (this.isMobileView()) {
+          const hasGuests = this.selectedGuests && this.selectedGuests > 0;
+
+          if (!hasGuests) {
+            doneButtonText.textContent = 'Next';
+          } else {
+            doneButtonText.textContent = 'Done';
+          }
+        } else {
+          doneButtonText.textContent = 'Done';
+        }
+      }
+
       // // Update boat details X button visibility based on mobile view
       // updateBoatDetailsXButtonVisibility() {
       //   if (!this.boatDetailsXButton) return;
@@ -10203,28 +10222,42 @@ document.addEventListener('DOMContentLoaded', () => {
         // Boat details popup done handler
         if (this.boatDetailsPopupDone) {
           this.boatDetailsPopupDone.addEventListener('click', () => {
-            if (this.boatDetailsPopup) this.boatDetailsPopup.style.display = 'none';
-
             // In mobile view, follow the flow: dates → pickup time → guests
             if (this.isMobileView()) {
               const hasPickupTime = this.selectedPickupTime && this.selectedPickupTime !== '';
               const hasGuests = this.selectedGuests && this.selectedGuests > 0;
 
-              // Small delay to ensure dates popup closes first
-              setTimeout(() => {
-                if (!hasPickupTime) {
-                  // Next step: pickup time
-                  if (this.boatDetailsPickupTimeFilter) {
-                    this.boatDetailsPickupTimeFilter.click();
-                  }
-                } else if (!hasGuests) {
-                  // Next step: guests
-                  if (this.boatDetailsGuestsFilter) {
-                    this.boatDetailsGuestsFilter.click();
-                  }
+              if (!hasPickupTime) {
+                // Next step: pickup time - OPEN FIRST, then close current
+                if (this.boatDetailsPickupTimePopup) {
+                  this.boatDetailsPickupTimePopup.style.display = 'flex';
                 }
-                // If both pickup time and guests are selected, just close (done)
-              }, 100);
+                // Update pickup time button text
+                this.updatePickupTimeDoneButtonText();
+                // Now close dates popup
+                if (this.boatDetailsPopup) {
+                  this.boatDetailsPopup.style.display = 'none';
+                }
+              } else if (!hasGuests) {
+                // Next step: guests - OPEN FIRST, then close current
+                if (this.boatDetailsGuestsPopup) {
+                  this.boatDetailsGuestsPopup.style.display = 'flex';
+                }
+                // Now close dates popup
+                if (this.boatDetailsPopup) {
+                  this.boatDetailsPopup.style.display = 'none';
+                }
+              } else {
+                // Both selected, just close (done)
+                if (this.boatDetailsPopup) {
+                  this.boatDetailsPopup.style.display = 'none';
+                }
+              }
+            } else {
+              // Desktop: just close
+              if (this.boatDetailsPopup) {
+                this.boatDetailsPopup.style.display = 'none';
+              }
             }
           });
 
@@ -10245,6 +10278,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Show boat details pickup time popup
             if (this.boatDetailsPickupTimePopup) this.boatDetailsPickupTimePopup.style.display = 'flex';
+
+            // Update pickup time done button text
+            this.updatePickupTimeDoneButtonText();
 
             // Apply gating when popup opens
             requestAnimationFrame(() => {
@@ -10268,26 +10304,36 @@ document.addEventListener('DOMContentLoaded', () => {
         // Boat details pickup time popup done handler
         if (this.boatDetailsPickupTimePopupDone) {
           this.boatDetailsPickupTimePopupDone.addEventListener('click', () => {
-            if (this.boatDetailsPickupTimePopup) this.boatDetailsPickupTimePopup.style.display = 'none';
-
-            // Apply gating when popup closes
-            requestAnimationFrame(() => {
-              this.applyPickupTimeGating(this.boatDetailsPickupTimePills, true);
-            });
-
             // In mobile view, follow the flow: if guests haven't been selected, open guests popup
             if (this.isMobileView()) {
               const hasGuests = this.selectedGuests && this.selectedGuests > 0;
 
               if (!hasGuests) {
-                // Small delay to ensure pickup time popup closes first
-                setTimeout(() => {
-                  if (this.boatDetailsGuestsFilter) {
-                    this.boatDetailsGuestsFilter.click();
-                  }
-                }, 100);
+                // Next step: guests - OPEN FIRST, then close current
+                if (this.boatDetailsGuestsPopup) {
+                  this.boatDetailsGuestsPopup.style.display = 'flex';
+                }
+                // Now close pickup time popup
+                if (this.boatDetailsPickupTimePopup) {
+                  this.boatDetailsPickupTimePopup.style.display = 'none';
+                }
+              } else {
+                // All selected, just close (done)
+                if (this.boatDetailsPickupTimePopup) {
+                  this.boatDetailsPickupTimePopup.style.display = 'none';
+                }
+              }
+            } else {
+              // Desktop: just close
+              if (this.boatDetailsPickupTimePopup) {
+                this.boatDetailsPickupTimePopup.style.display = 'none';
               }
             }
+
+            // Apply gating when popup closes
+            requestAnimationFrame(() => {
+              this.applyPickupTimeGating(this.boatDetailsPickupTimePills, true);
+            });
           });
         }
 
@@ -10357,6 +10403,9 @@ document.addEventListener('DOMContentLoaded', () => {
             this.updateBoatDetailsPickupTimeFilterText();
             this.updateURLParams();
             this.updateBoatDetailsPrice();
+
+            // Update pickup time done button text (might change from Done to Next or vice versa)
+            this.updatePickupTimeDoneButtonText();
 
             // Clear error if conditions are now met
             this.clearErrorIfResolved(this.boatDetailsErrorElement);
@@ -10586,8 +10635,9 @@ document.addEventListener('DOMContentLoaded', () => {
             updatePlusButtonState();
             updateMinusButtonState();
 
-            // Update dates done button text
+            // Update done button texts (both dates and pickup time can show "Next")
             this.updateDatesDoneButtonText();
+            this.updatePickupTimeDoneButtonText();
 
             // Clear error if conditions are now met
             this.clearErrorIfResolved(this.boatDetailsErrorElement);
@@ -10606,8 +10656,9 @@ document.addEventListener('DOMContentLoaded', () => {
             updatePlusButtonState();
             updateMinusButtonState();
 
-            // Update dates done button text
+            // Update done button texts (both dates and pickup time can show "Next")
             this.updateDatesDoneButtonText();
+            this.updatePickupTimeDoneButtonText();
 
             // Clear error if conditions are now met
             this.clearErrorIfResolved(this.boatDetailsErrorElement);
