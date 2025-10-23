@@ -906,19 +906,37 @@ window.Webflow.push(() => {
 //reserveButton
 const reserveButtons = document.querySelectorAll('[data-element="listing_reserve_button"]');
 
+// Function to reset button state (hide loader, show text)
+function resetReserveButtonState() {
+  reserveButtons.forEach(button => {
+    if (button) {
+      const buttonText = button.querySelector('[data-element="listing_reserve_button_text"]');
+      const buttonLoader = button.querySelector('[data-element="listing_reserve_button_loader"]');
+
+      if (buttonText) {
+        buttonText.style.display = '';
+      }
+      if (buttonLoader) {
+        buttonLoader.style.display = 'none';
+      }
+    }
+  });
+}
+
+// Reset loader on page load/show (including when navigating back)
+window.addEventListener('pageshow', function (event) {
+  resetReserveButtonState();
+});
+
+// Initial reset
+resetReserveButtonState();
+
 reserveButtons.forEach(button => {
   if (button) {
     const buttonText = button.querySelector('[data-element="listing_reserve_button_text"]');
     const buttonLoader = button.querySelector('[data-element="listing_reserve_button_loader"]');
 
-    // Hide loader initially
-    if (buttonLoader) {
-      buttonLoader.style.display = 'none';
-    }
-
     button.addEventListener('click', () => {
-
-
       // Hide text and show loader
       if (buttonText) {
         buttonText.style.display = 'none';
@@ -9525,33 +9543,42 @@ document.addEventListener('DOMContentLoaded', () => {
         deliveryCheckbox.parentNode.replaceChild(newCheckbox, deliveryCheckbox);
         const checkbox = newCheckbox; // Use the new checkbox reference
 
-        // Check if property has private dock - hide delivery block if it doesn't
+        // Check if property has private dock AND if boat company can deliver to it
         const r = Wized.data.r;
+        let canShowDelivery = false;
+
         if (r && r.Load_Property_Details && r.Load_Property_Details.data && r.Load_Property_Details.data.property) {
-          const hasPrivateDock = r.Load_Property_Details.data.property.private_dock;
-          if (hasPrivateDock === false) {
-            if (deliveryBlock) {
-              deliveryBlock.style.display = 'none';
+          const property = r.Load_Property_Details.data.property;
+          const hasPrivateDock = property.private_dock === true;
+
+          if (hasPrivateDock) {
+            // Property has private dock, now check if boat company can deliver to this property's city
+            const propertyCityName = property.listing_city;
+
+            if (propertyCityName && boat.deliversTo && Array.isArray(boat.deliversTo)) {
+              // Check if boat delivers to the property's city
+              const canDeliverToProperty = boat.deliversTo.some(location =>
+                location.city && location.city.toLowerCase() === propertyCityName.toLowerCase()
+              );
+
+              canShowDelivery = canDeliverToProperty;
             }
-            // Don't reset URL parameters - just hide the delivery option for this boat
-            this.deliverySelected = false;
-            return;
           }
         }
 
-        // Check if company delivers - hide block if they don't
-        if (boat.companyDelivers === false) {
+        if (!canShowDelivery) {
+          // Hide delivery block if conditions are not met
           if (deliveryBlock) {
             deliveryBlock.style.display = 'none';
           }
           // Don't reset URL parameters - just hide the delivery option for this boat
           this.deliverySelected = false;
           return;
-        } else {
-          // Show delivery block if company delivers
-          if (deliveryBlock) {
-            deliveryBlock.style.display = '';
-          }
+        }
+
+        // Show delivery block - all conditions are met
+        if (deliveryBlock) {
+          deliveryBlock.style.display = '';
         }
 
         // Initialize delivery state - prioritize actual delivery selection over private dock auto-selection
@@ -9653,10 +9680,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const taxesElement = document.querySelector('[data-element="boatDetails_reservation_taxes"]');
         const totalPriceElement = document.querySelector('[data-element="boatDetails_reservation_totalPrice"]');
         const pricesContainer = document.querySelector('[data-element="boatDetails_reservation_prices_container"]');
+        const priceTotalText = document.querySelector('[data-element="boatDetails_reservation_priceTotalText"]');
 
         if (this.selectedDates.length === 0) {
           if (pricesContainer) {
             pricesContainer.style.display = 'none';
+          }
+          // Hide "total price" text when showing starting price
+          if (priceTotalText) {
+            priceTotalText.style.display = 'none';
           }
           // No dates selected - show starting price
           if (reservationPrice) {
@@ -9704,6 +9736,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (reservationPrice) {
           reservationPrice.textContent = `$${Math.round(totalPrice).toLocaleString()} total price`;
+        }
+
+        // Show "total price" text when displaying total price
+        if (priceTotalText) {
+          priceTotalText.style.display = '';
         }
 
         // Make the price container flex when there are price values
