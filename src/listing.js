@@ -9396,23 +9396,23 @@ document.addEventListener('DOMContentLoaded', () => {
               reservationBlock.style.display = 'flex';
             }
 
-            // Determine what's missing and take appropriate action
+            // Determine what's missing and take appropriate action - follow order: dates → pickup time → guests
             const hasDates = this.selectedDates && this.selectedDates.length > 0;
             const hasPickupTime = this.selectedPickupTime && this.selectedPickupTime !== '';
             const hasGuests = this.selectedGuests && this.selectedGuests > 0;
 
             if (!hasDates) {
-              // Open dates popup
+              // Step 1: Open dates popup
               if (this.boatDetailsDateFilter) {
                 this.boatDetailsDateFilter.click();
               }
             } else if (!hasPickupTime) {
-              // Open dates popup (includes pickup time)
-              if (this.boatDetailsDateFilter) {
-                this.boatDetailsDateFilter.click();
+              // Step 2: Open pickup time popup (now separate from dates)
+              if (this.boatDetailsPickupTimeFilter) {
+                this.boatDetailsPickupTimeFilter.click();
               }
             } else if (!hasGuests) {
-              // Open guests popup
+              // Step 3: Open guests popup
               if (this.boatDetailsGuestsFilter) {
                 this.boatDetailsGuestsFilter.click();
               }
@@ -9839,28 +9839,44 @@ document.addEventListener('DOMContentLoaded', () => {
         const hasPickupTime = this.selectedPickupTime && this.selectedPickupTime !== '';
         const hasGuests = this.selectedGuests && this.selectedGuests > 0;
 
-        if (!hasDates && !hasGuests) {
-          return 'Select Dates & Add Guests';
-        } else if (!hasDates) {
+        // When nothing is selected
+        if (!hasDates && !hasPickupTime && !hasGuests) {
+          return 'Select Dates, Time, & Passengers';
+        }
+
+        // When dates are missing (first step)
+        if (!hasDates) {
           return 'Select Dates';
-        } else if (!hasPickupTime && !hasGuests) {
-          return 'Select Pickup Time & Add Guests';
-        } else if (!hasPickupTime) {
+        }
+
+        // When pickup time is missing (second step)
+        if (!hasPickupTime) {
           return 'Select Pickup Time';
-        } else if (!hasGuests) {
-          return 'Add Guests';
+        }
+
+        // When only guests are missing (third step)
+        if (!hasGuests) {
+          return 'Add Passengers';
         }
 
         return 'Complete Reservation Details';
       }
 
-      // Update dates popup "Done" button text based on mobile view and guest selection
+      // Update dates popup "Done" button text based on mobile view and what's missing
       updateDatesDoneButtonText() {
         const doneButtonText = document.querySelector('[data-element="addBoatModal_boatDetails_datesPopup_doneButton_text"]');
         if (!doneButtonText) return;
 
-        if (this.isMobileView() && (!this.selectedGuests || this.selectedGuests === 0)) {
-          doneButtonText.textContent = 'Next';
+        // In mobile view, show "Next" if pickup time or guests are missing
+        if (this.isMobileView()) {
+          const hasPickupTime = this.selectedPickupTime && this.selectedPickupTime !== '';
+          const hasGuests = this.selectedGuests && this.selectedGuests > 0;
+
+          if (!hasPickupTime || !hasGuests) {
+            doneButtonText.textContent = 'Next';
+          } else {
+            doneButtonText.textContent = 'Done';
+          }
         } else {
           doneButtonText.textContent = 'Done';
         }
@@ -10189,18 +10205,30 @@ document.addEventListener('DOMContentLoaded', () => {
           this.boatDetailsPopupDone.addEventListener('click', () => {
             if (this.boatDetailsPopup) this.boatDetailsPopup.style.display = 'none';
 
-            // In mobile view, if guests haven't been selected, open guests popup
-            if (this.isMobileView() && (!this.selectedGuests || this.selectedGuests === 0)) {
+            // In mobile view, follow the flow: dates → pickup time → guests
+            if (this.isMobileView()) {
+              const hasPickupTime = this.selectedPickupTime && this.selectedPickupTime !== '';
+              const hasGuests = this.selectedGuests && this.selectedGuests > 0;
+
               // Small delay to ensure dates popup closes first
               setTimeout(() => {
-                if (this.boatDetailsGuestsFilter) {
-                  this.boatDetailsGuestsFilter.click();
+                if (!hasPickupTime) {
+                  // Next step: pickup time
+                  if (this.boatDetailsPickupTimeFilter) {
+                    this.boatDetailsPickupTimeFilter.click();
+                  }
+                } else if (!hasGuests) {
+                  // Next step: guests
+                  if (this.boatDetailsGuestsFilter) {
+                    this.boatDetailsGuestsFilter.click();
+                  }
                 }
+                // If both pickup time and guests are selected, just close (done)
               }, 100);
             }
           });
 
-          // Update button text based on mobile state and guest selection
+          // Update button text based on mobile state and what's missing
           this.updateDatesDoneButtonText();
         }
 
@@ -10246,6 +10274,20 @@ document.addEventListener('DOMContentLoaded', () => {
             requestAnimationFrame(() => {
               this.applyPickupTimeGating(this.boatDetailsPickupTimePills, true);
             });
+
+            // In mobile view, follow the flow: if guests haven't been selected, open guests popup
+            if (this.isMobileView()) {
+              const hasGuests = this.selectedGuests && this.selectedGuests > 0;
+
+              if (!hasGuests) {
+                // Small delay to ensure pickup time popup closes first
+                setTimeout(() => {
+                  if (this.boatDetailsGuestsFilter) {
+                    this.boatDetailsGuestsFilter.click();
+                  }
+                }, 100);
+              }
+            }
           });
         }
 
@@ -10911,11 +10953,18 @@ document.addEventListener('DOMContentLoaded', () => {
       async editSelectedBoat(boatId) {
         // Use the existing boat service to edit the selected boat
         if (window.boatRentalService) {
-          // First show the modal
+          // FIRST: Set wrapper visibility BEFORE showing modal to prevent flash
+          const selectWrapper = document.querySelector('[data-element="addBoatModal_selectBoatWrapper"]');
+          const detailsWrapper = document.querySelector('[data-element="addBoatModal_boatDetailsWrapper"]');
+
+          if (selectWrapper) selectWrapper.style.display = 'none';
+          if (detailsWrapper) detailsWrapper.style.display = 'flex';
+
+          // THEN: Show the modal (now with correct wrapper already visible)
           window.boatRentalService.modal.style.display = 'flex';
           document.body.classList.add('no-scroll');
 
-          // Then handle the edit which will show boat details
+          // Finally: Handle the edit which will populate boat details
           await window.boatRentalService.handleEditBoat(boatId);
         }
       }
