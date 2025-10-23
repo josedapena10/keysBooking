@@ -362,6 +362,13 @@ document.addEventListener('DOMContentLoaded', () => {
         Wized.data.n.parameter.guests = totalGuests;
         updateURLParameter('guests', totalGuests);
         updateGuestCountDisplays();
+
+        // Immediately update validation to clear/show errors as soon as guest count changes
+        setTimeout(() => {
+          if (window.updateAvailabilityStatus) {
+            window.updateAvailabilityStatus();
+          }
+        }, 10);
       }
 
       function updateURLParameter(type, value) {
@@ -1480,6 +1487,29 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Trigger calendar query
         Wized.requests.execute('Load_Property_Calendar_Query');
+
+        // Immediately update the heading to hide "Add dates for pricing" when both dates are selected
+        // This happens before the calendar modal closes
+        if (window.updateAddDatesHeading) {
+          // Use a small timeout to ensure URL params are fully updated
+          setTimeout(() => {
+            window.updateAddDatesHeading();
+          }, 10);
+        }
+
+        // Immediately update error states - dates from calendar are always valid, so this clears any previous errors
+        if (window.updateAvailabilityStatus) {
+          setTimeout(() => {
+            window.updateAvailabilityStatus();
+          }, 10);
+        }
+
+        // Also update button visibility immediately
+        if (window.updateAllButtonVisibility) {
+          setTimeout(() => {
+            window.updateAllButtonVisibility();
+          }, 10);
+        }
       }
     }
 
@@ -1665,6 +1695,10 @@ document.addEventListener('DOMContentLoaded', function () {
             if (window.updateAvailabilityStatus) {
               window.updateAvailabilityStatus();
             }
+            // Validate extras after user completes date selection
+            if (window.updateAllButtonVisibility) {
+              window.updateAllButtonVisibility();
+            }
           });
         }
       });
@@ -1688,6 +1722,10 @@ document.addEventListener('DOMContentLoaded', function () {
             Wized.requests.execute('Load_Property_Calendar_Query').then(() => {
               if (window.updateAvailabilityStatus) {
                 window.updateAvailabilityStatus();
+              }
+              // Validate extras after user completes date selection
+              if (window.updateAllButtonVisibility) {
+                window.updateAllButtonVisibility();
               }
             });
           }
@@ -1713,6 +1751,10 @@ document.addEventListener('DOMContentLoaded', function () {
             Wized.requests.execute('Load_Property_Calendar_Query').then(() => {
               if (window.updateAvailabilityStatus) {
                 window.updateAvailabilityStatus();
+              }
+              // Validate extras after user completes date selection
+              if (window.updateAllButtonVisibility) {
+                window.updateAllButtonVisibility();
               }
             });
           }
@@ -2015,20 +2057,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Open dropdown when clicking on change button
-  if (changeGuestsButtons.length > 0) {
-    changeGuestsButtons.forEach(button => {
-      if (button) {
-        button.addEventListener('click', function (e) {
-          e.preventDefault(); // Prevent default action (scrolling to top)
-          e.stopPropagation(); // Prevent the click from bubbling up to document
-          if (guestDropdown) {
-            guestDropdown.style.display = 'flex';
-          }
-        });
-      }
-    });
-  }
+  // Note: Change guests button handlers removed per user request
 
   // Close dropdown when clicking on close text
   if (closeText) {
@@ -2042,10 +2071,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Close dropdown when clicking outside
   document.addEventListener('click', function (e) {
+    // Check if click is on a change guests button (using data-element)
+    const isChangeGuestsButton = e.target.closest('[data-element="listing_changeGuests_button"]');
+
     if (guestDropdown &&
       !guestDropdown.contains(e.target) &&
       !guestInput.contains(e.target) &&
-      !Array.from(changeGuestsButtons).some(button => button && button.contains(e.target))) {
+      !isChangeGuestsButton) {
       guestDropdown.style.display = 'none';
     }
   });
@@ -2130,31 +2162,7 @@ document.addEventListener('DOMContentLoaded', () => {
     errorContainer.style.display = 'none';
   }
 
-  // Add click handlers for availability and change dates buttons
-  if (checkAvailabilityButtons.length > 0 && calendarModal) {
-    checkAvailabilityButtons.forEach(button => {
-      if (button) {
-        button.addEventListener('click', function (e) {
-          // e.preventDefault(); // Prevent default action (scrolling to top)
-          // e.stopPropagation(); // Prevent the click from bubbling up to document
-          calendarModal.style.display = 'flex'; // Show the calendar modal
-
-        });
-      }
-    });
-  }
-
-  if (changeDatesButtons.length > 0 && calendarModal) {
-    changeDatesButtons.forEach(button => {
-      if (button) {
-        button.addEventListener('click', function (e) {
-          e.preventDefault(); // Prevent default action (scrolling to top)
-          e.stopPropagation(); // Prevent the click from bubbling up to document
-          calendarModal.style.display = 'flex'; // Show the calendar modal
-        });
-      }
-    });
-  }
+  // Note: Check availability and change dates button handlers removed per user request
 
   // Watch for when desktop calendar modal becomes visible and reset view
   if (calendarModal) {
@@ -2480,6 +2488,14 @@ document.addEventListener('DOMContentLoaded', () => {
         return ""; // Return empty string for default background when no dates are selected
       }
 
+      // Check if calendar query is currently executing (not completed yet)
+      // When dates are selected from calendar UI, they're always valid, so clear error immediately
+      if (r.Load_Property_Calendar_Query &&
+        r.Load_Property_Calendar_Query.hasRequested &&
+        r.Load_Property_Calendar_Query.status !== 200) {
+        return ""; // Optimistically clear error while query is executing (dates from UI are always valid)
+      }
+
       // Also verify the data exists before proceeding with validation
       if (!r.Load_Property_Calendar_Query ||
         !r.Load_Property_Calendar_Query.data ||
@@ -2524,7 +2540,10 @@ document.addEventListener('DOMContentLoaded', () => {
       const propertyCalendarRange = r.Load_Property_Calendar_Query.data.property_calendar_range;
       const minNights = r.Load_Property_Details.data.property.min_nights;
 
-
+      console.log('🎨 getAvailabilityColor - Checking dates:', {
+        totalDates: propertyCalendarRange.length,
+        minNights: minNights
+      });
 
       let allAvailable = true;
       let consecutiveAvailableDays = 0;
@@ -2535,19 +2554,23 @@ document.addEventListener('DOMContentLoaded', () => {
           consecutiveAvailableDays++; // Count consecutive available days
           if (consecutiveAvailableDays >= minNights) {
             meetsMinNights = true; // If consecutive days meet min nights at any point
-
           }
         } else {
-
+          console.log('🎨 Unavailable date in color check:', propertyCalendarRange[i]);
           consecutiveAvailableDays = 0; // Reset if a day is not available
           allAvailable = false; // Set availability to false if any day is not available
         }
       }
 
-
-
       // Determine color based on availability and minimum night conditions
       const color = !allAvailable || !meetsMinNights ? "#ffd4d2" : "";
+
+      console.log('🎨 Color Result:', {
+        allAvailable,
+        consecutiveAvailableDays,
+        meetsMinNights,
+        color
+      });
 
       return color;
     }
@@ -2595,6 +2618,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!addDatesHeadings || addDatesHeadings.length === 0) return;
 
       const r = Wized.data.r;
+      const n = Wized.data.n;
       if (!r) return;
 
       // Check if dates are actually selected before showing any error message
@@ -2603,57 +2627,108 @@ document.addEventListener('DOMContentLoaded', () => {
       const hasCheckout = urlParams.has('checkout') && urlParams.get('checkout') !== "";
       const datesSelected = hasCheckin && hasCheckout;
 
+      // Check guest validation
+      let hasGuestError = false;
+      if (r.Load_Property_Details && r.Load_Property_Details.data &&
+        r.Load_Property_Details.data.property && n && n.parameter) {
+        const maxGuests = r.Load_Property_Details.data.property.num_guests;
+        const currentGuests = n.parameter.guests || 0;
+        hasGuestError = (currentGuests < 1 || currentGuests > maxGuests);
+      }
+
       // Handle visibility logic
       let shouldBeVisible = true;
       let headingText = "Add dates for pricing";
 
-      // If both dates are not selected, always show the heading
-      if (!datesSelected) {
+      // Priority 0: If both dates are selected, hide heading immediately (even while waiting for validation)
+      // This provides instant feedback when user selects dates
+      if (datesSelected) {
+        // Check if calendar query is still loading
+        if (r.Load_Property_Calendar_Query && r.Load_Property_Calendar_Query.isRequesting) {
+          // Loading - hide heading while waiting
+          shouldBeVisible = false;
+        }
+        // Check if we have calendar query results to validate
+        else if (r.Load_Property_Calendar_Query && r.Load_Property_Calendar_Query.status == 200 &&
+          r.Load_Property_Details && r.Load_Property_Details.data) {
+
+          // Check if dates are valid
+          const propertyCalendarRange = r.Load_Property_Calendar_Query.data.property_calendar_range;
+          const minNights = r.Load_Property_Details.data.property.min_nights;
+
+          console.log('🔍 Date Validation Check:', {
+            totalDatesReturned: propertyCalendarRange.length,
+            minNights: minNights,
+            dates: propertyCalendarRange.map(d => ({ date: d.date, status: d.status }))
+          });
+
+          let allAvailable = true;
+          let consecutiveAvailableDays = 0;
+          let meetsMinNights = false;
+
+          for (let i = 0; i < propertyCalendarRange.length; i++) {
+            if (propertyCalendarRange[i].status === "available") {
+              consecutiveAvailableDays++;
+              if (consecutiveAvailableDays >= minNights) {
+                meetsMinNights = true;
+              }
+            } else {
+              console.log('❌ Unavailable date found:', propertyCalendarRange[i]);
+              consecutiveAvailableDays = 0;
+              allAvailable = false;
+            }
+          }
+
+          const datesValid = allAvailable && meetsMinNights;
+
+          console.log('✅ Date Validation Result:', {
+            allAvailable,
+            consecutiveAvailableDays,
+            meetsMinNights,
+            datesValid
+          });
+
+          // If dates are valid but guests are wrong, show "Change Guests"
+          if (datesValid && hasGuestError) {
+            shouldBeVisible = true;
+            headingText = "Change Guests";
+          }
+          // If dates are invalid, show "Change Dates"
+          else if (!datesValid) {
+            shouldBeVisible = true;
+            headingText = "Change Dates";
+          }
+          // Both dates and guests are valid - hide heading
+          else {
+            shouldBeVisible = false;
+          }
+        }
+        // Dates selected but calendar query hasn't run yet or failed
+        else if (!r.Load_Property_Calendar_Query || !r.Load_Property_Calendar_Query.hasRequested) {
+          // Hide heading immediately when both dates are selected (optimistic UI)
+          shouldBeVisible = false;
+        }
+        // Calendar query failed
+        else if (r.Load_Property_Calendar_Query.hasRequested && r.Load_Property_Calendar_Query.status != 200) {
+          shouldBeVisible = true;
+          headingText = "Change Dates";
+        }
+      }
+      // No dates selected - show "Add dates for pricing"
+      else {
         shouldBeVisible = true;
         headingText = "Add dates for pricing";
       }
-      // If dates are selected, check their validity
-      else if (r.Load_Property_Calendar_Query && r.Load_Property_Calendar_Query.isRequesting) {
-        shouldBeVisible = false;
-      } else if (!r.Load_Property_Calendar_Query ||
-        !r.Load_Property_Calendar_Query.hasRequested ||
-        (r.Load_Property_Calendar_Query.hasRequested &&
-          r.Load_Property_Calendar_Query.status != 200)) {
-        shouldBeVisible = true;
-        headingText = "Invalid Dates";
-      } else if (r.Load_Property_Calendar_Query.status == 200 &&
-        r.Load_Property_Details &&
-        r.Load_Property_Details.data) {
-        // Check if dates are valid
-        const propertyCalendarRange = r.Load_Property_Calendar_Query.data.property_calendar_range;
-        const minNights = r.Load_Property_Details.data.property.min_nights;
-
-        let allAvailable = true;
-        let consecutiveAvailableDays = 0;
-        let meetsMinNights = false;
-
-        for (let i = 0; i < propertyCalendarRange.length; i++) {
-          if (propertyCalendarRange[i].status === "available") {
-            consecutiveAvailableDays++;
-            if (consecutiveAvailableDays >= minNights) {
-              meetsMinNights = true;
-            }
-          } else {
-            consecutiveAvailableDays = 0;
-            allAvailable = false;
-          }
-        }
-
-        if (!allAvailable || !meetsMinNights) {
-          shouldBeVisible = true;
-          headingText = "Invalid Dates";
-        } else {
-          // Valid dates selected - hide heading and show total container
-          shouldBeVisible = false;
-        }
-      }
 
       // Apply visibility and text to all heading elements (desktop and mobile)
+      console.log('📋 Final Heading Update:', {
+        shouldBeVisible,
+        headingText,
+        hasGuestError,
+        datesSelected,
+        datesValid: datesSelected && r.Load_Property_Calendar_Query ? 'checked above' : 'not checked'
+      });
+
       addDatesHeadings.forEach(heading => {
         if (heading) {
           heading.style.display = shouldBeVisible ? 'flex' : 'none';
@@ -2701,6 +2776,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         // Variable to store selected boat data directly (not as Wized request)
+        console.log('🚤 Fetching boat data for boatId:', boatId);
         window.selectedBoatData = null;
 
         // Make direct fetch request for boat data
@@ -2713,6 +2789,7 @@ document.addEventListener('DOMContentLoaded', () => {
           })
           .then(async (boatData) => {
             // Store the boat data directly
+            console.log('🚤 Boat data fetched successfully:', boatData.name);
             window.selectedBoatData = boatData;
 
             populateSelectedBoatBlock();
@@ -2915,36 +2992,10 @@ document.addEventListener('DOMContentLoaded', () => {
       removeButtons.forEach(removeButton => {
         if (removeButton) {
           removeButton.addEventListener('click', () => {
-            // Remove boatId and related parameters from URL
-            const url = new URL(window.location);
-            url.searchParams.delete('boatId');
-
-
-            window.history.pushState({}, '', url);
-
-            // Hide the selected boat blocks
-            const selectedBoatBlocks = document.querySelectorAll('[data-element="selectedBoatBlock"]');
-            selectedBoatBlocks.forEach(block => {
-              if (block) {
-                block.style.display = 'none';
-              }
-            });
-
-            // Show listing-only pricing again
-            const listingOnlyPricingSections = document.querySelectorAll('[data-element="ListingOnly_Query_Price_Details"]');
-            const listingExtrasPricingSections = document.querySelectorAll('[data-element="ListingExtras_Query_Price_Details"]');
-
-            listingOnlyPricingSections.forEach(section => {
-              if (section) {
-                section.style.display = 'flex';
-              }
-            });
-
-            listingExtrasPricingSections.forEach(section => {
-              if (section) {
-                section.style.display = 'none';
-              }
-            });
+            // Use the proper removal function to clean up ALL boat parameters
+            if (window.removeBoatFromReservation) {
+              window.removeBoatFromReservation();
+            }
 
             // Trigger other updates if available
             if (window.updateBoatVisibility) window.updateBoatVisibility();
@@ -3439,14 +3490,17 @@ document.addEventListener('DOMContentLoaded', () => {
         updateListingOnlyPricing();
         updatePhoneReservationFooter();
 
-        // Validate extras dates after calendar query completes
-        if (event.name === 'Load_Property_Calendar_Query') {
-          validateExtrasWithinReservationDates();
-        }
+        // NOTE: Extras validation is now handled by each service's areDatesValid() method
+        // through handleExtrasWhenDatesCleared() in the centralized button visibility system
+        // This prevents duplicate validation logic and timing conflicts
 
-        // Update stay cancellation policy for extras when data is loaded
+        // Update extras pricing when extras are selected and data is loaded
         if (window.hasAnyExtrasSelected && window.hasAnyExtrasSelected()) {
           updateStayCancellationPolicy();
+          // Recalculate extras pricing with new date data
+          if (window.updatePricingDisplayForExtras) {
+            window.updatePricingDisplayForExtras();
+          }
         }
       }
     });
@@ -3797,6 +3851,12 @@ async function updatePricingDisplayForExtras() {
       const stayPricing = calculateStayPricing(r);
 
       // Calculate boat pricing components
+      console.log('🚤 Checking window.selectedBoatData:', {
+        exists: !!window.selectedBoatData,
+        boatName: window.selectedBoatData ? window.selectedBoatData.name : 'N/A',
+        boatId: new URLSearchParams(window.location.search).get('boatId')
+      });
+
       const boatPricing = window.selectedBoatData ? calculateBoatPricing(window.selectedBoatData) : { totalWithFees: 0 };
 
       // Calculate fishing charter pricing components
@@ -3867,7 +3927,14 @@ function calculateStayPricing(r) {
 
 // Calculate boat pricing based on selected dates and boat data
 function calculateBoatPricing(boatData) {
+  console.log('🚤 calculateBoatPricing called:', {
+    hasBoatData: !!boatData,
+    boatName: boatData ? boatData.name : 'N/A',
+    selectedBoatDataExists: !!window.selectedBoatData
+  });
+
   if (!boatData) {
+    console.log('🚤 No boat data - returning 0');
     return { basePrice: 0, serviceFee: 0, deliveryFee: 0, totalWithFees: 0 };
   }
 
@@ -3881,7 +3948,15 @@ function calculateBoatPricing(boatData) {
   const boatDates = decodedDates.split(",").filter(Boolean);
   const numDates = boatDates.length;
 
+  console.log('🚤 Boat pricing params:', {
+    rawDates,
+    boatDates,
+    numDates,
+    boatDelivery
+  });
+
   if (numDates === 0) {
+    console.log('🚤 No boat dates - returning 0');
     return { basePrice: 0, serviceFee: 0, deliveryFee: 0, totalWithFees: 0 };
   }
 
@@ -4144,6 +4219,11 @@ function updatePricingElements(stayPricing, boatPricing, fishingCharterPricing, 
       element.textContent = `$${Math.round(grandTotal).toLocaleString()}`;
     }
   });
+
+  // Update phone reservation footer
+  if (window.updatePhoneReservationFooter) {
+    window.updatePhoneReservationFooter();
+  }
 
   // Update cancellation policies for extras
   updateExtrasCancellationPolicies();
@@ -4514,6 +4594,8 @@ function updatePricingDisplayForExtrasSync() {
 }
 
 // Validate that extras dates are within reservation dates
+// NOTE: Boat validation now handled by BoatRentalService.areDatesValid() in handleExtrasWhenDatesCleared()
+// This function kept for fishing charter validation only
 function validateExtrasWithinReservationDates() {
   const urlParams = new URLSearchParams(window.location.search);
   const checkin = urlParams.get('checkin');
@@ -4522,23 +4604,15 @@ function validateExtrasWithinReservationDates() {
   // If no reservation dates, don't validate
   if (!checkin || !checkout) return;
 
-  // Create date range from checkin to checkout (excluding checkout day)
+  // Create date range from checkin to checkout (including checkout day for extras)
   const reservationDates = generateDateRangeForValidation(checkin, checkout);
   const reservationDateSet = new Set(reservationDates);
 
   let hasRemovedExtras = false;
 
-  // Validate boat dates
-  const boatDates = urlParams.get('boatDates');
-  if (boatDates) {
-    const boatDatesList = boatDates.split(',').filter(Boolean);
-    const isBoatValid = boatDatesList.every(date => reservationDateSet.has(date));
-
-    if (!isBoatValid) {
-      removeBoatFromReservation();
-      hasRemovedExtras = true;
-    }
-  }
+  // NOTE: Boat validation removed - now handled by BoatRentalService.areDatesValid()
+  // in the centralized handleExtrasWhenDatesCleared() function
+  // This prevents duplicate validation and timing issues on page load
 
   // Validate fishing charter dates
   const allCharterNumbers = getAllFishingCharterNumbersForValidation();
@@ -4559,7 +4633,10 @@ function validateExtrasWithinReservationDates() {
   if (hasRemovedExtras) {
     // Update pricing displays
     if (window.updatePricingDisplayForExtras) {
-      window.updatePricingDisplayForExtras().catch(err => console.error('Error updating pricing:', err));
+      const pricingResult = window.updatePricingDisplayForExtras();
+      if (pricingResult && typeof pricingResult.catch === 'function') {
+        pricingResult.catch(err => console.error('Error updating pricing:', err));
+      }
     }
     if (window.updateListingOnlyPricing) {
       window.updateListingOnlyPricing();
@@ -4571,8 +4648,19 @@ function validateExtrasWithinReservationDates() {
     }
 
     // Update fishing charter blocks
-    if (window.fishingCharterService && window.fishingCharterService.populateSelectedFishingCharterBlock) {
-      window.fishingCharterService.populateSelectedFishingCharterBlock().catch(err => console.error('Error populating fishing charter:', err));
+    if (window.fishingCharterService) {
+      // Refresh fishing charter service state from updated URL
+      if (window.fishingCharterService.initializeFromURL) {
+        window.fishingCharterService.initializeFromURL();
+      }
+      // Only update blocks if there are still charters remaining
+      const stillHasCharters = window.fishingCharterService.hasAnyFishingCharters && window.fishingCharterService.hasAnyFishingCharters();
+      if (stillHasCharters && window.fishingCharterService.populateSelectedFishingCharterBlock) {
+        const charterResult = window.fishingCharterService.populateSelectedFishingCharterBlock();
+        if (charterResult && typeof charterResult.catch === 'function') {
+          charterResult.catch(err => console.error('Error populating fishing charter:', err));
+        }
+      }
     }
   }
 }
@@ -4590,10 +4678,10 @@ function generateDateRangeForValidation(startDateStr, endDateStr) {
   while (true) {
     const currentDateStr = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(currentDay).padStart(2, '0')}`;
 
-    // Stop before checkout date (checkout day is not included in stay)
-    if (currentDateStr === endDateStr) break;
-
     dateRange.push(currentDateStr);
+
+    // Include checkout date (guests can select extras on their last day)
+    if (currentDateStr === endDateStr) break;
 
     // Move to next day
     currentDay++;
@@ -4646,6 +4734,8 @@ function getAllFishingCharterNumbersForValidation() {
 
 // Remove boat from reservation
 function removeBoatFromReservation() {
+  console.log('🚫🚫🚫 removeBoatFromReservation() called from:', new Error().stack);
+
   const url = new URL(window.location);
   url.searchParams.delete('boatId');
   url.searchParams.delete('boatDates');
@@ -4831,6 +4921,7 @@ window.updateStayCancellationPolicy = updateStayCancellationPolicy;
 window.updateBoatCancellationPolicy = updateBoatCancellationPolicy;
 window.updateFishingCharterCancellationPolicies = updateFishingCharterCancellationPolicies;
 window.validateExtrasWithinReservationDates = validateExtrasWithinReservationDates;
+window.removeBoatFromReservation = removeBoatFromReservation;
 
 
 
@@ -5506,6 +5597,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Check for boatId - if present, hide buttons and show selected boat block
         const boatId = urlParams.get('boatId');
+
+        console.log('🚤 BoatRentalService.initializeFromURL - START:', {
+          boatId,
+          boatDates: urlParams.get('boatDates'),
+          boatGuests: urlParams.get('boatGuests'),
+          boatPickupTime: urlParams.get('boatPickupTime'),
+          fullURL: window.location.search
+        });
+
         if (boatId) {
           this.buttons.forEach(button => {
             if (button) {
@@ -5514,6 +5614,7 @@ document.addEventListener('DOMContentLoaded', () => {
           });
           if (this.selectedBoatBlock) this.selectedBoatBlock.style.display = 'flex';
         } else {
+          console.log('🚤 No boatId - clearing filter states');
           this.buttons.forEach(button => {
             if (button) {
               button.style.display = 'flex';
@@ -5543,6 +5644,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
           // Set dates
           this.selectedDates = boatDates ? boatDates.split(',') : [];
+
+          console.log('🚤 BoatRentalService - Loaded from URL:', {
+            selectedDates: this.selectedDates,
+            selectedGuests: this.selectedGuests,
+            selectedPickupTime: boatPickupTime,
+            selectedLengthType: boatLengthType
+          });
 
           // Set length type
           this.selectedLengthType = boatLengthType || 'full';
@@ -7044,23 +7152,33 @@ document.addEventListener('DOMContentLoaded', () => {
         const checkin = urlParams.get('checkin');
         const checkout = urlParams.get('checkout');
 
+        console.log('🚤 BoatRentalService.areDatesValid called:', { checkin, checkout });
+
         if (!checkin || !checkout || checkin === '' || checkout === '') {
+          console.log('🚤 No checkin/checkout - returning false');
           return false;
         }
 
-        // Get calendar data from Wized
-        const r = Wized.data.r;
+        // Get calendar data from Wized (with fallback)
+        const r = Wized.data.r || {};
 
         // Check if we have calendar data and property details
         if (!r.Load_Property_Calendar_Query ||
           !r.Load_Property_Calendar_Query.data ||
           !r.Load_Property_Details ||
           !r.Load_Property_Details.data) {
+          console.log('🚤 Calendar data not loaded - returning false');
           return false;
         }
 
         const propertyCalendarRange = r.Load_Property_Calendar_Query.data.property_calendar_range;
         const minNights = r.Load_Property_Details.data.property.min_nights;
+
+        console.log('🚤 Validation data:', {
+          calendarDates: propertyCalendarRange.map(d => d.date),
+          totalCalendarDates: propertyCalendarRange.length,
+          minNights
+        });
 
         let allAvailable = true;
         let consecutiveAvailableDays = 0;
@@ -7074,13 +7192,22 @@ document.addEventListener('DOMContentLoaded', () => {
               meetsMinNights = true;
             }
           } else {
+            console.log('🚤 Unavailable date found:', propertyCalendarRange[i].date);
             consecutiveAvailableDays = 0;
             allAvailable = false;
           }
         }
 
+        const result = allAvailable && meetsMinNights;
+        console.log('🚤 BoatRentalService.areDatesValid result:', {
+          allAvailable,
+          consecutiveAvailableDays,
+          meetsMinNights,
+          result
+        });
+
         // Return true only if all days are available and minimum nights requirement is met
-        return allAvailable && meetsMinNights;
+        return result;
       }
 
       showMessage(message) {
@@ -10727,7 +10854,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
       async getBoatName(boatId) {
         try {
-          // Try to get boat name from the existing boat service
+          // First, try to get boat name from cached data (fastest)
+          if (window.selectedBoatData && window.selectedBoatData.id == boatId) {
+            return window.selectedBoatData.name;
+          }
+
+          // Fallback: fetch from boat service if cache not available
           if (window.boatRentalService) {
             const allBoats = await window.boatRentalService.fetchBoatOptions();
             const boat = allBoats.find(b => b.id == boatId);
@@ -11206,6 +11338,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Render multiple selected fishing charter blocks
       renderSelectedFishingCharterBlocks(selectedTrips) {
+        // Double-check: if no charters exist in URL, hide all blocks and exit
+        // This prevents race conditions from async calls
+        if (!this.hasAnyFishingCharters()) {
+          console.log('🎣 renderSelectedFishingCharterBlocks: No charters in URL - hiding all blocks');
+          this.selectedFishingCharterBlocks.forEach(block => {
+            if (block) {
+              block.style.display = 'none';
+            }
+          });
+          return;
+        }
+
         // Handle all fishing charter blocks (desktop and mobile)
         this.selectedFishingCharterBlocks.forEach(templateBlock => {
           if (!templateBlock) return;
@@ -11425,8 +11569,13 @@ document.addEventListener('DOMContentLoaded', () => {
         // Update URL
         window.history.pushState({}, '', url);
 
-        // Re-render the blocks with updated data
-        await this.populateSelectedFishingCharterBlock();
+        // Refresh service state from updated URL
+        this.initializeFromURL();
+
+        // Re-render the blocks with updated data (only if charters remain)
+        if (remainingNumbers.length > 0) {
+          await this.populateSelectedFishingCharterBlock();
+        }
 
         // Update pricing display for extras
         if (window.updatePricingDisplayForExtras) {
@@ -11627,12 +11776,11 @@ document.addEventListener('DOMContentLoaded', () => {
           this.fishingCharterDetailsXButton.addEventListener('click', () => this.closeModal());
         }
 
-        // Set initial button state based on dates
-        this.updateButtonAvailability();
+        // Note: Button state is now handled by centralized updateFishingCharterButtonState function
 
-        // Listen for URL changes to update button availability when dates change
+        // Listen for URL changes (handled by centralized system)
         window.addEventListener('popstate', () => {
-          this.updateButtonAvailability();
+          // Button state updates are handled by centralized system
         });
 
         // Monitor URL parameter changes for checkin/checkout dates
@@ -11666,11 +11814,20 @@ document.addEventListener('DOMContentLoaded', () => {
         // Update button state
         this.updateButtonState();
 
-        this.populateSelectedFishingCharterBlock().catch(err => console.error('Error populating fishing charter block:', err));
+        // Only populate fishing charter blocks if charters exist
+        if (this.hasAnyFishingCharters()) {
+          const charterResult = this.populateSelectedFishingCharterBlock();
+          if (charterResult && typeof charterResult.catch === 'function') {
+            charterResult.catch(err => console.error('Error populating fishing charter block:', err));
+          }
 
-        // Update pricing display if any fishing charters are selected
-        if (this.hasAnyFishingCharters() && window.updatePricingDisplayForExtras) {
-          window.updatePricingDisplayForExtras().catch(err => console.error('Error updating pricing:', err));
+          // Update pricing display if any fishing charters are selected
+          if (window.updatePricingDisplayForExtras) {
+            const pricingResult = window.updatePricingDisplayForExtras();
+            if (pricingResult && typeof pricingResult.catch === 'function') {
+              pricingResult.catch(err => console.error('Error updating pricing:', err));
+            }
+          }
         }
       }
 
@@ -11680,6 +11837,20 @@ document.addEventListener('DOMContentLoaded', () => {
         // Check if any fishing charters exist using numbered parameters
         const hasCharters = this.hasAnyFishingCharters();
 
+        const allNumbers = this.getAllFishingCharterNumbers();
+        console.log('🎣 FishingCharterService.initializeFromURL - START:', {
+          hasCharters,
+          charterNumbers: allNumbers,
+          charterParams: allNumbers.map(num => ({
+            number: num,
+            id: urlParams.get(`fishingCharterId${num}`),
+            tripId: urlParams.get(`fishingCharterTripId${num}`),
+            dates: urlParams.get(`fishingCharterDates${num}`),
+            guests: urlParams.get(`fishingCharterGuests${num}`)
+          })),
+          fullURL: window.location.search
+        });
+
         // Always keep all buttons visible at the bottom
         this.buttons.forEach(button => {
           if (button) {
@@ -11688,12 +11859,14 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         if (hasCharters) {
+          console.log('🎣 Has charters - showing blocks');
           this.selectedFishingCharterBlocks.forEach(block => {
             if (block) {
               block.style.display = 'flex';
             }
           });
         } else {
+          console.log('🎣 No charters - hiding blocks and clearing filters');
           this.selectedFishingCharterBlocks.forEach(block => {
             if (block) {
               block.style.display = 'none';
@@ -12157,13 +12330,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
       async handleButtonClick() {
         try {
-          // Check if valid dates are selected
-          const urlParams = new URLSearchParams(window.location.search);
-          const hasDates = urlParams.has('checkin') && urlParams.has('checkout');
-          const checkIn = urlParams.get('checkin');
-          const checkOut = urlParams.get('checkout');
+          // Check if dates are valid (selected AND meet validation criteria)
+          if (!this.areDatesValid()) {
+            const urlParams = new URLSearchParams(window.location.search);
+            const hasDates = urlParams.has('checkin') && urlParams.has('checkout') &&
+              urlParams.get('checkin') !== '' && urlParams.get('checkout') !== '';
 
-          if (!checkIn || !checkOut || checkIn === '' || checkOut === '') {
             const message = hasDates
               ? 'Valid dates must be selected to add fishing charter'
               : 'Dates must be selected to add fishing charter';
@@ -12224,6 +12396,70 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
 
         }
+      }
+
+      areDatesValid() {
+        // Check if dates exist in URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const checkin = urlParams.get('checkin');
+        const checkout = urlParams.get('checkout');
+
+        console.log('🎣 FishingCharterService.areDatesValid called:', { checkin, checkout });
+
+        if (!checkin || !checkout || checkin === '' || checkout === '') {
+          console.log('🎣 No checkin/checkout - returning false');
+          return false;
+        }
+
+        // Get calendar data from Wized (with fallback)
+        const r = Wized.data.r || {};
+
+        // Check if we have calendar data and property details
+        if (!r.Load_Property_Calendar_Query ||
+          !r.Load_Property_Calendar_Query.data ||
+          !r.Load_Property_Details ||
+          !r.Load_Property_Details.data) {
+          console.log('🎣 Calendar data not loaded - returning false');
+          return false;
+        }
+
+        const propertyCalendarRange = r.Load_Property_Calendar_Query.data.property_calendar_range;
+        const minNights = r.Load_Property_Details.data.property.min_nights;
+
+        console.log('🎣 Validation data:', {
+          calendarDates: propertyCalendarRange.map(d => d.date),
+          totalCalendarDates: propertyCalendarRange.length,
+          minNights
+        });
+
+        let allAvailable = true;
+        let consecutiveAvailableDays = 0;
+        let meetsMinNights = false;
+
+        // Check each day in the range
+        for (let i = 0; i < propertyCalendarRange.length; i++) {
+          if (propertyCalendarRange[i].status === "available") {
+            consecutiveAvailableDays++;
+            if (consecutiveAvailableDays >= minNights) {
+              meetsMinNights = true;
+            }
+          } else {
+            console.log('🎣 Unavailable date found:', propertyCalendarRange[i].date);
+            consecutiveAvailableDays = 0;
+            allAvailable = false;
+          }
+        }
+
+        const result = allAvailable && meetsMinNights;
+        console.log('🎣 FishingCharterService.areDatesValid result:', {
+          allAvailable,
+          consecutiveAvailableDays,
+          meetsMinNights,
+          result
+        });
+
+        // Return true only if all days are available AND minimum nights requirement is met
+        return result;
       }
 
       closeModal() {
@@ -14394,7 +14630,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Re-initialize date selection functionality
             this.renderDateSelection();
-            this.updateButtonAvailability();
+            // Note: Button availability handled by centralized system
             this.updateDatesFilterText();
             this.updateFilterStyles();
 
@@ -15603,39 +15839,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 3000);
       }
 
-      updateButtonAvailability() {
-        if (!this.buttons || this.buttons.length === 0) return;
-
-        const urlParams = new URLSearchParams(window.location.search);
-        const hasDates = urlParams.has('checkin') && urlParams.has('checkout');
-        const checkIn = urlParams.get('checkin');
-        const checkOut = urlParams.get('checkout');
-
-        if (!checkIn || !checkOut || checkIn === '' || checkOut === '') {
-          // Disable button appearance and set not-allowed cursor
-          this.buttons.forEach(button => {
-            if (button) {
-              button.style.cursor = 'not-allowed';
-              button.style.opacity = '0.5';
-
-              const tooltipMessage = hasDates
-                ? 'Valid dates must be selected to add fishing charter'
-                : 'Dates must be selected to add fishing charter';
-
-              button.setAttribute('title', tooltipMessage);
-            }
-          });
-        } else {
-          // Enable button appearance and set normal cursor
-          this.buttons.forEach(button => {
-            if (button) {
-              button.style.cursor = 'pointer';
-              button.style.opacity = '1';
-              button.removeAttribute('title');
-            }
-          });
-        }
-      }
+      // Note: Button availability is now handled by the centralized updateFishingCharterButtonState function
 
       updateAddToReservationButtonsAvailability() {
         // Find all Add to Reservation buttons in the details view
@@ -15967,7 +16171,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // Update fishing charter service state
         window.fishingCharterService.initializeFromURL();
         window.fishingCharterService.updateButtonState();
-        await window.fishingCharterService.populateSelectedFishingCharterBlock();
+        // Don't call populateSelectedFishingCharterBlock() - we just removed all charters
+        // initializeFromURL() already hid the blocks
 
         // Update pricing displays
         if (window.updatePricingDisplayForExtras) {
@@ -16076,10 +16281,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
 
-    // Periodically check button availability in case URL changes through other means
-    setInterval(() => {
-      fishingCharter.updateButtonAvailability();
-    }, 1000);
+    // Note: Button availability is now handled by centralized updateFishingCharterButtonState function
 
     // Initial pricing update if fishing charters are selected
     if (fishingCharter.hasAnyFishingCharters() && window.updatePricingDisplayForExtras) {
@@ -16303,7 +16505,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const listingOnlyElements = document.querySelectorAll('[data-element="ListingOnly_Query_Price_Details"]');
       const listingExtrasElements = document.querySelectorAll('[data-element="ListingExtras_Query_Price_Details"]');
 
-      const shouldShowPricing = validation.datesSelected && validation.datesValid;
+      // Show pricing only when dates are selected, valid, AND guests are valid
+      const shouldShowPricing = validation.datesSelected && validation.datesValid && validation.guestsValid;
 
       // Handle main price details container
       priceDetailsElements.forEach(element => {
@@ -16328,7 +16531,7 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         });
       } else {
-        // Hide both when dates are invalid/not selected
+        // Hide both when dates are invalid/not selected OR guests are invalid
         listingOnlyElements.forEach(element => {
           if (element) {
             element.style.display = 'none';
@@ -16383,105 +16586,178 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
-    // Handle boat rentals and fishing charters when dates are cleared
+    // Handle boat rentals and fishing charters when dates are invalid or cleared
     function handleExtrasWhenDatesCleared(validation) {
-      // Only act if dates were cleared (not selected)
-      if (!validation.datesSelected) {
-        const urlParams = new URLSearchParams(window.location.search);
-        let hasRemovedExtras = false;
-
-        // Check and remove boat rental if present
-        if (urlParams.get('boatId')) {
-          removeBoatFromReservation();
-          hasRemovedExtras = true;
-        }
-
-        // Check and remove fishing charters if present
-        if (window.fishingCharterService && window.fishingCharterService.hasAnyFishingCharters()) {
-          const allNumbers = window.fishingCharterService.getAllFishingCharterNumbers();
-          allNumbers.forEach(number => {
-            removeFishingCharterFromReservation(number);
-          });
-          hasRemovedExtras = true;
-        }
-
-        // Update UI if any extras were removed
-        if (hasRemovedExtras) {
-          // Update boat UI
-          if (window.updateBoatVisibility) {
-            window.updateBoatVisibility();
-          }
-
-          // Update fishing charter UI
-          if (window.fishingCharterService && window.fishingCharterService.populateSelectedFishingCharterBlock) {
-            window.fishingCharterService.populateSelectedFishingCharterBlock().catch(err => console.error('Error populating fishing charter:', err));
-          }
-
-          // Update pricing display
-          if (window.updatePricingDisplayForExtras) {
-            window.updatePricingDisplayForExtras().catch(err => console.error('Error updating pricing:', err));
-          }
-        }
-      }
-    }
-
-    // Helper function to remove boat from reservation
-    function removeBoatFromReservation() {
       const urlParams = new URLSearchParams(window.location.search);
 
-      // Remove boat-related parameters
-      urlParams.delete('boatId');
-      urlParams.delete('boatDates');
-      urlParams.delete('boatGuests');
-      urlParams.delete('boatPickupTime');
-      urlParams.delete('boatLengthType');
-      urlParams.delete('boatPrivateDock');
-      urlParams.delete('boatDelivery');
+      // Case 1: No dates selected - BUT check if user is actively selecting new dates in calendar
+      if (!validation.datesSelected) {
+        // Check if calendar modal is open (user is selecting new dates)
+        const calendarModal = document.querySelector('[data-element="calendarModal"]');
+        const mobileCalendarModal = document.querySelector('[data-element="mobileCalendarModal"]');
+        const isCalendarOpen = (calendarModal && calendarModal.style.display === 'flex') ||
+          (mobileCalendarModal && mobileCalendarModal.style.display === 'flex');
 
-      // Clear boat data
-      window.selectedBoatData = null;
-
-      // Update URL
-      const newUrl = window.location.pathname + '?' + urlParams.toString();
-      window.history.replaceState({}, '', newUrl);
-
-      // Reset boat service filter states
-      if (window.boatRentalService) {
-        // Clear the current filter states to match the removed boat
-        window.boatRentalService.selectedDates = [];
-        window.boatRentalService.selectedGuests = 0;
-        window.boatRentalService.selectedPickupTime = '';
-        window.boatRentalService.selectedLengthType = 'full';
-        window.boatRentalService.selectedPrivateDock = false;
-        window.boatRentalService.deliverySelected = false;
-
-        // Update UI elements to reflect cleared state
-        if (window.boatRentalService.guestNumber) {
-          window.boatRentalService.guestNumber.textContent = window.boatRentalService.selectedGuests;
-        }
-        if (window.boatRentalService.boatDetailsGuestNumber) {
-          window.boatRentalService.boatDetailsGuestNumber.textContent = window.boatRentalService.selectedGuests;
+        if (isCalendarOpen) {
+          console.log('⏳ Calendar open - waiting for user to complete date selection');
+          return; // Don't remove extras while user is actively selecting dates
         }
 
-        // Update filter texts and styles
-        window.boatRentalService.updateDatesFilterText();
-        window.boatRentalService.updatePickupTimeFilterText();
-        window.boatRentalService.updateGuestsFilterText();
-        window.boatRentalService.updatePrivateDockFilterText();
-        window.boatRentalService.updateBoatDetailsDateFilterText();
-        window.boatRentalService.updateBoatDetailsPickupTimeFilterText();
-        window.boatRentalService.updateBoatDetailsGuestsFilterText();
-        window.boatRentalService.updateFilterStyles();
+        console.log('🚫 User cleared dates - removing all extras');
+        removeAllExtras();
+        return;
+      }
 
-        // Reset pickup time pills
-        Object.values(window.boatRentalService.pickupTimePills).forEach(pill => {
-          if (pill) pill.style.borderColor = '';
+      // Case 2: Dates selected - validate extras are within date range
+      const checkin = urlParams.get('checkin');
+      const checkout = urlParams.get('checkout');
+
+      if (!checkin || !checkout) {
+        console.log('⚠️ Missing checkin/checkout params');
+        return;
+      }
+
+      // Parse check-in and check-out dates manually (YYYY-MM-DD format)
+      const [checkInYear, checkInMonth, checkInDay] = checkin.split('-').map(Number);
+      const [checkOutYear, checkOutMonth, checkOutDay] = checkout.split('-').map(Number);
+      const checkInTime = Date.UTC(checkInYear, checkInMonth - 1, checkInDay);
+      const checkOutTime = Date.UTC(checkOutYear, checkOutMonth - 1, checkOutDay);
+
+      console.log('📅 Validating extras against date range:', { checkin, checkout });
+
+      let hasRemovedExtras = false;
+
+      // Validate boat rental dates
+      const boatDates = urlParams.get('boatDates');
+      if (boatDates) {
+        const boatDateArray = boatDates.split(',');
+        const allBoatDatesValid = boatDateArray.every(dateStr => {
+          const [year, month, day] = dateStr.split('-').map(Number);
+          const dateTime = Date.UTC(year, month - 1, day);
+          // Include checkout date: >= checkin AND <= checkout
+          return dateTime >= checkInTime && dateTime <= checkOutTime;
         });
-        Object.values(window.boatRentalService.boatDetailsPickupTimePills).forEach(pill => {
-          if (pill) pill.style.borderColor = '';
+
+        if (!allBoatDatesValid) {
+          console.log('🚫 Boat dates outside reservation range - removing boat');
+          removeBoatFromReservation();
+          hasRemovedExtras = true;
+        } else {
+          console.log('✅ Boat dates valid');
+        }
+      }
+
+      // Validate fishing charter dates
+      if (window.fishingCharterService) {
+        const allNumbers = window.fishingCharterService.getAllFishingCharterNumbers();
+        allNumbers.forEach(number => {
+          const charterDates = urlParams.get(`fishingCharterDates${number}`);
+          if (charterDates) {
+            const charterDateArray = charterDates.split(',');
+            const allCharterDatesValid = charterDateArray.every(dateStr => {
+              const [year, month, day] = dateStr.split('-').map(Number);
+              const dateTime = Date.UTC(year, month - 1, day);
+              // Include checkout date: >= checkin AND <= checkout
+              return dateTime >= checkInTime && dateTime <= checkOutTime;
+            });
+
+            if (!allCharterDatesValid) {
+              console.log(`🚫 Fishing charter ${number} dates outside reservation range - removing`);
+              removeFishingCharterFromReservation(number);
+              hasRemovedExtras = true;
+            } else {
+              console.log(`✅ Fishing charter ${number} dates valid`);
+            }
+          }
         });
+
+        // Update fishing charter UI after removals
+        if (hasRemovedExtras) {
+          // First, refresh fishing charter service state from updated URL
+          if (window.fishingCharterService.initializeFromURL) {
+            window.fishingCharterService.initializeFromURL();
+          }
+          // Only update blocks if there are still charters remaining
+          const stillHasCharters = window.fishingCharterService.hasAnyFishingCharters && window.fishingCharterService.hasAnyFishingCharters();
+          if (stillHasCharters && window.fishingCharterService.populateSelectedFishingCharterBlock) {
+            const charterResult = window.fishingCharterService.populateSelectedFishingCharterBlock();
+            if (charterResult && typeof charterResult.catch === 'function') {
+              charterResult.catch(err => console.error('Error updating fishing charter UI:', err));
+            }
+          }
+        }
+      }
+
+      // Update pricing if any extras were removed
+      if (hasRemovedExtras) {
+        if (window.updatePricingDisplayForExtras) {
+          const pricingResult = window.updatePricingDisplayForExtras();
+          if (pricingResult && typeof pricingResult.catch === 'function') {
+            pricingResult.catch(err => console.error('Error updating pricing:', err));
+          }
+        }
       }
     }
+
+    // Helper to remove all extras from URL (used when no dates selected)
+    function removeAllExtras() {
+      const urlParams = new URLSearchParams(window.location.search);
+      let hasRemovedExtras = false;
+
+      // Remove boat rental if present
+      if (urlParams.get('boatId')) {
+        removeBoatFromReservation();
+        hasRemovedExtras = true;
+      }
+
+      // Remove fishing charters if present
+      if (window.fishingCharterService && window.fishingCharterService.hasAnyFishingCharters()) {
+        const allNumbers = window.fishingCharterService.getAllFishingCharterNumbers();
+        allNumbers.forEach(number => {
+          removeFishingCharterFromReservation(number);
+        });
+        hasRemovedExtras = true;
+      }
+
+      if (hasRemovedExtras) {
+        updateExtrasUI();
+      }
+    }
+
+    // Helper to update UI after extras are removed
+    function updateExtrasUI() {
+      // Update boat UI
+      if (window.updateBoatVisibility) {
+        window.updateBoatVisibility();
+      }
+
+      // Update fishing charter UI
+      if (window.fishingCharterService) {
+        // First, refresh fishing charter service state from updated URL
+        if (window.fishingCharterService.initializeFromURL) {
+          window.fishingCharterService.initializeFromURL();
+        }
+        // Only update blocks if there are still charters remaining
+        const stillHasCharters = window.fishingCharterService.hasAnyFishingCharters && window.fishingCharterService.hasAnyFishingCharters();
+        if (stillHasCharters && window.fishingCharterService.populateSelectedFishingCharterBlock) {
+          const charterResult = window.fishingCharterService.populateSelectedFishingCharterBlock();
+          if (charterResult && typeof charterResult.catch === 'function') {
+            charterResult.catch(err => console.error('Error populating fishing charter:', err));
+          }
+        }
+      }
+
+      // Update pricing display
+      if (window.updatePricingDisplayForExtras) {
+        const pricingResult = window.updatePricingDisplayForExtras();
+        if (pricingResult && typeof pricingResult.catch === 'function') {
+          pricingResult.catch(err => console.error('Error updating pricing:', err));
+        }
+      }
+    }
+
+    // NOTE: removeBoatFromReservation() and removeFishingCharterFromReservation() 
+    // are defined globally (lines 4688 and 4742) and reused here
 
     // Helper function to remove fishing charter from reservation
     function removeFishingCharterFromReservation(number) {
