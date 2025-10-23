@@ -9786,7 +9786,14 @@ document.addEventListener('DOMContentLoaded', () => {
           if (addToReservationButtonFooter) addToReservationButtonFooter.style.display = 'none';
           if (selectDatesButton) {
             selectDatesButton.style.display = 'flex';
-            selectDatesButton.textContent = this.getMissingRequirementsText();
+            // Update the button text via the nested data-element
+            const buttonText = selectDatesButton.querySelector('[data-element="boatDetails_reservation_selectDatesOrAddGuestsButton_footerText"]');
+            if (buttonText) {
+              buttonText.textContent = this.getMissingRequirementsText();
+            } else {
+              // Fallback if nested element doesn't exist
+              selectDatesButton.textContent = this.getMissingRequirementsText();
+            }
           }
         }
       }
