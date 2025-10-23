@@ -898,9 +898,28 @@ window.Webflow.push(() => {
 
 //reserveButton
 const reserveButtons = document.querySelectorAll('[data-element="listing_reserve_button"]');
+
 reserveButtons.forEach(button => {
   if (button) {
+    const buttonText = button.querySelector('[data-element="listing_reserve_button_text"]');
+    const buttonLoader = button.querySelector('[data-element="listing_reserve_button_loader"]');
+
+    // Hide loader initially
+    if (buttonLoader) {
+      buttonLoader.style.display = 'none';
+    }
+
     button.addEventListener('click', () => {
+
+
+      // Hide text and show loader
+      if (buttonText) {
+        buttonText.style.display = 'none';
+      }
+      if (buttonLoader) {
+        buttonLoader.style.display = 'flex';
+      }
+
       // Get current URL parameters
       const params = window.location.search;
       // Navigate to '/book/stay' with all current parameters
