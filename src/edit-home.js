@@ -364,16 +364,58 @@ document.addEventListener('DOMContentLoaded', function () {
             }, 1000); // Check every second
         }
 
-        // Add hover events for tooltip
-        colorStatusElement.addEventListener('mouseenter', (e) => {
+        // Function to position and show tooltip
+        function showTooltip() {
             const rect = colorStatusElement.getBoundingClientRect();
-            tooltip.style.left = `${rect.left}px`;
-            tooltip.style.top = `${rect.bottom + 5}px`;
-            tooltip.style.display = 'block';
+            const screenWidth = window.innerWidth;
+
+            // Position tooltip to the left on mobile/tablet (991px or less)
+            if (screenWidth <= 991) {
+                tooltip.style.right = `${window.innerWidth - rect.left}px`;
+                tooltip.style.left = 'auto';
+                tooltip.style.top = `${rect.bottom + 5}px`;
+            } else {
+                // Position tooltip below on desktop
+                tooltip.style.left = `${rect.left}px`;
+                tooltip.style.right = 'auto';
+                tooltip.style.top = `${rect.bottom + 5}px`;
+            }
+
+            tooltip.style.display = 'flex';
+        }
+
+        // Add hover events for desktop
+        colorStatusElement.addEventListener('mouseenter', (e) => {
+            if (window.innerWidth > 991) {
+                showTooltip();
+            }
         });
 
         colorStatusElement.addEventListener('mouseleave', () => {
-            tooltip.style.display = 'none';
+            if (window.innerWidth > 991) {
+                tooltip.style.display = 'none';
+            }
+        });
+
+        // Add click events for mobile (991px or less)
+        colorStatusElement.addEventListener('click', (e) => {
+            if (window.innerWidth <= 991) {
+                e.stopPropagation();
+                if (tooltip.style.display === 'flex') {
+                    tooltip.style.display = 'none';
+                } else {
+                    showTooltip();
+                }
+            }
+        });
+
+        // Close tooltip when clicking outside on mobile
+        document.addEventListener('click', (e) => {
+            if (window.innerWidth <= 991 &&
+                !colorStatusElement.contains(e.target) &&
+                !tooltip.contains(e.target)) {
+                tooltip.style.display = 'none';
+            }
         });
 
         // Initial check
@@ -6181,29 +6223,40 @@ document.addEventListener('DOMContentLoaded', function () {
         hideAllSubsections();
 
         // Set default subsection based on which main section is shown
-        if (showDetails) {
-            // Show photos section by default when details is selected
-            const photosSection = document.querySelector('[data-element="edit_photos_section"]');
-            const photosButton = document.querySelector('[data-element="edit_photos"]');
-            if (photosSection && photosButton) {
-                photosSection.style.display = 'flex';
-                photosButton.style.border = '1.2px solid black';
-                photosButton.style.boxShadow = '0 1px 20px 0 rgba(0, 0, 0, 0.1)';
-            }
-        } else {
-            // Show listing status section by default when preferences is selected
-            const listingStatusSection = document.querySelector('[data-element="edit_listingStatus_section"]');
-            const listingStatusButton = document.querySelector('[data-element="edit_listingStatus"]');
-            if (listingStatusSection && listingStatusButton) {
-                listingStatusSection.style.display = 'flex';
-                listingStatusButton.style.border = '1.2px solid black';
-                listingStatusButton.style.boxShadow = '0 1px 20px 0 rgba(0, 0, 0, 0.1)';
+        // Only show default subsection on desktop (width > 991px)
+        if (window.innerWidth > 991) {
+            if (showDetails) {
+                // Show photos section by default when details is selected
+                const photosSection = document.querySelector('[data-element="edit_photos_section"]');
+                const photosButton = document.querySelector('[data-element="edit_photos"]');
+                if (photosSection && photosButton) {
+                    photosSection.style.display = 'flex';
+                    photosButton.style.border = '1.2px solid black';
+                    photosButton.style.boxShadow = '0 1px 20px 0 rgba(0, 0, 0, 0.1)';
+                }
+            } else {
+                // Show listing status section by default when preferences is selected
+                const listingStatusSection = document.querySelector('[data-element="edit_listingStatus_section"]');
+                const listingStatusButton = document.querySelector('[data-element="edit_listingStatus"]');
+                if (listingStatusSection && listingStatusButton) {
+                    listingStatusSection.style.display = 'flex';
+                    listingStatusButton.style.border = '1.2px solid black';
+                    listingStatusButton.style.boxShadow = '0 1px 20px 0 rgba(0, 0, 0, 0.1)';
+                }
             }
         }
     }
 
-    // Set default state (details selected)
-    switchSection(true);
+    // Set default state (details selected) only on desktop
+    if (window.innerWidth > 991) {
+        switchSection(true);
+    } else {
+        // On mobile, just set the details button as selected but don't show any subsection
+        detailsButton.classList.add('selected');
+        preferencesButton.classList.remove('selected');
+        detailsSection.style.display = 'flex';
+        preferencesSection.style.display = 'none';
+    }
 
     // Add click listeners
     detailsButton.addEventListener('click', () => switchSection(true));
