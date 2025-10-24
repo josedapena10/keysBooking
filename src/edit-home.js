@@ -104,6 +104,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Function to get current page from URL
         const getCurrentPage = () => {
             const path = window.location.pathname;
+            if (path.includes('/host/listings/edit')) return 'editListing';
             if (path.includes('/host/dashboard')) return 'dashboard';
             if (path.includes('/host/listings')) return 'listings';
             if (path.includes('/host/calendar')) return 'calendar';
@@ -126,6 +127,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Update text and hide current page item
             switch (currentPage) {
+                case 'editListing':
+                    if (hostNavBarBlockText) hostNavBarBlockText.textContent = 'Edit Listing';
+                    // Show all dropdown items including listings
+                    break;
                 case 'dashboard':
                     if (hostNavBarBlockText) hostNavBarBlockText.textContent = 'Dashboard';
                     if (dashboardItem) dashboardItem.style.display = 'none';
