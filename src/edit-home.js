@@ -6330,6 +6330,51 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
+    // Function to add/remove modal classes based on screen width
+    function updateModalClasses() {
+        const isMobileView = window.innerWidth <= 991;
+
+        // Update section buttons with open_modal class
+        subsectionTypes.forEach(type => {
+            const button = document.querySelector(`[data-element="edit_${type}"]`);
+            const detailsButton = document.querySelector(`[data-element="edit_${type}_detalsSection"]`);
+
+            if (button) {
+                if (isMobileView) {
+                    button.classList.add('open_modal');
+                } else {
+                    button.classList.remove('open_modal');
+                }
+            }
+
+            if (detailsButton) {
+                if (isMobileView) {
+                    detailsButton.classList.add('open_modal');
+                } else {
+                    detailsButton.classList.remove('open_modal');
+                }
+            }
+        });
+
+        // Update X buttons with close_modal class
+        xButtonElements.forEach(buttonElement => {
+            const xButton = document.querySelector(`[data-element="${buttonElement}"]`);
+            if (xButton) {
+                if (isMobileView) {
+                    xButton.classList.add('close_modal');
+                } else {
+                    xButton.classList.remove('close_modal');
+                }
+            }
+        });
+    }
+
+    // Initial update of modal classes
+    updateModalClasses();
+
+    // Update modal classes on window resize
+    window.addEventListener('resize', updateModalClasses);
+
     // Handle subsection visibility within details section
     subsectionTypes.forEach(type => {
         const button = document.querySelector(`[data-element="edit_${type}"]`);
