@@ -1096,9 +1096,9 @@ document.addEventListener('DOMContentLoaded', function () {
         </div>
     `;
 
-        // Style the notification (using the same styles)
+        // Style the notification (positioned at top of screen)
         notificationDiv.style.position = 'fixed';
-        notificationDiv.style.bottom = '20px';
+        notificationDiv.style.top = '20px';
         notificationDiv.style.left = '50%';
         notificationDiv.style.transform = 'translateX(-50%)';
         notificationDiv.style.backgroundColor = '#fff';
@@ -1980,138 +1980,118 @@ document.addEventListener('DOMContentLoaded', function () {
 
         addNavigationButtonListeners();
 
-        // Function to handle responsive behavior
+        // Function to handle responsive behavior and mobile footer management
         function setupResponsiveCalendar() {
             const toolbarContainer = document.querySelector('[data-element="calendarToolbarContainer"]');
-            let mobileNoticePopup;
+            const calendarContainer = document.querySelector('[data-element="calendarSectionContainer"]');
+            const toolbarFooter = document.querySelector('[data-element="editCalendar_toolbarFooter"]');
+            const calendarFooter = document.querySelector('[data-element="editCalendar_calendarFooter"]');
 
-            // Create mobile notice popup if it doesn't exist
-            function createMobileNoticePopup() {
-                // Check if popup already exists
-                if (document.querySelector('#mobile-notice-popup')) {
-                    return document.querySelector('#mobile-notice-popup');
-                }
-
-                // Create popup element
-                const popup = document.createElement('div');
-                popup.id = 'mobile-notice-popup';
-                popup.style.position = 'fixed';
-                popup.style.bottom = '20px';
-                popup.style.left = '50%';
-                popup.style.transform = 'translateX(-50%)';
-                popup.style.backgroundColor = '#333';
-                popup.style.color = 'white';
-                popup.style.padding = '12px 20px';
-                popup.style.borderRadius = '8px';
-                popup.style.boxShadow = '0 2px 10px rgba(0,0,0,0.2)';
-                popup.style.zIndex = '9999';
-                popup.style.maxWidth = '90%';
-                popup.style.textAlign = 'center';
-                popup.style.fontSize = '14px';
-                popup.style.display = 'none';
-
-                // Add message
-                popup.innerHTML = 'Please use a laptop or desktop to edit calendar settings. Or email us at support@keysbooking.com and we will help you out. <button id="close-mobile-notice" style="background:none;border:none;color:white;margin-left:10px;font-size:16px;cursor:pointer">×</button>';
-
-                // Add to document
-                document.body.appendChild(popup);
-
-                // Add close button functionality
-                document.getElementById('close-mobile-notice').addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    popup.style.display = 'none';
-                });
-
-                return popup;
+            // Ensure footers have higher z-index than calendar library container
+            if (toolbarFooter) {
+                toolbarFooter.style.zIndex = '1000';
+            }
+            if (calendarFooter) {
+                calendarFooter.style.zIndex = '1000';
             }
 
-            // Function to show mobile notice
-            function showMobileNotice() {
-                if (!mobileNoticePopup) {
-                    mobileNoticePopup = createMobileNoticePopup();
-                }
-                mobileNoticePopup.style.display = 'block';
-
-                // Auto-hide after 5 seconds
-                setTimeout(() => {
-                    mobileNoticePopup.style.display = 'none';
-                }, 5000);
+            // Function to check if we're on mobile view
+            function isMobileView() {
+                return window.innerWidth <= 991;
             }
 
-            // Function to check screen width and apply restrictions
-            function applyMobileRestrictions() {
-                if (window.innerWidth < 992) {
-                    // Hide toolbar container on mobile
-                    if (toolbarContainer) {
-                        toolbarContainer.style.display = 'none';
+            // Function to update footer visibility based on which section is visible
+            function updateFooterVisibility() {
+                if (!isMobileView()) {
+                    // On desktop, hide both footers
+                    if (toolbarFooter) toolbarFooter.style.display = 'none';
+                    if (calendarFooter) calendarFooter.style.display = 'none';
+                    return;
+                }
+
+                // On mobile, show the appropriate footer based on visible section
+                if (toolbarContainer && calendarContainer) {
+                    const isToolbarVisible = window.getComputedStyle(toolbarContainer).display !== 'none';
+                    const isCalendarVisible = window.getComputedStyle(calendarContainer).display !== 'none';
+
+                    if (isToolbarVisible) {
+                        if (toolbarFooter) toolbarFooter.style.display = 'flex';
+                        if (calendarFooter) calendarFooter.style.display = 'none';
+                    } else if (isCalendarVisible) {
+                        if (toolbarFooter) toolbarFooter.style.display = 'none';
+                        if (calendarFooter) calendarFooter.style.display = 'flex';
                     }
+                }
+            }
 
-                    // Show mobile notice
-                    showMobileNotice();
+            // Function to switch to toolbar view (called from calendar footer)
+            window.switchToToolbarView = function () {
+                if (!isMobileView()) return;
 
-                    // If calendar is initialized, modify its click handling
-                    if (calendar) {
-                        // Store the original eventClick function
-                        if (!calendar._originalEventClick && calendar.getOption('eventClick')) {
-                            calendar._originalEventClick = calendar.getOption('eventClick');
+                if (calendarContainer) calendarContainer.style.display = 'none';
+                if (toolbarContainer) toolbarContainer.style.display = 'flex';
 
-                            // Replace with restricted version that only allows reservation clicks
-                            calendar.setOption('eventClick', function (info) {
-                                // Only allow clicks on reservation type events
-                                if (info.event.extendedProps.type === 'reservation') {
-                                    // Call the original handler for reservations
-                                    calendar._originalEventClick(info);
-                                } else {
-                                    // Show notice for other event types
-                                    showMobileNotice();
-                                }
-                            });
+                // Show the appropriate toolbar section based on selected dates
+                const toolbar = document.querySelector('[data-element="toolbar"]');
+                const customDates = document.querySelector('[data-element="toolbarEdit_customDates"]');
 
-                        }
-
-                        // Store original dateClick and replace with notice
-                        if (!calendar._originalDateClick && calendar.getOption('dateClick')) {
-                            calendar._originalDateClick = calendar.getOption('dateClick');
-
-                            // Show notice when clicking on dates
-                            calendar.setOption('dateClick', function () {
-                                showMobileNotice();
-                            });
-                        } else if (!calendar.getOption('dateClick')) {
-                            // If no dateClick handler exists, add one to show notice
-                            calendar.setOption('dateClick', function () {
-                                showMobileNotice();
-                            });
-                        }
-                    }
+                if (selectedDates.length > 0) {
+                    // Show custom dates edit section
+                    if (toolbar) toolbar.style.display = 'none';
+                    if (customDates) customDates.style.display = 'flex';
                 } else {
-                    // Restore normal functionality on desktop
-                    if (toolbarContainer) {
-                        toolbarContainer.style.display = 'flex';
-                    }
+                    // Show default toolbar
+                    if (toolbar) toolbar.style.display = 'flex';
+                    if (customDates) customDates.style.display = 'none';
+                }
 
-                    // Hide mobile notice if visible
-                    if (mobileNoticePopup) {
-                        mobileNoticePopup.style.display = 'none';
-                    }
+                updateFooterVisibility();
+            };
 
-                    // Restore original click handlers if they exist
-                    if (calendar && calendar._originalEventClick) {
-                        calendar.setOption('eventClick', calendar._originalEventClick);
+            // Function to switch to calendar view (called from toolbar footer)
+            window.switchToCalendarView = function () {
+                if (!isMobileView()) return;
 
-                        // Restore date click functionality if needed
-                        if (calendar._originalDateClick) {
-                            calendar.setOption('dateClick', calendar._originalDateClick);
-                        }
+                if (toolbarContainer) toolbarContainer.style.display = 'none';
+                if (calendarContainer) calendarContainer.style.display = 'flex';
+                updateFooterVisibility();
+            };
+
+            // Function to update calendar footer text based on selected dates
+            window.updateMobileCalendarFooterText = function () {
+                if (!isMobileView() || !calendarFooter) return;
+
+                const count = selectedDates.length;
+                const footerTextElement = calendarFooter.querySelector('[data-element="editCalendar_calendarFooterText"]');
+
+                if (footerTextElement) {
+                    if (count === 0) {
+                        footerTextElement.textContent = 'View Toolbar';
+                    } else if (count === 1) {
+                        footerTextElement.textContent = 'Edit 1 Date';
+                    } else {
+                        footerTextElement.textContent = `Edit ${count} Dates`;
                     }
                 }
+            };
+
+            // Add click handlers for footers
+            if (toolbarFooter) {
+                toolbarFooter.addEventListener('click', window.switchToCalendarView);
             }
 
-            // Apply restrictions on load
-            applyMobileRestrictions();
+            if (calendarFooter) {
+                calendarFooter.addEventListener('click', window.switchToToolbarView);
+            }
 
-            // Update on window resize
-            window.addEventListener('resize', applyMobileRestrictions);
+            // Update footer visibility on resize
+            window.addEventListener('resize', updateFooterVisibility);
+
+            // Initial setup
+            updateFooterVisibility();
+            if (isMobileView()) {
+                window.updateMobileCalendarFooterText();
+            }
         }
 
         // Call the responsive setup function
@@ -2215,13 +2195,28 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         }
 
+        // Check if we're on mobile view
+        const isMobileView = window.innerWidth <= 991;
+
         // Switch to pricing view when date selection changes
         switchView('pricing');
 
         // Update toolbar display based on whether any dates are selected
         if (selectedDates.length > 0) {
-            toolbar.style.display = 'none';
-            customDates.style.display = 'flex';
+            // On mobile, update footer text and keep calendar visible
+            if (isMobileView) {
+                // Update the mobile calendar footer text
+                if (window.updateMobileCalendarFooterText) {
+                    window.updateMobileCalendarFooterText();
+                }
+
+                // Keep the calendar visible on mobile, don't auto-switch to toolbar
+                // The user will manually switch via footer click
+            } else {
+                // On desktop, show toolbar edit section as before
+                toolbar.style.display = 'none';
+                customDates.style.display = 'flex';
+            }
 
             // Update the custom dates text based on selection
             updateCustomDatesText();
@@ -2232,8 +2227,17 @@ document.addEventListener('DOMContentLoaded', function () {
             // Update availability containers
             updateAvailabilityContainers();
         } else {
-            toolbar.style.display = 'flex';
-            customDates.style.display = 'none';
+            // No dates selected
+            if (isMobileView) {
+                // Update footer text to default
+                if (window.updateMobileCalendarFooterText) {
+                    window.updateMobileCalendarFooterText();
+                }
+            } else {
+                // On desktop, hide custom dates edit section
+                toolbar.style.display = 'flex';
+                customDates.style.display = 'none';
+            }
         }
 
     }
@@ -2984,9 +2988,23 @@ document.addEventListener('DOMContentLoaded', function () {
             el.classList.remove('selected-day');
         });
 
-        // Hide custom dates toolbar and show regular toolbar
-        customDates.style.display = 'none';
-        toolbar.style.display = 'flex';
+        // Check if we're on mobile
+        const isMobileView = window.innerWidth <= 991;
+
+        if (isMobileView) {
+            // On mobile, go back to calendar view
+            if (window.switchToCalendarView) {
+                window.switchToCalendarView();
+            }
+            // Update footer text
+            if (window.updateMobileCalendarFooterText) {
+                window.updateMobileCalendarFooterText();
+            }
+        } else {
+            // On desktop, hide custom dates toolbar and show regular toolbar
+            customDates.style.display = 'none';
+            toolbar.style.display = 'flex';
+        }
     }
 
     // Function to update the custom dates text based on selection
@@ -3931,6 +3949,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
             // Clear all selected dates
             selectedDates = [];
+            selectedDateTypes = {}; // Clear date types as well
 
             // Remove selected-day class from all date elements
             const selectedDayElements = document.querySelectorAll('.selected-day');
@@ -3938,9 +3957,23 @@ document.addEventListener('DOMContentLoaded', function () {
                 el.classList.remove('selected-day');
             });
 
-            // Hide custom dates toolbar and show regular toolbar
-            customDates.style.display = 'none';
-            toolbar.style.display = 'flex';
+            // Check if we're on mobile
+            const isMobileView = window.innerWidth <= 991;
+
+            if (isMobileView) {
+                // On mobile, go back to calendar view
+                if (window.switchToCalendarView) {
+                    window.switchToCalendarView();
+                }
+                // Update footer text
+                if (window.updateMobileCalendarFooterText) {
+                    window.updateMobileCalendarFooterText();
+                }
+            } else {
+                // On desktop, hide custom dates toolbar and show regular toolbar
+                customDates.style.display = 'none';
+                toolbar.style.display = 'flex';
+            }
         }
 
         // Add event listeners
@@ -5462,30 +5495,35 @@ document.addEventListener('DOMContentLoaded', function () {
                         // Add last updated date to the synced container
                         const lastUpdatedElement = container.querySelector('[data-element="toolbarEdit_connectCalender_synced_lastUpdated"]');
                         if (lastUpdatedElement) {
-                            // First check if last_updated exists
                             if (ical.last_updated) {
                                 // Parse the date from the ical data
                                 const lastSyncedDate = new Date(ical.last_updated);
 
-                                // Format the date as "Last updated on Month Day, Year at Hour:Minute AM/PM"
-                                const formattedDate = lastSyncedDate.toLocaleDateString('en-US', {
-                                    month: 'long',
-                                    day: 'numeric',
-                                    year: '2-digit'
-                                });
+                                // Format the date as "Oct 18th, 2025 at 8:00 PM"
+                                const month = lastSyncedDate.toLocaleString('en-US', { month: 'short' });
+                                const day = lastSyncedDate.getDate();
+                                // Add proper ordinal suffix to day
+                                function getOrdinal(n) {
+                                    const s = ["th", "st", "nd", "rd"];
+                                    const v = n % 100;
+                                    return n + (s[(v - 20) % 10] || s[v] || s[0]);
+                                }
+                                const year = lastSyncedDate.getFullYear();
 
-                                const formattedTime = lastSyncedDate.toLocaleTimeString('en-US', {
-                                    hour: 'numeric',
-                                    minute: 'numeric',
-                                    hour12: true
-                                });
+                                const hours = lastSyncedDate.getHours();
+                                const minutes = lastSyncedDate.getMinutes();
+                                let hour12 = hours % 12;
+                                if (hour12 === 0) hour12 = 12;
+                                const ampm = hours < 12 ? 'AM' : 'PM';
+                                const paddedMinute = minutes.toString().padStart(2, '0');
+
+                                const formattedDate = `${month} ${getOrdinal(day)}, ${year}`;
+                                const formattedTime = `${hour12}:${paddedMinute} ${ampm}`;
 
                                 lastUpdatedElement.textContent = `Last updated ${formattedDate} at ${formattedTime}`;
                             } else {
-                                // Display a fallback message when last_updated is missing
                                 lastUpdatedElement.textContent = "Initial sync pending (Syncs in 5 minutes or less)";
                             }
-
                         }
                     }
                 });
@@ -6596,6 +6634,7 @@ document.addEventListener('DOMContentLoaded', function () {
     function clearDateSelections(options = {}) {
         // Clear the selectedDates array
         selectedDates = [];
+        selectedDateTypes = {}; // Also clear date types
 
         // Remove selected-day class from all date elements
         const selectedDayElements = document.querySelectorAll('.selected-day');
@@ -6606,13 +6645,21 @@ document.addEventListener('DOMContentLoaded', function () {
         // Reset toolbar UI state
         const toolbar = document.querySelector('[data-element="toolbar"]');
         const customDates = document.querySelector('[data-element="toolbarEdit_customDates"]');
+        const isMobileView = window.innerWidth <= 991;
 
         if (toolbar && customDates) {
-            // Only show the toolbar if not explicitly prevented
-            if (options.showMainToolbar !== false) {
-                toolbar.style.display = 'flex';
+            if (isMobileView) {
+                // On mobile, update footer text and optionally return to calendar view
+                if (window.updateMobileCalendarFooterText) {
+                    window.updateMobileCalendarFooterText();
+                }
+            } else {
+                // On desktop, only show the toolbar if not explicitly prevented
+                if (options.showMainToolbar !== false) {
+                    toolbar.style.display = 'flex';
+                }
+                customDates.style.display = 'none';
             }
-            customDates.style.display = 'none';
         }
 
         // Reset edit dates UI if it exists
