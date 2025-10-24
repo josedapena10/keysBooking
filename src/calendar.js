@@ -1925,6 +1925,20 @@ document.addEventListener('DOMContentLoaded', function () {
                                 }
                             });
                         }
+
+                        // Add extra bottom padding to December months for better scrolling
+                        const monthTitles = document.querySelectorAll('.fc-multimonth-title');
+                        monthTitles.forEach(titleElement => {
+                            const monthText = titleElement.textContent.trim();
+                            // Check if the month is December (works for any year)
+                            if (monthText.includes('December') || monthText.includes('Dec')) {
+                                // Find the parent month container
+                                const monthContainer = titleElement.closest('.fc-multimonth-month');
+                                if (monthContainer) {
+                                    monthContainer.style.paddingBottom = '100px';
+                                }
+                            }
+                        });
                     }, 100);
                 }, 100);
 
