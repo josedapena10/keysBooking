@@ -6064,70 +6064,72 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Wait for user ID to be available first
         window.Wized = window.Wized || [];
-        window.Wized.requests.waitFor('Load_user')
-            .then(() => {
-                const userId = window.Wized.data.r.Load_user.data.id;
+        window.Wized.push((Wized) => {
+            Wized.requests.waitFor('Load_user')
+                .then(() => {
+                    const userId = Wized.data.r.Load_user.data.id;
 
-                // Include user_id in the request
-                return fetch(`https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/edit_property?property_id=${propertyId}&user_id=${userId}`, {
-                    method: 'GET',
-                    headers: {
-                        'Content-Type': 'application/json'
+                    // Include user_id in the request
+                    return fetch(`https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/edit_property?property_id=${propertyId}&user_id=${userId}`, {
+                        method: 'GET',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Property Data:', data);
+
+                    const userId = window.Wized.data.r.Load_user.data.id;
+
+                    // Check if user is authorized to edit this property
+                    if (data.host_user_id !== userId) {
+                        window.location.href = '/host/listings';
+                        return;
+                    }
+
+                    // Initialize all sections one by one
+                    initializePhotosSection(data);
+                    initializeBasicsSection(data);
+                    initializeCheckInOutSection(data);
+                    initializeTitleSection(data);
+                    initializeDescriptionSection(data);
+                    initializeDockSection(data);
+                    initializeAmenitiesSection(data);
+                    initializeLocationSection(data);
+                    initializeHostSection(data);
+                    initializeRulesSection(data);
+                    initializeSafetySection(data);
+                    initializeCancellationPolicySection(data);
+                    initializeDeleteListingSection(data);
+                    initializeAvailabilitySection(data);
+                    initializeListingStatusSection(data);
+                    initializeColorStatusMonitoring(data);
+
+                    // Hide loader and show content container after all sections are initialized
+                    if (loader) {
+                        loader.style.display = 'none';
+                    }
+                    if (contentContainer) {
+                        contentContainer.style.display = 'flex';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching property data:', error);
+
+                    // Hide loader if there's an error
+                    if (loader) {
+                        loader.style.display = 'none';
+                    }
+
+                    // Still show the content container even if there's an error
+                    // This way users can see something rather than a blank page
+                    if (contentContainer) {
+                        contentContainer.style.display = 'flex';
                     }
                 });
-            })
-            .then(response => response.json())
-            .then(data => {
-                console.log('Property Data:', data);
-
-                const userId = window.Wized.data.r.Load_user.data.id;
-
-                // Check if user is authorized to edit this property
-                if (data.host_user_id !== userId) {
-                    window.location.href = '/host/listings';
-                    return;
-                }
-
-                // Initialize all sections one by one
-                initializePhotosSection(data);
-                initializeBasicsSection(data);
-                initializeCheckInOutSection(data);
-                initializeTitleSection(data);
-                initializeDescriptionSection(data);
-                initializeDockSection(data);
-                initializeAmenitiesSection(data);
-                initializeLocationSection(data);
-                initializeHostSection(data);
-                initializeRulesSection(data);
-                initializeSafetySection(data);
-                initializeCancellationPolicySection(data);
-                initializeDeleteListingSection(data);
-                initializeAvailabilitySection(data);
-                initializeListingStatusSection(data);
-                initializeColorStatusMonitoring(data);
-
-                // Hide loader and show content container after all sections are initialized
-                if (loader) {
-                    loader.style.display = 'none';
-                }
-                if (contentContainer) {
-                    contentContainer.style.display = 'flex';
-                }
-            })
-            .catch(error => {
-                console.error('Error fetching property data:', error);
-
-                // Hide loader if there's an error
-                if (loader) {
-                    loader.style.display = 'none';
-                }
-
-                // Still show the content container even if there's an error
-                // This way users can see something rather than a blank page
-                if (contentContainer) {
-                    contentContainer.style.display = 'flex';
-                }
-            });
+        });
     }
 
     // Get elements
