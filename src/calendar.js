@@ -1935,7 +1935,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                 // Find the parent month container
                                 const monthContainer = titleElement.closest('.fc-multimonth-month');
                                 if (monthContainer) {
-                                    monthContainer.style.paddingBottom = '160px';
+                                    monthContainer.style.paddingBottom = '200px';
                                 }
                             }
                         });
