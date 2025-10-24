@@ -1688,6 +1688,27 @@ document.addEventListener('DOMContentLoaded', function () {
                 .fc-view-harness.fc-view-harness-active  {
                     max-height: 80vh !important;
                 }
+                /* Remove mobile tap highlight and focus states on calendar dates */
+                .fc-daygrid-day,
+                .fc-daygrid-day-frame,
+                .fc-daygrid-day-top,
+                .fc-daygrid-day-events,
+                .fc-daygrid-day-bg,
+                .fc-daygrid-day-number {
+                    -webkit-tap-highlight-color: transparent !important;
+                    -webkit-user-select: none !important;
+                    -moz-user-select: none !important;
+                    -ms-user-select: none !important;
+                    user-select: none !important;
+                }
+                .fc-daygrid-day:focus,
+                .fc-daygrid-day:active,
+                .fc-daygrid-day-frame:focus,
+                .fc-daygrid-day-frame:active {
+                    outline: none !important;
+                    background-color: transparent !important;
+                    -webkit-tap-highlight-color: transparent !important;
+                }
             `;
         document.head.appendChild(customStyles);
 
@@ -1808,6 +1829,15 @@ document.addEventListener('DOMContentLoaded', function () {
             dateClick: function (info) {
                 // Prevent double-click handling
                 if (isProcessingClick) return;
+
+                // Remove focus from clicked element to prevent grey highlight on mobile
+                if (info.dayEl) {
+                    info.dayEl.blur();
+                }
+                // Also blur any currently focused element
+                if (document.activeElement) {
+                    document.activeElement.blur();
+                }
 
                 // Handle date click
                 const clickedDate = new Date(info.dateStr);
