@@ -6262,13 +6262,13 @@ document.addEventListener('DOMContentLoaded', function () {
         function applyTruncation() {
             const width = window.innerWidth;
 
-            // For smaller screens, apply truncation
-            let maxChars = 15; // Default for screens below 1100px
+            // // For smaller screens, apply truncation
+            // let maxChars = 15; // Default for screens below 1100px
 
-            // if (width < 580) maxChars = 8; // Mobile
-            // else if (width < 768) maxChars = 15; // Small tablets
-            // else if (width < 992) maxChars = 20; // Large tablets
-            // else if (width < 1100) maxChars = 25; // Small desktops
+            if (width < 580) maxChars = 12; // Mobile
+            else if (width < 768) maxChars = 15; // Small tablets
+            else if (width < 992) maxChars = 20; // Large tablets
+            else if (width < 1100) maxChars = 25; // Small desktops
 
             element.textContent = truncate(fullName, maxChars);
         }
