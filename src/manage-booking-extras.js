@@ -941,11 +941,30 @@ function renderBoatRequestDetails(piData, resCodeData, statusVariant) {
     }
 
     // Private Dock Delivery
-    if (piData.boatPrivateDock === false) {
-        setText('manageBooking_requestDetails_boat_privateDockDelivery', 'Business Location');
-    } else if (piData.boatPrivateDock === true) {
-        const address = piData._boat?.__boatcompany?.address || '';
-        setText('manageBooking_requestDetails_boat_privateDockDelivery', `Private Dock - ${address}`);
+    if (piData.boatPrivateDock === true) {
+        // Private dock: use property address from reservationCode data
+        const addressLine1 = resCodeData._property_details?.address_line_1 || '';
+        const addressLine2 = resCodeData._property_details?.address_line_2 || '';
+        const fullAddress = [addressLine1, addressLine2].filter(Boolean).join(' ');
+        setText('manageBooking_requestDetails_boat_privateDockDelivery', `Private Dock - ${fullAddress}`);
+    } else if (piData.boatPrivateDock === false) {
+        // Not private dock: check if listing city matches any public dock delivery location
+        const listingCity = resCodeData._property_details?.listing_city;
+        const publicDockDetails = piData._boat?.__boatcompany?.publicDockDeliveryDetails;
+
+        let publicDockAddress = null;
+        if (listingCity && publicDockDetails && Array.isArray(publicDockDetails)) {
+            const matchingDock = publicDockDetails.find(dock => dock.city === listingCity);
+            if (matchingDock && matchingDock.address) {
+                publicDockAddress = matchingDock.address;
+            }
+        }
+
+        if (publicDockAddress) {
+            setText('manageBooking_requestDetails_boat_privateDockDelivery', `Public Dock - ${publicDockAddress}`);
+        } else {
+            setText('manageBooking_requestDetails_boat_privateDockDelivery', 'Business Location');
+        }
     }
 
     // Cancellation date (show for guest cancelled, host cancelled, or declined)
