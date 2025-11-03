@@ -215,12 +215,22 @@ document.addEventListener('DOMContentLoaded', function () {
         const hasExtras = wantBoat() || wantChar();
         if (hasExtras) {
             let maxFilterDays = 0;
+            let boatRequiredMinNights = 0;
 
             // Get boat rental days if boat is active
             if (wantBoat() && typeof boatModule !== 'undefined') {
                 const boatFilters = boatModule.getCurrentFilters();
                 if (boatFilters && boatFilters.days) {
                     maxFilterDays = Math.max(maxFilterDays, boatFilters.days);
+                }
+
+                // Check if boats require minimum nights due to public dock delivery
+                // Only apply when no explicit day filter is set (default 0.5)
+                if (!boatFilters?.days || boatFilters.days <= 0.5) {
+                    const boatBadgeData = boatModule.getBoatBadgeData(listing, null, null);
+                    if (boatBadgeData && boatBadgeData.minNights) {
+                        boatRequiredMinNights = boatBadgeData.minNights;
+                    }
                 }
             }
 
@@ -232,10 +242,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
             }
 
-            // Use the higher value between property min nights and filter days
-            if (maxFilterDays > 0) {
-                effectiveNights = Math.max(minNights, maxFilterDays);
-            }
+            // Use the highest value between:
+            // 1. Property min nights
+            // 2. Filter days (explicit user selection)
+            // 3. Boat required min nights (from public dock delivery)
+            effectiveNights = Math.max(minNights, maxFilterDays, boatRequiredMinNights);
         }
 
         const cleaning = Number(listing?.cleaning_fee) || 0;
@@ -4009,6 +4020,18 @@ document.addEventListener('DOMContentLoaded', function () {
             return false;
         };
 
+        // Helper function to get public dock delivery details for a specific city
+        const getPublicDockDeliveryDetails = (boat, targetCity) => {
+            if (!boat?._boatcompany?.publicDockDeliveryDetails) return null;
+
+            const normalizedTarget = lc(targetCity);
+            const details = boat._boatcompany.publicDockDeliveryDetails.find(
+                detail => lc(detail?.city || "") === normalizedTarget
+            );
+
+            return details || null;
+        };
+
         // Very simple YMD overlap helpers; adapt to your real availability
         const isDateRangeBlocked = (checkInYMD, checkOutYMD, blockedRanges = []) => {
             if (!checkInYMD || !checkOutYMD || !hasArr(blockedRanges)) return false;
@@ -4155,18 +4178,34 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
                 }
 
-                // Minimum reservation length check (from original logic)
-                // For default half-day (0.5), be permissive - accept boats with min reservation <= 1
-                // For user-selected longer periods, enforce minimum reservation length
-                if (filters.days === 0.5) {
-                    // Default half-day: accept if min reservation is 1 day or less (most boats should qualify)
-                    const minRes = b.minReservationLength || 0;
-                    if (minRes > 1) {
+                // Check public dock delivery minimum days
+                const publicDockDetails = getPublicDockDeliveryDetails(b, listingCity);
+                const publicDockMinDays = publicDockDetails?.minDays ? Number(publicDockDetails.minDays) : 0;
+                const boatMinDays = b.minReservationLength || 0;
+
+                // Calculate the effective minimum days required (max of public dock and boat minimum)
+                const effectiveBoatMinDays = Math.max(publicDockMinDays, boatMinDays);
+
+                // If user has explicitly filtered boat days (not default 0.5)
+                if (filters.days > 0.5) {
+                    // User selected specific boat days - enforce minimum
+                    if (effectiveBoatMinDays > 0 && filters.days < effectiveBoatMinDays) {
+                        // User selected 3 days but boat requires 7 days - filter out
                         return false;
                     }
-                } else if (filters.days > 0.5) {
-                    // Full-day+ request: check minimum reservation length
-                    if ((b.minReservationLength || 0) > filters.days) {
+                }
+
+                // If user selected dates in search (dates.checkIn and dates.checkOut exist)
+                if (cIn && cOut) {
+                    // Calculate nights from selected dates
+                    const checkInDate = new Date(cIn);
+                    const checkOutDate = new Date(cOut);
+                    const nightsDiff = Math.round((checkOutDate - checkInDate) / (1000 * 60 * 60 * 24));
+                    const daysDiff = nightsDiff + 1;
+
+                    // Check if boat minimum days fits within selected date range
+                    if (effectiveBoatMinDays > 0 && daysDiff < effectiveBoatMinDays) {
+                        // Selected dates don't accommodate boat minimum - filter out
                         return false;
                     }
                 }
@@ -4195,20 +4234,43 @@ document.addEventListener('DOMContentLoaded', function () {
             const filtered = filterBoatsForListing(listing, dates, guestCount);
 
             if (!filtered.length) {
-                return { count: 0, minPrice: null, formatted: "0 Boats Available" };
+                return { count: 0, minPrice: null, formatted: "0 Boats Available", minNights: null };
             }
 
             // Calculate minimum price using sophisticated pricing logic from commented code
             let min = null;
             let minDaysUsed = null; // Track the days used for the min price
+            let maxBoatMinDays = 0; // Track the maximum boat minimum days across all boats
 
             filtered.forEach(boat => {
                 let basePrice = 0;
                 let daysToCalculate = filters.days || 0;
 
-                // If numDays is 0, use the minimum reservation length
+                // Check if this listing's city requires public dock delivery with minimum days
+                const listingCity = getCity(listing);
+                const publicDockDetails = getPublicDockDeliveryDetails(boat, listingCity);
+                const publicDockMinDays = publicDockDetails?.minDays ? Number(publicDockDetails.minDays) : 0;
+                const boatMinDays = boat.minReservationLength || 0;
+
+                // Calculate effective boat minimum days (max of public dock and boat minimum)
+                const effectiveBoatMinDays = Math.max(publicDockMinDays, boatMinDays);
+
+                // Track the maximum boat minimum across all filtered boats
+                if (effectiveBoatMinDays > maxBoatMinDays) {
+                    maxBoatMinDays = effectiveBoatMinDays;
+                }
+
+                // Determine days to calculate for pricing
+                // If user hasn't explicitly filtered days (default 0.5 or 0), use boat minimum
+                // If user HAS filtered, use their selection (filtering already ensures it meets minimum)
+                if (daysToCalculate <= 0.5) {
+                    // No explicit filter - use boat's effective minimum
+                    daysToCalculate = effectiveBoatMinDays > 0 ? effectiveBoatMinDays : (boat.minReservationLength || 1);
+                }
+
+                // If daysToCalculate is still 0, default to 1
                 if (daysToCalculate === 0) {
-                    daysToCalculate = boat.minReservationLength || 1;
+                    daysToCalculate = 1;
                 }
 
                 // Calculate base price based on rental duration (from commented code logic)
@@ -4248,6 +4310,12 @@ document.addEventListener('DOMContentLoaded', function () {
                     basePrice += boat._boatcompany?.deliveryFee || 0;
                 }
 
+                // Add public dock delivery fee if listing city requires it
+                // (publicDockDetails already retrieved earlier)
+                if (publicDockDetails && publicDockDetails.fee) {
+                    basePrice += Number(publicDockDetails.fee) || 0;
+                }
+
                 // Apply service fee if not manual integration (from commented code)
                 let finalPrice = Math.round(basePrice); // Ensure base price is rounded
                 if (boat._boatcompany && boat._boatcompany.integration_type !== 'Manual') {
@@ -4264,15 +4332,16 @@ document.addEventListener('DOMContentLoaded', function () {
 
             const boatLabel = filtered.length === 1 ? 'Boat Available' : 'Boats Available';
 
-            // Get current boat filter days to show in badge (only if different from default)
+            // Get current boat filter days to show in badge
+            // Show the actual days used for pricing (which respects public dock minimums)
             let daysText = '';
-            if (min != null) {
-                const currentFilters = getCurrentFilters();
-                if (currentFilters && currentFilters.days !== undefined && currentFilters.days !== 0.5) {
-                    if (currentFilters.days === 1) {
+            if (min != null && minDaysUsed != null) {
+                // Only show days text if it's different from default (0.5)
+                if (minDaysUsed !== 0.5) {
+                    if (minDaysUsed === 1) {
                         daysText = ' (1 Day)';
-                    } else if (currentFilters.days > 1) {
-                        daysText = ` (${currentFilters.days} Days)`;
+                    } else if (minDaysUsed > 1) {
+                        daysText = ` (${minDaysUsed} Days)`;
                     }
                 }
             }
@@ -4281,7 +4350,21 @@ document.addEventListener('DOMContentLoaded', function () {
                 ? `${filtered.length} ${boatLabel} • $${min.toLocaleString()}+${daysText}`.trim()
                 : `${filtered.length} ${boatLabel}`;
 
-            return { count: filtered.length, minPrice: min, formatted };
+            // Calculate minimum nights required for the stay
+            // If maxBoatMinDays > 1 (e.g., 7 days), then minNights = maxBoatMinDays - 1 (e.g., 6 nights)
+            // Only return minNights if it's meaningful (> 0 and when no explicit date/day filter is set)
+            let minNightsRequired = null;
+            if (maxBoatMinDays > 1 && filters.days <= 0.5 && !dates?.checkIn && !dates?.checkOut) {
+                // No date/day filters - return the minimum nights required by boats
+                minNightsRequired = maxBoatMinDays - 1;
+            }
+
+            return {
+                count: filtered.length,
+                minPrice: min,
+                formatted,
+                minNights: minNightsRequired
+            };
         }
 
         // --- Gate used by listing filter pass ---
@@ -6572,7 +6655,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
                     // Update plus button based on selected nights limit
                     if (daysPlus) {
-                        if (selectedNights !== null && currentFilters.days >= selectedNights) {
+                        // Convert nights to days: days = nights + 1
+                        const maxDays = selectedNights !== null ? selectedNights + 1 : null;
+                        if (maxDays !== null && currentFilters.days >= maxDays) {
                             daysPlus.style.opacity = '0.3';
                             daysPlus.style.cursor = 'not-allowed';
                             daysPlus.disabled = true;
@@ -6790,7 +6875,9 @@ document.addEventListener('DOMContentLoaded', function () {
                     daysMinus.style.cursor = currentFilters.days <= 0.5 ? 'not-allowed' : 'pointer';
 
                     // Update plus button state based on selected nights limit
-                    if (selectedNights !== null && currentFilters.days >= selectedNights) {
+                    // Convert nights to days: days = nights + 1
+                    const maxDays = selectedNights !== null ? selectedNights + 1 : null;
+                    if (maxDays !== null && currentFilters.days >= maxDays) {
                         daysPlus.style.opacity = '0.3';
                         daysPlus.style.cursor = 'not-allowed';
                         daysPlus.disabled = true;
@@ -6826,8 +6913,9 @@ document.addEventListener('DOMContentLoaded', function () {
                         newDays = current.days + 1;
                     }
 
-                    // Don't exceed selected nights limit
-                    if (selectedNights === null || newDays <= selectedNights) {
+                    // Don't exceed selected nights limit (convert nights to days: days = nights + 1)
+                    const maxDays = selectedNights !== null ? selectedNights + 1 : null;
+                    if (maxDays === null || newDays <= maxDays) {
                         boatModule.setPendingFilters({ days: newDays });
                         updateDaysDisplay();
                         updateBoatFilterDisplay();
@@ -7022,7 +7110,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
                     // Update plus button based on selected nights limit
                     if (daysPlus) {
-                        if (selectedNights !== null && currentFilters.days >= selectedNights) {
+                        // Convert nights to days: days = nights + 1
+                        const maxDays = selectedNights !== null ? selectedNights + 1 : null;
+                        if (maxDays !== null && currentFilters.days >= maxDays) {
                             daysPlus.style.opacity = '0.3';
                             daysPlus.style.cursor = 'not-allowed';
                             daysPlus.disabled = true;
@@ -7248,7 +7338,9 @@ document.addEventListener('DOMContentLoaded', function () {
                     daysMinus.style.cursor = currentFilters.days <= 1 ? 'not-allowed' : 'pointer';
 
                     // Update plus button state based on selected nights limit
-                    if (selectedNights !== null && currentFilters.days >= selectedNights) {
+                    // Convert nights to days: days = nights + 1
+                    const maxDays = selectedNights !== null ? selectedNights + 1 : null;
+                    if (maxDays !== null && currentFilters.days >= maxDays) {
                         daysPlus.style.opacity = '0.3';
                         daysPlus.style.cursor = 'not-allowed';
                         daysPlus.disabled = true;
@@ -7275,8 +7367,10 @@ document.addEventListener('DOMContentLoaded', function () {
                     const selectedNights = getSelectedNights();
 
                     // Check if we can increase days (don't exceed selected nights limit)
+                    // Convert nights to days: days = nights + 1
                     const newDays = current.days + 1;
-                    if (selectedNights === null || newDays <= selectedNights) {
+                    const maxDays = selectedNights !== null ? selectedNights + 1 : null;
+                    if (maxDays === null || newDays <= maxDays) {
                         charterModule.setPendingFilters({ days: newDays });
                         updateDaysDisplay();
                         updateCharterFilterDisplay();
@@ -8679,12 +8773,22 @@ document.addEventListener('DOMContentLoaded', function () {
                         let effectiveNights = minNights;
 
                         let maxFilterDays = 0;
+                        let boatRequiredMinNights = 0;
 
                         // Get boat rental days if boat is active
                         if (wantBoat() && typeof boatModule !== 'undefined') {
                             const boatFilters = boatModule.getCurrentFilters();
                             if (boatFilters && boatFilters.days) {
                                 maxFilterDays = Math.max(maxFilterDays, boatFilters.days);
+                            }
+
+                            // Check if boats require minimum nights due to public dock delivery
+                            // Only apply when no explicit day filter is set (default 0.5)
+                            if (!boatFilters?.days || boatFilters.days <= 0.5) {
+                                const boatBadgeData = boatModule.getBoatBadgeData(listing, null, null);
+                                if (boatBadgeData && boatBadgeData.minNights) {
+                                    boatRequiredMinNights = boatBadgeData.minNights;
+                                }
                             }
                         }
 
@@ -8696,10 +8800,8 @@ document.addEventListener('DOMContentLoaded', function () {
                             }
                         }
 
-                        // Use the higher value between property min nights and filter days
-                        if (maxFilterDays > 0) {
-                            effectiveNights = Math.max(minNights, maxFilterDays);
-                        }
+                        // Use the highest value between property min nights, filter days, and boat required min nights
+                        effectiveNights = Math.max(minNights, maxFilterDays, boatRequiredMinNights);
 
                         minNightsElement.textContent = `${effectiveNights} night${effectiveNights > 1 ? 's' : ''}`;
                         minNightsElement.style.display = 'flex';
@@ -8897,12 +8999,22 @@ document.addEventListener('DOMContentLoaded', function () {
                         let effectiveNights = minNights;
 
                         let maxFilterDays = 0;
+                        let boatRequiredMinNights = 0;
 
                         // Get boat rental days if boat is active
                         if (wantBoat() && typeof boatModule !== 'undefined') {
                             const boatFilters = boatModule.getCurrentFilters();
                             if (boatFilters && boatFilters.days) {
                                 maxFilterDays = Math.max(maxFilterDays, boatFilters.days);
+                            }
+
+                            // Check if boats require minimum nights due to public dock delivery
+                            // Only apply when no explicit day filter is set (default 0.5)
+                            if (!boatFilters?.days || boatFilters.days <= 0.5) {
+                                const boatBadgeData = boatModule.getBoatBadgeData(listing, null, null);
+                                if (boatBadgeData && boatBadgeData.minNights) {
+                                    boatRequiredMinNights = boatBadgeData.minNights;
+                                }
                             }
                         }
 
@@ -8914,10 +9026,8 @@ document.addEventListener('DOMContentLoaded', function () {
                             }
                         }
 
-                        // Use the higher value between property min nights and filter days
-                        if (maxFilterDays > 0) {
-                            effectiveNights = Math.max(minNights, maxFilterDays);
-                        }
+                        // Use the highest value between property min nights, filter days, and boat required min nights
+                        effectiveNights = Math.max(minNights, maxFilterDays, boatRequiredMinNights);
 
                         minNightsElement.textContent = `${effectiveNights} night${effectiveNights > 1 ? 's' : ''}`;
                         minNightsElement.style.display = 'flex';

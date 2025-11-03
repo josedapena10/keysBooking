@@ -5016,6 +5016,7 @@ document.addEventListener('DOMContentLoaded', () => {
         this.boatDetailsSelectDatesSection = document.querySelector('[data-element="addBoatModal_boatDetails_datesPopup_selectDates"]');
         this.boatDetailsFullDayBtn = document.querySelector('[data-element="addBoatModal_boatDetails_datesPopup_fullDay"]');
         this.boatDetailsHalfDayBtn = document.querySelector('[data-element="addBoatModal_boatDetails_datesPopup_halfDay"]');
+        this.boatDetailsFullHalfDaysContainer = document.querySelector('[data-element="addBoatModal_boatDetails_datesPopup_fullHalfDaysContainer"]');
 
         // Boat details pickup time filter elements (separate from dates now)
         this.boatDetailsPickupTimeFilter = document.querySelector('[data-element="boatDetails_reservation_pickupTime"]');
@@ -5049,6 +5050,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Error element for boat details
         this.boatDetailsErrorElement = document.querySelector('[data-element="boatDetails_reservation_addToReservationError"]');
+
+        // Public dock address element
+        this.publicDockAddressElement = document.querySelector('[data-element="boatDetails_publicDockAddress"]');
 
         this.guestsFilter = document.querySelector('[data-element="addBoatModal_selectBoat_guests"]');
         this.guestsFilterText = document.querySelector('[data-element="addBoatModal_selectBoat_guestsText"]');
@@ -5195,6 +5199,34 @@ document.addEventListener('DOMContentLoaded', () => {
       // Helper method to get all pickup times in chronological order
       getAllPickupTimesInOrder() {
         return ['8am', '9am', '10am', '11am', '12pm', '1pm', '2pm', '3pm', '4pm'];
+      }
+
+      // Helper method to get public dock delivery details for listing city
+      getPublicDockDeliveryDetails(boat) {
+        try {
+          if (!boat || !boat.publicDockDeliveryDetails || !Array.isArray(boat.publicDockDeliveryDetails)) {
+            return null;
+          }
+
+          // Get property city from Wized data
+          const r = window.Wized?.data?.r;
+          if (!r || !r.Load_Property_Details?.data?.property?.listing_city) {
+            return null;
+          }
+
+          const propertyCityName = r.Load_Property_Details.data.property.listing_city.toLowerCase().trim();
+
+          // Find matching public dock delivery details for this city
+          const details = boat.publicDockDeliveryDetails.find(detail => {
+            const detailCity = (detail?.city || '').toLowerCase().trim();
+            return detailCity === propertyCityName;
+          });
+
+          return details || null;
+        } catch (error) {
+          console.error('Error getting public dock delivery details:', error);
+          return null;
+        }
       }
 
       // Method to check if pickup time gating should be enforced
@@ -6515,6 +6547,19 @@ document.addEventListener('DOMContentLoaded', () => {
             }
           }
 
+          // Filter by minimum days requirement (boat minimum + public dock minimum)
+          if (this.selectedDates.length > 0) {
+            const publicDockDetails = this.getPublicDockDeliveryDetails(boat);
+            const publicDockMinDays = publicDockDetails?.minDays ? Number(publicDockDetails.minDays) : 0;
+            const boatMinDays = boat.minReservationLength || 0;
+            const effectiveMinDays = Math.max(publicDockMinDays, boatMinDays);
+
+            // If boat requires more days than user selected, filter it out
+            if (effectiveMinDays > 0 && this.selectedDates.length < effectiveMinDays) {
+              return false;
+            }
+          }
+
           // Filter by price range using unified pricing
           const quote = this.computeBoatQuote(boat);
           const totalPrice = quote.total;
@@ -6831,6 +6876,7 @@ document.addEventListener('DOMContentLoaded', () => {
                   companyDelivers: company.delivers || false,
                   minAge: company.minAge || 0,
                   integrationType: company.integration_type || '',
+                  publicDockDeliveryDetails: company.publicDockDeliveryDetails || [],
                 };
               }
               return boat;
@@ -6844,6 +6890,58 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
           return [];
         }
+      }
+
+      getNoResultsMessage() {
+        // Determine the most relevant reason for no results (show only one)
+        const r = window.Wized?.data?.r;
+        const hasPropertyCity = r?.Load_Property_Details?.data?.property?.listing_city;
+
+        if (!hasPropertyCity) {
+          return 'No boat rentals available for this stay.';
+        }
+
+        // Priority 1: Check private dock delivery filter (most restrictive)
+        if (this.selectedPrivateDock) {
+          const hasPrivateDock = r?.Load_Property_Details?.data?.property?.private_dock;
+          if (hasPrivateDock === false) {
+            return 'Private dock delivery filter is active, but this property has no private dock.';
+          } else {
+            return 'No boats can deliver to this property\'s private dock. Try removing the private dock filter.';
+          }
+        }
+
+        // Priority 2: Check date-related issues (minimum days requirement)
+        if (this.selectedDates.length > 0 && this.selectedDates.length < 7) {
+          return `You selected ${this.selectedDates.length} day${this.selectedDates.length > 1 ? 's' : ''}, but available boats require a longer minimum rental. Try selecting more days.`;
+        }
+
+        // Priority 3: Check boat type filter
+        if (this.selectedBoatTypes.length > 0) {
+          const types = this.selectedBoatTypes.join(', ');
+          return `No boats match the selected type${this.selectedBoatTypes.length > 1 ? 's' : ''}: ${types}. Try removing the boat type filter.`;
+        }
+
+        // Priority 4: Check passenger filter
+        if (this.selectedGuests > 0 && this.selectedGuests > 6) {
+          return `${this.selectedGuests} passengers exceeds most boat capacities. Try reducing the number of passengers.`;
+        }
+
+        // Priority 5: Check price filter
+        const defaultMaxPrice = 10000;
+        if (this.selectedPriceMin > 0 || this.selectedPriceMax < defaultMaxPrice) {
+          const priceRange = `$${this.selectedPriceMin.toLocaleString()} - $${this.selectedPriceMax.toLocaleString()}`;
+          return `No boats available in the ${priceRange} price range. Try adjusting your price filter.`;
+        }
+
+        // Priority 6: Check length filter
+        const defaultMaxLength = 50;
+        if (this.selectedLengthMin > 0 || (this.maxLengthAdjusted && this.selectedLengthMax < defaultMaxLength)) {
+          return `No boats match the ${this.selectedLengthMin}ft - ${this.selectedLengthMax}ft length range. Try adjusting the length filter.`;
+        }
+
+        // Default: No boats service this location
+        return 'No boat rentals service this listing location. Try selecting a different property or check back later.';
       }
 
       renderBoatCards(boats) {
@@ -6865,12 +6963,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (boats.length === 0) {
           this.cardTemplate.style.display = 'none';
 
-          // Create and add no results message
+          // Create and add no results message with specific reason
           const noResultsMessage = document.createElement('div');
           noResultsMessage.className = 'no-results-message';
           noResultsMessage.style.fontFamily = 'TT Fors, sans-serif !important';
           noResultsMessage.style.cssText = `
             display: flex;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
             text-align: center;
@@ -6879,8 +6978,15 @@ document.addEventListener('DOMContentLoaded', () => {
             font-size: 16px;
             width: 100%;
             min-height: 200px;
+            gap: 12px;
           `;
-          noResultsMessage.textContent = 'No boat rentals found for this listing :( Try adjusting your stay or search params.';
+
+          const message = this.getNoResultsMessage();
+          noResultsMessage.innerHTML = `
+            <div style="font-weight: 600; font-size: 18px;">No boat rentals found</div>
+            <div style="font-size: 14px; color: #666; max-width: 400px;">${message}</div>
+          `;
+
           this.cardWrapper.appendChild(noResultsMessage);
           return;
         }
@@ -6989,14 +7095,21 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       getReservationTypeText(boat) {
-        const minLength = boat.minReservationLength || 0;
+        const boatMinLength = boat.minReservationLength || 0;
 
-        if (minLength === 0) {
+        // Check for public dock delivery minimum days
+        const publicDockDetails = this.getPublicDockDeliveryDetails(boat);
+        const publicDockMinDays = publicDockDetails?.minDays ? Number(publicDockDetails.minDays) : 0;
+
+        // Use the maximum of boat minimum and public dock minimum
+        const effectiveMinLength = Math.max(boatMinLength, publicDockMinDays);
+
+        if (effectiveMinLength === 0) {
           return "Daily (4-8 hours) • Multi-Day";
-        } else if (minLength === 1) {
+        } else if (effectiveMinLength === 1) {
           return "Daily (8 hours) • Multi-Day";
         } else {
-          return `Multi-Day (${minLength} days min)`;
+          return `Multi-Day (${effectiveMinLength} days min)`;
         }
       }
 
@@ -7603,19 +7716,35 @@ document.addEventListener('DOMContentLoaded', () => {
           selectedGuests: this.selectedGuests
         };
 
+        // Check for public dock delivery details
+        const publicDockDetails = this.getPublicDockDeliveryDetails(boat);
+        const publicDockMinDays = publicDockDetails?.minDays ? Number(publicDockDetails.minDays) : 0;
+        const boatMinDays = boat.minReservationLength || 0;
+
+        // Calculate effective minimum days (max of public dock and boat minimum)
+        const effectiveMinDays = Math.max(publicDockMinDays, boatMinDays);
+
         let basePrice = 0;
-        const numDates = currentState.selectedDates.length;
+        let numDates = currentState.selectedDates.length;
+
+        // Adjust numDates if it's less than effective minimum
+        if (numDates > 0 && effectiveMinDays > 0 && numDates < effectiveMinDays) {
+          numDates = effectiveMinDays;
+        }
 
         if (numDates === 0) {
-          // No dates selected, use minimum price (starting price)
-          const minLength = boat.minReservationLength || 0;
+          // No dates selected, use effective minimum or boat minimum
+          const minLength = effectiveMinDays > 0 ? effectiveMinDays : (boat.minReservationLength || 0);
           if (minLength <= 0.5) {
             basePrice = boat.pricePerHalfDay || 0;
+          } else if (minLength < 1) {
+            basePrice = boat.pricePerHalfDay || boat.pricePerDay || 0;
           } else {
-            basePrice = boat.pricePerDay || 0;
+            // Use minimum days for pricing
+            basePrice = this.calculateMultiDayPrice(boat, minLength);
           }
-        } else if (numDates === 1) {
-          // Single day reservation
+        } else if (numDates === 1 && effectiveMinDays <= 1) {
+          // Single day reservation (only if no minimum days restriction)
           if (currentState.selectedLengthType === 'half') {
             basePrice = boat.pricePerHalfDay || 0;
           } else {
@@ -7623,25 +7752,7 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         } else {
           // Multi-day reservation
-          if (numDates >= 30 && boat.pricePerMonth) {
-            const months = Math.floor(numDates / 30);
-            const remainingDays = numDates % 30;
-            const monthlyPrice = boat.pricePerMonth * months;
-
-            let dailyRate = boat.pricePerDay || 0;
-            if (boat.pricePerWeek) {
-              dailyRate = boat.pricePerWeek / 7;
-            }
-
-            basePrice = Math.round(monthlyPrice + (remainingDays * dailyRate));
-          } else if (numDates === 7 && boat.pricePerWeek) {
-            basePrice = boat.pricePerWeek;
-          } else if (numDates > 7 && boat.pricePerWeek) {
-            const weeklyDailyRate = boat.pricePerWeek / 7;
-            basePrice = Math.round(numDates * weeklyDailyRate);
-          } else {
-            basePrice = numDates * (boat.pricePerDay || 0);
-          }
+          basePrice = this.calculateMultiDayPrice(boat, numDates);
         }
 
         // Calculate service fee unless integrationType is "Manual"
@@ -7656,16 +7767,47 @@ document.addEventListener('DOMContentLoaded', () => {
           deliveryFee = boat.companyDeliveryFee;
         }
 
-        const total = basePrice + serviceFee + deliveryFee;
+        // Add public dock delivery fee if applicable
+        let publicDockFee = 0;
+        if (publicDockDetails && publicDockDetails.fee) {
+          publicDockFee = Number(publicDockDetails.fee) || 0;
+        }
+
+        const total = basePrice + serviceFee + deliveryFee + publicDockFee;
 
         return {
           base: Math.round(basePrice),
           fees: {
             service: Math.round(serviceFee),
-            delivery: Math.round(deliveryFee)
+            delivery: Math.round(deliveryFee),
+            publicDock: Math.round(publicDockFee)
           },
-          total: Math.round(total)
+          total: Math.round(total),
+          effectiveMinDays: effectiveMinDays // Return this for validation
         };
+      }
+
+      // Helper method to calculate multi-day pricing
+      calculateMultiDayPrice(boat, numDates) {
+        if (numDates >= 30 && boat.pricePerMonth) {
+          const months = Math.floor(numDates / 30);
+          const remainingDays = numDates % 30;
+          const monthlyPrice = boat.pricePerMonth * months;
+
+          let dailyRate = boat.pricePerDay || 0;
+          if (boat.pricePerWeek) {
+            dailyRate = boat.pricePerWeek / 7;
+          }
+
+          return Math.round(monthlyPrice + (remainingDays * dailyRate));
+        } else if (numDates === 7 && boat.pricePerWeek) {
+          return boat.pricePerWeek;
+        } else if (numDates > 7 && boat.pricePerWeek) {
+          const weeklyDailyRate = boat.pricePerWeek / 7;
+          return Math.round(numDates * weeklyDailyRate);
+        } else {
+          return numDates * (boat.pricePerDay || 0);
+        }
       }
 
       filterBoats(boats) {
@@ -7680,6 +7822,19 @@ document.addEventListener('DOMContentLoaded', () => {
             const minLength = boat.minReservationLength || 0;
             if (minLength >= 1) {
               return false; // Boat doesn't allow half days
+            }
+          }
+
+          // Filter by minimum days requirement (boat minimum + public dock minimum)
+          if (this.selectedDates.length > 0) {
+            const publicDockDetails = this.getPublicDockDeliveryDetails(boat);
+            const publicDockMinDays = publicDockDetails?.minDays ? Number(publicDockDetails.minDays) : 0;
+            const boatMinDays = boat.minReservationLength || 0;
+            const effectiveMinDays = Math.max(publicDockMinDays, boatMinDays);
+
+            // If boat requires more days than user selected, filter it out
+            if (effectiveMinDays > 0 && this.selectedDates.length < effectiveMinDays) {
+              return false;
             }
           }
 
@@ -8419,6 +8574,27 @@ document.addEventListener('DOMContentLoaded', () => {
         // Populate the boat details
         this.populateBoatDetails(boat);
 
+        // Handle min days requirement (public dock or boat minimum)
+        const publicDockDetails = this.getPublicDockDeliveryDetails(boat);
+        const publicDockMinDays = publicDockDetails?.minDays ? Number(publicDockDetails.minDays) : 0;
+        const boatMinDays = boat.minReservationLength || 0;
+        const effectiveMinDays = Math.max(publicDockMinDays, boatMinDays);
+
+        // Hide half-day option if minimum days > 0.5
+        if (effectiveMinDays > 0.5 && this.boatDetailsFullHalfDaysContainer) {
+          this.boatDetailsFullHalfDaysContainer.style.display = 'none';
+          // Force full day type
+          this.selectedLengthType = 'full';
+          // Update URL to reflect full type
+          const urlParams = new URLSearchParams(window.location.search);
+          urlParams.set('type', 'full');
+          const newUrl = `${window.location.pathname}?${urlParams.toString()}`;
+          window.history.replaceState(null, '', newUrl);
+        } else if (this.boatDetailsFullHalfDaysContainer) {
+          // Show half-day option if allowed
+          this.boatDetailsFullHalfDaysContainer.style.display = 'flex';
+        }
+
         // Update mobile footer
         this.updateMobileFooter(boat);
 
@@ -8479,6 +8655,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const boatDetailsLocation = document.querySelector('[data-element="boatDetails_location"]');
         if (boatDetailsLocation) {
           boatDetailsLocation.textContent = boat.city ? `${boat.city}, FL` : '';
+        }
+
+        // Public dock address (show if applicable)
+        if (this.publicDockAddressElement) {
+          const publicDockDetails = this.getPublicDockDeliveryDetails(boat);
+          if (publicDockDetails && publicDockDetails.address) {
+            this.publicDockAddressElement.textContent = `Pickup Location: ${publicDockDetails.address}`;
+            this.publicDockAddressElement.style.display = 'flex';
+          } else {
+            this.publicDockAddressElement.style.display = 'none';
+          }
         }
 
         // Basic specifications
@@ -9482,6 +9669,19 @@ document.addEventListener('DOMContentLoaded', () => {
           missingParams.push('Please select rental duration');
         }
 
+        // Check if selected days meet minimum days requirement
+        if (this.selectedDates && this.selectedDates.length > 0 && boat) {
+          const publicDockDetails = this.getPublicDockDeliveryDetails(boat);
+          const publicDockMinDays = publicDockDetails?.minDays ? Number(publicDockDetails.minDays) : 0;
+          const boatMinDays = boat.minReservationLength || 0;
+          const effectiveMinDays = Math.max(publicDockMinDays, boatMinDays);
+
+          if (effectiveMinDays > 0 && this.selectedDates.length < effectiveMinDays) {
+            const daysText = effectiveMinDays === 1 ? 'day' : 'days';
+            missingParams.push(`This boat requires a minimum of ${effectiveMinDays} ${daysText}`);
+          }
+        }
+
         // If there are missing parameters, show error and return
         if (missingParams.length > 0) {
           if (errorElement) {
@@ -9735,7 +9935,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (reservationPrice) {
-          reservationPrice.textContent = `$${Math.round(totalPrice).toLocaleString()} total price`;
+          reservationPrice.textContent = `$${Math.round(totalPrice).toLocaleString()}`;
         }
 
         // Show "total price" text when displaying total price
@@ -10119,9 +10319,31 @@ document.addEventListener('DOMContentLoaded', () => {
           datesGrid.appendChild(emptyCell);
         }
 
+        // Calculate effective min days for the current boat
+        let effectiveMinDays = 0;
+        if (this.currentBoatData) {
+          const publicDockDetails = this.getPublicDockDeliveryDetails(this.currentBoatData);
+          const publicDockMinDays = publicDockDetails?.minDays ? Number(publicDockDetails.minDays) : 0;
+          const boatMinDays = this.currentBoatData.minReservationLength || 0;
+          effectiveMinDays = Math.max(publicDockMinDays, boatMinDays);
+        }
+
         // Create date buttons
         dateArray.forEach(dateStr => {
           const [year, month, day] = dateStr.split('-').map(Number);
+
+          // Check if date should be disabled based on minDays requirement
+          let isDisabled = false;
+          if (this.selectedDates.length === 1 && effectiveMinDays > 0) {
+            const firstSelectedDate = new Date(this.selectedDates[0]);
+            const currentDate = new Date(dateStr);
+            const daysDiff = Math.round((currentDate - firstSelectedDate) / (1000 * 60 * 60 * 24)) + 1;
+
+            // Disable dates that are less than minDays away from the first selected date
+            if (currentDate > firstSelectedDate && daysDiff < effectiveMinDays) {
+              isDisabled = true;
+            }
+          }
 
           // Create date button
           const dateBtn = document.createElement('button');
@@ -10131,9 +10353,20 @@ document.addEventListener('DOMContentLoaded', () => {
           dateBtn.style.height = '40px';
           dateBtn.style.border = '1px solid #ddd';
           dateBtn.style.borderRadius = '1000px';
-          dateBtn.style.background = this.selectedDates.includes(dateStr) ? '#000000' : 'white';
-          dateBtn.style.color = this.selectedDates.includes(dateStr) ? 'white' : 'black';
-          dateBtn.style.cursor = 'pointer';
+
+          // Style based on state
+          if (isDisabled) {
+            dateBtn.style.background = '#f5f5f5';
+            dateBtn.style.color = '#ccc';
+            dateBtn.style.cursor = 'not-allowed';
+            dateBtn.style.opacity = '0.5';
+            dateBtn.disabled = true;
+          } else {
+            dateBtn.style.background = this.selectedDates.includes(dateStr) ? '#000000' : 'white';
+            dateBtn.style.color = this.selectedDates.includes(dateStr) ? 'white' : 'black';
+            dateBtn.style.cursor = 'pointer';
+          }
+
           dateBtn.style.display = 'flex';
           dateBtn.style.alignItems = 'center';
           dateBtn.style.justifyContent = 'center';
@@ -10141,9 +10374,11 @@ document.addEventListener('DOMContentLoaded', () => {
           dateBtn.style.fontFamily = 'TT Fors, sans-serif';
           dateBtn.style.fontWeight = '500';
 
-          dateBtn.addEventListener('click', () => {
-            this.handleBoatDetailsDateSelection(dateStr);
-          });
+          if (!isDisabled) {
+            dateBtn.addEventListener('click', () => {
+              this.handleBoatDetailsDateSelection(dateStr);
+            });
+          }
 
           datesGrid.appendChild(dateBtn);
         });
