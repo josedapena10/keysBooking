@@ -3953,7 +3953,7 @@ function calculateBoatPricing(boatData) {
 
   if (!boatData) {
     console.log('🚤 No boat data - returning 0');
-    return { basePrice: 0, serviceFee: 0, deliveryFee: 0, totalWithFees: 0 };
+    return { basePrice: 0, serviceFee: 0, deliveryFee: 0, publicDockFee: 0, totalWithFees: 0 };
   }
 
   // Get boat dates and delivery preference directly from URL parameters
@@ -3975,29 +3975,74 @@ function calculateBoatPricing(boatData) {
 
   if (numDates === 0) {
     console.log('🚤 No boat dates - returning 0');
-    return { basePrice: 0, serviceFee: 0, deliveryFee: 0, totalWithFees: 0 };
+    return { basePrice: 0, serviceFee: 0, deliveryFee: 0, publicDockFee: 0, totalWithFees: 0 };
   }
 
   // Calculate base price based on rental duration
   let basePrice = calculateBoatBasePrice(boatData, numDates);
 
-  // Calculate service fee (from boat company) - skip if integrationType is 'Manual'
+  // Calculate public dock delivery fee if applicable (BEFORE service fee calculation)
+  let publicDockFee = 0;
+  try {
+    const r = window.Wized?.data?.r;
+    console.log('🚤 🔍 Checking public dock fee...');
+    console.log('🚤 boatData._boat_company:', boatData._boat_company);
+    console.log('🚤 publicDockDeliveryDetails exists?', !!boatData._boat_company?.publicDockDeliveryDetails);
+    console.log('🚤 publicDockDeliveryDetails:', boatData._boat_company?.publicDockDeliveryDetails);
+
+    if (r && r.Load_Property_Details && r.Load_Property_Details.data) {
+      const listingCity = r.Load_Property_Details.data.property?.listing_city;
+      console.log('🚤 Listing city:', listingCity);
+
+      if (listingCity && boatData._boat_company?.publicDockDeliveryDetails) {
+        const listingCityLower = listingCity.toLowerCase().trim();
+        console.log('🚤 Searching for public dock details in city:', listingCityLower);
+
+        const publicDockDetails = boatData._boat_company.publicDockDeliveryDetails.find(
+          detail => (detail.city || '').toLowerCase().trim() === listingCityLower
+        );
+        console.log('🚤 Found public dock details:', publicDockDetails);
+
+        if (publicDockDetails && publicDockDetails.fee) {
+          publicDockFee = Number(publicDockDetails.fee) || 0;
+          console.log('🚤 ✅ Public dock fee applied:', publicDockFee);
+        }
+      } else {
+        console.log('🚤 ❌ No public dock delivery details found or city mismatch');
+      }
+    }
+  } catch (error) {
+    console.log('🚤 Error calculating public dock fee:', error);
+  }
+
+  // Calculate service fee on (basePrice + publicDockFee) - skip if integrationType is 'Manual'
   let serviceFee = 0;
   if (boatData._boat_company.integration_type !== 'Manual') {
     const serviceFeeRate = boatData._boat_company?.serviceFee || 0;
-    serviceFee = basePrice * serviceFeeRate;
+    serviceFee = (basePrice + publicDockFee) * serviceFeeRate;
   }
 
   // Calculate delivery fee if delivery is selected
   const deliveryFee = boatDelivery ? (boatData._boat_company?.deliveryFee || 0) : 0;
 
   // Calculate total with fees
-  const totalWithFees = basePrice + serviceFee + deliveryFee;
+  const totalWithFees = basePrice + publicDockFee + serviceFee + deliveryFee;
+
+  console.log('🚤 ========================================');
+  console.log('🚤 CALCULATE BOAT PRICING - FINAL RESULT');
+  console.log('🚤 ========================================');
+  console.log('🚤 Base Price:', Math.round(basePrice));
+  console.log('🚤 Public Dock Fee:', Math.round(publicDockFee));
+  console.log('🚤 Service Fee (on base + public dock):', Math.round(serviceFee));
+  console.log('🚤 Delivery Fee:', Math.round(deliveryFee));
+  console.log('🚤 TOTAL WITH FEES:', Math.round(totalWithFees));
+  console.log('🚤 ========================================');
 
   return {
     basePrice: Math.round(basePrice),
     serviceFee: Math.round(serviceFee),
     deliveryFee: Math.round(deliveryFee),
+    publicDockFee: Math.round(publicDockFee),
     totalWithFees: Math.round(totalWithFees)
   };
 }
@@ -4162,6 +4207,14 @@ function calculateCombinedTaxes(r, boatTotalWithFees) {
 
 // Update all pricing elements in the DOM
 function updatePricingElements(stayPricing, boatPricing, fishingCharterPricing, combinedTaxes, grandTotal) {
+  console.log('💰 ========================================');
+  console.log('💰 UPDATE PRICING ELEMENTS');
+  console.log('💰 ========================================');
+  console.log('💰 boatPricing received:', boatPricing);
+  console.log('💰 boatPricing.totalWithFees:', boatPricing.totalWithFees);
+  console.log('💰 boatPricing.publicDockFee:', boatPricing.publicDockFee);
+  console.log('💰 ========================================');
+
   // Update Stay Price Amount (use subtotal which excludes taxes)
   const stayPriceElements = document.querySelectorAll('[data-element="Stay_Price_Amount"]');
   stayPriceElements.forEach(element => {
@@ -4187,6 +4240,7 @@ function updatePricingElements(stayPricing, boatPricing, fishingCharterPricing, 
   boatPriceElements.forEach(element => {
     if (element && boatPricing.totalWithFees > 0) {
       element.textContent = `$${boatPricing.totalWithFees.toLocaleString()}`;
+      console.log('💰 Setting Boat_Price_Amount to:', `$${boatPricing.totalWithFees.toLocaleString()}`);
     }
   });
 
@@ -4215,6 +4269,7 @@ function updatePricingElements(stayPricing, boatPricing, fishingCharterPricing, 
   taxesElements.forEach(element => {
     if (element) {
       element.textContent = `$${Math.round(combinedTaxes.total).toLocaleString()}`;
+      console.log('💰 Setting StayBoatTaxes_Amount to:', `$${Math.round(combinedTaxes.total).toLocaleString()}`);
     }
   });
 
@@ -4223,18 +4278,23 @@ function updatePricingElements(stayPricing, boatPricing, fishingCharterPricing, 
   grandTotalElements.forEach(element => {
     if (element) {
       element.textContent = `$${Math.round(grandTotal).toLocaleString()}`;
+      console.log('💰 Setting ReservationStayBoat_Total to:', `$${Math.round(grandTotal).toLocaleString()}`);
     }
   });
 
   // Also update the main Reservation_Total to show the combined total when extras are selected
-  console.log('=== UPDATE RESERVATION TOTAL (With Extras) ===');
-  console.log('Overriding Reservation_Total with grandTotal:', Math.round(grandTotal));
-  console.log('This includes: stay + boat + fishing charters + taxes');
+  console.log('💰 ===========================================');
+  console.log('💰 UPDATE RESERVATION TOTAL (With Extras)');
+  console.log('💰 ===========================================');
+  console.log('💰 Overriding Reservation_Total with grandTotal:', Math.round(grandTotal));
+  console.log('💰 This includes: stay + boat + fishing charters + taxes');
+  console.log('💰 ===========================================');
 
   const reservationTotalElements = document.querySelectorAll('[data-element="Reservation_Total"]');
   reservationTotalElements.forEach(element => {
     if (element) {
       element.textContent = `$${Math.round(grandTotal).toLocaleString()}`;
+      console.log('💰 Setting Reservation_Total to:', `$${Math.round(grandTotal).toLocaleString()}`);
     }
   });
 
@@ -7755,10 +7815,16 @@ document.addEventListener('DOMContentLoaded', () => {
           basePrice = this.calculateMultiDayPrice(boat, numDates);
         }
 
-        // Calculate service fee unless integrationType is "Manual"
+        // Add public dock delivery fee to base price (BEFORE service fee calculation)
+        let publicDockFee = 0;
+        if (publicDockDetails && publicDockDetails.fee) {
+          publicDockFee = Number(publicDockDetails.fee) || 0;
+        }
+
+        // Calculate service fee on (basePrice + publicDockFee) unless integrationType is "Manual"
         let serviceFee = 0;
         if (boat.integrationType !== "Manual") {
-          serviceFee = basePrice * (boat.serviceFee || 0);
+          serviceFee = (basePrice + publicDockFee) * (boat.serviceFee || 0);
         }
 
         // Calculate delivery fee if private dock is selected and boat can deliver
@@ -7767,13 +7833,7 @@ document.addEventListener('DOMContentLoaded', () => {
           deliveryFee = boat.companyDeliveryFee;
         }
 
-        // Add public dock delivery fee if applicable
-        let publicDockFee = 0;
-        if (publicDockDetails && publicDockDetails.fee) {
-          publicDockFee = Number(publicDockDetails.fee) || 0;
-        }
-
-        const total = basePrice + serviceFee + deliveryFee + publicDockFee;
+        const total = basePrice + publicDockFee + serviceFee + deliveryFee;
 
         return {
           base: Math.round(basePrice),
@@ -9912,9 +9972,9 @@ document.addEventListener('DOMContentLoaded', () => {
           selectedGuests: this.selectedGuests
         });
 
-        const priceWithDelivery = quote.base + quote.fees.service + quote.fees.delivery;
+        const priceWithDelivery = quote.base + quote.fees.publicDock + quote.fees.service + quote.fees.delivery;
 
-        // Calculate taxes (7.5% of price + delivery fee)
+        // Calculate taxes (7.5% of price + public dock fee + delivery fee)
         const taxRate = 0.075;
         const taxes = priceWithDelivery * taxRate;
 
@@ -9989,7 +10049,7 @@ document.addEventListener('DOMContentLoaded', () => {
               selectedGuests: this.selectedGuests
             });
 
-            const priceWithDelivery = quote.base + quote.fees.service + quote.fees.delivery;
+            const priceWithDelivery = quote.base + quote.fees.publicDock + quote.fees.service + quote.fees.delivery;
             const taxRate = 0.075;
             const taxes = priceWithDelivery * taxRate;
             const totalPrice = priceWithDelivery + taxes;
