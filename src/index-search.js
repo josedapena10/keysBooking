@@ -8248,13 +8248,17 @@ document.addEventListener('DOMContentLoaded', function () {
         // Touch/scroll variables
         let startX = 0;
         let currentX = 0;
+        let startY = 0;
+        let currentY = 0;
         let isDragging = false;
         let startTime = 0;
         let hasMoved = false;
+        let scrollDirection = null; // 'horizontal', 'vertical', or null
         const SWIPE_THRESHOLD = 50; // Minimum distance for a swipe
         const SWIPE_VELOCITY_THRESHOLD = 0.3; // Minimum velocity for a swipe
         const CLICK_THRESHOLD = 10; // Maximum movement to still be considered a click
         const CLICK_TIME_THRESHOLD = 300; // Maximum time for a click (ms)
+        const DIRECTION_LOCK_THRESHOLD = 10; // Minimum movement to determine direction
 
         function updateCarousel(skipTransition = false) {
             if (track) {
@@ -8297,34 +8301,57 @@ document.addEventListener('DOMContentLoaded', function () {
         function handleStart(e) {
             isDragging = true;
             hasMoved = false;
+            scrollDirection = null; // Reset direction
             startTime = Date.now();
             startX = e.type.includes('mouse') ? e.clientX : e.touches[0].clientX;
+            startY = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
             currentX = startX;
+            currentY = startY;
         }
 
         function handleMove(e) {
             if (!isDragging) return;
 
             currentX = e.type.includes('mouse') ? e.clientX : e.touches[0].clientX;
+            currentY = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
             const deltaX = currentX - startX;
+            const deltaY = currentY - startY;
 
-            // Only start preventing default and showing visual feedback if user has moved significantly
-            if (Math.abs(deltaX) > CLICK_THRESHOLD && !hasMoved) {
-                hasMoved = true;
-                // Now disable transition and prevent default
-                if (track) {
-                    track.style.transition = 'none';
+            // Determine scroll direction if not yet determined
+            if (scrollDirection === null && (Math.abs(deltaX) > DIRECTION_LOCK_THRESHOLD || Math.abs(deltaY) > DIRECTION_LOCK_THRESHOLD)) {
+                // Lock to the direction with more movement
+                if (Math.abs(deltaX) > Math.abs(deltaY)) {
+                    scrollDirection = 'horizontal';
+                } else {
+                    scrollDirection = 'vertical';
                 }
             }
 
-            // Only prevent default and show visual feedback if user has moved significantly
-            if (hasMoved) {
-                e.preventDefault();
-                e.stopPropagation();
-                const translateX = -currentIndex * 100 + (deltaX / track.offsetWidth) * 100;
+            // If user is scrolling vertically, don't interfere
+            if (scrollDirection === 'vertical') {
+                return;
+            }
 
-                if (track) {
-                    track.style.transform = `translateX(${translateX}%)`;
+            // Only handle horizontal scrolling from here
+            if (scrollDirection === 'horizontal') {
+                // Only start preventing default and showing visual feedback if user has moved significantly
+                if (Math.abs(deltaX) > CLICK_THRESHOLD && !hasMoved) {
+                    hasMoved = true;
+                    // Now disable transition
+                    if (track) {
+                        track.style.transition = 'none';
+                    }
+                }
+
+                // Prevent default and show visual feedback if user has moved significantly
+                if (hasMoved) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const translateX = -currentIndex * 100 + (deltaX / track.offsetWidth) * 100;
+
+                    if (track) {
+                        track.style.transform = `translateX(${translateX}%)`;
+                    }
                 }
             }
         }
@@ -8336,20 +8363,30 @@ document.addEventListener('DOMContentLoaded', function () {
             const deltaTime = Date.now() - startTime;
             const velocity = Math.abs(deltaX) / deltaTime;
 
+            // If user was scrolling vertically, just reset and return
+            if (scrollDirection === 'vertical') {
+                isDragging = false;
+                hasMoved = false;
+                scrollDirection = null;
+                return;
+            }
+
             // Check if this was a click: short time AND minimal movement
             const isClick = deltaTime < CLICK_TIME_THRESHOLD && Math.abs(deltaX) <= CLICK_THRESHOLD && !hasMoved;
 
             if (isClick) {
                 isDragging = false;
                 hasMoved = false;
+                scrollDirection = null;
                 return; // Let the click event handle navigation
             }
 
-            // User did drag, so prevent any click events and handle swipe
+            // User did drag horizontally, so prevent any click events and handle swipe
             e.preventDefault();
             e.stopPropagation();
             isDragging = false;
             hasMoved = false;
+            scrollDirection = null;
 
             // Re-enable transition
             if (track) {

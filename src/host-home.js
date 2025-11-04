@@ -80,23 +80,63 @@ document.addEventListener('DOMContentLoaded', () => {
         const userLoadStatus = Wized.data.r.Load_user.status
 
 
-        document.querySelector('[data-element="addListing_Button"]').addEventListener('click', async function () {
-            try {
-                if (userLoadStatus === 200) {
-                    // If the user is signed in, navigate to /add-home
-                    window.location.href = '/add-home';
-                } else {
-                    // User is not signed in, show signup wrapper
-                    const signupWrapper = document.querySelector('[data-element="signin-wrapper"]');
-                    if (signupWrapper) {
-                        signupWrapper.style.display = 'flex';
+        document.querySelectorAll('[data-element="addListing_Button"]').forEach(button => {
+            button.addEventListener('click', async function () {
+                try {
+                    if (userLoadStatus === 200) {
+                        // If the user is signed in, navigate to /add-home
+                        window.location.href = '/host/add-home';
+                    } else {
+                        // User is not signed in, show signup wrapper
+                        const signupWrapper = document.querySelector('[data-element="signin-wrapper"]');
+                        if (signupWrapper) {
+                            signupWrapper.style.display = 'flex';
+                        }
                     }
+                } catch (error) {
+                    console.error('Failed to load user:', error);
                 }
-            } catch (error) {
-                console.error('Failed to load user:', error);
-            }
+            });
+
+
         });
-
-
     });
-})
+});
+
+
+//copy email and phone number to clipboard
+
+document.addEventListener('DOMContentLoaded', () => {
+    // Function to copy text to the clipboard
+    function copyToClipboard(text) {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+    }
+
+    // Select the email and phone number buttons
+    const copyEmailButton = document.querySelector('[data-element="help_copyEmail"]');
+    const copyPhoneButton = document.querySelector('[data-element="help_copyPhone"]');
+
+    // Email and phone number to copy
+    const email = 'support@keysbooking.com';
+    const phoneNumber = '+13053011952';
+
+    // Add click event listeners
+    if (copyEmailButton) {
+        copyEmailButton.addEventListener('click', () => {
+            copyToClipboard(email);
+            alert('Email copied to clipboard!');
+        });
+    }
+
+    if (copyPhoneButton) {
+        copyPhoneButton.addEventListener('click', () => {
+            copyToClipboard(phoneNumber);
+            alert('Phone number copied to clipboard!');
+        });
+    }
+});
