@@ -163,6 +163,9 @@ window.Wized.push((async (Wized) => {
 }));
 
 document.addEventListener('DOMContentLoaded', () => {
+    // Get error text element
+    const errorText = document.querySelector('[data-element="taxForm_errorText"]');
+
     // Set up name field with placeholder
     const nameInput = document.getElementById('w9_name');
     if (nameInput) {
@@ -171,6 +174,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (e.target.value) {
                 e.target.classList.remove('error-field');
             }
+            if (errorText) errorText.style.display = 'none';
         });
     }
 
@@ -264,6 +268,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.classList.remove('placeholder');
                 this.classList.remove('error-field');
             }
+            if (errorText) errorText.style.display = 'none';
         });
 
         // Replace the div with the select element
@@ -286,6 +291,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (e.target.value) {
                 e.target.classList.remove('error-field');
             }
+            if (errorText) errorText.style.display = 'none';
         });
 
         // Add keypress event to prevent non-numeric input
@@ -317,6 +323,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (e.target.value) {
                 e.target.classList.remove('error-field');
             }
+            if (errorText) errorText.style.display = 'none';
         });
     }
 
@@ -332,6 +339,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (e.target.value) {
                 e.target.classList.remove('error-field');
             }
+            if (errorText) errorText.style.display = 'none';
         });
     }
 
@@ -342,6 +350,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (e.target.value) {
                 e.target.classList.remove('error-field');
             }
+            if (errorText) errorText.style.display = 'none';
         });
     }
 
@@ -352,6 +361,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (e.target.value) {
                 e.target.classList.remove('error-field');
             }
+            if (errorText) errorText.style.display = 'none';
         });
     }
 
@@ -383,6 +393,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (e.target.value) {
                 e.target.classList.remove('error-field');
             }
+            if (errorText) errorText.style.display = 'none';
         });
     }
 
@@ -392,17 +403,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const submitText = document.getElementById('w9_submit_text');
 
     if (submitButton) {
-        // Initially hide the loader
+        // Initially hide the loader and error text
         if (submitLoader) {
             submitLoader.style.display = 'none';
             submitLoader.style.visibility = 'hidden';
             submitLoader.style.opacity = '0';
         }
+        if (errorText) {
+            errorText.style.display = 'none';
+        }
 
         submitButton.addEventListener('click', async () => {
-            // Ensure text is visible at the start
+            // Ensure text is visible at the start and hide error
             if (submitLoader) submitLoader.style.display = 'none';
             if (submitText) submitText.style.display = 'block';
+            if (errorText) errorText.style.display = 'none';
 
             // Validate form
             let isValid = true;
@@ -418,22 +433,33 @@ document.addEventListener('DOMContentLoaded', () => {
             ];
 
             // Check each required field
+            const missingFields = [];
             requiredFields.forEach(field => {
                 if (!field.element || !field.element.value) {
                     isValid = false;
                     if (field.element) {
                         field.element.classList.add('error-field');
                     }
+                    missingFields.push(field.name);
                 }
             });
 
             // Validate tax ID is exactly 9 digits
-            if (taxIdInput && (taxIdInput.value.length !== 9)) {
+            if (taxIdInput && taxIdInput.value && (taxIdInput.value.length !== 9)) {
                 isValid = false;
                 taxIdInput.classList.add('error-field');
+                if (errorText) {
+                    errorText.textContent = 'Tax ID must be exactly 9 digits.';
+                    errorText.style.display = 'flex';
+                }
+                return;
             }
 
             if (!isValid) {
+                if (errorText) {
+                    errorText.textContent = 'Please fill in all required fields.';
+                    errorText.style.display = 'flex';
+                }
                 return;
             }
 
@@ -491,6 +517,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 if (!response.ok) {
+                    if (errorText) {
+                        errorText.textContent = `Failed to submit form: ${response.status} ${response.statusText}`;
+                        errorText.style.display = 'flex';
+                    }
                     throw new Error('Failed to submit form');
                 }
 
@@ -524,6 +554,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             } catch (error) {
                 console.error('Error submitting form:', error);
+                if (errorText) {
+                    errorText.textContent = error.message || 'An unexpected error occurred. Please try again.';
+                    errorText.style.display = 'flex';
+                }
             } finally {
                 // Reset loader and text
                 if (submitLoader) {
