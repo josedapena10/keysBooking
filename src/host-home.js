@@ -343,3 +343,474 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 500); // Start after 500ms page load
 });
 
+
+// We Add Property Popup Feature
+document.addEventListener('DOMContentLoaded', () => {
+    const weAddPropertyButtons = document.querySelectorAll('[data-element="hostLanding_weAddProperty"]');
+
+    if (!weAddPropertyButtons || weAddPropertyButtons.length === 0) return;
+
+    // Add popup styles
+    const style = document.createElement('style');
+    style.textContent = `
+        .property-popup-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+            backdrop-filter: blur(4px);
+        }
+        
+        .property-popup-overlay.active {
+            display: flex;
+        }
+        
+        .property-popup {
+            background: white;
+            border-radius: 5px;
+            padding: 32px;
+            max-width: 700px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            position: relative;
+            animation: popupSlideIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        
+        @keyframes popupSlideIn {
+            0% {
+                opacity: 0;
+                transform: scale(0.9) translateY(20px);
+            }
+            100% {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
+        }
+        
+        .property-popup-close {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            width: 32px;
+            height: 32px;
+            border: none;
+            background: #f0f0f0;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            font-family: 'TT Fors', sans-serif;
+            color: #666;
+            transition: all 0.2s ease;
+        }
+        
+        .property-popup-close:hover {
+            background: #e0e0e0;
+            color: #000;
+            transform: rotate(90deg);
+        }
+        
+        .property-popup h2 {
+            margin: 0 0 8px 0;
+            font-size: 24px;
+            font-weight: 600;
+            color: #000;
+            font-family: 'TT Fors', sans-serif;
+        }
+        
+        .property-popup p {
+            margin: 0 0 24px 0;
+            color: #666;
+            font-size: 16px;
+            line-height: 1.5;
+            font-family: 'TT Fors', sans-serif;
+        }
+        
+        .property-popup-form {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        .property-popup-field {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            font-family: 'TT Fors', sans-serif;
+        }
+        
+        .property-popup-field label {
+            font-size: 16px;
+            font-weight: 500;
+            color: #333;
+            font-family: 'TT Fors', sans-serif;
+        }
+        
+        .property-popup-field input {
+            padding: 12px 16px;
+            border: 2px solid #e2e2e2;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: all 0.2s ease;
+            font-family: inherit;
+            font-family: 'TT Fors', sans-serif;
+        }
+        
+        .property-popup-field input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            font-family: 'TT Fors', sans-serif;
+        }
+        
+        .property-popup-submit {
+            padding: 14px 24px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 8px;
+            font-family: 'TT Fors', sans-serif;
+        }
+        
+        .property-popup-submit:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+            font-family: 'TT Fors', sans-serif;
+        }
+        
+        .property-popup-submit:active {
+            transform: translateY(0);
+            font-family: 'TT Fors', sans-serif;
+        }
+        
+        .property-popup-field small {
+            color: #999;
+            font-size: 12px;
+            font-family: 'TT Fors', sans-serif;
+            }
+        
+        .property-links-section {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            padding: 16px;
+            background: #f8f8f8;
+            border-radius: 8px;
+            margin-top: 4px;
+        }
+        
+        .property-links-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .property-links-header label {
+            font-size: 14px;
+            font-weight: 500;
+            color: #333;
+        }
+        
+        .add-property-link-btn {
+            padding: 6px 12px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .add-property-link-btn:hover {
+            background: #5568d3;
+            transform: translateY(-1px);
+        }
+        
+        .property-link-item {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding: 16px;
+            padding-top: 20px;
+            background: white;
+            border-radius: 6px;
+            border: 1px solid #e2e2e2;
+        }
+        
+        .property-link-item input {
+            padding: 8px 12px;
+            border: 1px solid #e2e2e2;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: all 0.2s ease;
+            font-family: inherit;
+            width: 100%;
+        }
+        
+        .property-link-item input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
+        }
+        
+        .remove-property-link-btn {
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            width: 24px;
+            height: 24px;
+            padding: 0;
+            background: #fee;
+            color: #c33;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 16px;
+            line-height: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .remove-property-link-btn:hover {
+            background: #fcc;
+            transform: scale(1.15);
+        }
+        
+        .property-links-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .property-links-helper {
+            font-size: 12px;
+            color: #666;
+            margin-top: -8px;
+        }
+    `;
+    document.head.appendChild(style);
+
+    // Create popup HTML
+    const popupOverlay = document.createElement('div');
+    popupOverlay.className = 'property-popup-overlay';
+    popupOverlay.innerHTML = `
+        <div class="property-popup">
+            <button class="property-popup-close" type="button">×</button>
+            <h2>Let Us Add Your Properties</h2>
+            <p>We'll handle the listing process for you! Just tell us a bit about your properties.</p>
+            <form class="property-popup-form">
+                <div class="property-popup-field">
+                    <label for="property-count">How many properties do you have?</label>
+                    <input 
+                        type="number" 
+                        id="property-count" 
+                        name="property-count" 
+                        min="1" 
+                        max="999"
+                        placeholder="e.g., 5"
+                        required
+                    />
+                </div>
+                <div class="property-popup-field">
+                    <label for="phone-number">Phone Number <small>(optional)</small></label>
+                    <input 
+                        type="tel" 
+                        id="phone-number" 
+                        name="phone-number" 
+                        placeholder="(305) 123-4567"
+                    />
+                    <small>We may call to discuss your properties</small>
+                </div>
+                <div class="property-popup-field">
+                    <div class="property-links-section">
+                        <div class="property-links-header">
+                            <label>Property Links <small>(optional)</small></label>
+                            <button type="button" class="add-property-link-btn">
+                                <span>+</span> Add Property Link
+                            </button>
+                        </div>
+                        <div class="property-links-helper">
+                            Add links from Airbnb, VRBO, or other platforms
+                        </div>
+                        <div class="property-links-list"></div>
+                    </div>
+                </div>
+                <button type="submit" class="property-popup-submit">
+                    Email Support (opens your email app, prefilled)
+                </button>
+            </form>
+        </div>
+    `;
+    document.body.appendChild(popupOverlay);
+
+    // Get references
+    const popup = popupOverlay.querySelector('.property-popup');
+    const closeBtn = popupOverlay.querySelector('.property-popup-close');
+    const form = popupOverlay.querySelector('.property-popup-form');
+    const propertyCountInput = document.getElementById('property-count');
+    const phoneNumberInput = document.getElementById('phone-number');
+    const addPropertyLinkBtn = popupOverlay.querySelector('.add-property-link-btn');
+    const propertyLinksList = popupOverlay.querySelector('.property-links-list');
+
+    let propertyLinkCounter = 0;
+
+    // Function to create a new property link item
+    function addPropertyLink() {
+        propertyLinkCounter++;
+        const linkItem = document.createElement('div');
+        linkItem.className = 'property-link-item';
+        linkItem.dataset.id = propertyLinkCounter;
+        linkItem.innerHTML = `
+            <input 
+                type="text" 
+                placeholder="Label (e.g., Oceanview Condo)"
+                class="property-link-label"
+                data-id="${propertyLinkCounter}"
+            />
+            <input 
+                type="url" 
+                placeholder="https://airbnb.com/..."
+                class="property-link-url"
+                data-id="${propertyLinkCounter}"
+            />
+            <button type="button" class="remove-property-link-btn" data-id="${propertyLinkCounter}">×</button>
+        `;
+        propertyLinksList.appendChild(linkItem);
+
+        // Focus on label input
+        linkItem.querySelector('.property-link-label').focus();
+
+        // Add remove handler
+        const removeBtn = linkItem.querySelector('.remove-property-link-btn');
+        removeBtn.addEventListener('click', () => {
+            linkItem.remove();
+        });
+    }
+
+    // Add property link button handler
+    addPropertyLinkBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        addPropertyLink();
+    });
+
+    // Open popup when button clicked
+    weAddPropertyButtons.forEach(button => {
+        button.addEventListener('click', (e) => {
+            e.preventDefault();
+            popupOverlay.classList.add('active');
+            // Focus on first input after animation
+            setTimeout(() => propertyCountInput.focus(), 300);
+        });
+    });
+
+    // Close popup
+    const closePopup = () => {
+        popupOverlay.classList.remove('active');
+        form.reset();
+        // Clear all property links
+        propertyLinksList.innerHTML = '';
+        propertyLinkCounter = 0;
+    };
+
+    closeBtn.addEventListener('click', closePopup);
+
+    // Close when clicking overlay (not popup itself)
+    popupOverlay.addEventListener('click', (e) => {
+        if (e.target === popupOverlay) {
+            closePopup();
+        }
+    });
+
+    // Close on Escape key
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && popupOverlay.classList.contains('active')) {
+            closePopup();
+        }
+    });
+
+    // Handle form submission
+    form.addEventListener('submit', (e) => {
+        e.preventDefault();
+
+        const propertyCount = propertyCountInput.value;
+        const phoneNumber = phoneNumberInput.value.trim();
+
+        // Collect property links
+        const propertyLinks = [];
+        const linkItems = propertyLinksList.querySelectorAll('.property-link-item');
+        linkItems.forEach(item => {
+            const label = item.querySelector('.property-link-label').value.trim();
+            const url = item.querySelector('.property-link-url').value.trim();
+            if (label || url) {
+                propertyLinks.push({ label, url });
+            }
+        });
+
+        // Create email content
+        const subject = `Add My Listing Request - ${propertyCount} ${propertyCount === '1' ? 'Property' : 'Properties'}`;
+
+        let body = `Hello Keys Booking Support Team,\n\n`;
+        body += `I would like assistance adding my properties to Keys Booking.\n\n`;
+        body += `Number of Properties: ${propertyCount}\n`;
+
+        if (phoneNumber) {
+            body += `Phone Number: ${phoneNumber}\n`;
+        }
+
+        // Add property links if any
+        if (propertyLinks.length > 0) {
+            body += `\nProperty Links:\n`;
+            propertyLinks.forEach((link, index) => {
+                body += `${index + 1}. `;
+                if (link.label) {
+                    body += `${link.label}`;
+                }
+                if (link.label && link.url) {
+                    body += ` - `;
+                }
+                if (link.url) {
+                    body += `${link.url}`;
+                }
+                body += `\n`;
+            });
+        }
+
+        body += `\nPlease contact me to discuss getting my ${propertyCount === '1' ? 'property' : 'properties'} listed on your platform.\n\n`;
+        body += `Thank you,`;
+
+        // Encode for mailto link
+        const mailtoLink = `mailto:support@keysbooking.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+
+        // Open email client
+        window.location.href = mailtoLink;
+
+        // Close popup after brief delay
+        setTimeout(closePopup, 500);
+    });
+});
+
+
