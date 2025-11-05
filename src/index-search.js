@@ -9373,51 +9373,77 @@ document.addEventListener('DOMContentLoaded', function () {
     document.head.appendChild(mapListingCardStyle);
 
 
+    // Add CSS for proper text truncation in flex layouts
+    const truncationStyle = document.createElement('style');
+    truncationStyle.textContent = `
+        [data-element="listing-card-title"] {
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            white-space: nowrap !important;
+            min-width: 0 !important;
+            flex-shrink: 1 !important;
+            max-width: 100% !important;
+            display: block !important;
+            width: 100% !important;
+        }
+    `;
+    document.head.appendChild(truncationStyle);
+
     // Function to handle text truncation with ellipsis
     function handleTextTruncation(element) {
-        if (!element) return;
-
-        // Store the original text
-        const originalText = element.textContent;
-
-        // Create a range to measure text
-        const range = document.createRange();
-        range.selectNodeContents(element);
-
-        // Get the client rect of the text
-        const clientRects = range.getClientRects();
-
-        // If there's more than one line or the content is wider than the container
-        if (clientRects.length > 1 || element.scrollWidth > element.clientWidth) {
-            // Start with the full text
-            let text = originalText;
-            let low = 0;
-            let high = text.length;
-            let best = '';
-
-            // Binary search for the best length that fits
-            while (low <= high) {
-                const mid = Math.floor((low + high) / 2);
-                const truncated = text.slice(0, mid) + '...';
-                element.textContent = truncated;
-
-                range.selectNodeContents(element);
-                const newClientRects = range.getClientRects();
-
-                if (newClientRects.length === 1 && element.scrollWidth <= element.clientWidth) {
-                    best = truncated;
-                    low = mid + 1;
-                } else {
-                    high = mid - 1;
-                }
-            }
-
-            // Set the best truncated version that fits
-            element.textContent = best;
-
-            // Add title attribute for hover tooltip with full text
-            element.title = originalText;
+        if (!element) {
+            console.log('❌ handleTextTruncation: No element provided');
+            return;
         }
+
+        console.log('🔍 handleTextTruncation called for element:', element);
+
+        // Store the original text for tooltip
+        const originalText = element.textContent.trim();
+        if (!originalText) {
+            console.log('❌ No text content found');
+            return;
+        }
+
+        console.log('📝 Original text:', originalText);
+        console.log('📐 Before styles - clientWidth:', element.clientWidth, 'scrollWidth:', element.scrollWidth);
+        console.log('📦 Parent element:', element.parentElement);
+        console.log('📦 Parent clientWidth:', element.parentElement?.clientWidth);
+
+        // Apply inline styles directly (highest specificity)
+        element.style.overflow = 'hidden';
+        element.style.textOverflow = 'ellipsis';
+        element.style.whiteSpace = 'nowrap';
+        element.style.minWidth = '0';
+        element.style.flexShrink = '1';
+        element.style.maxWidth = '100%';
+        element.style.display = 'block';
+
+        console.log('✅ Inline styles applied');
+
+        // Set the text
+        element.textContent = originalText;
+
+        // Check after a delay if truncation happened and add tooltip
+        requestAnimationFrame(() => {
+            const computedStyle = window.getComputedStyle(element);
+            console.log('🎨 Computed styles:');
+            console.log('  - overflow:', computedStyle.overflow);
+            console.log('  - text-overflow:', computedStyle.textOverflow);
+            console.log('  - white-space:', computedStyle.whiteSpace);
+            console.log('  - display:', computedStyle.display);
+            console.log('  - width:', computedStyle.width);
+            console.log('  - max-width:', computedStyle.maxWidth);
+            console.log('📐 After styles - clientWidth:', element.clientWidth, 'scrollWidth:', element.scrollWidth, 'clientHeight:', element.clientHeight);
+
+            if (element.scrollWidth > element.clientWidth) {
+                console.log('✂️ Text is truncated, adding tooltip');
+                element.title = originalText;
+            } else {
+                console.log('✓ Text fits, no truncation needed');
+                element.title = '';
+            }
+        });
     }
 
     // Function to update marker visibility based on current page with delay and opacity transition
