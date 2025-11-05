@@ -284,9 +284,20 @@ document.addEventListener('DOMContentLoaded', function () {
             titleSpan.style.fontWeight = '500';
 
             const messageSpan = document.createElement('span');
-            messageSpan.textContent = currentData.is_active ?
-                'Listing is active!' :
-                'Listing is currently inactive.\nVisit the Listing Status section to activate.';
+
+            // Check if listing is approved
+            const isApproved = currentData.keysBookingApprovedListing === true;
+            const hasTaxData = currentData._host_taxes && currentData._host_taxes.length > 0;
+
+            if (!hasTaxData) {
+                messageSpan.textContent = 'Listing is currently inactive.\nComplete required items to activate.';
+            } else if (!isApproved) {
+                messageSpan.textContent = 'Listing is pending approval.\nYou\'ll be notified when approved.';
+            } else if (currentData.is_active) {
+                messageSpan.textContent = 'Listing is active!';
+            } else {
+                messageSpan.textContent = 'Listing is currently inactive.\nVisit the Listing Status section to activate.';
+            }
 
             listingStatusSection.appendChild(titleSpan);
             listingStatusSection.appendChild(messageSpan);
@@ -355,8 +366,12 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
                 }
 
-                // Update color status based on errors and listing status
+                // Update color status based on errors, approval status and listing status
+                const isApprovedForColorStatus = currentData.keysBookingApprovedListing === true;
+
                 if (!currentData.is_active) {
+                    colorStatusElement.style.backgroundColor = 'rgba(255, 0, 0, 0.18)';
+                } else if (!isApprovedForColorStatus) {
                     colorStatusElement.style.backgroundColor = 'rgba(255, 0, 0, 0.18)';
                 } else if (hasSuggestedSectionErrors) {
                     colorStatusElement.style.backgroundColor = 'rgba(255, 0, 0, 0.18)';
@@ -5945,8 +5960,16 @@ document.addEventListener('DOMContentLoaded', function () {
             const hasTaxData = data._host_taxes && data._host_taxes.length > 0;
             console.log(hasTaxData);
 
-            // Set initial state based on tax data and is_active
-            if (!hasTaxData) {
+            // Check if listing is approved by keysBooking
+            const isApproved = data.keysBookingApprovedListing === true;
+            console.log('Listing approved:', isApproved);
+
+            // Check if there are any blocking issues (independent checks, no hierarchy)
+            const canPublish = hasTaxData && isApproved;
+
+            // Set initial state based on whether listing can be published
+            if (!canPublish) {
+                // Listing cannot be published due to one or more issues
                 initialListingStatus = 'not_listed';
                 currentListingStatus = 'not_listed';
                 notListedOption.style.outline = '2px solid black';
@@ -5954,12 +5977,23 @@ document.addEventListener('DOMContentLoaded', function () {
                 editListingStatusButton.style.display = 'none';
                 buttonContainer.style.display = 'none';
 
-                // Show error message for incomplete listing
+                // Build error message based on what's missing
                 if (errorElement) {
-                    errorElement.innerHTML = "Complete your listing before publishing. Visit <a href='/host/dashboard' style='text-decoration: underline; color: inherit;'>dashboard</a> to view all missing items";
+                    let errorMessages = [];
+
+                    if (!hasTaxData) {
+                        errorMessages.push("Complete your listing before publishing. Visit <a href='/host/dashboard' style='text-decoration: underline; color: inherit;'>dashboard</a> to view all missing items");
+                    }
+
+                    if (!isApproved) {
+                        errorMessages.push("Your listing is pending approval. You'll be notified once it's approved and ready to publish");
+                    }
+
+                    errorElement.innerHTML = errorMessages.join('<br><br>');
                     errorElement.style.display = 'block';
                 }
             } else {
+                // Listing can be published
                 initialListingStatus = data.is_active ? 'listed' : 'not_listed';
                 currentListingStatus = initialListingStatus;
 
@@ -6017,7 +6051,7 @@ document.addEventListener('DOMContentLoaded', function () {
             });
 
             listedOption?.addEventListener('click', () => {
-                if (!hasTaxData || buttonContainer.style.display === 'none') return;
+                if (!canPublish || buttonContainer.style.display === 'none') return;
 
                 listedOption.style.outline = '2px solid black';
                 listedOption.style.outlineOffset = '-1px';
@@ -6027,7 +6061,7 @@ document.addEventListener('DOMContentLoaded', function () {
             });
 
             notListedOption?.addEventListener('click', () => {
-                if (!hasTaxData || buttonContainer.style.display === 'none') return;
+                if (!canPublish || buttonContainer.style.display === 'none') return;
 
                 notListedOption.style.outline = '2px solid black';
                 notListedOption.style.outlineOffset = '-1px';

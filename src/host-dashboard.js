@@ -999,6 +999,9 @@ async function initializeNotifications(hostId) {
             //throw new Error('Failed to fetch notifications');
         }
 
+        // Initialize new listings with the same data
+        initializeNewListings(data);
+
         // Hide calendar nav item if host_editListings is null
         const calendarNavItem = document.querySelector('[data-element="hostDashboardNavBar_Calendar"]');
         if (calendarNavItem && (!data.host_editListings || data.host_editListings.length === 0)) {
@@ -1015,19 +1018,20 @@ async function initializeNotifications(hostId) {
             // Hide original container
             editListingNotificationContainer.style.display = 'none';
 
+
             // Keep track of notifications displayed
             let notificationsDisplayed = 0;
 
             // Check each listing and display notification if needed
-            data.host_editListings.forEach(listing => {
+            data.host_editListings.forEach((listing, index) => {
+
                 const issues = hasListingIssues(listing);
                 if (issues) {
                     displayNotification(editListingNotificationContainer, listing);
                     notificationsDisplayed++;
+                } else {
                 }
             });
-
-
 
             // Only remove original container after processing all listings
             if (notificationsDisplayed > 0) {
@@ -1132,13 +1136,13 @@ function hasListingIssues(listing) {
 
     // Check bedroom photos
     const bedroomPhotos = listing._host_property_pictures.filter(pic => pic.inBedroomSection === true);
-    const insufficientBedroomPhotos = bedroomPhotos.length < listing.num_beds;
+    const insufficientBedroomPhotos = bedroomPhotos.length < listing.num_bedrooms;
 
     // Check dock photos if property has private dock
     const dockPhotos = listing._host_property_pictures.filter(pic => pic.in_dock_section === true);
     const insufficientDockPhotos = listing.private_dock && dockPhotos.length < 2;
-
-    return missingHostInfo || missingLocationDescription || insufficientBedroomPhotos || insufficientDockPhotos;
+    const hasIssues = missingHostInfo || missingLocationDescription || insufficientBedroomPhotos || insufficientDockPhotos;
+    return hasIssues;
 }
 
 function displayNotification(container, listing) {
@@ -1161,4 +1165,180 @@ function displayNotification(container, listing) {
     });
 
     container.parentNode.insertBefore(notification, container);
+}
+
+// New Listings section for host dashboard
+function initializeNewListings(data) {
+    try {
+        const newListingsSection = document.querySelector('[data-element="hostDashboardNewListing_section"]');
+
+        if (!newListingsSection) {
+            return;
+        }
+
+        // Check if we have new listings data
+        if (!data.host_newListings || data.host_newListings.length === 0) {
+            newListingsSection.style.display = 'none';
+            return;
+        }
+
+        // Filter out approved listings that are already active
+        const filteredListings = data.host_newListings.filter(listing => {
+            const isApproved = listing.keysBookingApprovedDate !== null && listing.keysBookingApprovedDate !== undefined;
+            // Show if not approved, or if approved but not yet active
+            return !isApproved || !listing.is_active;
+        });
+
+        // If no listings to show after filtering, hide the section
+        if (filteredListings.length === 0) {
+            newListingsSection.style.display = 'none';
+            return;
+        }
+
+        // Sort listings: pending first, then approved (most recent approval first)
+        filteredListings.sort((a, b) => {
+            const aIsApproved = a.keysBookingApprovedDate !== null && a.keysBookingApprovedDate !== undefined;
+            const bIsApproved = b.keysBookingApprovedDate !== null && b.keysBookingApprovedDate !== undefined;
+
+            // If one is pending and one is approved, pending comes first
+            if (!aIsApproved && bIsApproved) return -1;
+            if (aIsApproved && !bIsApproved) return 1;
+
+            // If both are approved, sort by most recent first (soonest)
+            if (aIsApproved && bIsApproved) {
+                return b.keysBookingApprovedDate.localeCompare(a.keysBookingApprovedDate);
+            }
+
+            // Both are pending, maintain original order
+            return 0;
+        });
+
+        // Show the section
+        newListingsSection.style.display = 'flex';
+
+        // Get the template block
+        const templateBlock = newListingsSection.querySelector('[data-element="hostDashboardNewListing_block"]');
+
+        if (!templateBlock) {
+            console.error('New listing block template not found');
+            return;
+        }
+
+        // Clone the original template
+        const originalTemplateBlock = templateBlock.cloneNode(true);
+
+        // Clear any existing blocks except the template
+        const container = templateBlock.parentElement;
+        container.innerHTML = '';
+
+        // Process each filtered listing
+        filteredListings.forEach((listing, index) => {
+            const block = originalTemplateBlock.cloneNode(true);
+            block.style.display = 'flex';
+
+            // Determine if listing is approved
+            const isApproved = listing.keysBookingApprovedDate !== null && listing.keysBookingApprovedDate !== undefined;
+
+            // Set background color based on approval status
+            if (isApproved) {
+                block.style.backgroundColor = '#e8f5e9'; // Light green
+            } else {
+                block.style.backgroundColor = '#fffde7'; // Light yellow
+            }
+
+            // Update block header
+            const blockHeader = block.querySelector('[data-element="hostDashboardNewListing_blockHeader"]');
+            if (blockHeader) {
+                blockHeader.textContent = isApproved ? 'LISTING APPROVED!' : 'LISTING UNDER REVIEW';
+            }
+
+            // Update listing name
+            const blockListingName = block.querySelector('[data-element="hostDashboardNewListing_blockListingName"]');
+            if (blockListingName && listing.property_name) {
+                const truncatedName = listing.property_name.length > 13
+                    ? listing.property_name.substring(0, 13) + '...'
+                    : listing.property_name;
+                blockListingName.textContent = truncatedName;
+            }
+
+            // Update status text
+            const blockText = block.querySelector('[data-element="hostDashboardNewListing_blockText"]');
+            if (blockText) {
+                if (isApproved) {
+                    blockText.textContent = 'Your listing is approved! Edit to activate or update details.';
+                } else {
+                    blockText.textContent = 'We are reviewing your listing. You\'ll hear back within 48 hours.';
+                }
+            }
+
+            // Handle button text visibility
+            const blockButtonText = block.querySelector('[data-element="hostDashboardNewListing_blockButtonText"]');
+            if (blockButtonText) {
+                if (isApproved) {
+                    blockButtonText.style.display = 'block';
+                } else {
+                    blockButtonText.style.display = 'none';
+                }
+            }
+
+            // Handle time ago container visibility
+            const timeAgoContainer = block.querySelector('[data-element="hostDashboardNewListing_blockTimeAgoContainer"]');
+            if (timeAgoContainer) {
+                if (isApproved && listing.keysBookingApprovedDate) {
+                    timeAgoContainer.style.display = 'flex';
+
+                    // Calculate days ago
+                    const timeAgoElement = block.querySelector('[data-element="hostDashboardNewListing_blockTimeAgo"]');
+                    if (timeAgoElement) {
+                        const daysAgo = calculateDaysAgo(listing.keysBookingApprovedDate);
+                        if (daysAgo === 0) {
+                            timeAgoElement.textContent = 'Today';
+                        } else if (daysAgo === 1) {
+                            timeAgoElement.textContent = '1 Day Ago';
+                        } else {
+                            timeAgoElement.textContent = `${daysAgo} Days Ago`;
+                        }
+                    }
+                } else {
+                    timeAgoContainer.style.display = 'none';
+                }
+            }
+
+            // Add click handler for approved listings
+            if (isApproved) {
+                block.style.cursor = 'pointer';
+                block.addEventListener('click', () => {
+                    window.location.href = `/host/listings/edit?id=${listing.id}`;
+                });
+            }
+
+            // Append the block to container
+            container.appendChild(block);
+        });
+
+    } catch (error) {
+        console.error('Error initializing new listings:', error);
+    }
+}
+
+// Helper function to calculate days ago from a date string (YYYY-MM-DD format)
+function calculateDaysAgo(dateString) {
+    if (!dateString) return 0;
+
+    // Extract date as YYYY-MM-DD (handle if it includes time)
+    const dateStr = dateString.split('T')[0];
+
+    // Get today's date as YYYY-MM-DD
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+
+    // Parse dates
+    const approvedDate = new Date(dateStr);
+    const currentDate = new Date(todayStr);
+
+    // Calculate difference in days
+    const diffTime = currentDate - approvedDate;
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+    return Math.max(0, diffDays);
 }
