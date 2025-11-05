@@ -6851,13 +6851,20 @@ document.addEventListener('DOMContentLoaded', () => {
           // Filter boats based on guest count
           const filteredBoats = this.filterBoats(allBoats);
 
+          // Sort boats by length (smallest to largest)
+          const sortedBoats = filteredBoats.sort((a, b) => {
+            const lengthA = a.length || 0;
+            const lengthB = b.length || 0;
+            return lengthA - lengthB;
+          });
+
           // Hide skeleton cards
           this.hideSkeletonCards();
 
-          // Render the filtered boats
-          this.renderBoatCards(filteredBoats);
+          // Render the sorted boats
+          this.renderBoatCards(sortedBoats);
 
-          return filteredBoats;
+          return sortedBoats;
         } catch (error) {
           // Hide skeleton cards on error too
           this.hideSkeletonCards();
