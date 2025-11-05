@@ -5934,12 +5934,12 @@ document.addEventListener('DOMContentLoaded', function () {
         const errorElement = document.getElementById('listingStatus-error');
         const editListingStatus = document.querySelector('[data-element="edit_listingStatus"]');
         const editListingStatusDetailsSection = document.querySelector('[data-element="edit_listingStatus_detalsSection"]');
-        const editPhotosText = document.querySelector('[data-element="edit_photos_text"]');
+        const listingStatusText = document.querySelectorAll('[data-element="listingStatus_text"]');
 
         function updateListingStatusText(isActive) {
-            if (editPhotosText) {
-                editPhotosText.textContent = isActive ? 'Active' : 'Inactive';
-            }
+            listingStatusText.forEach(text => {
+                text.textContent = isActive ? 'Active' : 'Inactive';
+            });
         }
 
         function initializeListingStatus() {
