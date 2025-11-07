@@ -1162,7 +1162,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 }, 100);
 
             } catch (error) {
-                console.error('Error in addExtraAndSearch:', error);
+
             }
         }
 
@@ -4032,6 +4032,18 @@ document.addEventListener('DOMContentLoaded', function () {
             return details || null;
         };
 
+        // Helper function to get private dock delivery details for a specific city
+        const getPrivateDockDeliveryDetails = (boat, targetCity) => {
+            if (!boat?._boatcompany?.privateDockDeliveryCity) return null;
+
+            const normalizedTarget = lc(targetCity);
+            const details = boat._boatcompany.privateDockDeliveryCity.find(
+                cityObj => lc(cityObj?.city || "") === normalizedTarget
+            );
+
+            return details || null;
+        };
+
         // Very simple YMD overlap helpers; adapt to your real availability
         const isDateRangeBlocked = (checkInYMD, checkOutYMD, blockedRanges = []) => {
             if (!checkInYMD || !checkOutYMD || !hasArr(blockedRanges)) return false;
@@ -4086,8 +4098,6 @@ document.addEventListener('DOMContentLoaded', function () {
                                 const normalizedCity = lc(cityString);
                                 serviceCities.push(normalizedCity);
 
-                                // Debug logging (comment out in production)
-                                console.log(`Boat ${boat.name || boat.id}: servicesTo_city${i} = "${cityString}" -> "${normalizedCity}"`);
                             }
                         }
                     }
@@ -4095,15 +4105,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 const boatCity = getCity(boat);
                 const deliveryCities = (boat?._boatcompany?.privateDockDeliveryCity || []).map(cityObj => lc(cityObj?.city || ""));
-
-                // Debug logging (comment out in production)
-                if (serviceCities.includes('marathon') || serviceCities.includes('duck key')) {
-                    console.log(`Boat ${boat.name || boat.id}:`, {
-                        boatCity,
-                        serviceCities,
-                        deliveryCities
-                    });
-                }
 
                 // candidate listing ids = primary city + all service cities + all delivery cities
                 const candidateListingIds = new Set([
@@ -4178,13 +4179,15 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
                 }
 
-                // Check public dock delivery minimum days
+                // Check public and private dock delivery minimum days
                 const publicDockDetails = getPublicDockDeliveryDetails(b, listingCity);
                 const publicDockMinDays = publicDockDetails?.minDays ? Number(publicDockDetails.minDays) : 0;
+                const privateDockDetails = getPrivateDockDeliveryDetails(b, listingCity);
+                const privateDockMinDays = privateDockDetails?.minDays ? Number(privateDockDetails.minDays) : 0;
                 const boatMinDays = b.minReservationLength || 0;
 
-                // Calculate the effective minimum days required (max of public dock and boat minimum)
-                const effectiveBoatMinDays = Math.max(publicDockMinDays, boatMinDays);
+                // Calculate the effective minimum days required (max of public dock, private dock, and boat minimum)
+                const effectiveBoatMinDays = Math.max(publicDockMinDays, privateDockMinDays, boatMinDays);
 
                 // If user has explicitly filtered boat days (not default 0.5)
                 if (filters.days > 0.5) {
@@ -4246,14 +4249,16 @@ document.addEventListener('DOMContentLoaded', function () {
                 let basePrice = 0;
                 let daysToCalculate = filters.days || 0;
 
-                // Check if this listing's city requires public dock delivery with minimum days
+                // Check if this listing's city requires public or private dock delivery with minimum days
                 const listingCity = getCity(listing);
                 const publicDockDetails = getPublicDockDeliveryDetails(boat, listingCity);
                 const publicDockMinDays = publicDockDetails?.minDays ? Number(publicDockDetails.minDays) : 0;
+                const privateDockDetails = getPrivateDockDeliveryDetails(boat, listingCity);
+                const privateDockMinDays = privateDockDetails?.minDays ? Number(privateDockDetails.minDays) : 0;
                 const boatMinDays = boat.minReservationLength || 0;
 
-                // Calculate effective boat minimum days (max of public dock and boat minimum)
-                const effectiveBoatMinDays = Math.max(publicDockMinDays, boatMinDays);
+                // Calculate effective boat minimum days (max of public dock, private dock, and boat minimum)
+                const effectiveBoatMinDays = Math.max(publicDockMinDays, privateDockMinDays, boatMinDays);
 
                 // Track the maximum boat minimum across all filtered boats
                 if (effectiveBoatMinDays > maxBoatMinDays) {
@@ -4314,6 +4319,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 // (publicDockDetails already retrieved earlier)
                 if (publicDockDetails && publicDockDetails.fee) {
                     basePrice += Number(publicDockDetails.fee) || 0;
+                }
+
+                // Add private dock delivery fee if listing city requires it
+                // (privateDockDetails already retrieved earlier)
+                if (privateDockDetails && privateDockDetails.fee) {
+                    basePrice += Number(privateDockDetails.fee) || 0;
                 }
 
                 // Apply service fee if not manual integration (from commented code)
@@ -6322,14 +6333,16 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Function to apply filters to listings
         function applyFiltersToListings(listings) {
-            const base = Array.isArray(unfilteredListings) && unfilteredListings.length
-                ? unfilteredListings
-                : (Array.isArray(listings) ? listings : []);
+            // Use the passed listings parameter if it's an array (even if empty)
+            // Only fall back to unfilteredListings if listings is null/undefined
+            const base = Array.isArray(listings)
+                ? listings
+                : (Array.isArray(unfilteredListings) ? unfilteredListings : []);
+
             if (!base.length) return [];
 
-
             let cardIndex = 0; // Track card index for boat rental text updates
-            return base.filter((listing, index) => {
+            const filtered = base.filter((listing, index) => {
                 // Phase 4: Price filter with new logic
                 const datesSelected = hasDates();
                 const hasExtras = wantBoat() || wantChar();
@@ -6478,6 +6491,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 return true;
             });
 
+            return filtered;
         }
 
 
@@ -8024,6 +8038,9 @@ document.addEventListener('DOMContentLoaded', function () {
             currentListings = Array.isArray(availableProperties) ? availableProperties : [];
             unfilteredListings = [...currentListings];
 
+            // IMPORTANT: Also update window.originalListings for map bounds filtering
+            window.originalListings = [...unfilteredListings];
+
             boatModule.buildIndex(availableProperties || [], boatRentals || []);
 
             // Build charter index after results are loaded
@@ -9392,23 +9409,14 @@ document.addEventListener('DOMContentLoaded', function () {
     // Function to handle text truncation with ellipsis
     function handleTextTruncation(element) {
         if (!element) {
-            console.log('❌ handleTextTruncation: No element provided');
             return;
         }
-
-        console.log('🔍 handleTextTruncation called for element:', element);
 
         // Store the original text for tooltip
         const originalText = element.textContent.trim();
         if (!originalText) {
-            console.log('❌ No text content found');
             return;
         }
-
-        console.log('📝 Original text:', originalText);
-        console.log('📐 Before styles - clientWidth:', element.clientWidth, 'scrollWidth:', element.scrollWidth);
-        console.log('📦 Parent element:', element.parentElement);
-        console.log('📦 Parent clientWidth:', element.parentElement?.clientWidth);
 
         // Apply inline styles directly (highest specificity)
         element.style.overflow = 'hidden';
@@ -9419,28 +9427,16 @@ document.addEventListener('DOMContentLoaded', function () {
         element.style.maxWidth = '100%';
         element.style.display = 'block';
 
-        console.log('✅ Inline styles applied');
-
         // Set the text
         element.textContent = originalText;
 
         // Check after a delay if truncation happened and add tooltip
         requestAnimationFrame(() => {
             const computedStyle = window.getComputedStyle(element);
-            console.log('🎨 Computed styles:');
-            console.log('  - overflow:', computedStyle.overflow);
-            console.log('  - text-overflow:', computedStyle.textOverflow);
-            console.log('  - white-space:', computedStyle.whiteSpace);
-            console.log('  - display:', computedStyle.display);
-            console.log('  - width:', computedStyle.width);
-            console.log('  - max-width:', computedStyle.maxWidth);
-            console.log('📐 After styles - clientWidth:', element.clientWidth, 'scrollWidth:', element.scrollWidth, 'clientHeight:', element.clientHeight);
 
             if (element.scrollWidth > element.clientWidth) {
-                console.log('✂️ Text is truncated, adding tooltip');
                 element.title = originalText;
             } else {
-                console.log('✓ Text fits, no truncation needed');
                 element.title = '';
             }
         });
@@ -9523,7 +9519,6 @@ document.addEventListener('DOMContentLoaded', function () {
             previousPricingMode = getCurrentPricingMode();
         })
         .catch(error => {
-            console.error('❌ Error in fetchPropertySearchResults:', error);
             // Hide loader on error
             if (loaderElement) {
                 loaderElement.style.display = 'none';
@@ -10323,6 +10318,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 // Filter listings based on current bounds
                 const visibleListings = filterListingsByBounds(window.originalListings, currentBounds);
+
                 const filteredVisibleListings = filterSystem ? filterSystem.applyFilters(visibleListings) : visibleListings;
 
                 // Defer marker updates to avoid blocking
@@ -10346,7 +10342,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 }, 0);
 
                 // Only update listings if we've moved significantly outside search bounds
-                if (hasMovedOutsideSearchBounds(currentBounds, searchBounds)) {
+                const movedOutside = hasMovedOutsideSearchBounds(currentBounds, searchBounds);
+
+                if (movedOutside) {
                     const locationButtonTextElement = document.querySelector('[data-element="navBarSearch_locationButton_text"]');
                     if (locationButtonTextElement) {
                         updateButtonText(locationButtonTextElement, "Map area", defaultValues.location);
@@ -10372,26 +10370,43 @@ document.addEventListener('DOMContentLoaded', function () {
 
                     searchBounds = currentBounds;
                 } else {
-                    // Show skeleton loading for bounds filtering if the amount of listings changes significantly
-                    const currentListingCount = currentListings ? currentListings.length : 0;
-                    const newListingCount = filteredVisibleListings ? filteredVisibleListings.length : 0;
+                    // Check if the visible listings are different from current listings
+                    const visibleListingIds = new Set(filteredVisibleListings.map(l => l.id));
+                    const currentListingIds = new Set(currentListings.map(l => l.id));
 
-                    // Only show skeleton if there's a significant change in listing count (more than 25% difference)
-                    if (Math.abs(currentListingCount - newListingCount) > Math.max(currentListingCount * 0.25, 2)) {
-                        showSkeletonLoading();
+                    const isDifferent = visibleListingIds.size !== currentListingIds.size ||
+                        [...visibleListingIds].some(id => !currentListingIds.has(id));
 
-                        // Add a small delay to make the loading feel responsive
-                        setTimeout(() => {
-                            renderListingCards(filteredVisibleListings, true);
-                            updateBoatBadgeForAllVisibleCards(filteredVisibleListings);
-                            hideSkeletonLoading();
-                        }, 300);
+                    if (isDifferent) {
+                        // Update currentListings to be the filtered visible listings
+                        currentListings = filteredVisibleListings;
+                        currentPage = 1; // Reset to page 1
+
+                        // Show skeleton loading for significant changes
+                        const currentListingCount = currentListingIds.size;
+                        const newListingCount = filteredVisibleListings.length;
+
+                        if (Math.abs(currentListingCount - newListingCount) > Math.max(currentListingCount * 0.25, 2)) {
+                            showSkeletonLoading();
+
+                            setTimeout(() => {
+                                renderListingCards(filteredVisibleListings, true, 1);
+                                renderPagination(filteredVisibleListings.length);
+                                updateMarkersVisibility(1);
+                                updateBoatBadgeForAllVisibleCards(filteredVisibleListings);
+                                updateCharterBadgeForAllVisibleCards(filteredVisibleListings);
+                                hideSkeletonLoading();
+                            }, 300);
+                        } else {
+                            setTimeout(() => {
+                                renderListingCards(filteredVisibleListings, true, 1);
+                                renderPagination(filteredVisibleListings.length);
+                                updateMarkersVisibility(1);
+                                updateBoatBadgeForAllVisibleCards(filteredVisibleListings);
+                                updateCharterBadgeForAllVisibleCards(filteredVisibleListings);
+                            }, 0);
+                        }
                     } else {
-                        // Just update the visible listings without skeleton for small changes
-                        setTimeout(() => {
-                            renderListingCards(filteredVisibleListings, true);
-                            updateBoatBadgeForAllVisibleCards(filteredVisibleListings);
-                        }, 0);
                     }
                 }
             });
