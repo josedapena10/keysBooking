@@ -8523,7 +8523,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 currentPage--;
                 renderListingCards(currentListings, false, currentPage);
                 renderPagination(totalListings);
-                updateMarkersVisibility(currentPage); // ADD THIS
+                updateMarkersVisibility(currentPage);
+
+                // Scroll page to top instantly
+                window.scrollTo({ top: 0, behavior: 'auto' });
+
                 // Update badges for paginated listings
                 const startIndex = (currentPage - 1) * listingsPerPage;
                 const endIndex = startIndex + listingsPerPage;
@@ -8557,7 +8561,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 currentPage = i;
                 renderListingCards(currentListings, false, currentPage);
                 renderPagination(totalListings);
-                updateMarkersVisibility(currentPage); // ADD THIS
+                updateMarkersVisibility(currentPage);
+
+                // Scroll page to top instantly
+                window.scrollTo({ top: 0, behavior: 'auto' });
+
                 // Update badges for paginated listings
                 const startIndex = (currentPage - 1) * listingsPerPage;
                 const endIndex = startIndex + listingsPerPage;
@@ -8590,7 +8598,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 currentPage++;
                 renderListingCards(currentListings, false, currentPage);
                 renderPagination(totalListings);
-                updateMarkersVisibility(currentPage); // ADD THIS
+                updateMarkersVisibility(currentPage);
+
+                // Scroll page to top instantly
+                window.scrollTo({ top: 0, behavior: 'auto' });
+
                 // Update badges for paginated listings
                 const startIndex = (currentPage - 1) * listingsPerPage;
                 const endIndex = startIndex + listingsPerPage;
