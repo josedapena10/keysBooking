@@ -5289,6 +5289,34 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
 
+      // Helper method to get private dock delivery details for listing city
+      getPrivateDockDeliveryDetails(boat) {
+        try {
+          if (!boat || !boat.deliversTo || !Array.isArray(boat.deliversTo)) {
+            return null;
+          }
+
+          // Get property city from Wized data
+          const r = window.Wized?.data?.r;
+          if (!r || !r.Load_Property_Details?.data?.property?.listing_city) {
+            return null;
+          }
+
+          const propertyCityName = r.Load_Property_Details.data.property.listing_city.toLowerCase().trim();
+
+          // Find matching private dock delivery details for this city
+          const details = boat.deliversTo.find(location => {
+            const locationCity = (location?.city || '').toLowerCase().trim();
+            return locationCity === propertyCityName;
+          });
+
+          return details || null;
+        } catch (error) {
+          console.error('Error getting private dock delivery details:', error);
+          return null;
+        }
+      }
+
       // Method to check if pickup time gating should be enforced
       shouldEnforcePickupTimeGating() {
         try {
@@ -5654,7 +5682,24 @@ document.addEventListener('DOMContentLoaded', () => {
             this.updateFilterStyles();
             this.updateURLParams();
           } else {
-            // Show elements if property has private dock
+            // Property has private dock - check if property stay meets minimum days requirement
+            // Get property stay length
+            const urlParams = new URLSearchParams(window.location.search);
+            const checkin = urlParams.get('checkin');
+            const checkout = urlParams.get('checkout');
+
+            let propertyStayDays = 0;
+            if (checkin && checkout) {
+              const checkInDate = new Date(checkin);
+              const checkOutDate = new Date(checkout);
+              const nightsDiff = Math.round((checkOutDate - checkInDate) / (1000 * 60 * 60 * 24));
+              propertyStayDays = nightsDiff + 1; // Convert nights to days
+            }
+
+            // Check if stay is long enough for ANY boat's private dock delivery
+            // We'll hide the filter if the stay is definitely too short for all boats
+            // For now, we'll show it and let individual boats hide their delivery checkbox
+            // But if there are NO dates selected yet, always show the filter
             if (this.privateDockFilter) {
               this.privateDockFilter.style.display = '';
             }
@@ -6296,6 +6341,55 @@ document.addEventListener('DOMContentLoaded', () => {
         // Apply pickup time gating when dates change (first/last day affects gating)
         this.applyPickupTimeGating(this.pickupTimePills, false);
         this.applyPickupTimeGating(this.boatDetailsPickupTimePills, true);
+
+        // Re-check private dock filter availability when boat dates change
+        this.checkPrivateDockFilterAvailabilityForBoatDates();
+
+        // Re-check delivery checkbox visibility if boat details is open
+        if (this.currentBoatData && this.detailsWrapper && this.detailsWrapper.style.display !== 'none') {
+          this.setupDeliveryCheckbox(this.currentBoatData);
+        }
+      }
+
+      // Check if private dock filter should be shown based on selected boat dates
+      checkPrivateDockFilterAvailabilityForBoatDates() {
+        const r = Wized.data.r;
+        if (!r || !r.Load_Property_Details || !r.Load_Property_Details.data || !r.Load_Property_Details.data.property) {
+          return;
+        }
+
+        const property = r.Load_Property_Details.data.property;
+        const hasPrivateDock = property.private_dock === true;
+
+        // If no private dock, filter should already be hidden
+        if (!hasPrivateDock || !this.privateDockFilter) {
+          return;
+        }
+
+        // If no dates selected in boat modal, show the filter
+        if (this.selectedDates.length === 0) {
+          this.privateDockFilter.style.display = '';
+          return;
+        }
+
+        // Check if selected boat dates are too short for private dock delivery
+        const selectedBoatDays = this.selectedDates.length;
+
+        // If very short stay (< 3 days), hide private dock filter
+        if (selectedBoatDays < 3) {
+          this.privateDockFilter.style.display = 'none';
+
+          // If private dock was selected, deselect it
+          if (this.selectedPrivateDock) {
+            this.selectedPrivateDock = false;
+            this.updatePrivateDockFilterText();
+            this.updateFilterStyles();
+            this.updateURLParams();
+          }
+        } else {
+          // Show filter - individual boats will determine if they meet minimum
+          this.privateDockFilter.style.display = '';
+        }
       }
 
       generateDateRange(startDateStr, endDateStr) {
@@ -6607,12 +6701,20 @@ document.addEventListener('DOMContentLoaded', () => {
             }
           }
 
-          // Filter by minimum days requirement (boat minimum + public dock minimum)
+          // Filter by minimum days requirement (boat minimum + public dock minimum + private dock minimum if selected)
           if (this.selectedDates.length > 0) {
             const publicDockDetails = this.getPublicDockDeliveryDetails(boat);
             const publicDockMinDays = publicDockDetails?.minDays ? Number(publicDockDetails.minDays) : 0;
             const boatMinDays = boat.minReservationLength || 0;
-            const effectiveMinDays = Math.max(publicDockMinDays, boatMinDays);
+
+            // Only consider private dock minimum if private dock delivery is selected
+            let privateDockMinDays = 0;
+            if (this.selectedPrivateDock) {
+              const privateDockDetails = this.getPrivateDockDeliveryDetails(boat);
+              privateDockMinDays = privateDockDetails?.minDays ? Number(privateDockDetails.minDays) : 0;
+            }
+
+            const effectiveMinDays = Math.max(publicDockMinDays, privateDockMinDays, boatMinDays);
 
             // If boat requires more days than user selected, filter it out
             if (effectiveMinDays > 0 && this.selectedDates.length < effectiveMinDays) {
@@ -6974,7 +7076,14 @@ document.addEventListener('DOMContentLoaded', () => {
           if (hasPrivateDock === false) {
             return 'Private dock delivery filter is active, but this property has no private dock.';
           } else {
-            return 'No boats can deliver to this property\'s private dock. Try removing the private dock filter.';
+            // Check if boats exist but don't meet private dock minimum days requirement
+            if (this.selectedDates.length > 0) {
+              // Try to find the minimum private dock days requirement from available boats
+              // This would require checking boats, but we can give a helpful generic message
+              return `No boats available with private dock delivery for ${this.selectedDates.length} day${this.selectedDates.length > 1 ? 's' : ''}. Some boats may require a longer minimum rental for dock delivery. Try selecting more days or removing the private dock filter.`;
+            } else {
+              return 'No boats can deliver to this property\'s private dock. Try removing the private dock filter.';
+            }
           }
         }
 
@@ -7168,8 +7277,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const publicDockDetails = this.getPublicDockDeliveryDetails(boat);
         const publicDockMinDays = publicDockDetails?.minDays ? Number(publicDockDetails.minDays) : 0;
 
-        // Use the maximum of boat minimum and public dock minimum
-        const effectiveMinLength = Math.max(boatMinLength, publicDockMinDays);
+        // Only consider private dock minimum if private dock delivery is selected
+        let privateDockMinDays = 0;
+        if (this.selectedPrivateDock) {
+          const privateDockDetails = this.getPrivateDockDeliveryDetails(boat);
+          privateDockMinDays = privateDockDetails?.minDays ? Number(privateDockDetails.minDays) : 0;
+        }
+
+        // Use the maximum of boat minimum, public dock minimum, and private dock minimum (if selected)
+        const effectiveMinLength = Math.max(boatMinLength, publicDockMinDays, privateDockMinDays);
 
         if (effectiveMinLength === 0) {
           return "Daily (4-8 hours) • Multi-Day";
@@ -7340,8 +7456,64 @@ document.addEventListener('DOMContentLoaded', () => {
         this.applyPickupTimeGating(this.pickupTimePills, false);
         this.applyPickupTimeGating(this.boatDetailsPickupTimePills, true);
 
+        // Check if private dock filter should be available based on property stay length
+        this.checkPrivateDockFilterAvailability();
+
         // Fetch and render boat options with filtering
         await this.fetchAndRenderBoats();
+      }
+
+      // Check if private dock delivery is available for the current property stay
+      checkPrivateDockFilterAvailability() {
+        const r = Wized.data.r;
+        if (!r || !r.Load_Property_Details || !r.Load_Property_Details.data || !r.Load_Property_Details.data.property) {
+          return;
+        }
+
+        const property = r.Load_Property_Details.data.property;
+        const hasPrivateDock = property.private_dock === true;
+
+        // If no private dock, filter should already be hidden by checkPropertyPrivateDockStatus
+        if (!hasPrivateDock) {
+          return;
+        }
+
+        // Get property stay length
+        const urlParams = new URLSearchParams(window.location.search);
+        const checkin = urlParams.get('checkin');
+        const checkout = urlParams.get('checkout');
+
+        if (!checkin || !checkout) {
+          // No dates selected - show filter (user can select dates that meet requirements)
+          if (this.privateDockFilter) {
+            this.privateDockFilter.style.display = '';
+          }
+          return;
+        }
+
+        const checkInDate = new Date(checkin);
+        const checkOutDate = new Date(checkout);
+        const nightsDiff = Math.round((checkOutDate - checkInDate) / (1000 * 60 * 60 * 24));
+        const propertyStayDays = nightsDiff + 1; // Convert nights to days
+
+        // If property stay is very short (< 3 days), likely no boats will offer private dock delivery
+        // Hide the filter to avoid confusion
+        if (propertyStayDays < 3 && this.privateDockFilter) {
+          this.privateDockFilter.style.display = 'none';
+
+          // If private dock was selected, deselect it
+          if (this.selectedPrivateDock) {
+            this.selectedPrivateDock = false;
+            this.updatePrivateDockFilterText();
+            this.updateFilterStyles();
+            this.updateURLParams();
+          }
+        } else {
+          // Show filter - individual boats will determine if they can deliver
+          if (this.privateDockFilter) {
+            this.privateDockFilter.style.display = '';
+          }
+        }
       }
 
       areDatesValid() {
@@ -7783,13 +7955,20 @@ document.addEventListener('DOMContentLoaded', () => {
           selectedGuests: this.selectedGuests
         };
 
-        // Check for public dock delivery details
+        // Check for public and private dock delivery details
         const publicDockDetails = this.getPublicDockDeliveryDetails(boat);
         const publicDockMinDays = publicDockDetails?.minDays ? Number(publicDockDetails.minDays) : 0;
         const boatMinDays = boat.minReservationLength || 0;
 
-        // Calculate effective minimum days (max of public dock and boat minimum)
-        const effectiveMinDays = Math.max(publicDockMinDays, boatMinDays);
+        // Only consider private dock minimum if private dock delivery is selected
+        let privateDockMinDays = 0;
+        if (currentState.selectedPrivateDock) {
+          const privateDockDetails = this.getPrivateDockDeliveryDetails(boat);
+          privateDockMinDays = privateDockDetails?.minDays ? Number(privateDockDetails.minDays) : 0;
+        }
+
+        // Calculate effective minimum days (max of public dock, private dock if selected, and boat minimum)
+        const effectiveMinDays = Math.max(publicDockMinDays, privateDockMinDays, boatMinDays);
 
         let basePrice = 0;
         let numDates = currentState.selectedDates.length;
@@ -7828,10 +8007,19 @@ document.addEventListener('DOMContentLoaded', () => {
           publicDockFee = Number(publicDockDetails.fee) || 0;
         }
 
-        // Calculate service fee on (basePrice + publicDockFee) unless integrationType is "Manual"
+        // Add private dock delivery fee ONLY if private dock is selected
+        let privateDockFee = 0;
+        if (currentState.selectedPrivateDock) {
+          const privateDockDetails = this.getPrivateDockDeliveryDetails(boat);
+          if (privateDockDetails && privateDockDetails.fee) {
+            privateDockFee = Number(privateDockDetails.fee) || 0;
+          }
+        }
+
+        // Calculate service fee on (basePrice + publicDockFee + privateDockFee) unless integrationType is "Manual"
         let serviceFee = 0;
         if (boat.integrationType !== "Manual") {
-          serviceFee = (basePrice + publicDockFee) * (boat.serviceFee || 0);
+          serviceFee = (basePrice + publicDockFee + privateDockFee) * (boat.serviceFee || 0);
         }
 
         // Calculate delivery fee if private dock is selected and boat can deliver
@@ -7840,14 +8028,15 @@ document.addEventListener('DOMContentLoaded', () => {
           deliveryFee = boat.companyDeliveryFee;
         }
 
-        const total = basePrice + publicDockFee + serviceFee + deliveryFee;
+        const total = basePrice + publicDockFee + privateDockFee + serviceFee + deliveryFee;
 
         return {
           base: Math.round(basePrice),
           fees: {
             service: Math.round(serviceFee),
             delivery: Math.round(deliveryFee),
-            publicDock: Math.round(publicDockFee)
+            publicDock: Math.round(publicDockFee),
+            privateDock: Math.round(privateDockFee)
           },
           total: Math.round(total),
           effectiveMinDays: effectiveMinDays // Return this for validation
@@ -7892,12 +8081,20 @@ document.addEventListener('DOMContentLoaded', () => {
             }
           }
 
-          // Filter by minimum days requirement (boat minimum + public dock minimum)
+          // Filter by minimum days requirement (boat minimum + public dock minimum + private dock minimum if selected)
           if (this.selectedDates.length > 0) {
             const publicDockDetails = this.getPublicDockDeliveryDetails(boat);
             const publicDockMinDays = publicDockDetails?.minDays ? Number(publicDockDetails.minDays) : 0;
             const boatMinDays = boat.minReservationLength || 0;
-            const effectiveMinDays = Math.max(publicDockMinDays, boatMinDays);
+
+            // Only consider private dock minimum if private dock delivery is selected
+            let privateDockMinDays = 0;
+            if (this.selectedPrivateDock) {
+              const privateDockDetails = this.getPrivateDockDeliveryDetails(boat);
+              privateDockMinDays = privateDockDetails?.minDays ? Number(privateDockDetails.minDays) : 0;
+            }
+
+            const effectiveMinDays = Math.max(publicDockMinDays, privateDockMinDays, boatMinDays);
 
             // If boat requires more days than user selected, filter it out
             if (effectiveMinDays > 0 && this.selectedDates.length < effectiveMinDays) {
@@ -8641,11 +8838,19 @@ document.addEventListener('DOMContentLoaded', () => {
         // Populate the boat details
         this.populateBoatDetails(boat);
 
-        // Handle min days requirement (public dock or boat minimum)
+        // Handle min days requirement (public dock, private dock if selected, or boat minimum)
         const publicDockDetails = this.getPublicDockDeliveryDetails(boat);
         const publicDockMinDays = publicDockDetails?.minDays ? Number(publicDockDetails.minDays) : 0;
         const boatMinDays = boat.minReservationLength || 0;
-        const effectiveMinDays = Math.max(publicDockMinDays, boatMinDays);
+
+        // Only consider private dock minimum if private dock delivery is selected
+        let privateDockMinDays = 0;
+        if (this.selectedPrivateDock) {
+          const privateDockDetails = this.getPrivateDockDeliveryDetails(boat);
+          privateDockMinDays = privateDockDetails?.minDays ? Number(privateDockDetails.minDays) : 0;
+        }
+
+        const effectiveMinDays = Math.max(publicDockMinDays, privateDockMinDays, boatMinDays);
 
         // Hide half-day option if minimum days > 0.5
         if (effectiveMinDays > 0.5 && this.boatDetailsFullHalfDaysContainer) {
@@ -9741,11 +9946,27 @@ document.addEventListener('DOMContentLoaded', () => {
           const publicDockDetails = this.getPublicDockDeliveryDetails(boat);
           const publicDockMinDays = publicDockDetails?.minDays ? Number(publicDockDetails.minDays) : 0;
           const boatMinDays = boat.minReservationLength || 0;
-          const effectiveMinDays = Math.max(publicDockMinDays, boatMinDays);
+
+          // Only consider private dock minimum if private dock delivery is selected
+          let privateDockMinDays = 0;
+          if (this.selectedPrivateDock) {
+            const privateDockDetails = this.getPrivateDockDeliveryDetails(boat);
+            privateDockMinDays = privateDockDetails?.minDays ? Number(privateDockDetails.minDays) : 0;
+          }
+
+          const effectiveMinDays = Math.max(publicDockMinDays, privateDockMinDays, boatMinDays);
 
           if (effectiveMinDays > 0 && this.selectedDates.length < effectiveMinDays) {
             const daysText = effectiveMinDays === 1 ? 'day' : 'days';
-            missingParams.push(`This boat requires a minimum of ${effectiveMinDays} ${daysText}`);
+
+            // Provide specific message based on what's causing the minimum requirement
+            if (privateDockMinDays > 0 && privateDockMinDays === effectiveMinDays && this.selectedPrivateDock) {
+              missingParams.push(`Private dock delivery requires a minimum of ${effectiveMinDays} ${daysText}`);
+            } else if (publicDockMinDays > 0 && publicDockMinDays === effectiveMinDays) {
+              missingParams.push(`This location requires a minimum of ${effectiveMinDays} ${daysText}`);
+            } else {
+              missingParams.push(`This boat requires a minimum of ${effectiveMinDays} ${daysText}`);
+            }
           }
         }
 
@@ -9829,6 +10050,17 @@ document.addEventListener('DOMContentLoaded', () => {
               );
 
               canShowDelivery = canDeliverToProperty;
+
+              // Additional check: Verify user has selected enough days for private dock delivery
+              if (canShowDelivery && this.selectedDates.length > 0) {
+                const privateDockDetails = this.getPrivateDockDeliveryDetails(boat);
+                const privateDockMinDays = privateDockDetails?.minDays ? Number(privateDockDetails.minDays) : 0;
+
+                // If user hasn't selected enough days, hide delivery option
+                if (privateDockMinDays > 0 && this.selectedDates.length < privateDockMinDays) {
+                  canShowDelivery = false;
+                }
+              }
             }
           }
         }
@@ -9838,8 +10070,21 @@ document.addEventListener('DOMContentLoaded', () => {
           if (deliveryBlock) {
             deliveryBlock.style.display = 'none';
           }
-          // Don't reset URL parameters - just hide the delivery option for this boat
-          this.deliverySelected = false;
+
+          // If delivery was previously selected, uncheck it and update everything
+          if (this.deliverySelected) {
+            this.deliverySelected = false;
+            this.selectedPrivateDock = false;
+            this.updatePrivateDockFilterText();
+            this.updateFilterStyles();
+            this.updateURLParams();
+            this.updateDeliveryURLParam(false);
+
+            // Update pricing to reflect no delivery
+            if (this.currentBoatData) {
+              this.updateBoatDetailsPricing(this.currentBoatData);
+            }
+          }
           return;
         }
 
@@ -9863,13 +10108,24 @@ document.addEventListener('DOMContentLoaded', () => {
         // Set initial checkbox state
         this.updateCheckboxVisual(checkbox, this.deliverySelected);
 
-        // Set delivery text based on delivery fee
+        // Set delivery text based on delivery fee and minimum days
         const deliveryFee = boat.companyDeliveryFee || 0;
+        const privateDockDetails = this.getPrivateDockDeliveryDetails(boat);
+        const privateDockMinDays = privateDockDetails?.minDays ? Number(privateDockDetails.minDays) : 0;
+
+        let deliveryTextContent = '';
         if (deliveryFee === 0 || deliveryFee === null) {
-          deliveryText.textContent = 'Complimentary boat delivery';
+          deliveryTextContent = 'Complimentary boat delivery';
         } else {
-          deliveryText.textContent = `Delivered to property ($${deliveryFee})`;
+          deliveryTextContent = `Delivered to property ($${deliveryFee})`;
         }
+
+        // Add minimum days requirement if applicable
+        if (privateDockMinDays > 1) {
+          deliveryTextContent += ` (${privateDockMinDays} Day Min)`;
+        }
+
+        deliveryText.textContent = deliveryTextContent;
 
         // Add click handler to the new checkbox
         checkbox.addEventListener('click', (e) => {
@@ -10392,7 +10648,15 @@ document.addEventListener('DOMContentLoaded', () => {
           const publicDockDetails = this.getPublicDockDeliveryDetails(this.currentBoatData);
           const publicDockMinDays = publicDockDetails?.minDays ? Number(publicDockDetails.minDays) : 0;
           const boatMinDays = this.currentBoatData.minReservationLength || 0;
-          effectiveMinDays = Math.max(publicDockMinDays, boatMinDays);
+
+          // Only consider private dock minimum if private dock delivery is selected
+          let privateDockMinDays = 0;
+          if (this.selectedPrivateDock) {
+            const privateDockDetails = this.getPrivateDockDeliveryDetails(this.currentBoatData);
+            privateDockMinDays = privateDockDetails?.minDays ? Number(privateDockDetails.minDays) : 0;
+          }
+
+          effectiveMinDays = Math.max(publicDockMinDays, privateDockMinDays, boatMinDays);
         }
 
         // Create date buttons
@@ -10513,6 +10777,14 @@ document.addEventListener('DOMContentLoaded', () => {
         // Apply pickup time gating when dates change (first/last day affects gating)
         this.applyPickupTimeGating(this.pickupTimePills, false);
         this.applyPickupTimeGating(this.boatDetailsPickupTimePills, true);
+
+        // Re-check private dock filter availability when dates change
+        this.checkPrivateDockFilterAvailabilityForBoatDates();
+
+        // Re-check delivery checkbox visibility when dates change
+        if (this.currentBoatData) {
+          this.setupDeliveryCheckbox(this.currentBoatData);
+        }
 
         // Clear error if conditions are now met
         this.clearErrorIfResolved(this.boatDetailsErrorElement);

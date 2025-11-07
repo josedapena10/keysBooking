@@ -4182,11 +4182,16 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Check public and private dock delivery minimum days
                 const publicDockDetails = getPublicDockDeliveryDetails(b, listingCity);
                 const publicDockMinDays = publicDockDetails?.minDays ? Number(publicDockDetails.minDays) : 0;
-                const privateDockDetails = getPrivateDockDeliveryDetails(b, listingCity);
-                const privateDockMinDays = privateDockDetails?.minDays ? Number(privateDockDetails.minDays) : 0;
                 const boatMinDays = b.minReservationLength || 0;
 
-                // Calculate the effective minimum days required (max of public dock, private dock, and boat minimum)
+                // Only consider private dock minimum if dock delivery filter is selected
+                let privateDockMinDays = 0;
+                if (filters.dockDelivery) {
+                    const privateDockDetails = getPrivateDockDeliveryDetails(b, listingCity);
+                    privateDockMinDays = privateDockDetails?.minDays ? Number(privateDockDetails.minDays) : 0;
+                }
+
+                // Calculate the effective minimum days required (max of public dock, private dock if selected, and boat minimum)
                 const effectiveBoatMinDays = Math.max(publicDockMinDays, privateDockMinDays, boatMinDays);
 
                 // If user has explicitly filtered boat days (not default 0.5)
@@ -4253,11 +4258,16 @@ document.addEventListener('DOMContentLoaded', function () {
                 const listingCity = getCity(listing);
                 const publicDockDetails = getPublicDockDeliveryDetails(boat, listingCity);
                 const publicDockMinDays = publicDockDetails?.minDays ? Number(publicDockDetails.minDays) : 0;
-                const privateDockDetails = getPrivateDockDeliveryDetails(boat, listingCity);
-                const privateDockMinDays = privateDockDetails?.minDays ? Number(privateDockDetails.minDays) : 0;
                 const boatMinDays = boat.minReservationLength || 0;
 
-                // Calculate effective boat minimum days (max of public dock, private dock, and boat minimum)
+                // Only consider private dock minimum if dock delivery filter is selected
+                let privateDockMinDays = 0;
+                if (filters.dockDelivery) {
+                    const privateDockDetails = getPrivateDockDeliveryDetails(boat, listingCity);
+                    privateDockMinDays = privateDockDetails?.minDays ? Number(privateDockDetails.minDays) : 0;
+                }
+
+                // Calculate effective boat minimum days (max of public dock, private dock if selected, and boat minimum)
                 const effectiveBoatMinDays = Math.max(publicDockMinDays, privateDockMinDays, boatMinDays);
 
                 // Track the maximum boat minimum across all filtered boats
@@ -4311,20 +4321,21 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
                 }
 
-                if (filters.dockDelivery === true) {
-                    basePrice += boat._boatcompany?.deliveryFee || 0;
-                }
-
                 // Add public dock delivery fee if listing city requires it
-                // (publicDockDetails already retrieved earlier)
                 if (publicDockDetails && publicDockDetails.fee) {
                     basePrice += Number(publicDockDetails.fee) || 0;
                 }
 
-                // Add private dock delivery fee if listing city requires it
-                // (privateDockDetails already retrieved earlier)
-                if (privateDockDetails && privateDockDetails.fee) {
-                    basePrice += Number(privateDockDetails.fee) || 0;
+                // Add private dock delivery fee ONLY if dock delivery filter is selected
+                if (filters.dockDelivery === true) {
+                    // Add standard delivery fee
+                    basePrice += boat._boatcompany?.deliveryFee || 0;
+
+                    // Add private dock specific fee if applicable
+                    const privateDockDetails = getPrivateDockDeliveryDetails(boat, listingCity);
+                    if (privateDockDetails && privateDockDetails.fee) {
+                        basePrice += Number(privateDockDetails.fee) || 0;
+                    }
                 }
 
                 // Apply service fee if not manual integration (from commented code)
