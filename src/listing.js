@@ -2004,12 +2004,27 @@ document.addEventListener('DOMContentLoaded', () => {
           var li = document.createElement('li');
           li.classList.add('splide__slide');
 
-          // Load first 3 images eagerly, rest lazily
-          const loadingStrategy = index < 3 ? 'eager' : 'lazy';
-
-          li.innerHTML = `<img src="${photoUrl.property_image.url}" 
+          // First image gets highest priority for instant loading
+          if (index === 0) {
+            li.innerHTML = `<img src="${photoUrl.property_image.url}" 
                              alt="Property Photo"
-                             loading="${loadingStrategy}">`;
+                             loading="eager"
+                             fetchpriority="high"
+                             decoding="async">`;
+          } else if (index < 3) {
+            // Load first 3 images eagerly
+            li.innerHTML = `<img src="${photoUrl.property_image.url}" 
+                             alt="Property Photo"
+                             loading="eager"
+                             decoding="async">`;
+          } else {
+            // Rest load lazily
+            li.innerHTML = `<img src="${photoUrl.property_image.url}" 
+                             alt="Property Photo"
+                             loading="lazy"
+                             decoding="async">`;
+          }
+
           slider.add(li);
         });
 
@@ -4867,10 +4882,16 @@ function removeBoatFromReservation() {
 
     // Reset pickup time pills
     Object.values(window.boatRentalService.pickupTimePills).forEach(pill => {
-      if (pill) pill.style.borderColor = '';
+      if (pill) {
+        pill.style.borderColor = '';
+        pill.style.borderWidth = '';
+      }
     });
     Object.values(window.boatRentalService.boatDetailsPickupTimePills).forEach(pill => {
-      if (pill) pill.style.borderColor = '';
+      if (pill) {
+        pill.style.borderColor = '';
+        pill.style.borderWidth = '';
+      }
     });
   }
 }
@@ -5466,10 +5487,16 @@ document.addEventListener('DOMContentLoaded', () => {
             if (currentPickupHour !== null && currentPickupHour < checkInHour) {
               // Clear current selection styling from both sets of pills
               Object.values(this.pickupTimePills).forEach(pill => {
-                if (pill) pill.style.borderColor = '';
+                if (pill) {
+                  pill.style.borderColor = '';
+                  pill.style.borderWidth = '';
+                }
               });
               Object.values(this.boatDetailsPickupTimePills).forEach(pill => {
-                if (pill) pill.style.borderColor = '';
+                if (pill) {
+                  pill.style.borderColor = '';
+                  pill.style.borderWidth = '';
+                }
               });
 
               // Auto-select earliest valid time
@@ -5478,8 +5505,14 @@ document.addEventListener('DOMContentLoaded', () => {
               // Update both sets of pills
               const mainPill = this.pickupTimePills[earliestValidTime];
               const boatDetailsPill = this.boatDetailsPickupTimePills[earliestValidTime];
-              if (mainPill) mainPill.style.borderColor = '#000000';
-              if (boatDetailsPill) boatDetailsPill.style.borderColor = '#000000';
+              if (mainPill) {
+                mainPill.style.borderColor = '#000000';
+                mainPill.style.borderWidth = '2px';
+              }
+              if (boatDetailsPill) {
+                boatDetailsPill.style.borderColor = '#000000';
+                boatDetailsPill.style.borderWidth = '2px';
+              }
 
               // Update UI and state
               this.updateDatesFilterText();
@@ -5721,15 +5754,20 @@ document.addEventListener('DOMContentLoaded', () => {
             if (this.selectedPickupTime === time) {
               this.selectedPickupTime = '';
               pill.style.borderColor = '';
+              pill.style.borderWidth = '';
             } else {
               // Deselect all pills first
               Object.values(this.pickupTimePills).forEach(p => {
-                if (p) p.style.borderColor = '';
+                if (p) {
+                  p.style.borderColor = '';
+                  p.style.borderWidth = '';
+                }
               });
 
               // Select the clicked pill
               this.selectedPickupTime = time;
               pill.style.borderColor = '#000000';
+              pill.style.borderWidth = '2px';
             }
 
             this.updateDatesFilterText();
@@ -5827,11 +5865,13 @@ document.addEventListener('DOMContentLoaded', () => {
         Object.entries(this.pickupTimePills).forEach(([time, pill]) => {
           if (pill) {
             pill.style.borderColor = time === this.selectedPickupTime ? '#000000' : '';
+            pill.style.borderWidth = time === this.selectedPickupTime ? '2px' : '';
           }
         });
         Object.entries(this.boatDetailsPickupTimePills).forEach(([time, pill]) => {
           if (pill) {
             pill.style.borderColor = time === this.selectedPickupTime ? '#000000' : '';
+            pill.style.borderWidth = time === this.selectedPickupTime ? '2px' : '';
           }
         });
 
@@ -7388,12 +7428,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Reset pickup time pills
         Object.values(this.pickupTimePills).forEach(pill => {
-          if (pill) pill.style.borderColor = '';
+          if (pill) {
+            pill.style.borderColor = '';
+            pill.style.borderWidth = '';
+          }
         });
 
         // Reset boat details pickup time pills
         Object.values(this.boatDetailsPickupTimePills).forEach(pill => {
-          if (pill) pill.style.borderColor = '';
+          if (pill) {
+            pill.style.borderColor = '';
+            pill.style.borderWidth = '';
+          }
         });
 
         // Update guest number displays
@@ -7759,10 +7805,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Reset pickup time pills
         Object.values(this.pickupTimePills).forEach(pill => {
-          if (pill) pill.style.borderColor = '';
+          if (pill) {
+            pill.style.borderColor = '';
+            pill.style.borderWidth = '';
+          }
         });
         Object.values(this.boatDetailsPickupTimePills).forEach(pill => {
-          if (pill) pill.style.borderColor = '';
+          if (pill) {
+            pill.style.borderColor = '';
+            pill.style.borderWidth = '';
+          }
         });
 
         // Update UI elements
@@ -11006,15 +11058,20 @@ document.addEventListener('DOMContentLoaded', () => {
             if (this.selectedPickupTime === time) {
               this.selectedPickupTime = '';
               pill.style.borderColor = '';
+              pill.style.borderWidth = '';
             } else {
               // Deselect all pills first
               Object.values(this.boatDetailsPickupTimePills).forEach(p => {
-                if (p) p.style.borderColor = '';
+                if (p) {
+                  p.style.borderColor = '';
+                  p.style.borderWidth = '';
+                }
               });
 
               // Select the clicked pill
               this.selectedPickupTime = time;
               pill.style.borderColor = '#000000';
+              pill.style.borderWidth = '2px';
             }
 
             this.initializeBoatDetailsDateFilter();
@@ -11135,11 +11192,13 @@ document.addEventListener('DOMContentLoaded', () => {
         Object.entries(this.pickupTimePills).forEach(([time, pill]) => {
           if (pill) {
             pill.style.borderColor = time === this.selectedPickupTime ? '#000000' : '';
+            pill.style.borderWidth = time === this.selectedPickupTime ? '2px' : '';
           }
         });
         Object.entries(this.boatDetailsPickupTimePills).forEach(([time, pill]) => {
           if (pill) {
             pill.style.borderColor = time === this.selectedPickupTime ? '#000000' : '';
+            pill.style.borderWidth = time === this.selectedPickupTime ? '2px' : '';
           }
         });
 
