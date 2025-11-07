@@ -7657,6 +7657,16 @@ document.addEventListener('DOMContentLoaded', () => {
               font-size: 14px;
               box-shadow: 0 2px 4px rgba(0,0,0,0.2);
             }
+            
+            /* Mobile positioning - 10px above mobileBoatButton */
+            @media (max-width: 990px) {
+              .boat-rental-message {
+                top: auto;
+                bottom: calc(70px + 10px); /* mobileBoatButton height + 10px gap */
+                left: 50%;
+                transform: translateX(-50%);
+              }
+            }
           `;
           document.head.appendChild(style);
         }
