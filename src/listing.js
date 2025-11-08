@@ -7687,8 +7687,8 @@ document.addEventListener('DOMContentLoaded', () => {
         messageElement.style.display = 'block';
 
         // Shake the check availability button to draw attention
-        const checkAvailabilityButton = document.querySelector('[data-element="listing_checkAvailability_button"]');
-        if (checkAvailabilityButton) {
+        const checkAvailabilityButton = document.querySelectorAll('[data-element="listing_checkAvailability_button"]');
+        checkAvailabilityButton.forEach(button => {
           // Remove existing animation if present
           checkAvailabilityButton.classList.remove('shake-animation');
 
@@ -7702,7 +7702,7 @@ document.addEventListener('DOMContentLoaded', () => {
           setTimeout(() => {
             checkAvailabilityButton.classList.remove('shake-animation');
           }, 500);
-        }
+        });
 
         // Hide after 3 seconds
         this.messageTimeout = setTimeout(() => {
