@@ -7671,12 +7671,16 @@ document.addEventListener('DOMContentLoaded', () => {
             /* Shake animation for check availability button */
             @keyframes shake-button {
               0%, 100% { transform: translateX(0); }
-              10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
-              20%, 40%, 60%, 80% { transform: translateX(4px); }
+              15% { transform: translateX(-3px); }
+              30% { transform: translateX(3px); }
+              45% { transform: translateX(-2px); }
+              60% { transform: translateX(2px); }
+              75% { transform: translateX(-1px); }
+              90% { transform: translateX(1px); }
             }
             
             .shake-animation {
-              animation: shake-button 0.5s ease-in-out;
+              animation: shake-button 0.6s cubic-bezier(0.36, 0.07, 0.19, 0.97);
             }
           `;
           document.head.appendChild(style);
@@ -7701,7 +7705,7 @@ document.addEventListener('DOMContentLoaded', () => {
           // Remove animation class after it completes
           setTimeout(() => {
             checkAvailabilityButton.classList.remove('shake-animation');
-          }, 500);
+          }, 600);
         });
 
         // Hide after 3 seconds
@@ -16674,7 +16678,7 @@ document.addEventListener('DOMContentLoaded', () => {
           // Remove animation class after it completes
           setTimeout(() => {
             checkAvailabilityButton.classList.remove('shake-animation');
-          }, 500);
+          }, 600);
         }
 
         // Hide after 3 seconds
