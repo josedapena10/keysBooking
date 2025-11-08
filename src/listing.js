@@ -7667,6 +7667,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 transform: translateX(-50%);
               }
             }
+            
+            /* Shake animation for check availability button */
+            @keyframes shake-button {
+              0%, 100% { transform: translateX(0); }
+              10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+              20%, 40%, 60%, 80% { transform: translateX(4px); }
+            }
+            
+            .shake-animation {
+              animation: shake-button 0.5s ease-in-out;
+            }
           `;
           document.head.appendChild(style);
         }
@@ -7674,6 +7685,24 @@ document.addEventListener('DOMContentLoaded', () => {
         // Show message
         messageElement.textContent = message;
         messageElement.style.display = 'block';
+
+        // Shake the check availability button to draw attention
+        const checkAvailabilityButton = document.querySelector('[data-element="listing_checkAvailability_button"]');
+        if (checkAvailabilityButton) {
+          // Remove existing animation if present
+          checkAvailabilityButton.classList.remove('shake-animation');
+
+          // Trigger reflow to restart animation
+          void checkAvailabilityButton.offsetWidth;
+
+          // Add shake animation
+          checkAvailabilityButton.classList.add('shake-animation');
+
+          // Remove animation class after it completes
+          setTimeout(() => {
+            checkAvailabilityButton.classList.remove('shake-animation');
+          }, 500);
+        }
 
         // Hide after 3 seconds
         this.messageTimeout = setTimeout(() => {
@@ -16612,6 +16641,16 @@ document.addEventListener('DOMContentLoaded', () => {
               font-size: 14px;
               box-shadow: 0 2px 4px rgba(0,0,0,0.2);
             }
+            
+            /* Mobile positioning - 10px above mobile charter button */
+            @media (max-width: 990px) {
+              .fishing-charter-message {
+                top: auto;
+                bottom: calc(70px + 10px);
+                left: 50%;
+                transform: translateX(-50%);
+              }
+            }
           `;
           document.head.appendChild(style);
         }
@@ -16619,6 +16658,24 @@ document.addEventListener('DOMContentLoaded', () => {
         // Show message
         messageElement.textContent = message;
         messageElement.style.display = 'block';
+
+        // Shake the check availability button to draw attention
+        const checkAvailabilityButton = document.querySelector('[data-element="listing_checkAvailability_button"]');
+        if (checkAvailabilityButton) {
+          // Remove existing animation if present
+          checkAvailabilityButton.classList.remove('shake-animation');
+
+          // Trigger reflow to restart animation
+          void checkAvailabilityButton.offsetWidth;
+
+          // Add shake animation
+          checkAvailabilityButton.classList.add('shake-animation');
+
+          // Remove animation class after it completes
+          setTimeout(() => {
+            checkAvailabilityButton.classList.remove('shake-animation');
+          }, 500);
+        }
 
         // Hide after 3 seconds
         this.messageTimeout = setTimeout(() => {

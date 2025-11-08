@@ -142,6 +142,59 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 
+// Hero Image Loader
+document.addEventListener('DOMContentLoaded', async () => {
+    const heroImageElement = document.querySelector('[data-element="becomeAHostHeroImage"]');
+    const loaderElement = document.querySelector('[data-element="loader"]');
+
+    if (heroImageElement) {
+        // Keep loader visible
+        if (loaderElement) {
+            loaderElement.style.display = 'flex';
+        }
+
+        try {
+            const response = await fetch('https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/stockimages/1');
+
+            if (!response.ok) {
+                throw new Error('Failed to fetch hero image');
+            }
+
+            const data = await response.json();
+
+            // Set the image URL
+            if (data.image && data.image.url) {
+                // Wait for the image to actually load
+                heroImageElement.onload = () => {
+                    // Hide loader once image is loaded
+                    if (loaderElement) {
+                        loaderElement.style.display = 'none';
+                    }
+                };
+
+                // Handle load error
+                heroImageElement.onerror = () => {
+                    console.error('Error loading hero image');
+                    // Hide loader even on error
+                    if (loaderElement) {
+                        loaderElement.style.display = 'none';
+                    }
+                };
+
+                heroImageElement.src = data.image.url;
+                heroImageElement.alt = data.image.name || 'Become a host hero image';
+            }
+        } catch (error) {
+            console.error('Error fetching hero image:', error);
+            // Hide loader on fetch error
+            if (loaderElement) {
+                loaderElement.style.display = 'none';
+            }
+        }
+    }
+});
+
+
 // Founding Partner Count Feature
 document.addEventListener('DOMContentLoaded', async () => {
     const spotsClaimedElements = document.querySelectorAll('[data-element="hostLanding_spotsClaimedText"]');
