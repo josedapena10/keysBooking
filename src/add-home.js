@@ -1,3 +1,16 @@
+// Prevent zoom on mobile when focusing inputs
+(function () {
+    const viewport = document.querySelector('meta[name="viewport"]');
+    if (viewport) {
+        viewport.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no');
+    } else {
+        const meta = document.createElement('meta');
+        meta.name = 'viewport';
+        meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
+        document.head.appendChild(meta);
+    }
+})();
+
 // Show loader on page load
 (function () {
     const loader = document.querySelector('[data-element="loader"]');
@@ -1951,13 +1964,23 @@ let hasAttemptedToLeave = {
 
 // Function to scroll a step element to the top of the viewport
 function scrollToStepTop(stepId) {
-    const stepElement = document.getElementById(stepId);
-    if (stepElement) {
-        stepElement.scrollIntoView({
-            behavior: 'smooth',
-            block: 'start'
-        });
-    }
+    // Use a slight delay to ensure error messages are rendered
+    setTimeout(() => {
+        // Scroll to the step element at the top
+        const stepElement = document.getElementById(stepId);
+        if (stepElement) {
+            stepElement.scrollIntoView({
+                behavior: 'smooth',
+                block: 'start'
+            });
+        } else {
+            // Fallback: scroll to top of page
+            window.scrollTo({
+                top: 0,
+                behavior: 'smooth'
+            });
+        }
+    }, 150);
 }
 
 function shouldValidateStep(stepId) {
