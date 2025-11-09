@@ -1964,23 +1964,22 @@ let hasAttemptedToLeave = {
 
 // Function to scroll a step element to the top of the viewport
 function scrollToStepTop(stepId) {
-    // Use a slight delay to ensure error messages are rendered
-    setTimeout(() => {
-        // Scroll to the step element at the top
+    // Use requestAnimationFrame to ensure DOM is ready
+    requestAnimationFrame(() => {
         const stepElement = document.getElementById(stepId);
         if (stepElement) {
-            stepElement.scrollIntoView({
-                behavior: 'smooth',
-                block: 'start'
-            });
-        } else {
-            // Fallback: scroll to top of page
+            // Calculate the exact position of the element
+            const rect = stepElement.getBoundingClientRect();
+            const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+            const elementTop = rect.top + scrollTop;
+
+            // Scroll to the element position instantly
             window.scrollTo({
-                top: 0,
-                behavior: 'smooth'
+                top: elementTop,
+                behavior: 'auto' // instant, not smooth
             });
         }
-    }, 150);
+    });
 }
 
 function shouldValidateStep(stepId) {
