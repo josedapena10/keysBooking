@@ -1,29 +1,27 @@
 // Show loader and hide content on page load to prevent flash
 (function () {
+    // Add a style tag to hide elements immediately before any other code runs
+    const style = document.createElement('style');
+    style.textContent = `
+        [data-element="addHome_saveAndExit"],
+        #nextStep,
+        #prevStep,
+        #submitButton,
+        [id$="step"],
+        [id*="Step"],
+        #manageAddHome,
+        #get-started,
+        #reviewInfo {
+            opacity: 0 !important;
+            pointer-events: none !important;
+        }
+    `;
+    document.head.appendChild(style);
+
     const loader = document.querySelector('[data-element="loader"]');
     if (loader) {
         loader.style.display = 'flex';
     }
-
-    // Hide main content elements to prevent flash of unstyled content
-    const elementsToHide = [
-        document.getElementById('nextStep'),
-        document.getElementById('prevStep'),
-        document.getElementById('submitButton'),
-        document.querySelector('[data-element="addHome_saveAndExit"]'),
-        // Hide all step containers
-        ...document.querySelectorAll('[id$="step"]'),
-        ...document.querySelectorAll('[id*="Step"]'),
-        document.getElementById('manageAddHome'),
-        document.getElementById('get-started'),
-        document.getElementById('reviewInfo')
-    ];
-
-    elementsToHide.forEach(element => {
-        if (element) {
-            element.style.visibility = 'hidden';
-        }
-    });
 })();
 
 // for background 2nd click modal - mirror click
@@ -4383,12 +4381,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Hide loader and show content when page is fully loaded and ready
 window.addEventListener('load', () => {
+    // Remove the temporary hiding style
+    const hideStyle = document.querySelector('style');
+    if (hideStyle && hideStyle.textContent.includes('addHome_saveAndExit')) {
+        hideStyle.remove();
+    }
+
     const loader = document.querySelector('[data-element="loader"]');
     if (loader) {
         loader.style.display = 'none';
     }
 
-    // Show all previously hidden content elements
+    // Force show all content elements with proper opacity
     const elementsToShow = [
         document.getElementById('nextStep'),
         document.getElementById('prevStep'),
@@ -4404,7 +4408,8 @@ window.addEventListener('load', () => {
 
     elementsToShow.forEach(element => {
         if (element) {
-            element.style.visibility = 'visible';
+            element.style.opacity = '1';
+            element.style.pointerEvents = 'auto';
         }
     });
 });
