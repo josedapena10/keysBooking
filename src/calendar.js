@@ -6892,3 +6892,54 @@ document.addEventListener('DOMContentLoaded', function () {
 
 });
 
+// Scroll to top on mobile when clicking toolbar elements or exit buttons
+document.addEventListener('DOMContentLoaded', () => {
+    // Function to scroll to top on mobile only (991px or less)
+    function scrollToTopOnMobile() {
+        if (window.innerWidth <= 991) {
+            window.scrollTo({
+                top: 0,
+                behavior: 'smooth'
+            });
+        }
+    }
+
+    // Get all toolbar edit elements
+    const toolbarElements = [
+        'toolbarEdit_basePrice',
+        'toolbarEdit_cleaningFee',
+        'toolbarEdit_tripLength',
+        'toolbarEdit_advanceNotice',
+        'toolbarEdit_availabilityWindow',
+        'toolbarEdit_customDates',
+        'toolbarEdit_connectCalendar'
+    ];
+
+    // Add click listeners to all toolbar elements
+    toolbarElements.forEach(elementName => {
+        const element = document.querySelector(`[data-element="${elementName}"]`);
+        if (element) {
+            element.addEventListener('click', scrollToTopOnMobile);
+        }
+    });
+
+    // Get all exit buttons
+    const exitButtons = [
+        'toolbarEdit_basePrice_exit',
+        'toolbarEdit_cleaningFee_exit',
+        'toolbarEdit_tripLength_exit',
+        'toolbarEdit_advanceNotice_exit',
+        'toolbarEdit_availabilityWindow_exit',
+        'toolbarEdit_customDates_exit',
+        'toolbarEdit_connectCalendar_exit'
+    ];
+
+    // Add click listeners to all exit buttons
+    exitButtons.forEach(buttonName => {
+        const button = document.querySelector(`[data-element="${buttonName}"]`);
+        if (button) {
+            button.addEventListener('click', scrollToTopOnMobile);
+        }
+    });
+});
+

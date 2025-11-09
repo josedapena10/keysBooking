@@ -1962,26 +1962,6 @@ let hasAttemptedToLeave = {
     cancellationPolicy: false
 };
 
-// Function to scroll a step element to the top of the viewport
-function scrollToStepTop(stepId) {
-    // Use requestAnimationFrame to ensure DOM is ready
-    requestAnimationFrame(() => {
-        const stepElement = document.getElementById(stepId);
-        if (stepElement) {
-            // Calculate the exact position of the element
-            const rect = stepElement.getBoundingClientRect();
-            const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-            const elementTop = rect.top + scrollTop;
-
-            // Scroll to the element position instantly
-            window.scrollTo({
-                top: elementTop,
-                behavior: 'auto' // instant, not smooth
-            });
-        }
-    });
-}
-
 function shouldValidateStep(stepId) {
     // Add logic here to determine which steps need validation
     return stepId === 'basics' || stepId === 'location' || stepId === 'confirmLocation' || stepId === 'amenities' || stepId === 'dock' || stepId === 'photos' || stepId === 'coverPhotos' || stepId === 'dockPhotos' || stepId === 'title' || stepId === 'description' || stepId === 'pricing' || stepId === 'cleaningFee' || stepId === 'minNights' || stepId === 'rules' || stepId === 'safety' || stepId === 'cancellationPolicy';
@@ -2107,8 +2087,6 @@ function goToStep(stepNumber, direction = 'forward') {
         validateStep(currentStepId).then(isValid => {
             if (!isValid) {
                 //console.warn(`Validation failed for ${currentStepId} section`);
-                // Scroll to top of the step to show error message
-                scrollToStepTop(currentStepId);
                 return; // Exit if validation fails
             }
             proceedToNextStep();
