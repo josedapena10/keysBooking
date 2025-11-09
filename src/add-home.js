@@ -1,3 +1,11 @@
+// Show loader on page load
+(function () {
+    const loader = document.querySelector('[data-element="loader"]');
+    if (loader) {
+        loader.style.display = 'flex';
+    }
+})();
+
 // for background 2nd click modal - mirror click
 var script = document.createElement('script');
 script.src = 'https://cdn.jsdelivr.net/npm/@finsweet/attributes-mirrorclick@1/mirrorclick.js';
@@ -4350,5 +4358,13 @@ document.addEventListener('DOMContentLoaded', () => {
             copyToClipboard(phoneNumber);
             alert('Phone number copied to clipboard!');
         });
+    }
+});
+
+// Hide loader when page is fully loaded and ready
+window.addEventListener('load', () => {
+    const loader = document.querySelector('[data-element="loader"]');
+    if (loader) {
+        loader.style.display = 'none';
     }
 });
