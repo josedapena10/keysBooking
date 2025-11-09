@@ -142,6 +142,11 @@ document.addEventListener('DOMContentLoaded', function () {
     saveExitLoader.style.display = 'none';
     submitLoader.style.display = 'none';
 
+    // Immediately hide save and exit button to prevent flash on initial load
+    if (saveAndExitButton) {
+        saveAndExitButton.style.display = 'none';
+    }
+
     // Hide save and exit button on manageAddHome and get-started steps
     function updateSaveAndExitVisibility() {
         const manageAddHomeStep = document.getElementById('manageAddHome');
