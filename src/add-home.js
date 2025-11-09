@@ -1,9 +1,29 @@
-// Show loader on page load
+// Show loader and hide content on page load to prevent flash
 (function () {
     const loader = document.querySelector('[data-element="loader"]');
     if (loader) {
         loader.style.display = 'flex';
     }
+
+    // Hide main content elements to prevent flash of unstyled content
+    const elementsToHide = [
+        document.getElementById('nextStep'),
+        document.getElementById('prevStep'),
+        document.getElementById('submitButton'),
+        document.querySelector('[data-element="addHome_saveAndExit"]'),
+        // Hide all step containers
+        ...document.querySelectorAll('[id$="step"]'),
+        ...document.querySelectorAll('[id*="Step"]'),
+        document.getElementById('manageAddHome'),
+        document.getElementById('get-started'),
+        document.getElementById('reviewInfo')
+    ];
+
+    elementsToHide.forEach(element => {
+        if (element) {
+            element.style.visibility = 'hidden';
+        }
+    });
 })();
 
 // for background 2nd click modal - mirror click
@@ -4361,10 +4381,30 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// Hide loader when page is fully loaded and ready
+// Hide loader and show content when page is fully loaded and ready
 window.addEventListener('load', () => {
     const loader = document.querySelector('[data-element="loader"]');
     if (loader) {
         loader.style.display = 'none';
     }
+
+    // Show all previously hidden content elements
+    const elementsToShow = [
+        document.getElementById('nextStep'),
+        document.getElementById('prevStep'),
+        document.getElementById('submitButton'),
+        document.querySelector('[data-element="addHome_saveAndExit"]'),
+        // Show all step containers
+        ...document.querySelectorAll('[id$="step"]'),
+        ...document.querySelectorAll('[id*="Step"]'),
+        document.getElementById('manageAddHome'),
+        document.getElementById('get-started'),
+        document.getElementById('reviewInfo')
+    ];
+
+    elementsToShow.forEach(element => {
+        if (element) {
+            element.style.visibility = 'visible';
+        }
+    });
 });
