@@ -21,6 +21,9 @@ document.addEventListener('DOMContentLoaded', () => {
         trigger.addEventListener('click', function () {
             // on every click
             document.querySelectorAll('body').forEach(target => target.classList.remove('no-scroll'));
+
+            // Clear redirect flag if user closes sign-in modal without signing in
+            localStorage.removeItem('redirectToAddHome');
         });
     });
 });
@@ -79,6 +82,17 @@ document.addEventListener('DOMContentLoaded', () => {
         await Wized.requests.waitFor('Load_user');
         const userLoadStatus = Wized.data.r.Load_user.status
 
+        // Check if user should be redirected to add-home after sign-in
+        if (userLoadStatus === 200) {
+            const shouldRedirect = localStorage.getItem('redirectToAddHome');
+            if (shouldRedirect === 'true') {
+                // Clear the flag
+                localStorage.removeItem('redirectToAddHome');
+                // Redirect to add-home page
+                window.location.href = '/host/add-home';
+                return; // Exit early to prevent further execution
+            }
+        }
 
         document.querySelectorAll('[data-element="addListing_Button"]').forEach(button => {
             button.addEventListener('click', async function () {
@@ -87,7 +101,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         // If the user is signed in, navigate to /add-home
                         window.location.href = '/host/add-home';
                     } else {
-                        // User is not signed in, show signup wrapper
+                        // User is not signed in, set flag to redirect after sign-in
+                        localStorage.setItem('redirectToAddHome', 'true');
+
+                        // Show signup wrapper
                         const signupWrapper = document.querySelector('[data-element="signin-wrapper"]');
                         if (signupWrapper) {
                             signupWrapper.style.display = 'flex';
