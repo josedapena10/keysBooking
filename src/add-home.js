@@ -1780,6 +1780,13 @@ function validateDockPhotos() {
         if (dockPhotosSubText) {
             dockPhotosSubText.style.display = 'none';
         }
+
+        // Scroll to error on mobile
+        if (window.innerWidth <= 767) {
+            setTimeout(() => {
+                dockPhotosError.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 100);
+        }
     }
     return false;
 }
@@ -1821,6 +1828,13 @@ function validateCoverPhotos() {
         if (coverPhotosSubText) {
             coverPhotosSubText.style.display = 'none';
         }
+
+        // Scroll to error on mobile
+        if (window.innerWidth <= 767) {
+            setTimeout(() => {
+                coverPhotosError.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 100);
+        }
     }
     return false;
 }
@@ -1839,6 +1853,13 @@ function validatePhotos() {
             photosError.textContent = `Please add ${remainingPhotos} more photo${remainingPhotos > 1 ? 's' : ''} to continue`;
             photosError.style.display = 'block';
             photosSubText.style.display = 'none';
+
+            // Scroll to error on mobile
+            if (window.innerWidth <= 767) {
+                setTimeout(() => {
+                    photosError.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 100);
+            }
         }
     } else {
         if (photosError && photosSubText) {
@@ -2464,6 +2485,13 @@ function validateLocation() {
                 locationError.style.display = 'block';
                 highlightInvalidInputs(requiredFields.filter(input => !input.value.trim()));
                 if (locationSubText) locationSubText.style.display = 'none';
+
+                // Scroll to error on mobile
+                if (window.innerWidth <= 767) {
+                    setTimeout(() => {
+                        locationError.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }, 100);
+                }
             }
             resolve(false);
             return;
@@ -2476,6 +2504,13 @@ function validateLocation() {
                 locationError.style.display = 'block';
                 highlightInvalidInputs([addressZipcodeInput]);
                 if (locationSubText) locationSubText.style.display = 'none';
+
+                // Scroll to error on mobile
+                if (window.innerWidth <= 767) {
+                    setTimeout(() => {
+                        locationError.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }, 100);
+                }
             }
             resolve(false);
             return;
@@ -2632,6 +2667,13 @@ function validateLocation() {
                     locationError.textContent = "Please enter a valid address";
                     locationError.style.display = 'block';
                     if (locationSubText) locationSubText.style.display = 'none';
+
+                    // Scroll to error on mobile
+                    if (window.innerWidth <= 767) {
+                        setTimeout(() => {
+                            locationError.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }, 100);
+                    }
                 }
                 resolve(false);
             }
@@ -3923,8 +3965,12 @@ function validateRules() {
             rulesError.style.display = 'block';
             rulesSubText.style.display = 'none';
 
-            // Scroll to the first error element after 1 second delay
-            if (errors[0].element) {
+            // Scroll to error on mobile, otherwise scroll to first error element
+            if (window.innerWidth <= 767) {
+                setTimeout(() => {
+                    rulesError.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 100);
+            } else if (errors[0].element) {
                 setTimeout(() => {
                     errors[0].element.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 }, 1000);
@@ -3969,6 +4015,13 @@ function validateDock() {
             dockError.textContent = "Please select whether the property has a private dock";
             dockError.style.display = 'block';
             dockSubText.style.display = 'none';
+
+            // Scroll to error on mobile
+            if (window.innerWidth <= 767) {
+                setTimeout(() => {
+                    dockError.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 100);
+            }
         }
         return false;
     }
@@ -4010,12 +4063,18 @@ function validateDock() {
                 dockError.textContent = "Please fill in all required dock information";
                 dockError.style.display = 'block';
                 dockSubText.style.display = 'none';
-            }
 
-            // Scroll to first error after a brief delay
-            setTimeout(() => {
-                firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }, 100);
+                // Scroll to error on mobile, otherwise scroll to first error input
+                if (window.innerWidth <= 767) {
+                    setTimeout(() => {
+                        dockError.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }, 100);
+                } else {
+                    setTimeout(() => {
+                        firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }, 100);
+                }
+            }
 
             return false;
         }
@@ -4038,6 +4097,13 @@ function validateCancellationPolicy() {
             cancellationPolicyError.textContent = "Please select a cancellation Policy option";
             cancellationPolicyError.style.display = 'block';
             cancellationPolicySubText.style.display = 'none';
+
+            // Scroll to error on mobile
+            if (window.innerWidth <= 767) {
+                setTimeout(() => {
+                    cancellationPolicyError.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 100);
+            }
         }
         return false;
     }
@@ -4126,6 +4192,13 @@ function validateBasics() {
     if (!isValid && basicsError && hasAttemptedToLeave.basics) {
         basicsError.textContent = "Please enter missing information";
         basicsError.style.display = 'block';
+
+        // Scroll to error on mobile
+        if (window.innerWidth <= 767) {
+            setTimeout(() => {
+                basicsError.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 100);
+        }
     } else if (basicsError) {
         basicsError.style.display = 'none';
     }
@@ -4157,6 +4230,13 @@ function validateTitle() {
             if (text.length > maxChars) {
                 titleInput.style.color = 'red';
                 titleInput.style.border = '1px solid red';
+            }
+
+            // Scroll to error on mobile
+            if (window.innerWidth <= 767) {
+                setTimeout(() => {
+                    titleError.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 100);
             }
         }
     } else {
@@ -4196,6 +4276,13 @@ function validateDescription() {
                 descriptionInput.style.color = 'red';
                 descriptionInput.style.border = '1px solid red';
             }
+
+            // Scroll to error on mobile
+            if (window.innerWidth <= 767) {
+                setTimeout(() => {
+                    descriptionError.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 100);
+            }
         }
     } else {
         if (descriptionError && descriptionSubText) {
@@ -4223,6 +4310,13 @@ function validatePricing() {
         pricingError.textContent = "Please enter a valid price to continue";
         pricingError.style.display = 'block';
         pricingSubText.style.display = 'none';
+
+        // Scroll to error on mobile
+        if (window.innerWidth <= 767) {
+            setTimeout(() => {
+                pricingError.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 100);
+        }
     } else {
         pricingError.style.display = 'none';
         pricingSubText.style.display = 'block';
@@ -4243,6 +4337,13 @@ function validateCleaningFee() {
         cleaningFeeError.textContent = "Please enter a valid cleaning fee to continue";
         cleaningFeeError.style.display = 'block';
         cleaningFeeSubText.style.display = 'none';
+
+        // Scroll to error on mobile
+        if (window.innerWidth <= 767) {
+            setTimeout(() => {
+                cleaningFeeError.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 100);
+        }
     } else {
         cleaningFeeError.style.display = 'none';
         cleaningFeeSubText.style.display = 'block';
@@ -4260,6 +4361,13 @@ function validateMinNights() {
             minNightsError.textContent = "Please select a minimum nights option to continue";
             minNightsError.style.display = 'block';
             minNightsSubText.style.display = 'none';
+
+            // Scroll to error on mobile
+            if (window.innerWidth <= 767) {
+                setTimeout(() => {
+                    minNightsError.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 100);
+            }
         }
     } else {
         if (minNightsError && minNightsSubText) {
@@ -4281,6 +4389,13 @@ function validateAmenities() {
             amenitiesError.textContent = "Please select at least one amenity to continue";
             amenitiesError.style.display = 'block';
             if (amenitiesSubText) amenitiesSubText.style.display = 'none';
+
+            // Scroll to error on mobile
+            if (window.innerWidth <= 767) {
+                setTimeout(() => {
+                    amenitiesError.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 100);
+            }
         }
     } else {
         if (amenitiesError) {
