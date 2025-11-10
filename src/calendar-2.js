@@ -4440,7 +4440,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
 
                 // Show confirmation dialog
-                const confirmDelete = confirm('Are you sure you want to delete this calendar connection? This action cannot be undone.');
+                const confirmDelete = confirm('Are you sure you want to delete this calendar connection? This action cannot be undone. (Syncs in 5 minutes or less)');
                 if (!confirmDelete) {
                     console.log('User cancelled calendar deletion');
                     return;
