@@ -1777,8 +1777,21 @@ document.addEventListener('DOMContentLoaded', function () {
             },
 
             eventClick: function (info) {
+                console.log("eventClick triggered", info);
+
                 // Handle event click
                 info.jsEvent.preventDefault();
+
+                // Remove focus from clicked element to prevent grey highlight on mobile
+                if (info.el) {
+                    console.log("Blurring clicked event element");
+                    info.el.blur();
+                }
+                // Also blur any currently focused element
+                if (document.activeElement) {
+                    console.log("Blurring active element");
+                    document.activeElement.blur();
+                }
 
                 // Check if the clicked date is in the past
                 const clickedDate = info.event.start;
@@ -1787,6 +1800,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 // Prevent clicks on past dates
                 if (clickedDate < today) {
+                    console.log("Clicked date is in the past, ignoring");
                     return;
                 }
 
