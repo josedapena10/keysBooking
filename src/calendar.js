@@ -249,17 +249,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Utility function to scroll body to top on mobile (991px or less)
     function scrollToTopOnMobile() {
-        console.log("scrollToTopOnMobile called");
-        console.log("window.innerWidth:", window.innerWidth);
         if (window.innerWidth <= 991) {
-            console.log("Scrolling to top with smooth behavior");
-            // Use window.scrollTo() which is more reliable for page scrolling
+            // Use window.scrollTo() with instant behavior
             window.scrollTo({
                 top: 0,
-                behavior: 'smooth'
+                behavior: 'auto'
             });
-        } else {
-            console.log("Not on mobile (window width > 991px), not scrolling");
         }
     }
 
