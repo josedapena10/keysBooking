@@ -247,6 +247,19 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
+    // Utility function to scroll body to top on mobile (991px or less)
+    function scrollToTopOnMobile() {
+        if (window.innerWidth <= 991) {
+            const bodyElement = document.querySelector('[data-element="body"]');
+            if (bodyElement) {
+                bodyElement.scrollTo({
+                    top: 0,
+                    behavior: 'smooth'
+                });
+            }
+        }
+    }
+
     // Get user ID from Wized
     window.Wized = window.Wized || [];
     window.Wized.push((async (Wized) => {
@@ -2099,6 +2112,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (calendarContainer) calendarContainer.style.display = 'none';
                 if (toolbarContainer) toolbarContainer.style.display = 'flex';
 
+                // Scroll to top when switching to toolbar view
+                scrollToTopOnMobile();
+
                 // Show the appropriate toolbar section based on selected dates
                 const toolbar = document.querySelector('[data-element="toolbar"]');
                 const customDates = document.querySelector('[data-element="toolbarEdit_customDates"]');
@@ -3081,6 +3097,9 @@ document.addEventListener('DOMContentLoaded', function () {
             // On desktop, hide custom dates toolbar and show regular toolbar
             customDates.style.display = 'none';
             toolbar.style.display = 'flex';
+
+            // Scroll to top on mobile
+            scrollToTopOnMobile();
         }
     }
 
@@ -4798,6 +4817,9 @@ document.addEventListener('DOMContentLoaded', function () {
             toolbar.style.display = 'none';
             basePriceEditContainer.style.display = 'flex';
 
+            // Scroll to top on mobile
+            scrollToTopOnMobile();
+
             // Set the current price in the input field with $ prefix
             basePriceInput.value = `$${currentPrice}`;
 
@@ -4871,6 +4893,9 @@ document.addEventListener('DOMContentLoaded', function () {
                         basePriceEditContainer.style.display = 'none';
                         toolbar.style.display = 'flex';
 
+                        // Scroll to top on mobile
+                        scrollToTopOnMobile();
+
                         // Re-fetch calendar data for the currently selected property
                         // This ensures we stay on the same property after updating
                         fetchCalendarData(propertyId);
@@ -4897,6 +4922,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Hide edit container and show toolbar without saving changes
                 basePriceEditContainer.style.display = 'none';
                 toolbar.style.display = 'flex';
+
+                // Scroll to top on mobile
+                scrollToTopOnMobile();
             });
         }
 
@@ -4906,6 +4934,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Hide edit container and show toolbar without saving changes
                 basePriceEditContainer.style.display = 'none';
                 toolbar.style.display = 'flex';
+
+                // Scroll to top on mobile
+                scrollToTopOnMobile();
             });
         }
     }
@@ -4962,6 +4993,9 @@ document.addEventListener('DOMContentLoaded', function () {
         newCleaningFeeContainer.addEventListener('click', function () {
             toolbar.style.display = 'none';
             cleaningFeeEditContainer.style.display = 'flex';
+
+            // Scroll to top on mobile
+            scrollToTopOnMobile();
 
             // Set the current price in the input field with $ prefix
             cleaningFeeInput.value = `$${currentPrice}`;
@@ -5036,6 +5070,9 @@ document.addEventListener('DOMContentLoaded', function () {
                         cleaningFeeEditContainer.style.display = 'none';
                         toolbar.style.display = 'flex';
 
+                        // Scroll to top on mobile
+                        scrollToTopOnMobile();
+
                         // Re-fetch calendar data for the currently selected property
                         // This ensures we stay on the same property after updating
                         fetchCalendarData(propertyId);
@@ -5062,6 +5099,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Hide edit container and show toolbar without saving changes
                 cleaningFeeEditContainer.style.display = 'none';
                 toolbar.style.display = 'flex';
+
+                // Scroll to top on mobile
+                scrollToTopOnMobile();
             });
         }
 
@@ -5071,6 +5111,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Hide edit container and show toolbar without saving changes
                 cleaningFeeEditContainer.style.display = 'none';
                 toolbar.style.display = 'flex';
+
+                // Scroll to top on mobile
+                scrollToTopOnMobile();
             });
         }
     }
@@ -5132,6 +5175,9 @@ document.addEventListener('DOMContentLoaded', function () {
         newTripLengthContainer.addEventListener('click', function () {
             toolbar.style.display = 'none';
             tripLengthEditContainer.style.display = 'flex';
+
+            // Scroll to top on mobile
+            scrollToTopOnMobile();
 
             // Set the current min and max nights in the input fields
             tripLengthMinInput.value = currentMinNights;
@@ -5219,6 +5265,9 @@ document.addEventListener('DOMContentLoaded', function () {
                         tripLengthEditContainer.style.display = 'none';
                         toolbar.style.display = 'flex';
 
+                        // Scroll to top on mobile
+                        scrollToTopOnMobile();
+
                         // Re-fetch calendar data for the currently selected property
                         // This ensures we stay on the same property after updating
                         fetchCalendarData(propertyId);
@@ -5249,6 +5298,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Hide edit container and show toolbar without saving changes
                 tripLengthEditContainer.style.display = 'none';
                 toolbar.style.display = 'flex';
+
+                // Scroll to top on mobile
+                scrollToTopOnMobile();
             });
         }
 
@@ -5258,6 +5310,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Hide edit container and show toolbar without saving changes
                 tripLengthEditContainer.style.display = 'none';
                 toolbar.style.display = 'flex';
+
+                // Scroll to top on mobile
+                scrollToTopOnMobile();
             });
         }
     }
@@ -5321,6 +5376,9 @@ document.addEventListener('DOMContentLoaded', function () {
         newAdvanceNoticeContainer.addEventListener('click', function () {
             toolbar.style.display = 'none';
             advanceNoticeEditContainer.style.display = 'flex';
+
+            // Scroll to top on mobile
+            scrollToTopOnMobile();
 
             // Set the current days in the input field
             advanceNoticeInput.value = currentDays;
@@ -5396,6 +5454,9 @@ document.addEventListener('DOMContentLoaded', function () {
                         advanceNoticeEditContainer.style.display = 'none';
                         toolbar.style.display = 'flex';
 
+                        // Scroll to top on mobile
+                        scrollToTopOnMobile();
+
                         // Re-fetch calendar data for the currently selected property
                         // This ensures we stay on the same property after updating
                         fetchCalendarData(propertyId);
@@ -5421,6 +5482,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Hide edit container and show toolbar without saving changes
                 advanceNoticeEditContainer.style.display = 'none';
                 toolbar.style.display = 'flex';
+
+                // Scroll to top on mobile
+                scrollToTopOnMobile();
             });
         }
 
@@ -5430,6 +5494,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Hide edit container and show toolbar without saving changes
                 advanceNoticeEditContainer.style.display = 'none';
                 toolbar.style.display = 'flex';
+
+                // Scroll to top on mobile
+                scrollToTopOnMobile();
             });
         }
     }
@@ -5860,6 +5927,9 @@ document.addEventListener('DOMContentLoaded', function () {
             toolbar.style.display = 'none';
             connectCalendarEditContainer.style.display = 'flex';
 
+            // Scroll to top on mobile
+            scrollToTopOnMobile();
+
             // Check synced containers visibility after container is shown
             const visibleSyncedContainers = document.querySelectorAll('[data-element="toolbarEdit_connectCalender_syncedContainer"]:not([style*="display: none"])');
 
@@ -6114,6 +6184,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Exit should still close the entire edit container and show the toolbar
                 connectCalendarEditContainer.style.display = 'none';
                 toolbar.style.display = 'flex';
+
+                // Scroll to top on mobile
+                scrollToTopOnMobile();
             });
         }
     }
@@ -6179,6 +6252,9 @@ document.addEventListener('DOMContentLoaded', function () {
         newAvailabilityWindowContainer.addEventListener('click', function () {
             toolbar.style.display = 'none';
             availabilityWindowEditContainer.style.display = 'flex';
+
+            // Scroll to top on mobile
+            scrollToTopOnMobile();
 
             // Set the current months in the input field
             availabilityWindowInput.value = currentMonths;
@@ -6254,6 +6330,9 @@ document.addEventListener('DOMContentLoaded', function () {
                         availabilityWindowEditContainer.style.display = 'none';
                         toolbar.style.display = 'flex';
 
+                        // Scroll to top on mobile
+                        scrollToTopOnMobile();
+
                         // Re-fetch calendar data for the currently selected property
                         // This ensures we stay on the same property after updating
                         fetchCalendarData(propertyId);
@@ -6279,6 +6358,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Hide edit container and show toolbar without saving changes
                 availabilityWindowEditContainer.style.display = 'none';
                 toolbar.style.display = 'flex';
+
+                // Scroll to top on mobile
+                scrollToTopOnMobile();
             });
         }
 
@@ -6288,6 +6370,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Hide edit container and show toolbar without saving changes
                 availabilityWindowEditContainer.style.display = 'none';
                 toolbar.style.display = 'flex';
+
+                // Scroll to top on mobile
+                scrollToTopOnMobile();
             });
         }
     }
