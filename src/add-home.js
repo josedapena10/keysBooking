@@ -1781,14 +1781,11 @@ function validateDockPhotos() {
             dockPhotosSubText.style.display = 'none';
         }
 
-        // Scroll to step container on mobile
+        // Scroll to top of page on mobile
         if (window.innerWidth <= 767) {
-            const dockPhotosStep = document.getElementById('dockPhotos');
-            if (dockPhotosStep) {
-                setTimeout(() => {
-                    dockPhotosStep.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }, 100);
-            }
+            setTimeout(() => {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }, 100);
         }
     }
     return false;
@@ -1832,14 +1829,11 @@ function validateCoverPhotos() {
             coverPhotosSubText.style.display = 'none';
         }
 
-        // Scroll to step container on mobile
+        // Scroll to top of page on mobile
         if (window.innerWidth <= 767) {
-            const coverPhotosStep = document.getElementById('coverPhotos');
-            if (coverPhotosStep) {
-                setTimeout(() => {
-                    coverPhotosStep.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }, 100);
-            }
+            setTimeout(() => {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }, 100);
         }
     }
     return false;
@@ -1860,14 +1854,11 @@ function validatePhotos() {
             photosError.style.display = 'block';
             photosSubText.style.display = 'none';
 
-            // Scroll to step container on mobile
+            // Scroll to top of page on mobile
             if (window.innerWidth <= 767) {
-                const photosStep = document.getElementById('photos');
-                if (photosStep) {
-                    setTimeout(() => {
-                        photosStep.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    }, 100);
-                }
+                setTimeout(() => {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                }, 100);
             }
         }
     } else {
@@ -2495,14 +2486,11 @@ function validateLocation() {
                 highlightInvalidInputs(requiredFields.filter(input => !input.value.trim()));
                 if (locationSubText) locationSubText.style.display = 'none';
 
-                // Scroll to step container on mobile
+                // Scroll to top of page on mobile
                 if (window.innerWidth <= 767) {
-                    const locationStep = document.getElementById('location');
-                    if (locationStep) {
-                        setTimeout(() => {
-                            locationStep.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                        }, 100);
-                    }
+                    setTimeout(() => {
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }, 100);
                 }
             }
             resolve(false);
@@ -2517,14 +2505,11 @@ function validateLocation() {
                 highlightInvalidInputs([addressZipcodeInput]);
                 if (locationSubText) locationSubText.style.display = 'none';
 
-                // Scroll to step container on mobile
+                // Scroll to top of page on mobile
                 if (window.innerWidth <= 767) {
-                    const locationStep = document.getElementById('location');
-                    if (locationStep) {
-                        setTimeout(() => {
-                            locationStep.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                        }, 100);
-                    }
+                    setTimeout(() => {
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }, 100);
                 }
             }
             resolve(false);
@@ -2683,14 +2668,11 @@ function validateLocation() {
                     locationError.style.display = 'block';
                     if (locationSubText) locationSubText.style.display = 'none';
 
-                    // Scroll to step container on mobile
+                    // Scroll to top of page on mobile
                     if (window.innerWidth <= 767) {
-                        const locationStep = document.getElementById('location');
-                        if (locationStep) {
-                            setTimeout(() => {
-                                locationStep.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                            }, 100);
-                        }
+                        setTimeout(() => {
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }, 100);
                     }
                 }
                 resolve(false);
@@ -3983,14 +3965,11 @@ function validateRules() {
             rulesError.style.display = 'block';
             rulesSubText.style.display = 'none';
 
-            // Scroll to step container on mobile, otherwise scroll to first error element
+            // Scroll to top of page on mobile, otherwise scroll to first error element
             if (window.innerWidth <= 767) {
-                const rulesStep = document.getElementById('rules');
-                if (rulesStep) {
-                    setTimeout(() => {
-                        rulesStep.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    }, 100);
-                }
+                setTimeout(() => {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                }, 100);
             } else if (errors[0].element) {
                 setTimeout(() => {
                     errors[0].element.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -4037,14 +4016,11 @@ function validateDock() {
             dockError.style.display = 'block';
             dockSubText.style.display = 'none';
 
-            // Scroll to step container on mobile
+            // Scroll to top of page on mobile
             if (window.innerWidth <= 767) {
-                const dockStep = document.getElementById('dock');
-                if (dockStep) {
-                    setTimeout(() => {
-                        dockStep.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    }, 100);
-                }
+                setTimeout(() => {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                }, 100);
             }
         }
         return false;
@@ -4088,14 +4064,11 @@ function validateDock() {
                 dockError.style.display = 'block';
                 dockSubText.style.display = 'none';
 
-                // Scroll to step container on mobile, otherwise scroll to first error input
+                // Scroll to top of page on mobile, otherwise scroll to first error input
                 if (window.innerWidth <= 767) {
-                    const dockStep = document.getElementById('dock');
-                    if (dockStep) {
-                        setTimeout(() => {
-                            dockStep.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                        }, 100);
-                    }
+                    setTimeout(() => {
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }, 100);
                 } else {
                     setTimeout(() => {
                         firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -4125,14 +4098,11 @@ function validateCancellationPolicy() {
             cancellationPolicyError.style.display = 'block';
             cancellationPolicySubText.style.display = 'none';
 
-            // Scroll to step container on mobile
+            // Scroll to top of page on mobile
             if (window.innerWidth <= 767) {
-                const cancellationPolicyStep = document.getElementById('cancellationPolicy');
-                if (cancellationPolicyStep) {
-                    setTimeout(() => {
-                        cancellationPolicyStep.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    }, 100);
-                }
+                setTimeout(() => {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                }, 100);
             }
         }
         return false;
@@ -4223,14 +4193,11 @@ function validateBasics() {
         basicsError.textContent = "Please enter missing information";
         basicsError.style.display = 'block';
 
-        // Scroll to step container on mobile
+        // Scroll to top of page on mobile
         if (window.innerWidth <= 767) {
-            const basicsStep = document.getElementById('basics');
-            if (basicsStep) {
-                setTimeout(() => {
-                    basicsStep.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }, 100);
-            }
+            setTimeout(() => {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }, 100);
         }
     } else if (basicsError) {
         basicsError.style.display = 'none';
@@ -4265,14 +4232,11 @@ function validateTitle() {
                 titleInput.style.border = '1px solid red';
             }
 
-            // Scroll to step container on mobile
+            // Scroll to top of page on mobile
             if (window.innerWidth <= 767) {
-                const titleStep = document.getElementById('title');
-                if (titleStep) {
-                    setTimeout(() => {
-                        titleStep.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    }, 100);
-                }
+                setTimeout(() => {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                }, 100);
             }
         }
     } else {
@@ -4313,14 +4277,11 @@ function validateDescription() {
                 descriptionInput.style.border = '1px solid red';
             }
 
-            // Scroll to step container on mobile
+            // Scroll to top of page on mobile
             if (window.innerWidth <= 767) {
-                const descriptionStep = document.getElementById('description');
-                if (descriptionStep) {
-                    setTimeout(() => {
-                        descriptionStep.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    }, 100);
-                }
+                setTimeout(() => {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                }, 100);
             }
         }
     } else {
@@ -4350,14 +4311,11 @@ function validatePricing() {
         pricingError.style.display = 'block';
         pricingSubText.style.display = 'none';
 
-        // Scroll to step container on mobile
+        // Scroll to top of page on mobile
         if (window.innerWidth <= 767) {
-            const pricingStep = document.getElementById('pricing');
-            if (pricingStep) {
-                setTimeout(() => {
-                    pricingStep.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }, 100);
-            }
+            setTimeout(() => {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }, 100);
         }
     } else {
         pricingError.style.display = 'none';
@@ -4380,14 +4338,11 @@ function validateCleaningFee() {
         cleaningFeeError.style.display = 'block';
         cleaningFeeSubText.style.display = 'none';
 
-        // Scroll to step container on mobile
+        // Scroll to top of page on mobile
         if (window.innerWidth <= 767) {
-            const cleaningFeeStep = document.getElementById('cleaningFee');
-            if (cleaningFeeStep) {
-                setTimeout(() => {
-                    cleaningFeeStep.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }, 100);
-            }
+            setTimeout(() => {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }, 100);
         }
     } else {
         cleaningFeeError.style.display = 'none';
@@ -4407,14 +4362,11 @@ function validateMinNights() {
             minNightsError.style.display = 'block';
             minNightsSubText.style.display = 'none';
 
-            // Scroll to step container on mobile
+            // Scroll to top of page on mobile
             if (window.innerWidth <= 767) {
-                const minNightsStep = document.getElementById('minNights');
-                if (minNightsStep) {
-                    setTimeout(() => {
-                        minNightsStep.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    }, 100);
-                }
+                setTimeout(() => {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                }, 100);
             }
         }
     } else {
@@ -4438,14 +4390,11 @@ function validateAmenities() {
             amenitiesError.style.display = 'block';
             if (amenitiesSubText) amenitiesSubText.style.display = 'none';
 
-            // Scroll to step container on mobile
+            // Scroll to top of page on mobile
             if (window.innerWidth <= 767) {
-                const amenitiesStep = document.getElementById('amenities');
-                if (amenitiesStep) {
-                    setTimeout(() => {
-                        amenitiesStep.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    }, 100);
-                }
+                setTimeout(() => {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                }, 100);
             }
         }
     } else {
