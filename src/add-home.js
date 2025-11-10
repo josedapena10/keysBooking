@@ -902,16 +902,19 @@ document.addEventListener('DOMContentLoaded', async function () {
 
                                     case 'amenities':
                                         await fetchAndRenderAmenities();
-                                        // Select previously chosen amenities
-                                        listingData.selectedAmenities.forEach(amenityId => {
-                                            const amenityElement = document.querySelector(`[data-amenity-id="${amenityId}"]`);
-                                            if (amenityElement) {
-                                                // Apply selected styling directly
-                                                amenityElement.style.borderWidth = '2px';
-                                                amenityElement.style.borderColor = '#000000';
-                                                amenityElement.style.margin = '-1px';
-                                            }
-                                        });
+                                        // Select previously chosen amenities by triggering clicks
+                                        // Need to wait for amenities to be fully rendered
+                                        setTimeout(() => {
+                                            listingData.selectedAmenities.forEach(amenityId => {
+                                                const amenityElement = document.querySelector(`[data-amenity-id="${amenityId}"]`);
+                                                if (amenityElement) {
+                                                    // Check if not already selected to avoid double-toggling
+                                                    if (amenityElement.style.borderWidth !== '2px') {
+                                                        amenityElement.click();
+                                                    }
+                                                }
+                                            });
+                                        }, 100);
                                         break;
                                     case 'dock':
                                         await initializeDockStep();
@@ -1048,37 +1051,11 @@ document.addEventListener('DOMContentLoaded', async function () {
                                         break;
                                     case 'safety':
                                         await initializeSafetyStep();
-                                        // Restore selected safety features
-                                        listingData.safetyFeatures.forEach(feature => {
-                                            const featureButton = document.querySelector(`[data-element="safety_${feature.type}"]`);
-                                            if (featureButton) {
-                                                featureButton.style.outline = '2px solid black';
-                                                featureButton.style.outlineOffset = '-1px';
-                                            }
-                                        });
+                                        // initializeSafetyStep already restores selected features based on listingData
                                         break;
                                     case 'cancellationPolicy':
                                         await initializeCancellationPolicyStep();
-                                        // Restore selected cancellation policy
-                                        if (listingData.cancellationPolicy) {
-                                            // Map policy names to keys
-                                            const policyMap = {
-                                                'Relaxed': 'relaxed',
-                                                'Standard': 'standard',
-                                                'Firm': 'firm',
-                                                'Grace window': 'graceWindow',
-                                                'No refund': 'noRefund'
-                                            };
-
-                                            const policyKey = policyMap[listingData.cancellationPolicy];
-                                            if (policyKey) {
-                                                const policyButton = document.querySelector(`[data-element="cancellationPolicy_${policyKey}"]`);
-                                                if (policyButton) {
-                                                    policyButton.style.outline = '2px solid black';
-                                                    policyButton.style.outlineOffset = '-1px';
-                                                }
-                                            }
-                                        }
+                                        // initializeCancellationPolicyStep already restores selected policy based on listingData
                                         break;
                                 }
                             }
@@ -2401,7 +2378,7 @@ async function fetchAndRenderAmenities() {
                 // Add click handler and styling
                 template.style.cursor = 'pointer';
                 template.dataset.amenityId = amenity.id;
-                template.addEventListener('click', () => toggleAmenity(template, amenity.id));
+                template.addEventListener('click', () => handleAmenityClick(template, amenity.id));
 
                 // Insert the new element after the last amenity
                 amenityElements[0].parentNode.appendChild(template);
@@ -2419,7 +2396,7 @@ async function fetchAndRenderAmenities() {
                 // Add click handler and styling to existing elements
                 amenityElements[i].style.cursor = 'pointer';
                 amenityElements[i].dataset.amenityId = amenity.id;
-                amenityElements[i].addEventListener('click', () => toggleAmenity(amenityElements[i], amenity.id));
+                amenityElements[i].addEventListener('click', () => handleAmenityClick(amenityElements[i], amenity.id));
             }
         });
 
@@ -2428,45 +2405,28 @@ async function fetchAndRenderAmenities() {
     }
 }
 
-// Function to toggle amenity selection
-function toggleAmenity(element, amenityId) {
-    // // Remove any existing click handlers first
-    // if (element && element.parentNode) {
-    //     const clone = element.cloneNode(true);
-    //     element.parentNode.replaceChild(clone, element);
-    //     element = clone;
-    // }
+// Function to handle amenity click
+function handleAmenityClick(element, amenityId) {
+    const isSelected = element.style.borderWidth === '2px';
 
-    // Add click handler to cloned element
-    element.addEventListener('click', () => {
-        const isSelected = element.style.borderWidth === '2px';
-
-        if (isSelected) {
-            element.style.borderWidth = '1px';
-            element.style.borderColor = '#e2e2e2'; // Reset to default color
-            element.style.margin = '0px'; // Reset margin
-            listingData.selectedAmenities = listingData.selectedAmenities.filter(id => id !== amenityId);
-        } else {
-            element.style.borderWidth = '2px';
-            element.style.borderColor = '#000000'; // Set black border when selected
-            element.style.margin = '-1px'; // Offset the larger border
-            if (!listingData.selectedAmenities.includes(amenityId)) {
-                listingData.selectedAmenities.push(amenityId);
-            }
+    if (isSelected) {
+        element.style.borderWidth = '1px';
+        element.style.borderColor = '#e2e2e2'; // Reset to default color
+        element.style.margin = '0px'; // Reset margin
+        listingData.selectedAmenities = listingData.selectedAmenities.filter(id => id !== amenityId);
+    } else {
+        element.style.borderWidth = '2px';
+        element.style.borderColor = '#000000'; // Set black border when selected
+        element.style.margin = '-1px'; // Offset the larger border
+        if (!listingData.selectedAmenities.includes(amenityId)) {
+            listingData.selectedAmenities.push(amenityId);
         }
+    }
 
-        // Convert amenity IDs array to JSON string
-        const amenityIdsJson = JSON.stringify(listingData.selectedAmenities);
-        listingData.selectedAmenities = JSON.parse(amenityIdsJson);
-
-        // Hide error message when user selects an amenity
-        if (hasAttemptedToLeave.amenities) {
-            validateAmenities();
-        }
-    });
-
-    // Trigger initial click to handle selection
-    element.click();
+    // Revalidate if user has attempted to leave
+    if (hasAttemptedToLeave.amenities) {
+        validateAmenities();
+    }
 }
 
 function validateLocation() {
