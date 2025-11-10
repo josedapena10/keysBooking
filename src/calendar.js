@@ -2104,6 +2104,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 const customDates = document.querySelector('[data-element="toolbarEdit_customDates"]');
 
                 if (selectedDates.length > 0) {
+                    // Close any open edit toolbars before showing custom dates
+                    // This ensures proper toolbar switching when dates are selected
+                    closeAllEditToolbars({ showMainToolbar: false });
+
                     // Show custom dates edit section
                     if (toolbar) toolbar.style.display = 'none';
                     if (customDates) customDates.style.display = 'flex';
@@ -2271,6 +2275,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Update toolbar display based on whether any dates are selected
         if (selectedDates.length > 0) {
+            // Close any open edit toolbars before showing custom dates
+            // This ensures that if user was in cleaning fee, base price, etc., 
+            // we switch to custom dates when they start selecting dates
+            closeAllEditToolbars({ showMainToolbar: false });
+
             // On mobile, update footer text and keep calendar visible
             if (isMobileView) {
                 // Update the mobile calendar footer text
