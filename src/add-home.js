@@ -1781,12 +1781,8 @@ function validateDockPhotos() {
             dockPhotosSubText.style.display = 'none';
         }
 
-        // Scroll to top of page on mobile
-        if (window.innerWidth <= 767) {
-            setTimeout(() => {
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-            }, 100);
-        }
+        // Scroll to error element on mobile
+        scrollToErrorOnMobile(dockPhotosError, 'Dock Photos');
     }
     return false;
 }
@@ -1829,12 +1825,8 @@ function validateCoverPhotos() {
             coverPhotosSubText.style.display = 'none';
         }
 
-        // Scroll to top of page on mobile
-        if (window.innerWidth <= 767) {
-            setTimeout(() => {
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-            }, 100);
-        }
+        // Scroll to error element on mobile
+        scrollToErrorOnMobile(coverPhotosError, 'Cover Photos');
     }
     return false;
 }
@@ -1854,12 +1846,8 @@ function validatePhotos() {
             photosError.style.display = 'block';
             photosSubText.style.display = 'none';
 
-            // Scroll to top of page on mobile
-            if (window.innerWidth <= 767) {
-                setTimeout(() => {
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                }, 100);
-            }
+            // Scroll to error element on mobile
+            scrollToErrorOnMobile(photosError, 'Photos');
         }
     } else {
         if (photosError && photosSubText) {
@@ -2018,13 +2006,21 @@ document.getElementById('nextStep').addEventListener('click', function () {
 
     const currentStepId = steps[currentStepNumber - 1];
 
+    console.log('Next button clicked:', {
+        currentStepId,
+        currentStepNumber,
+        shouldValidate: shouldValidateStep(currentStepId)
+    });
+
     // Set hasAttemptedToLeave to true for the current step when trying to move forward
     if (shouldValidateStep(currentStepId)) {
         hasAttemptedToLeave[currentStepId] = true;
+        console.log(`hasAttemptedToLeave[${currentStepId}] set to true`);
     }
 
     // Proceed to the next step if valid
     if (currentStepNumber < steps.length) {
+        console.log(`Calling goToStep(${currentStepNumber + 1}, 'forward')`);
         goToStep(currentStepNumber + 1, 'forward');
     }
 });
@@ -2082,14 +2078,18 @@ function goToStep(stepNumber, direction = 'forward') {
     // Check if current step needs validation before moving on
     if (shouldValidateStep(currentStepId) && direction === 'forward') {
         hasAttemptedToLeave[currentStepId] = true;
+        console.log(`Validating step ${currentStepId} before proceeding...`);
         validateStep(currentStepId).then(isValid => {
+            console.log(`Validation result for ${currentStepId}:`, isValid);
             if (!isValid) {
-                //console.warn(`Validation failed for ${currentStepId} section`);
+                console.warn(`Validation failed for ${currentStepId} section - staying on current step`);
                 return; // Exit if validation fails
             }
+            console.log(`Validation passed for ${currentStepId} - proceeding to next step`);
             proceedToNextStep();
         });
     } else {
+        console.log(`No validation needed for ${currentStepId} or going backwards - proceeding`);
         proceedToNextStep();
     }
 
@@ -2426,9 +2426,29 @@ async function fetchAndRenderAmenities() {
     }
 }
 
+// Helper function to scroll to error element on mobile
+function scrollToErrorOnMobile(errorElement, errorName) {
+    if (window.innerWidth <= 767 && errorElement) {
+        console.log(`${errorName} validation failed on mobile, scrolling to error`);
+        setTimeout(() => {
+            const rect = errorElement.getBoundingClientRect();
+            const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+            const targetY = rect.top + scrollTop - 50; // 50px offset from top
+            console.log('Scrolling to position:', targetY, 'from scrollTop:', scrollTop, 'rect.top:', rect.top);
+            window.scrollTo({ top: targetY, behavior: 'smooth' });
+        }, 100);
+    }
+}
+
 // Function to handle amenity click
 function handleAmenityClick(element, amenityId) {
     const isSelected = element.style.borderWidth === '2px';
+
+    console.log('handleAmenityClick called:', {
+        amenityId,
+        isSelected,
+        beforeClick: [...listingData.selectedAmenities]
+    });
 
     if (isSelected) {
         element.style.borderWidth = '1px';
@@ -2444,9 +2464,17 @@ function handleAmenityClick(element, amenityId) {
         }
     }
 
+    console.log('After click:', {
+        selectedAmenities: [...listingData.selectedAmenities]
+    });
+
     // Revalidate if user has attempted to leave
     if (hasAttemptedToLeave.amenities) {
-        validateAmenities();
+        console.log('hasAttemptedToLeave.amenities is true, calling validateAmenities');
+        const validationResult = validateAmenities();
+        console.log('Validation result:', validationResult);
+    } else {
+        console.log('hasAttemptedToLeave.amenities is false, skipping validation');
     }
 }
 
@@ -2486,12 +2514,8 @@ function validateLocation() {
                 highlightInvalidInputs(requiredFields.filter(input => !input.value.trim()));
                 if (locationSubText) locationSubText.style.display = 'none';
 
-                // Scroll to top of page on mobile
-                if (window.innerWidth <= 767) {
-                    setTimeout(() => {
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
-                    }, 100);
-                }
+                // Scroll to error element on mobile
+                scrollToErrorOnMobile(locationError, 'Location (empty fields)');
             }
             resolve(false);
             return;
@@ -2505,12 +2529,8 @@ function validateLocation() {
                 highlightInvalidInputs([addressZipcodeInput]);
                 if (locationSubText) locationSubText.style.display = 'none';
 
-                // Scroll to top of page on mobile
-                if (window.innerWidth <= 767) {
-                    setTimeout(() => {
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
-                    }, 100);
-                }
+                // Scroll to error element on mobile
+                scrollToErrorOnMobile(locationError, 'Location (invalid zipcode)');
             }
             resolve(false);
             return;
@@ -2668,12 +2688,8 @@ function validateLocation() {
                     locationError.style.display = 'block';
                     if (locationSubText) locationSubText.style.display = 'none';
 
-                    // Scroll to top of page on mobile
-                    if (window.innerWidth <= 767) {
-                        setTimeout(() => {
-                            window.scrollTo({ top: 0, behavior: 'smooth' });
-                        }, 100);
-                    }
+                    // Scroll to error element on mobile
+                    scrollToErrorOnMobile(locationError, 'Location (Google API validation)');
                 }
                 resolve(false);
             }
@@ -3163,13 +3179,6 @@ function initializeDockStep() {
                     if (option === 'yes') {
                         dockInputContainer.style.display = 'flex';
                         dockButtonsContainer.style.display = 'flex';
-
-                        setTimeout(() => {
-                            dockInputContainer.scrollIntoView({
-                                behavior: 'smooth',
-                                block: 'start'
-                            });
-                        }, 100);
                     } else {
                         dockInputContainer.style.display = 'none';
                         dockButtonsContainer.style.display = 'none';
@@ -3965,11 +3974,9 @@ function validateRules() {
             rulesError.style.display = 'block';
             rulesSubText.style.display = 'none';
 
-            // Scroll to top of page on mobile, otherwise scroll to first error element
+            // Scroll to error element on mobile, otherwise scroll to first error element
             if (window.innerWidth <= 767) {
-                setTimeout(() => {
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                }, 100);
+                scrollToErrorOnMobile(rulesError, 'Rules');
             } else if (errors[0].element) {
                 setTimeout(() => {
                     errors[0].element.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -4016,12 +4023,8 @@ function validateDock() {
             dockError.style.display = 'block';
             dockSubText.style.display = 'none';
 
-            // Scroll to top of page on mobile
-            if (window.innerWidth <= 767) {
-                setTimeout(() => {
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                }, 100);
-            }
+            // Scroll to error element on mobile
+            scrollToErrorOnMobile(dockError, 'Dock (selection)');
         }
         return false;
     }
@@ -4064,11 +4067,9 @@ function validateDock() {
                 dockError.style.display = 'block';
                 dockSubText.style.display = 'none';
 
-                // Scroll to top of page on mobile, otherwise scroll to first error input
+                // Scroll to error element on mobile, otherwise scroll to first error input
                 if (window.innerWidth <= 767) {
-                    setTimeout(() => {
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
-                    }, 100);
+                    scrollToErrorOnMobile(dockError, 'Dock (required fields)');
                 } else {
                     setTimeout(() => {
                         firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -4098,12 +4099,8 @@ function validateCancellationPolicy() {
             cancellationPolicyError.style.display = 'block';
             cancellationPolicySubText.style.display = 'none';
 
-            // Scroll to top of page on mobile
-            if (window.innerWidth <= 767) {
-                setTimeout(() => {
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                }, 100);
-            }
+            // Scroll to error element on mobile
+            scrollToErrorOnMobile(cancellationPolicyError, 'Cancellation Policy');
         }
         return false;
     }
@@ -4193,12 +4190,8 @@ function validateBasics() {
         basicsError.textContent = "Please enter missing information";
         basicsError.style.display = 'block';
 
-        // Scroll to top of page on mobile
-        if (window.innerWidth <= 767) {
-            setTimeout(() => {
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-            }, 100);
-        }
+        // Scroll to error element on mobile
+        scrollToErrorOnMobile(basicsError, 'Basics');
     } else if (basicsError) {
         basicsError.style.display = 'none';
     }
@@ -4232,12 +4225,8 @@ function validateTitle() {
                 titleInput.style.border = '1px solid red';
             }
 
-            // Scroll to top of page on mobile
-            if (window.innerWidth <= 767) {
-                setTimeout(() => {
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                }, 100);
-            }
+            // Scroll to error element on mobile
+            scrollToErrorOnMobile(titleError, 'Title');
         }
     } else {
         if (titleError && titleSubText) {
@@ -4277,12 +4266,8 @@ function validateDescription() {
                 descriptionInput.style.border = '1px solid red';
             }
 
-            // Scroll to top of page on mobile
-            if (window.innerWidth <= 767) {
-                setTimeout(() => {
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                }, 100);
-            }
+            // Scroll to error element on mobile
+            scrollToErrorOnMobile(descriptionError, 'Description');
         }
     } else {
         if (descriptionError && descriptionSubText) {
@@ -4311,12 +4296,8 @@ function validatePricing() {
         pricingError.style.display = 'block';
         pricingSubText.style.display = 'none';
 
-        // Scroll to top of page on mobile
-        if (window.innerWidth <= 767) {
-            setTimeout(() => {
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-            }, 100);
-        }
+        // Scroll to error element on mobile
+        scrollToErrorOnMobile(pricingError, 'Pricing');
     } else {
         pricingError.style.display = 'none';
         pricingSubText.style.display = 'block';
@@ -4338,12 +4319,8 @@ function validateCleaningFee() {
         cleaningFeeError.style.display = 'block';
         cleaningFeeSubText.style.display = 'none';
 
-        // Scroll to top of page on mobile
-        if (window.innerWidth <= 767) {
-            setTimeout(() => {
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-            }, 100);
-        }
+        // Scroll to error element on mobile
+        scrollToErrorOnMobile(cleaningFeeError, 'Cleaning Fee');
     } else {
         cleaningFeeError.style.display = 'none';
         cleaningFeeSubText.style.display = 'block';
@@ -4362,12 +4339,8 @@ function validateMinNights() {
             minNightsError.style.display = 'block';
             minNightsSubText.style.display = 'none';
 
-            // Scroll to top of page on mobile
-            if (window.innerWidth <= 767) {
-                setTimeout(() => {
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                }, 100);
-            }
+            // Scroll to error element on mobile
+            scrollToErrorOnMobile(minNightsError, 'Min Nights');
         }
     } else {
         if (minNightsError && minNightsSubText) {
@@ -4384,18 +4357,21 @@ function validateAmenities() {
     const amenitiesSubText = document.getElementById('amenities-subText');
     const isValid = listingData.selectedAmenities.length > 0;
 
+    console.log('validateAmenities called:', {
+        isValid,
+        selectedAmenities: listingData.selectedAmenities,
+        hasAttemptedToLeave: hasAttemptedToLeave.amenities,
+        windowWidth: window.innerWidth
+    });
+
     if (!isValid && hasAttemptedToLeave.amenities) {
         if (amenitiesError) {
             amenitiesError.textContent = "Please select at least one amenity to continue";
             amenitiesError.style.display = 'block';
             if (amenitiesSubText) amenitiesSubText.style.display = 'none';
 
-            // Scroll to top of page on mobile
-            if (window.innerWidth <= 767) {
-                setTimeout(() => {
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                }, 100);
-            }
+            // Scroll to error element on mobile
+            scrollToErrorOnMobile(amenitiesError, 'Amenities');
         }
     } else {
         if (amenitiesError) {
@@ -4404,6 +4380,7 @@ function validateAmenities() {
         }
     }
 
+    console.log('validateAmenities returning:', isValid);
     return isValid;
 }
 
