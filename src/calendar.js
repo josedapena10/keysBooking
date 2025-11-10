@@ -249,14 +249,22 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Utility function to scroll body to top on mobile (991px or less)
     function scrollToTopOnMobile() {
+        console.log("scrollToTopOnMobile called");
+        console.log("window.innerWidth:", window.innerWidth);
         if (window.innerWidth <= 991) {
             const bodyElement = document.querySelector('[data-element="body"]');
+            console.log("bodyElement found:", !!bodyElement, bodyElement);
             if (bodyElement) {
+                console.log("Scrolling bodyElement to top with smooth behavior");
                 bodyElement.scrollTo({
                     top: 0,
                     behavior: 'smooth'
                 });
+            } else {
+                console.log("bodyElement NOT found for selector [data-element=\"body\"]");
             }
+        } else {
+            console.log("Not on mobile (window width > 991px), not scrolling");
         }
     }
 
@@ -7012,4 +7020,3 @@ document.addEventListener('DOMContentLoaded', function () {
 
 
 });
-
