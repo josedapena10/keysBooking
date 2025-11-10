@@ -1230,6 +1230,14 @@ document.addEventListener('DOMContentLoaded', function () {
                 .fc .fc-bg-event {
                     padding-bottom: 1vh !important;
                     padding-left: 13px !important;
+                    
+                    /* Prevent highlight/selection on click/tap */
+                    -webkit-tap-highlight-color: transparent !important;
+                    -webkit-touch-callout: none !important;
+                    -webkit-user-select: none !important;
+                    -moz-user-select: none !important;
+                    -ms-user-select: none !important;
+                    user-select: none !important;
                 }
                 .fc-daygrid-event {
                     margin-top: auto !important;
@@ -1242,6 +1250,14 @@ document.addEventListener('DOMContentLoaded', function () {
                     border-radius: 20px !important;
                     padding-left: 5px !important;
                     padding-right: 5px !important;
+                    
+                    /* Prevent highlight/selection on click/tap */
+                    -webkit-tap-highlight-color: transparent !important;
+                    -webkit-touch-callout: none !important;
+                    -webkit-user-select: none !important;
+                    -moz-user-select: none !important;
+                    -ms-user-select: none !important;
+                    user-select: none !important;
                 }
                 @media screen and (max-width: 530px) {
                     .fc .fc-daygrid-day-top {
@@ -1486,7 +1502,15 @@ document.addEventListener('DOMContentLoaded', function () {
                     justify-content: flex-end;
                     align-items: left;
                     
-                    cursor: pointer;    
+                    cursor: pointer;
+                    
+                    /* Prevent highlight/selection on click/tap */
+                    -webkit-tap-highlight-color: transparent !important;
+                    -webkit-touch-callout: none !important;
+                    -webkit-user-select: none !important;
+                    -moz-user-select: none !important;
+                    -ms-user-select: none !important;
+                    user-select: none !important;
                 }
                 .fc-event-title {
                     text-align: left !important;
