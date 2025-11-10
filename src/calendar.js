@@ -252,17 +252,12 @@ document.addEventListener('DOMContentLoaded', function () {
         console.log("scrollToTopOnMobile called");
         console.log("window.innerWidth:", window.innerWidth);
         if (window.innerWidth <= 991) {
-            const bodyElement = document.querySelector('[data-element="body"]');
-            console.log("bodyElement found:", !!bodyElement, bodyElement);
-            if (bodyElement) {
-                console.log("Scrolling bodyElement to top with smooth behavior");
-                bodyElement.scrollTo({
-                    top: 0,
-                    behavior: 'smooth'
-                });
-            } else {
-                console.log("bodyElement NOT found for selector [data-element=\"body\"]");
-            }
+            console.log("Scrolling to top with smooth behavior");
+            // Use window.scrollTo() which is more reliable for page scrolling
+            window.scrollTo({
+                top: 0,
+                behavior: 'smooth'
+            });
         } else {
             console.log("Not on mobile (window width > 991px), not scrolling");
         }
