@@ -7351,7 +7351,21 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       getStartingPriceText(boat) {
-        const minLength = boat.minReservationLength || 0;
+        const boatMinLength = boat.minReservationLength || 0;
+
+        // Check for public dock delivery minimum days
+        const publicDockDetails = this.getPublicDockDeliveryDetails(boat);
+        const publicDockMinDays = publicDockDetails?.minDays ? Number(publicDockDetails.minDays) : 0;
+
+        // Only consider private dock minimum if private dock delivery is selected
+        let privateDockMinDays = 0;
+        if (this.selectedPrivateDock) {
+          const privateDockDetails = this.getPrivateDockDeliveryDetails(boat);
+          privateDockMinDays = privateDockDetails?.minDays ? Number(privateDockDetails.minDays) : 0;
+        }
+
+        // Use the maximum of boat minimum, public dock minimum, and private dock minimum (if selected)
+        const effectiveMinLength = Math.max(boatMinLength, publicDockMinDays, privateDockMinDays);
 
         // Use unified pricing with no dates selected
         const quote = this.computeBoatQuote(boat, {
@@ -7361,12 +7375,13 @@ document.addEventListener('DOMContentLoaded', () => {
           selectedGuests: this.selectedGuests
         });
 
-        if (minLength <= 0.5) {
+        if (effectiveMinLength <= 0.5) {
           return `Starting at $${quote.total.toLocaleString()}`;
-        } else if (minLength === 1) {
+        } else if (effectiveMinLength === 1) {
           return `Starting at $${quote.total.toLocaleString()}`;
         } else {
-          return `Starting at $${quote.total.toLocaleString()} per day`;
+          // For multi-day minimums, don't show "per day" since the price is for minimum days
+          return `Starting at $${quote.total.toLocaleString()}`;
         }
       }
 
