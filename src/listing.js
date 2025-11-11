@@ -9454,7 +9454,7 @@ document.addEventListener('DOMContentLoaded', () => {
         carouselWrapper.style.cssText = `
           position: relative;
           width: 100%;
-          height: 320px;
+          height: 400px;
           overflow: hidden;
           border-radius: 5px;
           touch-action: pan-x;
@@ -9477,7 +9477,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
           imageContainer.style.cssText = `
             flex: 0 0 ${flexBasis};
-            height: 320px;
+            height: 400px;
             padding: 0 4px;
             box-sizing: border-box;
           `;
@@ -14200,7 +14200,7 @@ document.addEventListener('DOMContentLoaded', () => {
         carouselWrapper.style.cssText = `
           position: relative;
           width: 100%;
-          height: 320px;
+          height: 400px;
           overflow: hidden;
           border-radius: 5px;
           touch-action: pan-x;
@@ -14223,7 +14223,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
           imageContainer.style.cssText = `
             flex: 0 0 ${flexBasis};
-            height: 320px;
+            height: 400px;
             padding: 0 6px;
             box-sizing: border-box;
           `;
