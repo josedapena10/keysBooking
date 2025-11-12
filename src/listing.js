@@ -9673,26 +9673,19 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('⏳ Showing loader...');
         if (buttonText) {
           console.log('📝 ButtonText element:', buttonText);
-          console.log('📝 ButtonText tagName:', buttonText.tagName);
-          console.log('📝 ButtonText computed style:', window.getComputedStyle(buttonText).display);
-          console.log('📝 ButtonText inline style before:', buttonText.style.display);
-          buttonText.style.display = 'none';
-          buttonText.style.visibility = 'hidden';
-          console.log('📝 ButtonText inline style after:', buttonText.style.display);
-          console.log('📝 ButtonText computed style after:', window.getComputedStyle(buttonText).display);
+          console.log('📝 ButtonText computed display:', window.getComputedStyle(buttonText).getPropertyValue('display'));
+          console.log('📝 ButtonText classes:', buttonText.className);
+          buttonText.style.cssText = 'display: none !important; visibility: hidden !important;';
+          console.log('📝 ButtonText after hide - cssText:', buttonText.style.cssText);
         }
         if (buttonLoader) {
           console.log('🔄 ButtonLoader element:', buttonLoader);
-          console.log('🔄 ButtonLoader tagName:', buttonLoader.tagName);
-          console.log('🔄 ButtonLoader computed style:', window.getComputedStyle(buttonLoader).display);
-          console.log('🔄 ButtonLoader inline style before:', buttonLoader.style.display);
-          buttonLoader.style.display = 'flex';
-          buttonLoader.style.visibility = 'visible';
-          buttonLoader.style.setProperty('display', 'flex', 'important');
-          console.log('🔄 ButtonLoader inline style after:', buttonLoader.style.display);
-          console.log('🔄 ButtonLoader computed style after:', window.getComputedStyle(buttonLoader).display);
-          console.log('🔄 ButtonLoader parent:', buttonLoader.parentElement);
-          console.log('🔄 ButtonLoader parent display:', window.getComputedStyle(buttonLoader.parentElement).display);
+          console.log('🔄 ButtonLoader computed display:', window.getComputedStyle(buttonLoader).getPropertyValue('display'));
+          console.log('🔄 ButtonLoader classes:', buttonLoader.className);
+          buttonLoader.style.cssText = 'display: flex !important; visibility: visible !important;';
+          console.log('🔄 ButtonLoader after show - cssText:', buttonLoader.style.cssText);
+          console.log('🔄 ButtonLoader parent element:', buttonLoader.parentElement);
+          console.log('🔄 ButtonLoader parent display:', window.getComputedStyle(buttonLoader.parentElement).getPropertyValue('display'));
         }
 
         try {
@@ -9710,21 +9703,14 @@ document.addEventListener('DOMContentLoaded', () => {
           // Hide loader, show button text
           if (buttonLoader) {
             console.log('🔄 Hiding button loader');
-            console.log('🔄 ButtonLoader inline style before hide:', buttonLoader.style.display);
-            buttonLoader.style.display = 'none';
-            buttonLoader.style.visibility = 'hidden';
-            console.log('🔄 ButtonLoader inline style after hide:', buttonLoader.style.display);
-            console.log('🔄 ButtonLoader computed style after hide:', window.getComputedStyle(buttonLoader).display);
+            buttonLoader.style.cssText = 'display: none !important; visibility: hidden !important;';
+            console.log('🔄 ButtonLoader after hide - cssText:', buttonLoader.style.cssText);
           }
           if (buttonText) {
             console.log('📝 Showing button text');
-            console.log('📝 ButtonText inline style before show:', buttonText.style.display);
-            buttonText.style.display = 'block';
-            buttonText.style.visibility = 'visible';
-            buttonText.style.setProperty('display', 'block', 'important');
-            console.log('📝 ButtonText inline style after show:', buttonText.style.display);
-            console.log('📝 ButtonText computed style after show:', window.getComputedStyle(buttonText).display);
-            console.log('📝 ButtonText current content:', buttonText.textContent);
+            buttonText.style.cssText = 'display: block !important; visibility: visible !important;';
+            console.log('📝 ButtonText after show - cssText:', buttonText.style.cssText);
+            console.log('📝 ButtonText computed display:', window.getComputedStyle(buttonText).getPropertyValue('display'));
           }
 
           if (!response.ok) {
@@ -9737,9 +9723,9 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log('📝 Changing button text to "Message Submitted!"');
             console.log('📝 ButtonText before update:', buttonText.textContent);
             buttonText.textContent = 'Message Submitted!';
-            buttonText.innerText = 'Message Submitted!';
+            buttonText.innerHTML = 'Message Submitted!';
             console.log('📝 ButtonText after update:', buttonText.textContent);
-            console.log('📝 ButtonText innerHTML:', buttonText.innerHTML);
+            console.log('📝 ButtonText visual check - offsetWidth:', buttonText.offsetWidth, 'offsetHeight:', buttonText.offsetHeight);
           }
 
           // Clear the message input
@@ -14661,26 +14647,19 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('⏳ [Fishing] Showing loader...');
         if (buttonText) {
           console.log('📝 [Fishing] ButtonText element:', buttonText);
-          console.log('📝 [Fishing] ButtonText tagName:', buttonText.tagName);
-          console.log('📝 [Fishing] ButtonText computed style:', window.getComputedStyle(buttonText).display);
-          console.log('📝 [Fishing] ButtonText inline style before:', buttonText.style.display);
-          buttonText.style.display = 'none';
-          buttonText.style.visibility = 'hidden';
-          console.log('📝 [Fishing] ButtonText inline style after:', buttonText.style.display);
-          console.log('📝 [Fishing] ButtonText computed style after:', window.getComputedStyle(buttonText).display);
+          console.log('📝 [Fishing] ButtonText computed display:', window.getComputedStyle(buttonText).getPropertyValue('display'));
+          console.log('📝 [Fishing] ButtonText classes:', buttonText.className);
+          buttonText.style.cssText = 'display: none !important; visibility: hidden !important;';
+          console.log('📝 [Fishing] ButtonText after hide - cssText:', buttonText.style.cssText);
         }
         if (buttonLoader) {
           console.log('🔄 [Fishing] ButtonLoader element:', buttonLoader);
-          console.log('🔄 [Fishing] ButtonLoader tagName:', buttonLoader.tagName);
-          console.log('🔄 [Fishing] ButtonLoader computed style:', window.getComputedStyle(buttonLoader).display);
-          console.log('🔄 [Fishing] ButtonLoader inline style before:', buttonLoader.style.display);
-          buttonLoader.style.display = 'flex';
-          buttonLoader.style.visibility = 'visible';
-          buttonLoader.style.setProperty('display', 'flex', 'important');
-          console.log('🔄 [Fishing] ButtonLoader inline style after:', buttonLoader.style.display);
-          console.log('🔄 [Fishing] ButtonLoader computed style after:', window.getComputedStyle(buttonLoader).display);
-          console.log('🔄 [Fishing] ButtonLoader parent:', buttonLoader.parentElement);
-          console.log('🔄 [Fishing] ButtonLoader parent display:', window.getComputedStyle(buttonLoader.parentElement).display);
+          console.log('🔄 [Fishing] ButtonLoader computed display:', window.getComputedStyle(buttonLoader).getPropertyValue('display'));
+          console.log('🔄 [Fishing] ButtonLoader classes:', buttonLoader.className);
+          buttonLoader.style.cssText = 'display: flex !important; visibility: visible !important;';
+          console.log('🔄 [Fishing] ButtonLoader after show - cssText:', buttonLoader.style.cssText);
+          console.log('🔄 [Fishing] ButtonLoader parent element:', buttonLoader.parentElement);
+          console.log('🔄 [Fishing] ButtonLoader parent display:', window.getComputedStyle(buttonLoader.parentElement).getPropertyValue('display'));
         }
 
         try {
@@ -14698,21 +14677,14 @@ document.addEventListener('DOMContentLoaded', () => {
           // Hide loader, show button text
           if (buttonLoader) {
             console.log('🔄 [Fishing] Hiding button loader');
-            console.log('🔄 [Fishing] ButtonLoader inline style before hide:', buttonLoader.style.display);
-            buttonLoader.style.display = 'none';
-            buttonLoader.style.visibility = 'hidden';
-            console.log('🔄 [Fishing] ButtonLoader inline style after hide:', buttonLoader.style.display);
-            console.log('🔄 [Fishing] ButtonLoader computed style after hide:', window.getComputedStyle(buttonLoader).display);
+            buttonLoader.style.cssText = 'display: none !important; visibility: hidden !important;';
+            console.log('🔄 [Fishing] ButtonLoader after hide - cssText:', buttonLoader.style.cssText);
           }
           if (buttonText) {
             console.log('📝 [Fishing] Showing button text');
-            console.log('📝 [Fishing] ButtonText inline style before show:', buttonText.style.display);
-            buttonText.style.display = 'block';
-            buttonText.style.visibility = 'visible';
-            buttonText.style.setProperty('display', 'block', 'important');
-            console.log('📝 [Fishing] ButtonText inline style after show:', buttonText.style.display);
-            console.log('📝 [Fishing] ButtonText computed style after show:', window.getComputedStyle(buttonText).display);
-            console.log('📝 [Fishing] ButtonText current content:', buttonText.textContent);
+            buttonText.style.cssText = 'display: block !important; visibility: visible !important;';
+            console.log('📝 [Fishing] ButtonText after show - cssText:', buttonText.style.cssText);
+            console.log('📝 [Fishing] ButtonText computed display:', window.getComputedStyle(buttonText).getPropertyValue('display'));
           }
 
           if (!response.ok) {
@@ -14725,9 +14697,9 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log('📝 [Fishing] Changing button text to "Message Submitted!"');
             console.log('📝 [Fishing] ButtonText before update:', buttonText.textContent);
             buttonText.textContent = 'Message Submitted!';
-            buttonText.innerText = 'Message Submitted!';
+            buttonText.innerHTML = 'Message Submitted!';
             console.log('📝 [Fishing] ButtonText after update:', buttonText.textContent);
-            console.log('📝 [Fishing] ButtonText innerHTML:', buttonText.innerHTML);
+            console.log('📝 [Fishing] ButtonText visual check - offsetWidth:', buttonText.offsetWidth, 'offsetHeight:', buttonText.offsetHeight);
           }
 
           // Clear the message input
