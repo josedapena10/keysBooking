@@ -16401,9 +16401,13 @@ document.addEventListener('DOMContentLoaded', () => {
           // Initially hide details
           descriptionElement.style.display = 'none';
           if (targetedFishContainer) targetedFishContainer.style.display = 'none';
-          showDetailsButton.textContent = 'Show trip details';
 
-          showDetailsButton.addEventListener('click', () => {
+          // Remove any existing event listeners by cloning and replacing the button
+          const newShowDetailsButton = showDetailsButton.cloneNode(true);
+          showDetailsButton.parentNode.replaceChild(newShowDetailsButton, showDetailsButton);
+          newShowDetailsButton.textContent = 'Show trip details';
+
+          newShowDetailsButton.addEventListener('click', () => {
             const isHidden = descriptionElement.style.display === 'none';
 
             if (isHidden) {
@@ -16414,11 +16418,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 targetedFishContainer.style.display = 'flex';
                 this.populateTargetedFish(targetedFishContainer, trip.targetedFish);
               }
-              showDetailsButton.textContent = 'Show less';
+              newShowDetailsButton.textContent = 'Show less';
             } else {
               descriptionElement.style.display = 'none';
               if (targetedFishContainer) targetedFishContainer.style.display = 'none';
-              showDetailsButton.textContent = 'Show trip details';
+              newShowDetailsButton.textContent = 'Show trip details';
             }
           });
 
