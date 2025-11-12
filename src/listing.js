@@ -9431,6 +9431,206 @@ document.addEventListener('DOMContentLoaded', () => {
         // Handle Add to Reservation button functionality
         this.setupAddToReservationButton(boat);
 
+        // Setup contact us form
+        this.setupContactUsForm(boat);
+
+      }
+
+      setupContactUsForm(boat) {
+        // Get all contact form elements
+        const firstNameInput = document.querySelector('[data-element="firstNameInput_boatRental"]');
+        const emailInput = document.querySelector('[data-element="emailInput_boatRental"]');
+        const messageInput = document.querySelector('[data-element="ContactUs_Input_boatRental"]');
+        const errorElement = document.querySelector('[data-element="ContactUs_Error_boatRental"]');
+        const submitButton = document.querySelector('[data-element="ContactUs_SubmitButton_boatRental"]');
+        const buttonText = document.querySelector('[data-element="ContactUs_Button_Text_boatRental"]');
+        const buttonLoader = document.querySelector('[data-element="ContactUs_Button_Loader_boatRental"]');
+
+        if (!messageInput || !submitButton || !buttonText || !buttonLoader) {
+          console.warn('Contact form elements not found');
+          return;
+        }
+
+        // Initialize state
+        if (errorElement) errorElement.style.display = 'none';
+        if (buttonLoader) buttonLoader.style.display = 'none';
+        if (buttonText) buttonText.textContent = 'Submit';
+
+        // Check if user is logged in
+        const isUserLoggedIn = this.isUserLoggedIn();
+
+        // Show/hide firstName and email inputs based on login status
+        if (firstNameInput && emailInput) {
+          if (isUserLoggedIn) {
+            firstNameInput.style.display = 'none';
+            emailInput.style.display = 'none';
+          } else {
+            firstNameInput.style.display = 'flex';
+            emailInput.style.display = 'flex';
+          }
+        }
+
+        // Remove any existing event listeners
+        const newSubmitButton = submitButton.cloneNode(true);
+        submitButton.parentNode.replaceChild(newSubmitButton, submitButton);
+
+        // Add submit handler
+        newSubmitButton.addEventListener('click', async () => {
+          await this.handleContactUsSubmit(boat, {
+            firstNameInput,
+            emailInput,
+            messageInput,
+            errorElement,
+            buttonText,
+            buttonLoader,
+            isUserLoggedIn
+          });
+        });
+      }
+
+      isUserLoggedIn() {
+        // Check if user is logged in via Wized data
+        try {
+          if (window.Wized && window.Wized.data && window.Wized.data.r) {
+            const loadUserRequest = window.Wized.data.r.load_user;
+            if (loadUserRequest && loadUserRequest.statusCode === 200) {
+              return true;
+            }
+          }
+        } catch (error) {
+          console.error('Error checking user login status:', error);
+        }
+        return false;
+      }
+
+      getUserId() {
+        // Get user ID from Wized data
+        try {
+          if (window.Wized && window.Wized.data && window.Wized.data.r) {
+            const loadUserRequest = window.Wized.data.r.load_user;
+            if (loadUserRequest && loadUserRequest.data && loadUserRequest.data.id) {
+              return loadUserRequest.data.id;
+            }
+          }
+        } catch (error) {
+          console.error('Error getting user ID:', error);
+        }
+        return null;
+      }
+
+      async handleContactUsSubmit(boat, elements) {
+        const { firstNameInput, emailInput, messageInput, errorElement, buttonText, buttonLoader, isUserLoggedIn } = elements;
+
+        // Clear previous errors
+        if (errorElement) {
+          errorElement.style.display = 'none';
+          errorElement.textContent = '';
+        }
+
+        // Get message from contenteditable div
+        const message = messageInput.textContent || messageInput.innerText || '';
+        const trimmedMessage = message.trim();
+
+        // Validate required fields
+        let errorMessage = '';
+
+        if (!trimmedMessage) {
+          errorMessage = 'Please enter a message';
+        } else if (!isUserLoggedIn) {
+          // If not logged in, validate firstName and email
+          const firstName = firstNameInput ? (firstNameInput.value || '').trim() : '';
+          const email = emailInput ? (emailInput.value || '').trim() : '';
+
+          if (!firstName) {
+            errorMessage = 'Please enter your first name';
+          } else if (!email) {
+            errorMessage = 'Please enter your email';
+          } else if (!this.isValidEmail(email)) {
+            errorMessage = 'Please enter a valid email address';
+          }
+        }
+
+        // Show error if validation failed
+        if (errorMessage) {
+          if (errorElement) {
+            errorElement.textContent = errorMessage;
+            errorElement.style.display = 'block';
+          }
+          return;
+        }
+
+        // Prepare request data
+        const requestData = {
+          message: trimmedMessage,
+          boat_id: boat.id,
+          guest_id: null,
+          email: null,
+          firstName: null
+        };
+
+        if (isUserLoggedIn) {
+          requestData.guest_id = this.getUserId();
+        } else {
+          requestData.email = emailInput.value.trim();
+          requestData.firstName = firstNameInput.value.trim();
+        }
+
+        // Show loader, hide button text
+        if (buttonText) buttonText.style.display = 'none';
+        if (buttonLoader) buttonLoader.style.display = 'flex';
+
+        try {
+          const response = await fetch('https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/listingPage_ContactUs_boatRental', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(requestData)
+          });
+
+          if (buttonText) buttonText.style.display = 'block';
+          if (buttonLoader) buttonLoader.style.display = 'none';
+
+          if (!response.ok) {
+            throw new Error('Failed to submit message');
+          }
+
+          // Success - update button text and clear form
+          if (buttonText) buttonText.textContent = 'Message Submitted';
+
+          // Clear the message input
+          if (messageInput) {
+            messageInput.textContent = '';
+          }
+
+          // Clear firstName and email if not logged in
+          if (!isUserLoggedIn) {
+            if (firstNameInput) firstNameInput.value = '';
+            if (emailInput) emailInput.value = '';
+          }
+
+          // Reset button text after 3 seconds
+          setTimeout(() => {
+            if (buttonText) buttonText.textContent = 'Submit';
+          }, 3000);
+
+        } catch (error) {
+          console.error('Error submitting contact form:', error);
+
+          if (buttonText) buttonText.style.display = 'block';
+          if (buttonLoader) buttonLoader.style.display = 'none';
+
+          if (errorElement) {
+            errorElement.textContent = 'Failed to submit message. Please try again.';
+            errorElement.style.display = 'block';
+          }
+        }
+      }
+
+      isValidEmail(email) {
+        // Simple email validation
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        return emailRegex.test(email);
       }
 
       setupBoatImagesCarousel(boat) {
@@ -14057,6 +14257,206 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Render trip types
         this.renderTripTypes(charter);
+
+        // Setup contact us form
+        this.setupFishingCharterContactUsForm(charter);
+      }
+
+      setupFishingCharterContactUsForm(charter) {
+        // Get all contact form elements
+        const firstNameInput = document.querySelector('[data-element="firstNameInput_fishingCharter"]');
+        const emailInput = document.querySelector('[data-element="emailInput_fishingCharter"]');
+        const messageInput = document.querySelector('[data-element="ContactUs_Input_fishingCharter"]');
+        const errorElement = document.querySelector('[data-element="ContactUs_Error_fishingCharter"]');
+        const submitButton = document.querySelector('[data-element="ContactUs_SubmitButton_fishingCharter"]');
+        const buttonText = document.querySelector('[data-element="ContactUs_Button_Text_fishingCharter"]');
+        const buttonLoader = document.querySelector('[data-element="ContactUs_Button_Loader_fishingCharter"]');
+
+        if (!messageInput || !submitButton || !buttonText || !buttonLoader) {
+          console.warn('Fishing charter contact form elements not found');
+          return;
+        }
+
+        // Initialize state
+        if (errorElement) errorElement.style.display = 'none';
+        if (buttonLoader) buttonLoader.style.display = 'none';
+        if (buttonText) buttonText.textContent = 'Submit';
+
+        // Check if user is logged in
+        const isUserLoggedIn = this.isFishingCharterUserLoggedIn();
+
+        // Show/hide firstName and email inputs based on login status
+        if (firstNameInput && emailInput) {
+          if (isUserLoggedIn) {
+            firstNameInput.style.display = 'none';
+            emailInput.style.display = 'none';
+          } else {
+            firstNameInput.style.display = 'flex';
+            emailInput.style.display = 'flex';
+          }
+        }
+
+        // Remove any existing event listeners
+        const newSubmitButton = submitButton.cloneNode(true);
+        submitButton.parentNode.replaceChild(newSubmitButton, submitButton);
+
+        // Add submit handler
+        newSubmitButton.addEventListener('click', async () => {
+          await this.handleFishingCharterContactUsSubmit(charter, {
+            firstNameInput,
+            emailInput,
+            messageInput,
+            errorElement,
+            buttonText,
+            buttonLoader,
+            isUserLoggedIn
+          });
+        });
+      }
+
+      isFishingCharterUserLoggedIn() {
+        // Check if user is logged in via Wized data
+        try {
+          if (window.Wized && window.Wized.data && window.Wized.data.r) {
+            const loadUserRequest = window.Wized.data.r.load_user;
+            if (loadUserRequest && loadUserRequest.statusCode === 200) {
+              return true;
+            }
+          }
+        } catch (error) {
+          console.error('Error checking user login status:', error);
+        }
+        return false;
+      }
+
+      getFishingCharterUserId() {
+        // Get user ID from Wized data
+        try {
+          if (window.Wized && window.Wized.data && window.Wized.data.r) {
+            const loadUserRequest = window.Wized.data.r.load_user;
+            if (loadUserRequest && loadUserRequest.data && loadUserRequest.data.id) {
+              return loadUserRequest.data.id;
+            }
+          }
+        } catch (error) {
+          console.error('Error getting user ID:', error);
+        }
+        return null;
+      }
+
+      async handleFishingCharterContactUsSubmit(charter, elements) {
+        const { firstNameInput, emailInput, messageInput, errorElement, buttonText, buttonLoader, isUserLoggedIn } = elements;
+
+        // Clear previous errors
+        if (errorElement) {
+          errorElement.style.display = 'none';
+          errorElement.textContent = '';
+        }
+
+        // Get message from contenteditable div
+        const message = messageInput.textContent || messageInput.innerText || '';
+        const trimmedMessage = message.trim();
+
+        // Validate required fields
+        let errorMessage = '';
+
+        if (!trimmedMessage) {
+          errorMessage = 'Please enter a message';
+        } else if (!isUserLoggedIn) {
+          // If not logged in, validate firstName and email
+          const firstName = firstNameInput ? (firstNameInput.value || '').trim() : '';
+          const email = emailInput ? (emailInput.value || '').trim() : '';
+
+          if (!firstName) {
+            errorMessage = 'Please enter your first name';
+          } else if (!email) {
+            errorMessage = 'Please enter your email';
+          } else if (!this.isFishingCharterValidEmail(email)) {
+            errorMessage = 'Please enter a valid email address';
+          }
+        }
+
+        // Show error if validation failed
+        if (errorMessage) {
+          if (errorElement) {
+            errorElement.textContent = errorMessage;
+            errorElement.style.display = 'block';
+          }
+          return;
+        }
+
+        // Prepare request data
+        const requestData = {
+          message: trimmedMessage,
+          fishingCharter_id: charter.id,
+          guest_id: null,
+          email: null,
+          firstName: null
+        };
+
+        if (isUserLoggedIn) {
+          requestData.guest_id = this.getFishingCharterUserId();
+        } else {
+          requestData.email = emailInput.value.trim();
+          requestData.firstName = firstNameInput.value.trim();
+        }
+
+        // Show loader, hide button text
+        if (buttonText) buttonText.style.display = 'none';
+        if (buttonLoader) buttonLoader.style.display = 'flex';
+
+        try {
+          const response = await fetch('https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/listingPage_ContactUs_fishingCharters', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(requestData)
+          });
+
+          if (buttonText) buttonText.style.display = 'block';
+          if (buttonLoader) buttonLoader.style.display = 'none';
+
+          if (!response.ok) {
+            throw new Error('Failed to submit message');
+          }
+
+          // Success - update button text and clear form
+          if (buttonText) buttonText.textContent = 'Message Submitted';
+
+          // Clear the message input
+          if (messageInput) {
+            messageInput.textContent = '';
+          }
+
+          // Clear firstName and email if not logged in
+          if (!isUserLoggedIn) {
+            if (firstNameInput) firstNameInput.value = '';
+            if (emailInput) emailInput.value = '';
+          }
+
+          // Reset button text after 3 seconds
+          setTimeout(() => {
+            if (buttonText) buttonText.textContent = 'Submit';
+          }, 3000);
+
+        } catch (error) {
+          console.error('Error submitting fishing charter contact form:', error);
+
+          if (buttonText) buttonText.style.display = 'block';
+          if (buttonLoader) buttonLoader.style.display = 'none';
+
+          if (errorElement) {
+            errorElement.textContent = 'Failed to submit message. Please try again.';
+            errorElement.style.display = 'block';
+          }
+        }
+      }
+
+      isFishingCharterValidEmail(email) {
+        // Simple email validation
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        return emailRegex.test(email);
       }
 
       setupFishingCharterDetailsBackButton() {
