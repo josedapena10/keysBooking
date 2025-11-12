@@ -9437,6 +9437,8 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       setupContactUsForm(boat) {
+        console.log('🚤 Setting up boat rental contact form for boat:', boat.id);
+
         // Get all contact form elements
         const firstNameInput = document.querySelector('[data-element="firstNameInput_boatRental"]');
         const emailInput = document.querySelector('[data-element="emailInput_boatRental"]');
@@ -9446,8 +9448,18 @@ document.addEventListener('DOMContentLoaded', () => {
         const buttonText = document.querySelector('[data-element="ContactUs_Button_Text_boatRental"]');
         const buttonLoader = document.querySelector('[data-element="ContactUs_Button_Loader_boatRental"]');
 
+        console.log('📋 Contact form elements found:', {
+          firstNameInput: !!firstNameInput,
+          emailInput: !!emailInput,
+          messageInput: !!messageInput,
+          errorElement: !!errorElement,
+          submitButton: !!submitButton,
+          buttonText: !!buttonText,
+          buttonLoader: !!buttonLoader
+        });
+
         if (!messageInput || !submitButton || !buttonText || !buttonLoader) {
-          console.warn('Contact form elements not found');
+          console.warn('⚠️ Contact form elements not found - cannot initialize form');
           return;
         }
 
@@ -9458,16 +9470,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Check if user is logged in
         const isUserLoggedIn = this.isUserLoggedIn();
+        console.log('🔐 User logged in status:', isUserLoggedIn);
 
         // Show/hide firstName and email inputs based on login status
         if (firstNameInput && emailInput) {
+          console.log('👤 Setting input visibility - logged in:', isUserLoggedIn);
           if (isUserLoggedIn) {
+            console.log('✅ Hiding firstName and email inputs');
             firstNameInput.style.display = 'none';
             emailInput.style.display = 'none';
+            // Also hide parent wrappers if they exist
+            const firstNameWrapper = firstNameInput.closest('[data-element="firstNameInput_boatRental_wrapper"]');
+            const emailWrapper = emailInput.closest('[data-element="emailInput_boatRental_wrapper"]');
+            if (firstNameWrapper) firstNameWrapper.style.display = 'none';
+            if (emailWrapper) emailWrapper.style.display = 'none';
           } else {
+            console.log('👁️ Showing firstName and email inputs');
             firstNameInput.style.display = 'flex';
             emailInput.style.display = 'flex';
+            // Show parent wrappers if they exist
+            const firstNameWrapper = firstNameInput.closest('[data-element="firstNameInput_boatRental_wrapper"]');
+            const emailWrapper = emailInput.closest('[data-element="emailInput_boatRental_wrapper"]');
+            if (firstNameWrapper) firstNameWrapper.style.display = 'flex';
+            if (emailWrapper) emailWrapper.style.display = 'flex';
           }
+        } else {
+          console.warn('⚠️ firstName or email input not found');
         }
 
         // Remove any existing event listeners
@@ -9476,6 +9504,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Add submit handler
         newSubmitButton.addEventListener('click', async () => {
+          console.log('🖱️ Contact form submit button clicked');
           await this.handleContactUsSubmit(boat, {
             firstNameInput,
             emailInput,
@@ -9519,7 +9548,14 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       async handleContactUsSubmit(boat, elements) {
+        console.log('📤 Starting contact form submission');
         const { firstNameInput, emailInput, messageInput, errorElement, buttonText, buttonLoader, isUserLoggedIn } = elements;
+
+        console.log('📝 Form elements:', {
+          buttonText: !!buttonText,
+          buttonLoader: !!buttonLoader,
+          messageInput: !!messageInput
+        });
 
         // Clear previous errors
         if (errorElement) {
@@ -9530,6 +9566,21 @@ document.addEventListener('DOMContentLoaded', () => {
         // Get message from contenteditable div
         const message = messageInput.textContent || messageInput.innerText || '';
         const trimmedMessage = message.trim();
+        console.log('💬 Message:', trimmedMessage ? 'Present' : 'Empty');
+
+        // Helper function to get input value (handles both input and contenteditable)
+        const getInputValue = (input) => {
+          if (!input) return '';
+          // Check if it's a regular input
+          if (input.value !== undefined) {
+            return input.value.trim();
+          }
+          // Check if it's contenteditable
+          if (input.getAttribute('contenteditable') === 'true') {
+            return (input.textContent || input.innerText || '').trim();
+          }
+          return '';
+        };
 
         // Validate required fields
         let errorMessage = '';
@@ -9538,8 +9589,10 @@ document.addEventListener('DOMContentLoaded', () => {
           errorMessage = 'Please enter a message';
         } else if (!isUserLoggedIn) {
           // If not logged in, validate firstName and email
-          const firstName = firstNameInput ? (firstNameInput.value || '').trim() : '';
-          const email = emailInput ? (emailInput.value || '').trim() : '';
+          const firstName = getInputValue(firstNameInput);
+          const email = getInputValue(emailInput);
+
+          console.log('👤 User inputs:', { firstName: firstName ? 'Present' : 'Empty', email: email ? 'Present' : 'Empty' });
 
           if (!firstName) {
             errorMessage = 'Please enter your first name';
@@ -9547,11 +9600,13 @@ document.addEventListener('DOMContentLoaded', () => {
             errorMessage = 'Please enter your email';
           } else if (!this.isValidEmail(email)) {
             errorMessage = 'Please enter a valid email address';
+            console.log('❌ Invalid email format:', email);
           }
         }
 
         // Show error if validation failed
         if (errorMessage) {
+          console.log('❌ Validation error:', errorMessage);
           if (errorElement) {
             errorElement.textContent = errorMessage;
             errorElement.style.display = 'block';
@@ -9570,16 +9625,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (isUserLoggedIn) {
           requestData.guest_id = this.getUserId();
+          console.log('✅ Using guest_id:', requestData.guest_id);
         } else {
-          requestData.email = emailInput.value.trim();
-          requestData.firstName = firstNameInput.value.trim();
+          requestData.email = getInputValue(emailInput);
+          requestData.firstName = getInputValue(firstNameInput);
+          console.log('✅ Using email/firstName:', requestData.email, requestData.firstName);
         }
 
+        console.log('📦 Request data:', requestData);
+
         // Show loader, hide button text
-        if (buttonText) buttonText.style.display = 'none';
-        if (buttonLoader) buttonLoader.style.display = 'flex';
+        console.log('⏳ Showing loader...');
+        if (buttonText) {
+          console.log('Hiding button text, current display:', buttonText.style.display);
+          buttonText.style.display = 'none';
+        }
+        if (buttonLoader) {
+          console.log('Showing button loader, current display:', buttonLoader.style.display);
+          buttonLoader.style.display = 'flex';
+        }
 
         try {
+          console.log('🌐 Sending POST request...');
           const response = await fetch('https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/listingPage_ContactUs_boatRental', {
             method: 'POST',
             headers: {
@@ -9588,37 +9655,68 @@ document.addEventListener('DOMContentLoaded', () => {
             body: JSON.stringify(requestData)
           });
 
-          if (buttonText) buttonText.style.display = 'block';
-          if (buttonLoader) buttonLoader.style.display = 'none';
+          console.log('📨 Response received, status:', response.status, response.ok);
+
+          // Hide loader, show button text
+          if (buttonLoader) {
+            console.log('Hiding button loader');
+            buttonLoader.style.display = 'none';
+          }
+          if (buttonText) {
+            console.log('Showing button text');
+            buttonText.style.display = 'block';
+          }
 
           if (!response.ok) {
-            throw new Error('Failed to submit message');
+            throw new Error(`Failed to submit message: ${response.status}`);
           }
 
           // Success - update button text and clear form
-          if (buttonText) buttonText.textContent = 'Message Submitted';
+          console.log('✅ Message sent successfully!');
+          if (buttonText) {
+            console.log('📝 Changing button text to "Message Submitted!"');
+            buttonText.textContent = 'Message Submitted!';
+          }
 
           // Clear the message input
           if (messageInput) {
             messageInput.textContent = '';
+            console.log('🧹 Cleared message input');
           }
 
           // Clear firstName and email if not logged in
           if (!isUserLoggedIn) {
-            if (firstNameInput) firstNameInput.value = '';
-            if (emailInput) emailInput.value = '';
+            if (firstNameInput) {
+              if (firstNameInput.value !== undefined) {
+                firstNameInput.value = '';
+              } else {
+                firstNameInput.textContent = '';
+              }
+            }
+            if (emailInput) {
+              if (emailInput.value !== undefined) {
+                emailInput.value = '';
+              } else {
+                emailInput.textContent = '';
+              }
+            }
+            console.log('🧹 Cleared firstName and email inputs');
           }
 
           // Reset button text after 3 seconds
           setTimeout(() => {
-            if (buttonText) buttonText.textContent = 'Submit';
+            if (buttonText) {
+              console.log('🔄 Resetting button text to "Submit"');
+              buttonText.textContent = 'Submit';
+            }
           }, 3000);
 
         } catch (error) {
-          console.error('Error submitting contact form:', error);
+          console.error('❌ Error submitting contact form:', error);
 
-          if (buttonText) buttonText.style.display = 'block';
+          // Hide loader, show button text
           if (buttonLoader) buttonLoader.style.display = 'none';
+          if (buttonText) buttonText.style.display = 'block';
 
           if (errorElement) {
             errorElement.textContent = 'Failed to submit message. Please try again.';
@@ -14263,6 +14361,8 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       setupFishingCharterContactUsForm(charter) {
+        console.log('🎣 Setting up fishing charter contact form for charter:', charter.id);
+
         // Get all contact form elements
         const firstNameInput = document.querySelector('[data-element="firstNameInput_fishingCharter"]');
         const emailInput = document.querySelector('[data-element="emailInput_fishingCharter"]');
@@ -14272,8 +14372,18 @@ document.addEventListener('DOMContentLoaded', () => {
         const buttonText = document.querySelector('[data-element="ContactUs_Button_Text_fishingCharter"]');
         const buttonLoader = document.querySelector('[data-element="ContactUs_Button_Loader_fishingCharter"]');
 
+        console.log('📋 Fishing charter contact form elements found:', {
+          firstNameInput: !!firstNameInput,
+          emailInput: !!emailInput,
+          messageInput: !!messageInput,
+          errorElement: !!errorElement,
+          submitButton: !!submitButton,
+          buttonText: !!buttonText,
+          buttonLoader: !!buttonLoader
+        });
+
         if (!messageInput || !submitButton || !buttonText || !buttonLoader) {
-          console.warn('Fishing charter contact form elements not found');
+          console.warn('⚠️ Fishing charter contact form elements not found - cannot initialize form');
           return;
         }
 
@@ -14284,16 +14394,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Check if user is logged in
         const isUserLoggedIn = this.isFishingCharterUserLoggedIn();
+        console.log('🔐 User logged in status:', isUserLoggedIn);
 
         // Show/hide firstName and email inputs based on login status
         if (firstNameInput && emailInput) {
+          console.log('👤 Setting input visibility - logged in:', isUserLoggedIn);
           if (isUserLoggedIn) {
+            console.log('✅ Hiding firstName and email inputs');
             firstNameInput.style.display = 'none';
             emailInput.style.display = 'none';
+            // Also hide parent wrappers if they exist
+            const firstNameWrapper = firstNameInput.closest('[data-element="firstNameInput_fishingCharter_wrapper"]');
+            const emailWrapper = emailInput.closest('[data-element="emailInput_fishingCharter_wrapper"]');
+            if (firstNameWrapper) firstNameWrapper.style.display = 'none';
+            if (emailWrapper) emailWrapper.style.display = 'none';
           } else {
+            console.log('👁️ Showing firstName and email inputs');
             firstNameInput.style.display = 'flex';
             emailInput.style.display = 'flex';
+            // Show parent wrappers if they exist
+            const firstNameWrapper = firstNameInput.closest('[data-element="firstNameInput_fishingCharter_wrapper"]');
+            const emailWrapper = emailInput.closest('[data-element="emailInput_fishingCharter_wrapper"]');
+            if (firstNameWrapper) firstNameWrapper.style.display = 'flex';
+            if (emailWrapper) emailWrapper.style.display = 'flex';
           }
+        } else {
+          console.warn('⚠️ firstName or email input not found');
         }
 
         // Remove any existing event listeners
@@ -14302,6 +14428,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Add submit handler
         newSubmitButton.addEventListener('click', async () => {
+          console.log('🖱️ Fishing charter contact form submit button clicked');
           await this.handleFishingCharterContactUsSubmit(charter, {
             firstNameInput,
             emailInput,
@@ -14345,7 +14472,14 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       async handleFishingCharterContactUsSubmit(charter, elements) {
+        console.log('📤 Starting fishing charter contact form submission');
         const { firstNameInput, emailInput, messageInput, errorElement, buttonText, buttonLoader, isUserLoggedIn } = elements;
+
+        console.log('📝 Form elements:', {
+          buttonText: !!buttonText,
+          buttonLoader: !!buttonLoader,
+          messageInput: !!messageInput
+        });
 
         // Clear previous errors
         if (errorElement) {
@@ -14356,6 +14490,21 @@ document.addEventListener('DOMContentLoaded', () => {
         // Get message from contenteditable div
         const message = messageInput.textContent || messageInput.innerText || '';
         const trimmedMessage = message.trim();
+        console.log('💬 Message:', trimmedMessage ? 'Present' : 'Empty');
+
+        // Helper function to get input value (handles both input and contenteditable)
+        const getInputValue = (input) => {
+          if (!input) return '';
+          // Check if it's a regular input
+          if (input.value !== undefined) {
+            return input.value.trim();
+          }
+          // Check if it's contenteditable
+          if (input.getAttribute('contenteditable') === 'true') {
+            return (input.textContent || input.innerText || '').trim();
+          }
+          return '';
+        };
 
         // Validate required fields
         let errorMessage = '';
@@ -14364,8 +14513,10 @@ document.addEventListener('DOMContentLoaded', () => {
           errorMessage = 'Please enter a message';
         } else if (!isUserLoggedIn) {
           // If not logged in, validate firstName and email
-          const firstName = firstNameInput ? (firstNameInput.value || '').trim() : '';
-          const email = emailInput ? (emailInput.value || '').trim() : '';
+          const firstName = getInputValue(firstNameInput);
+          const email = getInputValue(emailInput);
+
+          console.log('👤 User inputs:', { firstName: firstName ? 'Present' : 'Empty', email: email ? 'Present' : 'Empty' });
 
           if (!firstName) {
             errorMessage = 'Please enter your first name';
@@ -14373,11 +14524,13 @@ document.addEventListener('DOMContentLoaded', () => {
             errorMessage = 'Please enter your email';
           } else if (!this.isFishingCharterValidEmail(email)) {
             errorMessage = 'Please enter a valid email address';
+            console.log('❌ Invalid email format:', email);
           }
         }
 
         // Show error if validation failed
         if (errorMessage) {
+          console.log('❌ Validation error:', errorMessage);
           if (errorElement) {
             errorElement.textContent = errorMessage;
             errorElement.style.display = 'block';
@@ -14396,16 +14549,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (isUserLoggedIn) {
           requestData.guest_id = this.getFishingCharterUserId();
+          console.log('✅ Using guest_id:', requestData.guest_id);
         } else {
-          requestData.email = emailInput.value.trim();
-          requestData.firstName = firstNameInput.value.trim();
+          requestData.email = getInputValue(emailInput);
+          requestData.firstName = getInputValue(firstNameInput);
+          console.log('✅ Using email/firstName:', requestData.email, requestData.firstName);
         }
 
+        console.log('📦 Request data:', requestData);
+
         // Show loader, hide button text
-        if (buttonText) buttonText.style.display = 'none';
-        if (buttonLoader) buttonLoader.style.display = 'flex';
+        console.log('⏳ Showing loader...');
+        if (buttonText) {
+          console.log('Hiding button text, current display:', buttonText.style.display);
+          buttonText.style.display = 'none';
+        }
+        if (buttonLoader) {
+          console.log('Showing button loader, current display:', buttonLoader.style.display);
+          buttonLoader.style.display = 'flex';
+        }
 
         try {
+          console.log('🌐 Sending POST request...');
           const response = await fetch('https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/listingPage_ContactUs_fishingCharters', {
             method: 'POST',
             headers: {
@@ -14414,37 +14579,68 @@ document.addEventListener('DOMContentLoaded', () => {
             body: JSON.stringify(requestData)
           });
 
-          if (buttonText) buttonText.style.display = 'block';
-          if (buttonLoader) buttonLoader.style.display = 'none';
+          console.log('📨 Response received, status:', response.status, response.ok);
+
+          // Hide loader, show button text
+          if (buttonLoader) {
+            console.log('Hiding button loader');
+            buttonLoader.style.display = 'none';
+          }
+          if (buttonText) {
+            console.log('Showing button text');
+            buttonText.style.display = 'block';
+          }
 
           if (!response.ok) {
-            throw new Error('Failed to submit message');
+            throw new Error(`Failed to submit message: ${response.status}`);
           }
 
           // Success - update button text and clear form
-          if (buttonText) buttonText.textContent = 'Message Submitted';
+          console.log('✅ Message sent successfully!');
+          if (buttonText) {
+            console.log('📝 Changing button text to "Message Submitted!"');
+            buttonText.textContent = 'Message Submitted!';
+          }
 
           // Clear the message input
           if (messageInput) {
             messageInput.textContent = '';
+            console.log('🧹 Cleared message input');
           }
 
           // Clear firstName and email if not logged in
           if (!isUserLoggedIn) {
-            if (firstNameInput) firstNameInput.value = '';
-            if (emailInput) emailInput.value = '';
+            if (firstNameInput) {
+              if (firstNameInput.value !== undefined) {
+                firstNameInput.value = '';
+              } else {
+                firstNameInput.textContent = '';
+              }
+            }
+            if (emailInput) {
+              if (emailInput.value !== undefined) {
+                emailInput.value = '';
+              } else {
+                emailInput.textContent = '';
+              }
+            }
+            console.log('🧹 Cleared firstName and email inputs');
           }
 
           // Reset button text after 3 seconds
           setTimeout(() => {
-            if (buttonText) buttonText.textContent = 'Submit';
+            if (buttonText) {
+              console.log('🔄 Resetting button text to "Submit"');
+              buttonText.textContent = 'Submit';
+            }
           }, 3000);
 
         } catch (error) {
-          console.error('Error submitting fishing charter contact form:', error);
+          console.error('❌ Error submitting fishing charter contact form:', error);
 
-          if (buttonText) buttonText.style.display = 'block';
+          // Hide loader, show button text
           if (buttonLoader) buttonLoader.style.display = 'none';
+          if (buttonText) buttonText.style.display = 'block';
 
           if (errorElement) {
             errorElement.textContent = 'Failed to submit message. Please try again.';
