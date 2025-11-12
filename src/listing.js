@@ -9436,8 +9436,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
       }
 
-      setupContactUsForm(boat) {
+      async setupContactUsForm(boat) {
         console.log('🚤 Setting up boat rental contact form for boat:', boat.id);
+
+        // Wait for Load_user request to complete
+        try {
+          console.log('⏳ Waiting for Load_user request...');
+          await Wized.requests.waitFor('Load_user');
+          console.log('✅ Load_user request completed');
+        } catch (error) {
+          console.warn('⚠️ Load_user request failed or timed out:', error);
+        }
 
         // Get all contact form elements
         const firstNameInput = document.querySelector('[data-element="firstNameInput_boatRental"]');
@@ -9530,7 +9539,7 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log('📊 Wized.data.r keys:', Object.keys(window.Wized.data.r));
 
             // Check both possible property names
-            const loadUserRequest = window.Wized.data.r.load_user || window.Wized.data.r.Load_User;
+            const loadUserRequest = window.Wized.data.r.Load_user;
             console.log('👤 loadUserRequest:', loadUserRequest);
 
             if (loadUserRequest) {
@@ -9560,7 +9569,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
           if (window.Wized && window.Wized.data && window.Wized.data.r) {
             // Check both possible property names
-            const loadUserRequest = window.Wized.data.r.load_user || window.Wized.data.r.Load_User;
+            const loadUserRequest = window.Wized.data.r.Load_user;
             if (loadUserRequest && loadUserRequest.data && loadUserRequest.data.id) {
               console.log('🆔 Got user ID:', loadUserRequest.data.id);
               return loadUserRequest.data.id;
@@ -14415,8 +14424,17 @@ document.addEventListener('DOMContentLoaded', () => {
         this.setupFishingCharterContactUsForm(charter);
       }
 
-      setupFishingCharterContactUsForm(charter) {
+      async setupFishingCharterContactUsForm(charter) {
         console.log('🎣 Setting up fishing charter contact form for charter:', charter.id);
+
+        // Wait for Load_user request to complete
+        try {
+          console.log('⏳ [Fishing] Waiting for Load_user request...');
+          await Wized.requests.waitFor('Load_user');
+          console.log('✅ [Fishing] Load_user request completed');
+        } catch (error) {
+          console.warn('⚠️ [Fishing] Load_user request failed or timed out:', error);
+        }
 
         // Get all contact form elements
         const firstNameInput = document.querySelector('[data-element="firstNameInput_fishingCharter"]');
@@ -14509,7 +14527,7 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log('📊 [Fishing Charter] Wized.data.r keys:', Object.keys(window.Wized.data.r));
 
             // Check both possible property names
-            const loadUserRequest = window.Wized.data.r.load_user || window.Wized.data.r.Load_User;
+            const loadUserRequest = window.Wized.data.r.Load_user;
             console.log('👤 [Fishing Charter] loadUserRequest:', loadUserRequest);
 
             if (loadUserRequest) {
@@ -14539,7 +14557,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
           if (window.Wized && window.Wized.data && window.Wized.data.r) {
             // Check both possible property names
-            const loadUserRequest = window.Wized.data.r.load_user || window.Wized.data.r.Load_User;
+            const loadUserRequest = window.Wized.data.r.Load_user;
             if (loadUserRequest && loadUserRequest.data && loadUserRequest.data.id) {
               console.log('🆔 [Fishing Charter] Got user ID:', loadUserRequest.data.id);
               return loadUserRequest.data.id;
