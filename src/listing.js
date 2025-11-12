@@ -9670,12 +9670,16 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('📦 Request data:', requestData);
 
         // Show loader, hide button text
+        console.log('🔄 BEFORE - buttonText:', buttonText?.style.display, 'buttonLoader:', buttonLoader?.style.display);
         if (buttonText) {
           buttonText.style.display = 'none';
+          console.log('✅ Set buttonText display = none');
         }
         if (buttonLoader) {
           buttonLoader.style.display = 'flex';
+          console.log('✅ Set buttonLoader display = flex');
         }
+        console.log('🔄 AFTER - buttonText:', buttonText?.style.display, 'buttonLoader:', buttonLoader?.style.display);
 
         try {
           console.log('🌐 Sending POST request...');
@@ -9690,12 +9694,16 @@ document.addEventListener('DOMContentLoaded', () => {
           console.log('📨 Response received, status:', response.status, response.ok);
 
           // Hide loader, show button text
+          console.log('🔄 BEFORE showing text - buttonText:', buttonText?.style.display, 'buttonLoader:', buttonLoader?.style.display);
           if (buttonLoader) {
             buttonLoader.style.display = 'none';
+            console.log('✅ Set buttonLoader display = none');
           }
           if (buttonText) {
             buttonText.style.display = 'block';
+            console.log('✅ Set buttonText display = block, computed:', window.getComputedStyle(buttonText).display);
           }
+          console.log('🔄 AFTER showing text - buttonText:', buttonText?.style.display, 'buttonLoader:', buttonLoader?.style.display);
 
           if (!response.ok) {
             throw new Error(`Failed to submit message: ${response.status}`);
@@ -9705,11 +9713,7 @@ document.addEventListener('DOMContentLoaded', () => {
           console.log('✅ Message sent successfully!');
           if (buttonText) {
             console.log('📝 Changing button text to "Message Submitted!"');
-            console.log('📝 ButtonText before update:', buttonText.textContent);
             buttonText.textContent = 'Message Submitted!';
-            buttonText.innerHTML = 'Message Submitted!';
-            console.log('📝 ButtonText after update:', buttonText.textContent);
-            console.log('📝 ButtonText visual check - offsetWidth:', buttonText.offsetWidth, 'offsetHeight:', buttonText.offsetHeight);
           }
 
           // Clear the message input
@@ -14663,11 +14667,7 @@ document.addEventListener('DOMContentLoaded', () => {
           console.log('✅ Message sent successfully!');
           if (buttonText) {
             console.log('📝 [Fishing] Changing button text to "Message Submitted!"');
-            console.log('📝 [Fishing] ButtonText before update:', buttonText.textContent);
             buttonText.textContent = 'Message Submitted!';
-            buttonText.innerHTML = 'Message Submitted!';
-            console.log('📝 [Fishing] ButtonText after update:', buttonText.textContent);
-            console.log('📝 [Fishing] ButtonText visual check - offsetWidth:', buttonText.offsetWidth, 'offsetHeight:', buttonText.offsetHeight);
           }
 
           // Clear the message input
