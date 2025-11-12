@@ -9481,6 +9481,18 @@ document.addEventListener('DOMContentLoaded', () => {
           console.log('🔘 Button text initialized - display:', buttonText.style.display);
         }
 
+        // Inject CSS to override any conflicting styles
+        if (!document.getElementById('contact-form-override-styles')) {
+          const style = document.createElement('style');
+          style.id = 'contact-form-override-styles';
+          style.textContent = `
+            .hide-text { display: none !important; }
+            .show-loader { display: flex !important; }
+          `;
+          document.head.appendChild(style);
+          console.log('📝 Injected override CSS styles');
+        }
+
         // Check if user is logged in
         const isUserLoggedIn = this.isUserLoggedIn();
         console.log('🔐 User logged in status:', isUserLoggedIn);
@@ -9671,13 +9683,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Show loader, hide button text
         console.log('🔄 BEFORE - buttonText:', buttonText?.style.display, 'buttonLoader:', buttonLoader?.style.display);
+        console.log('🔍 Element check - buttonText connected:', document.body.contains(buttonText), 'buttonLoader connected:', document.body.contains(buttonLoader));
         if (buttonText) {
           buttonText.style.setProperty('display', 'none', 'important');
-          console.log('✅ Set buttonText display = none !important');
+          buttonText.classList.add('hide-text');
+          console.log('✅ Set buttonText display = none !important + added class');
         }
         if (buttonLoader) {
           buttonLoader.style.setProperty('display', 'flex', 'important');
-          console.log('✅ Set buttonLoader display = flex !important');
+          buttonLoader.classList.add('show-loader');
+          // Also try removing the class that might be hiding it
+          buttonLoader.classList.remove('w-embed');
+          console.log('✅ Set buttonLoader display = flex !important + added class');
         }
         console.log('🔄 AFTER - buttonText:', buttonText?.style.display, 'buttonLoader:', buttonLoader?.style.display);
 
@@ -9697,11 +9714,14 @@ document.addEventListener('DOMContentLoaded', () => {
           console.log('🔄 BEFORE showing text - buttonText:', buttonText?.style.display, 'buttonLoader:', buttonLoader?.style.display);
           if (buttonLoader) {
             buttonLoader.style.setProperty('display', 'none', 'important');
-            console.log('✅ Set buttonLoader display = none !important');
+            buttonLoader.classList.remove('show-loader');
+            buttonLoader.classList.add('w-embed');
+            console.log('✅ Set buttonLoader display = none !important + removed class');
           }
           if (buttonText) {
             buttonText.style.setProperty('display', 'block', 'important');
-            console.log('✅ Set buttonText display = block !important, computed:', window.getComputedStyle(buttonText).display);
+            buttonText.classList.remove('hide-text');
+            console.log('✅ Set buttonText display = block !important + removed class, computed:', window.getComputedStyle(buttonText).display);
           }
           console.log('🔄 AFTER showing text - buttonText:', buttonText?.style.display, 'buttonLoader:', buttonLoader?.style.display);
 
