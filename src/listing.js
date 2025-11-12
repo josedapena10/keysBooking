@@ -96,7 +96,6 @@ document.body.appendChild(script);
           }
         })
         .catch(() => {
-          console.error('❌ Loader: Property Details failed to load');
         });
     });
   });
@@ -105,7 +104,6 @@ document.body.appendChild(script);
   window.trackImagesLoaded = function () {
     const splideElement = document.querySelector('.splide');
     if (!splideElement) {
-      console.warn('⚠️ Loader: Splide element not found, marking images as loaded');
       checkAllContentLoaded();
       return;
     }
@@ -115,7 +113,6 @@ document.body.appendChild(script);
     const firstFiveImages = Array.from(images).slice(0, 5);
 
     if (firstFiveImages.length === 0) {
-      console.warn('⚠️ Loader: No images found, marking as loaded');
       checkAllContentLoaded();
       return;
     }
@@ -2573,11 +2570,6 @@ document.addEventListener('DOMContentLoaded', () => {
       const propertyCalendarRange = r.Load_Property_Calendar_Query.data.property_calendar_range;
       const minNights = r.Load_Property_Details.data.property.min_nights;
 
-      console.log('🎨 getAvailabilityColor - Checking dates:', {
-        totalDates: propertyCalendarRange.length,
-        minNights: minNights
-      });
-
       let allAvailable = true;
       let consecutiveAvailableDays = 0;
       let meetsMinNights = false;
@@ -2589,7 +2581,6 @@ document.addEventListener('DOMContentLoaded', () => {
             meetsMinNights = true; // If consecutive days meet min nights at any point
           }
         } else {
-          console.log('🎨 Unavailable date in color check:', propertyCalendarRange[i]);
           consecutiveAvailableDays = 0; // Reset if a day is not available
           allAvailable = false; // Set availability to false if any day is not available
         }
@@ -2597,13 +2588,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Determine color based on availability and minimum night conditions
       const color = !allAvailable || !meetsMinNights ? "#ffd4d2" : "";
-
-      console.log('🎨 Color Result:', {
-        allAvailable,
-        consecutiveAvailableDays,
-        meetsMinNights,
-        color
-      });
 
       return color;
     }
@@ -2689,12 +2673,6 @@ document.addEventListener('DOMContentLoaded', () => {
           const propertyCalendarRange = r.Load_Property_Calendar_Query.data.property_calendar_range;
           const minNights = r.Load_Property_Details.data.property.min_nights;
 
-          console.log('🔍 Date Validation Check:', {
-            totalDatesReturned: propertyCalendarRange.length,
-            minNights: minNights,
-            dates: propertyCalendarRange.map(d => ({ date: d.date, status: d.status }))
-          });
-
           let allAvailable = true;
           let consecutiveAvailableDays = 0;
           let meetsMinNights = false;
@@ -2706,20 +2684,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 meetsMinNights = true;
               }
             } else {
-              console.log('❌ Unavailable date found:', propertyCalendarRange[i]);
               consecutiveAvailableDays = 0;
               allAvailable = false;
             }
           }
 
           const datesValid = allAvailable && meetsMinNights;
-
-          console.log('✅ Date Validation Result:', {
-            allAvailable,
-            consecutiveAvailableDays,
-            meetsMinNights,
-            datesValid
-          });
 
           // If dates are valid but guests are wrong, show "Change Guests"
           if (datesValid && hasGuestError) {
@@ -2754,14 +2724,6 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       // Apply visibility and text to all heading elements (desktop and mobile)
-      console.log('📋 Final Heading Update:', {
-        shouldBeVisible,
-        headingText,
-        hasGuestError,
-        datesSelected,
-        datesValid: datesSelected && r.Load_Property_Calendar_Query ? 'checked above' : 'not checked'
-      });
-
       addDatesHeadings.forEach(heading => {
         if (heading) {
           heading.style.display = shouldBeVisible ? 'flex' : 'none';
@@ -2809,7 +2771,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         // Variable to store selected boat data directly (not as Wized request)
-        console.log('🚤 Fetching boat data for boatId:', boatId);
         window.selectedBoatData = null;
 
         // Make direct fetch request for boat data
@@ -2822,7 +2783,6 @@ document.addEventListener('DOMContentLoaded', () => {
           })
           .then(async (boatData) => {
             // Store the boat data directly
-            console.log('🚤 Boat data fetched successfully:', boatData.name);
             window.selectedBoatData = boatData;
 
             populateSelectedBoatBlock();
@@ -3147,8 +3107,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateReservationTotal() {
       // Don't update if extras are selected - let the extras pricing handle it
       if (hasAnyExtrasSelected()) {
-        console.log('=== UPDATE RESERVATION TOTAL (Regular Pricing) ===');
-        console.log('Skipping - extras are selected, letting extras pricing handle Reservation_Total');
         return;
       }
 
@@ -3165,10 +3123,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const totalPrice = Math.floor(r.Load_Property_Calendar_Query.data.dateRange_totalPrice);
       const formattedPrice = "$" + totalPrice.toLocaleString();
-
-      console.log('=== UPDATE RESERVATION TOTAL (Regular Pricing) ===');
-      console.log('dateRange_totalPrice from API:', totalPrice);
-      console.log('Setting Reservation_Total to:', formattedPrice);
 
       // Update all total elements (desktop and mobile)
       totalElements.forEach(element => {
@@ -3404,10 +3358,6 @@ document.addEventListener('DOMContentLoaded', () => {
           const amount = Math.floor(r.Load_Property_Calendar_Query.data.dateRange_totalPrice);
           const formattedAmount = `$${amount.toLocaleString()}`;
 
-          console.log('=== UPDATE RESERVATION TOTAL (Property Calendar Update) ===');
-          console.log('dateRange_totalPrice from API:', amount);
-          console.log('Setting Reservation_Total to:', formattedAmount);
-
           // Update all reservation total elements (desktop and mobile)
           reservationTotalElements.forEach(element => {
             if (element) {
@@ -3422,8 +3372,6 @@ document.addEventListener('DOMContentLoaded', () => {
           });
         }
       } else {
-        console.log('=== UPDATE RESERVATION TOTAL (Property Calendar Update) ===');
-        console.log('Skipping - extras are selected, letting extras pricing handle Reservation_Total');
       }
 
       // Update Free Cancellation Date Text
@@ -3884,12 +3832,6 @@ async function updatePricingDisplayForExtras() {
       const stayPricing = calculateStayPricing(r);
 
       // Calculate boat pricing components
-      console.log('🚤 Checking window.selectedBoatData:', {
-        exists: !!window.selectedBoatData,
-        boatName: window.selectedBoatData ? window.selectedBoatData.name : 'N/A',
-        boatId: new URLSearchParams(window.location.search).get('boatId')
-      });
-
       const boatPricing = window.selectedBoatData ? calculateBoatPricing(window.selectedBoatData) : { totalWithFees: 0 };
 
       // Calculate fishing charter pricing components
@@ -3906,19 +3848,6 @@ async function updatePricingDisplayForExtras() {
       // So we only add boat taxes, not combinedTaxes.total which includes stay taxes again
       const extrasTotalWithFees = boatPricing.totalWithFees + fishingCharterPricing.totalWithFees;
       const grandTotal = stayPricing.total + extrasTotalWithFees + combinedTaxes.boat;
-
-      console.log('=== GRAND TOTAL CALCULATION ===');
-      console.log('stayPricing.subtotal (displayed, no taxes):', stayPricing.subtotal);
-      console.log('stayPricing.total (for calculation, includes stay taxes):', stayPricing.total);
-      console.log('boatPricing.totalWithFees:', boatPricing.totalWithFees);
-      console.log('fishingCharterPricing.totalWithFees:', fishingCharterPricing.totalWithFees);
-      console.log('extrasTotalWithFees:', extrasTotalWithFees);
-      console.log('combinedTaxes.stay (already in stayPricing.total):', combinedTaxes.stay);
-      console.log('combinedTaxes.boat (added separately):', combinedTaxes.boat);
-      console.log('combinedTaxes.total (displayed in StayBoatTaxes_Amount):', combinedTaxes.total);
-      console.log('grandTotal:', grandTotal);
-      console.log('grandTotal formula: stayPricing.total + extrasTotalWithFees + combinedTaxes.boat');
-      console.log(`${stayPricing.total} + ${extrasTotalWithFees} + ${combinedTaxes.boat} = ${grandTotal}`);
 
       // Update all pricing elements
       updatePricingElements(stayPricing, boatPricing, fishingCharterPricing, combinedTaxes, grandTotal);
@@ -3941,14 +3870,6 @@ function calculateStayPricing(r) {
   const dateRangeTotalPrice = Math.floor(r.Load_Property_Calendar_Query.data.dateRange_totalPrice || 0);
   const totalWithoutTaxes = nightlyTotal + cleaningFee + serviceFee;
 
-  console.log('=== STAY PRICING CALCULATION ===');
-  console.log('nightlyTotal:', nightlyTotal);
-  console.log('cleaningFee:', cleaningFee);
-  console.log('serviceFee:', serviceFee);
-  console.log('Total without taxes (for display):', totalWithoutTaxes);
-  console.log('dateRange_totalPrice from API (includes taxes):', dateRangeTotalPrice);
-  console.log('Difference (stay taxes):', dateRangeTotalPrice - totalWithoutTaxes);
-
   return {
     nightly: nightlyTotal,
     cleaning: cleaningFee,
@@ -3960,14 +3881,8 @@ function calculateStayPricing(r) {
 
 // Calculate boat pricing based on selected dates and boat data
 function calculateBoatPricing(boatData) {
-  console.log('🚤 calculateBoatPricing called:', {
-    hasBoatData: !!boatData,
-    boatName: boatData ? boatData.name : 'N/A',
-    selectedBoatDataExists: !!window.selectedBoatData
-  });
 
   if (!boatData) {
-    console.log('🚤 No boat data - returning 0');
     return { basePrice: 0, serviceFee: 0, deliveryFee: 0, publicDockFee: 0, totalWithFees: 0 };
   }
 
@@ -3981,15 +3896,8 @@ function calculateBoatPricing(boatData) {
   const boatDates = decodedDates.split(",").filter(Boolean);
   const numDates = boatDates.length;
 
-  console.log('🚤 Boat pricing params:', {
-    rawDates,
-    boatDates,
-    numDates,
-    boatDelivery
-  });
 
   if (numDates === 0) {
-    console.log('🚤 No boat dates - returning 0');
     return { basePrice: 0, serviceFee: 0, deliveryFee: 0, publicDockFee: 0, totalWithFees: 0 };
   }
 
@@ -4000,34 +3908,24 @@ function calculateBoatPricing(boatData) {
   let publicDockFee = 0;
   try {
     const r = window.Wized?.data?.r;
-    console.log('🚤 🔍 Checking public dock fee...');
-    console.log('🚤 boatData._boat_company:', boatData._boat_company);
-    console.log('🚤 publicDockDeliveryDetails exists?', !!boatData._boat_company?.publicDockDeliveryDetails);
-    console.log('🚤 publicDockDeliveryDetails:', boatData._boat_company?.publicDockDeliveryDetails);
 
     if (r && r.Load_Property_Details && r.Load_Property_Details.data) {
       const listingCity = r.Load_Property_Details.data.property?.listing_city;
-      console.log('🚤 Listing city:', listingCity);
 
       if (listingCity && boatData._boat_company?.publicDockDeliveryDetails) {
         const listingCityLower = listingCity.toLowerCase().trim();
-        console.log('🚤 Searching for public dock details in city:', listingCityLower);
 
         const publicDockDetails = boatData._boat_company.publicDockDeliveryDetails.find(
           detail => (detail.city || '').toLowerCase().trim() === listingCityLower
         );
-        console.log('🚤 Found public dock details:', publicDockDetails);
 
         if (publicDockDetails && publicDockDetails.fee) {
           publicDockFee = Number(publicDockDetails.fee) || 0;
-          console.log('🚤 ✅ Public dock fee applied:', publicDockFee);
         }
       } else {
-        console.log('🚤 ❌ No public dock delivery details found or city mismatch');
       }
     }
   } catch (error) {
-    console.log('🚤 Error calculating public dock fee:', error);
   }
 
   // Calculate service fee on (basePrice + publicDockFee) - skip if integrationType is 'Manual'
@@ -4042,16 +3940,6 @@ function calculateBoatPricing(boatData) {
 
   // Calculate total with fees
   const totalWithFees = basePrice + publicDockFee + serviceFee + deliveryFee;
-
-  console.log('🚤 ========================================');
-  console.log('🚤 CALCULATE BOAT PRICING - FINAL RESULT');
-  console.log('🚤 ========================================');
-  console.log('🚤 Base Price:', Math.round(basePrice));
-  console.log('🚤 Public Dock Fee:', Math.round(publicDockFee));
-  console.log('🚤 Service Fee (on base + public dock):', Math.round(serviceFee));
-  console.log('🚤 Delivery Fee:', Math.round(deliveryFee));
-  console.log('🚤 TOTAL WITH FEES:', Math.round(totalWithFees));
-  console.log('🚤 ========================================');
 
   return {
     basePrice: Math.round(basePrice),
@@ -4222,13 +4110,7 @@ function calculateCombinedTaxes(r, boatTotalWithFees) {
 
 // Update all pricing elements in the DOM
 function updatePricingElements(stayPricing, boatPricing, fishingCharterPricing, combinedTaxes, grandTotal) {
-  console.log('💰 ========================================');
-  console.log('💰 UPDATE PRICING ELEMENTS');
-  console.log('💰 ========================================');
-  console.log('💰 boatPricing received:', boatPricing);
-  console.log('💰 boatPricing.totalWithFees:', boatPricing.totalWithFees);
-  console.log('💰 boatPricing.publicDockFee:', boatPricing.publicDockFee);
-  console.log('💰 ========================================');
+
 
   // Update Stay Price Amount (use subtotal which excludes taxes)
   const stayPriceElements = document.querySelectorAll('[data-element="Stay_Price_Amount"]');
@@ -4255,7 +4137,6 @@ function updatePricingElements(stayPricing, boatPricing, fishingCharterPricing, 
   boatPriceElements.forEach(element => {
     if (element && boatPricing.totalWithFees > 0) {
       element.textContent = `$${boatPricing.totalWithFees.toLocaleString()}`;
-      console.log('💰 Setting Boat_Price_Amount to:', `$${boatPricing.totalWithFees.toLocaleString()}`);
     }
   });
 
@@ -4284,7 +4165,6 @@ function updatePricingElements(stayPricing, boatPricing, fishingCharterPricing, 
   taxesElements.forEach(element => {
     if (element) {
       element.textContent = `$${Math.round(combinedTaxes.total).toLocaleString()}`;
-      console.log('💰 Setting StayBoatTaxes_Amount to:', `$${Math.round(combinedTaxes.total).toLocaleString()}`);
     }
   });
 
@@ -4293,23 +4173,15 @@ function updatePricingElements(stayPricing, boatPricing, fishingCharterPricing, 
   grandTotalElements.forEach(element => {
     if (element) {
       element.textContent = `$${Math.round(grandTotal).toLocaleString()}`;
-      console.log('💰 Setting ReservationStayBoat_Total to:', `$${Math.round(grandTotal).toLocaleString()}`);
     }
   });
 
   // Also update the main Reservation_Total to show the combined total when extras are selected
-  console.log('💰 ===========================================');
-  console.log('💰 UPDATE RESERVATION TOTAL (With Extras)');
-  console.log('💰 ===========================================');
-  console.log('💰 Overriding Reservation_Total with grandTotal:', Math.round(grandTotal));
-  console.log('💰 This includes: stay + boat + fishing charters + taxes');
-  console.log('💰 ===========================================');
 
   const reservationTotalElements = document.querySelectorAll('[data-element="Reservation_Total"]');
   reservationTotalElements.forEach(element => {
     if (element) {
       element.textContent = `$${Math.round(grandTotal).toLocaleString()}`;
-      console.log('💰 Setting Reservation_Total to:', `$${Math.round(grandTotal).toLocaleString()}`);
     }
   });
 
@@ -4728,7 +4600,7 @@ function validateExtrasWithinReservationDates() {
     if (window.updatePricingDisplayForExtras) {
       const pricingResult = window.updatePricingDisplayForExtras();
       if (pricingResult && typeof pricingResult.catch === 'function') {
-        pricingResult.catch(err => console.error('Error updating pricing:', err));
+        pricingResult.catch(err => );
       }
     }
     if (window.updateListingOnlyPricing) {
@@ -4751,7 +4623,7 @@ function validateExtrasWithinReservationDates() {
       if (stillHasCharters && window.fishingCharterService.populateSelectedFishingCharterBlock) {
         const charterResult = window.fishingCharterService.populateSelectedFishingCharterBlock();
         if (charterResult && typeof charterResult.catch === 'function') {
-          charterResult.catch(err => console.error('Error populating fishing charter:', err));
+          charterResult.catch(err => );
         }
       }
     }
@@ -4827,7 +4699,6 @@ function getAllFishingCharterNumbersForValidation() {
 
 // Remove boat from reservation
 function removeBoatFromReservation() {
-  console.log('🚫🚫🚫 removeBoatFromReservation() called from:', new Error().stack);
 
   const url = new URL(window.location);
   url.searchParams.delete('boatId');
@@ -5305,7 +5176,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
           return details || null;
         } catch (error) {
-          console.error('Error getting public dock delivery details:', error);
           return null;
         }
       }
@@ -5333,7 +5203,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
           return details || null;
         } catch (error) {
-          console.error('Error getting private dock delivery details:', error);
           return null;
         }
       }
@@ -5791,13 +5660,6 @@ document.addEventListener('DOMContentLoaded', () => {
         // Check for boatId - if present, hide buttons and show selected boat block
         const boatId = urlParams.get('boatId');
 
-        console.log('🚤 BoatRentalService.initializeFromURL - START:', {
-          boatId,
-          boatDates: urlParams.get('boatDates'),
-          boatGuests: urlParams.get('boatGuests'),
-          boatPickupTime: urlParams.get('boatPickupTime'),
-          fullURL: window.location.search
-        });
 
         if (boatId) {
           this.buttons.forEach(button => {
@@ -5807,7 +5669,6 @@ document.addEventListener('DOMContentLoaded', () => {
           });
           if (this.selectedBoatBlock) this.selectedBoatBlock.style.display = 'flex';
         } else {
-          console.log('🚤 No boatId - clearing filter states');
           this.buttons.forEach(button => {
             if (button) {
               button.style.display = 'flex';
@@ -5837,13 +5698,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
           // Set dates
           this.selectedDates = boatDates ? boatDates.split(',') : [];
-
-          console.log('🚤 BoatRentalService - Loaded from URL:', {
-            selectedDates: this.selectedDates,
-            selectedGuests: this.selectedGuests,
-            selectedPickupTime: boatPickupTime,
-            selectedLengthType: boatLengthType
-          });
 
           // Set length type
           this.selectedLengthType = boatLengthType || 'full';
@@ -7583,10 +7437,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const checkin = urlParams.get('checkin');
         const checkout = urlParams.get('checkout');
 
-        console.log('🚤 BoatRentalService.areDatesValid called:', { checkin, checkout });
-
         if (!checkin || !checkout || checkin === '' || checkout === '') {
-          console.log('🚤 No checkin/checkout - returning false');
           return false;
         }
 
@@ -7598,18 +7449,11 @@ document.addEventListener('DOMContentLoaded', () => {
           !r.Load_Property_Calendar_Query.data ||
           !r.Load_Property_Details ||
           !r.Load_Property_Details.data) {
-          console.log('🚤 Calendar data not loaded - returning false');
           return false;
         }
 
         const propertyCalendarRange = r.Load_Property_Calendar_Query.data.property_calendar_range;
         const minNights = r.Load_Property_Details.data.property.min_nights;
-
-        console.log('🚤 Validation data:', {
-          calendarDates: propertyCalendarRange.map(d => d.date),
-          totalCalendarDates: propertyCalendarRange.length,
-          minNights
-        });
 
         let allAvailable = true;
         let consecutiveAvailableDays = 0;
@@ -7623,19 +7467,12 @@ document.addEventListener('DOMContentLoaded', () => {
               meetsMinNights = true;
             }
           } else {
-            console.log('🚤 Unavailable date found:', propertyCalendarRange[i].date);
             consecutiveAvailableDays = 0;
             allAvailable = false;
           }
         }
 
         const result = allAvailable && meetsMinNights;
-        console.log('🚤 BoatRentalService.areDatesValid result:', {
-          allAvailable,
-          consecutiveAvailableDays,
-          meetsMinNights,
-          result
-        });
 
         // Return true only if all days are available and minimum nights requirement is met
         return result;
@@ -9231,7 +9068,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Company information
         const boatDetailsCompanyName = document.querySelector('[data-element="boatDetails_companyName"]');
         if (boatDetailsCompanyName) {
-          boatDetailsCompanyName.textContent = boat.companyName ? `Hosted by ${boat.companyName}` : '';
+          boatDetailsCompanyName.textContent = boat.companyName ? `${boat.companyName}` : '';
         }
 
         const boatDetailsCompanyDescription = document.querySelector('[data-element="boatDetails_companyDescription"]');
@@ -9437,15 +9274,11 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       async setupContactUsForm(boat) {
-        console.log('🚤 Setting up boat rental contact form for boat:', boat.id);
 
         // Wait for Load_user request to complete
         try {
-          console.log('⏳ Waiting for Load_user request...');
           await Wized.requests.waitFor('Load_user');
-          console.log('✅ Load_user request completed');
         } catch (error) {
-          console.warn('⚠️ Load_user request failed or timed out:', error);
         }
 
         // Get all contact form elements
@@ -9457,18 +9290,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const buttonText = document.querySelector('[data-element="ContactUs_Button_Text_boatRental"]');
         const buttonLoader = document.querySelector('[data-element="ContactUs_Button_Loader_boatRental"]');
 
-        console.log('📋 Contact form elements found:', {
-          firstNameInput: !!firstNameInput,
-          emailInput: !!emailInput,
-          messageInput: !!messageInput,
-          errorElement: !!errorElement,
-          submitButton: !!submitButton,
-          buttonText: !!buttonText,
-          buttonLoader: !!buttonLoader
-        });
-
         if (!messageInput || !submitButton || !buttonText || !buttonLoader) {
-          console.warn('⚠️ Contact form elements not found - cannot initialize form');
           return;
         }
 
@@ -9478,7 +9300,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (buttonText) {
           buttonText.textContent = 'Submit';
           buttonText.style.display = 'block'; // Explicitly set display
-          console.log('🔘 Button text initialized - display:', buttonText.style.display);
         }
 
         // Inject CSS to override any conflicting styles
@@ -9490,18 +9311,14 @@ document.addEventListener('DOMContentLoaded', () => {
             .show-loader { display: flex !important; }
           `;
           document.head.appendChild(style);
-          console.log('📝 Injected override CSS styles');
         }
 
         // Check if user is logged in
         const isUserLoggedIn = this.isUserLoggedIn();
-        console.log('🔐 User logged in status:', isUserLoggedIn);
 
         // Show/hide firstName and email inputs based on login status
         if (firstNameInput && emailInput) {
-          console.log('👤 Setting input visibility - logged in:', isUserLoggedIn);
           if (isUserLoggedIn) {
-            console.log('✅ Hiding firstName and email inputs');
             firstNameInput.style.display = 'none';
             emailInput.style.display = 'none';
             // Also hide parent wrappers if they exist
@@ -9510,7 +9327,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (firstNameWrapper) firstNameWrapper.style.display = 'none';
             if (emailWrapper) emailWrapper.style.display = 'none';
           } else {
-            console.log('👁️ Showing firstName and email inputs');
             firstNameInput.style.display = 'flex';
             emailInput.style.display = 'flex';
             // Show parent wrappers if they exist
@@ -9520,7 +9336,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (emailWrapper) emailWrapper.style.display = 'flex';
           }
         } else {
-          console.warn('⚠️ firstName or email input not found');
         }
 
         // Remove any existing event listeners
@@ -9533,7 +9348,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Add submit handler
         newSubmitButton.addEventListener('click', async () => {
-          console.log('🖱️ Contact form submit button clicked');
           await this.handleContactUsSubmit(boat, {
             firstNameInput,
             emailInput,
@@ -9549,33 +9363,16 @@ document.addEventListener('DOMContentLoaded', () => {
       isUserLoggedIn() {
         // Check if user is logged in via Wized data
         try {
-          console.log('🔍 Checking Wized data structure:', window.Wized);
-
           if (window.Wized && window.Wized.data && window.Wized.data.r) {
-            console.log('📊 Wized.data.r keys:', Object.keys(window.Wized.data.r));
-
             // Check both possible property names
             const loadUserRequest = window.Wized.data.r.Load_user;
-            console.log('👤 loadUserRequest:', loadUserRequest);
-
             if (loadUserRequest) {
-              console.log('📋 loadUserRequest details:', {
-                statusCode: loadUserRequest.statusCode,
-                status: loadUserRequest.status,
-                hasData: !!loadUserRequest.data,
-                dataId: loadUserRequest.data?.id
-              });
-
               if (loadUserRequest.statusCode === 200 || loadUserRequest.status === 200) {
-                console.log('✅ User is logged in!');
                 return true;
               }
             }
           }
-
-          console.log('❌ User is NOT logged in');
         } catch (error) {
-          console.error('Error checking user login status:', error);
         }
         return false;
       }
@@ -9587,26 +9384,16 @@ document.addEventListener('DOMContentLoaded', () => {
             // Check both possible property names
             const loadUserRequest = window.Wized.data.r.Load_user;
             if (loadUserRequest && loadUserRequest.data && loadUserRequest.data.id) {
-              console.log('🆔 Got user ID:', loadUserRequest.data.id);
               return loadUserRequest.data.id;
             }
           }
         } catch (error) {
-          console.error('Error getting user ID:', error);
         }
-        console.log('🆔 No user ID found');
         return null;
       }
 
       async handleContactUsSubmit(boat, elements) {
-        console.log('📤 Starting contact form submission');
         const { firstNameInput, emailInput, messageInput, errorElement, buttonText, buttonLoader, isUserLoggedIn } = elements;
-
-        console.log('📝 Form elements:', {
-          buttonText: !!buttonText,
-          buttonLoader: !!buttonLoader,
-          messageInput: !!messageInput
-        });
 
         // Clear previous errors
         if (errorElement) {
@@ -9617,7 +9404,6 @@ document.addEventListener('DOMContentLoaded', () => {
         // Get message from contenteditable div
         const message = messageInput.textContent || messageInput.innerText || '';
         const trimmedMessage = message.trim();
-        console.log('💬 Message:', trimmedMessage ? 'Present' : 'Empty');
 
         // Helper function to get input value (handles both input and contenteditable)
         const getInputValue = (input) => {
@@ -9643,21 +9429,17 @@ document.addEventListener('DOMContentLoaded', () => {
           const firstName = getInputValue(firstNameInput);
           const email = getInputValue(emailInput);
 
-          console.log('👤 User inputs:', { firstName: firstName ? 'Present' : 'Empty', email: email ? 'Present' : 'Empty' });
-
           if (!firstName) {
             errorMessage = 'Please enter your first name';
           } else if (!email) {
             errorMessage = 'Please enter your email';
           } else if (!this.isValidEmail(email)) {
             errorMessage = 'Please enter a valid email address';
-            console.log('❌ Invalid email format:', email);
           }
         }
 
         // Show error if validation failed
         if (errorMessage) {
-          console.log('❌ Validation error:', errorMessage);
           if (errorElement) {
             errorElement.textContent = errorMessage;
             errorElement.style.display = 'block';
@@ -9676,34 +9458,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (isUserLoggedIn) {
           requestData.guest_id = this.getUserId();
-          console.log('✅ Using guest_id:', requestData.guest_id);
         } else {
           requestData.email = getInputValue(emailInput);
           requestData.firstName = getInputValue(firstNameInput);
-          console.log('✅ Using email/firstName:', requestData.email, requestData.firstName);
         }
 
-        console.log('📦 Request data:', requestData);
-
         // Show loader, hide button text
-        console.log('🔄 BEFORE - buttonText:', buttonText?.style.display, 'buttonLoader:', buttonLoader?.style.display);
-        console.log('🔍 Element check - buttonText connected:', document.body.contains(buttonText), 'buttonLoader connected:', document.body.contains(buttonLoader));
         if (buttonText) {
           buttonText.style.setProperty('display', 'none', 'important');
           buttonText.classList.add('hide-text');
-          console.log('✅ Set buttonText display = none !important + added class');
         }
         if (buttonLoader) {
           buttonLoader.style.setProperty('display', 'flex', 'important');
           buttonLoader.classList.add('show-loader');
-          // Also try removing the class that might be hiding it
           buttonLoader.classList.remove('w-embed');
-          console.log('✅ Set buttonLoader display = flex !important + added class');
         }
-        console.log('🔄 AFTER - buttonText:', buttonText?.style.display, 'buttonLoader:', buttonLoader?.style.display);
 
         try {
-          console.log('🌐 Sending POST request...');
           const response = await fetch('https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/listingPage_ContactUs_boatRental', {
             method: 'POST',
             headers: {
@@ -9712,38 +9483,29 @@ document.addEventListener('DOMContentLoaded', () => {
             body: JSON.stringify(requestData)
           });
 
-          console.log('📨 Response received, status:', response.status, response.ok);
-
           // Hide loader, show button text
-          console.log('🔄 BEFORE showing text - buttonText:', buttonText?.style.display, 'buttonLoader:', buttonLoader?.style.display);
           if (buttonLoader) {
             buttonLoader.style.setProperty('display', 'none', 'important');
             buttonLoader.classList.remove('show-loader');
             buttonLoader.classList.add('w-embed');
-            console.log('✅ Set buttonLoader display = none !important + removed class');
           }
           if (buttonText) {
             buttonText.style.setProperty('display', 'block', 'important');
             buttonText.classList.remove('hide-text');
-            console.log('✅ Set buttonText display = block !important + removed class, computed:', window.getComputedStyle(buttonText).display);
           }
-          console.log('🔄 AFTER showing text - buttonText:', buttonText?.style.display, 'buttonLoader:', buttonLoader?.style.display);
 
           if (!response.ok) {
             throw new Error(`Failed to submit message: ${response.status}`);
           }
 
           // Success - update button text and clear form
-          console.log('✅ Message sent successfully!');
           if (buttonText) {
-            console.log('📝 Changing button text to "Message Submitted!"');
             buttonText.textContent = 'Message Submitted!';
           }
 
           // Clear the message input
           if (messageInput) {
             messageInput.textContent = '';
-            console.log('🧹 Cleared message input');
           }
 
           // Clear firstName and email if not logged in
@@ -9762,20 +9524,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 emailInput.textContent = '';
               }
             }
-            console.log('🧹 Cleared firstName and email inputs');
           }
 
           // Reset button text after 3 seconds
           setTimeout(() => {
             if (buttonText) {
-              console.log('🔄 Resetting button text to "Submit"');
               buttonText.textContent = 'Submit';
             }
           }, 3000);
 
         } catch (error) {
-          console.error('❌ Error submitting contact form:', error);
-
           // Hide loader, show button text
           if (buttonLoader) buttonLoader.style.display = 'none';
           if (buttonText) buttonText.style.display = 'block';
@@ -12393,7 +12151,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const res = await fetch(`${base}/${charterId}`);
 
             if (!res.ok) {
-              console.warn(`Failed to fetch fishing charter ${charterId}: ${res.status}`);
               continue;
             }
             const charter = await res.json();
@@ -12430,10 +12187,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
               selectedTrips.push(tripData);
             } else {
-              console.warn(`No matching trip found for charter ${charterId}, trip ${tripId}`);
             }
           } catch (error) {
-            console.error(`Error fetching fishing charter ${charterId}:`, error);
             // skip failures
           }
         }
@@ -12536,7 +12291,6 @@ document.addEventListener('DOMContentLoaded', () => {
         // Double-check: if no charters exist in URL, hide all blocks and exit
         // This prevents race conditions from async calls
         if (!this.hasAnyFishingCharters()) {
-          console.log('🎣 renderSelectedFishingCharterBlocks: No charters in URL - hiding all blocks');
           this.selectedFishingCharterBlocks.forEach(block => {
             if (block) {
               block.style.display = 'none';
@@ -13033,18 +12787,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const hasCharters = this.hasAnyFishingCharters();
 
         const allNumbers = this.getAllFishingCharterNumbers();
-        console.log('🎣 FishingCharterService.initializeFromURL - START:', {
-          hasCharters,
-          charterNumbers: allNumbers,
-          charterParams: allNumbers.map(num => ({
-            number: num,
-            id: urlParams.get(`fishingCharterId${num}`),
-            tripId: urlParams.get(`fishingCharterTripId${num}`),
-            dates: urlParams.get(`fishingCharterDates${num}`),
-            guests: urlParams.get(`fishingCharterGuests${num}`)
-          })),
-          fullURL: window.location.search
-        });
+
 
         // Always keep all buttons visible at the bottom
         this.buttons.forEach(button => {
@@ -13054,14 +12797,12 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         if (hasCharters) {
-          console.log('🎣 Has charters - showing blocks');
           this.selectedFishingCharterBlocks.forEach(block => {
             if (block) {
               block.style.display = 'flex';
             }
           });
         } else {
-          console.log('🎣 No charters - hiding blocks and clearing filters');
           this.selectedFishingCharterBlocks.forEach(block => {
             if (block) {
               block.style.display = 'none';
@@ -13599,10 +13340,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const checkin = urlParams.get('checkin');
         const checkout = urlParams.get('checkout');
 
-        console.log('🎣 FishingCharterService.areDatesValid called:', { checkin, checkout });
-
         if (!checkin || !checkout || checkin === '' || checkout === '') {
-          console.log('🎣 No checkin/checkout - returning false');
           return false;
         }
 
@@ -13614,18 +13352,11 @@ document.addEventListener('DOMContentLoaded', () => {
           !r.Load_Property_Calendar_Query.data ||
           !r.Load_Property_Details ||
           !r.Load_Property_Details.data) {
-          console.log('🎣 Calendar data not loaded - returning false');
           return false;
         }
 
         const propertyCalendarRange = r.Load_Property_Calendar_Query.data.property_calendar_range;
         const minNights = r.Load_Property_Details.data.property.min_nights;
-
-        console.log('🎣 Validation data:', {
-          calendarDates: propertyCalendarRange.map(d => d.date),
-          totalCalendarDates: propertyCalendarRange.length,
-          minNights
-        });
 
         let allAvailable = true;
         let consecutiveAvailableDays = 0;
@@ -13639,19 +13370,12 @@ document.addEventListener('DOMContentLoaded', () => {
               meetsMinNights = true;
             }
           } else {
-            console.log('🎣 Unavailable date found:', propertyCalendarRange[i].date);
             consecutiveAvailableDays = 0;
             allAvailable = false;
           }
         }
 
         const result = allAvailable && meetsMinNights;
-        console.log('🎣 FishingCharterService.areDatesValid result:', {
-          allAvailable,
-          consecutiveAvailableDays,
-          meetsMinNights,
-          result
-        });
 
         // Return true only if all days are available AND minimum nights requirement is met
         return result;
@@ -14423,15 +14147,11 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       async setupFishingCharterContactUsForm(charter) {
-        console.log('🎣 Setting up fishing charter contact form for charter:', charter.id);
 
         // Wait for Load_user request to complete
         try {
-          console.log('⏳ [Fishing] Waiting for Load_user request...');
           await Wized.requests.waitFor('Load_user');
-          console.log('✅ [Fishing] Load_user request completed');
         } catch (error) {
-          console.warn('⚠️ [Fishing] Load_user request failed or timed out:', error);
         }
 
         // Get all contact form elements
@@ -14443,18 +14163,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const buttonText = document.querySelector('[data-element="ContactUs_Button_Text_fishingCharter"]');
         const buttonLoader = document.querySelector('[data-element="ContactUs_Button_Loader_fishingCharter"]');
 
-        console.log('📋 Fishing charter contact form elements found:', {
-          firstNameInput: !!firstNameInput,
-          emailInput: !!emailInput,
-          messageInput: !!messageInput,
-          errorElement: !!errorElement,
-          submitButton: !!submitButton,
-          buttonText: !!buttonText,
-          buttonLoader: !!buttonLoader
-        });
-
         if (!messageInput || !submitButton || !buttonText || !buttonLoader) {
-          console.warn('⚠️ Fishing charter contact form elements not found - cannot initialize form');
           return;
         }
 
@@ -14464,18 +14173,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (buttonText) {
           buttonText.textContent = 'Submit';
           buttonText.style.display = 'block'; // Explicitly set display
-          console.log('🔘 Button text initialized - display:', buttonText.style.display);
         }
 
         // Check if user is logged in
         const isUserLoggedIn = this.isFishingCharterUserLoggedIn();
-        console.log('🔐 User logged in status:', isUserLoggedIn);
 
         // Show/hide firstName and email inputs based on login status
         if (firstNameInput && emailInput) {
-          console.log('👤 Setting input visibility - logged in:', isUserLoggedIn);
           if (isUserLoggedIn) {
-            console.log('✅ Hiding firstName and email inputs');
             firstNameInput.style.display = 'none';
             emailInput.style.display = 'none';
             // Also hide parent wrappers if they exist
@@ -14484,7 +14189,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (firstNameWrapper) firstNameWrapper.style.display = 'none';
             if (emailWrapper) emailWrapper.style.display = 'none';
           } else {
-            console.log('👁️ Showing firstName and email inputs');
             firstNameInput.style.display = 'flex';
             emailInput.style.display = 'flex';
             // Show parent wrappers if they exist
@@ -14494,7 +14198,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (emailWrapper) emailWrapper.style.display = 'flex';
           }
         } else {
-          console.warn('⚠️ firstName or email input not found');
         }
 
         // Remove any existing event listeners
@@ -14507,7 +14210,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Add submit handler
         newSubmitButton.addEventListener('click', async () => {
-          console.log('🖱️ Fishing charter contact form submit button clicked');
           await this.handleFishingCharterContactUsSubmit(charter, {
             firstNameInput,
             emailInput,
@@ -14523,33 +14225,17 @@ document.addEventListener('DOMContentLoaded', () => {
       isFishingCharterUserLoggedIn() {
         // Check if user is logged in via Wized data
         try {
-          console.log('🔍 [Fishing Charter] Checking Wized data structure:', window.Wized);
-
           if (window.Wized && window.Wized.data && window.Wized.data.r) {
-            console.log('📊 [Fishing Charter] Wized.data.r keys:', Object.keys(window.Wized.data.r));
-
             // Check both possible property names
             const loadUserRequest = window.Wized.data.r.Load_user;
-            console.log('👤 [Fishing Charter] loadUserRequest:', loadUserRequest);
-
             if (loadUserRequest) {
-              console.log('📋 [Fishing Charter] loadUserRequest details:', {
-                statusCode: loadUserRequest.statusCode,
-                status: loadUserRequest.status,
-                hasData: !!loadUserRequest.data,
-                dataId: loadUserRequest.data?.id
-              });
-
               if (loadUserRequest.statusCode === 200 || loadUserRequest.status === 200) {
-                console.log('✅ [Fishing Charter] User is logged in!');
                 return true;
               }
             }
           }
 
-          console.log('❌ [Fishing Charter] User is NOT logged in');
         } catch (error) {
-          console.error('Error checking user login status:', error);
         }
         return false;
       }
@@ -14561,26 +14247,16 @@ document.addEventListener('DOMContentLoaded', () => {
             // Check both possible property names
             const loadUserRequest = window.Wized.data.r.Load_user;
             if (loadUserRequest && loadUserRequest.data && loadUserRequest.data.id) {
-              console.log('🆔 [Fishing Charter] Got user ID:', loadUserRequest.data.id);
               return loadUserRequest.data.id;
             }
           }
         } catch (error) {
-          console.error('Error getting user ID:', error);
         }
-        console.log('🆔 [Fishing Charter] No user ID found');
         return null;
       }
 
       async handleFishingCharterContactUsSubmit(charter, elements) {
-        console.log('📤 Starting fishing charter contact form submission');
         const { firstNameInput, emailInput, messageInput, errorElement, buttonText, buttonLoader, isUserLoggedIn } = elements;
-
-        console.log('📝 Form elements:', {
-          buttonText: !!buttonText,
-          buttonLoader: !!buttonLoader,
-          messageInput: !!messageInput
-        });
 
         // Clear previous errors
         if (errorElement) {
@@ -14591,7 +14267,6 @@ document.addEventListener('DOMContentLoaded', () => {
         // Get message from contenteditable div
         const message = messageInput.textContent || messageInput.innerText || '';
         const trimmedMessage = message.trim();
-        console.log('💬 Message:', trimmedMessage ? 'Present' : 'Empty');
 
         // Helper function to get input value (handles both input and contenteditable)
         const getInputValue = (input) => {
@@ -14617,21 +14292,17 @@ document.addEventListener('DOMContentLoaded', () => {
           const firstName = getInputValue(firstNameInput);
           const email = getInputValue(emailInput);
 
-          console.log('👤 User inputs:', { firstName: firstName ? 'Present' : 'Empty', email: email ? 'Present' : 'Empty' });
-
           if (!firstName) {
             errorMessage = 'Please enter your first name';
           } else if (!email) {
             errorMessage = 'Please enter your email';
           } else if (!this.isFishingCharterValidEmail(email)) {
             errorMessage = 'Please enter a valid email address';
-            console.log('❌ Invalid email format:', email);
           }
         }
 
         // Show error if validation failed
         if (errorMessage) {
-          console.log('❌ Validation error:', errorMessage);
           if (errorElement) {
             errorElement.textContent = errorMessage;
             errorElement.style.display = 'block';
@@ -14650,14 +14321,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (isUserLoggedIn) {
           requestData.guest_id = this.getFishingCharterUserId();
-          console.log('✅ Using guest_id:', requestData.guest_id);
         } else {
           requestData.email = getInputValue(emailInput);
           requestData.firstName = getInputValue(firstNameInput);
-          console.log('✅ Using email/firstName:', requestData.email, requestData.firstName);
         }
-
-        console.log('📦 Request data:', requestData);
 
         // Show loader, hide button text
         if (buttonText) {
@@ -14668,7 +14335,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         try {
-          console.log('🌐 Sending POST request...');
           const response = await fetch('https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/listingPage_ContactUs_fishingCharters', {
             method: 'POST',
             headers: {
@@ -14677,7 +14343,6 @@ document.addEventListener('DOMContentLoaded', () => {
             body: JSON.stringify(requestData)
           });
 
-          console.log('📨 Response received, status:', response.status, response.ok);
 
           // Hide loader, show button text
           if (buttonLoader) {
@@ -14692,16 +14357,13 @@ document.addEventListener('DOMContentLoaded', () => {
           }
 
           // Success - update button text and clear form
-          console.log('✅ Message sent successfully!');
           if (buttonText) {
-            console.log('📝 [Fishing] Changing button text to "Message Submitted!"');
             buttonText.textContent = 'Message Submitted!';
           }
 
           // Clear the message input
           if (messageInput) {
             messageInput.textContent = '';
-            console.log('🧹 Cleared message input');
           }
 
           // Clear firstName and email if not logged in
@@ -14720,19 +14382,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 emailInput.textContent = '';
               }
             }
-            console.log('🧹 Cleared firstName and email inputs');
           }
 
           // Reset button text after 3 seconds
           setTimeout(() => {
             if (buttonText) {
-              console.log('🔄 Resetting button text to "Submit"');
               buttonText.textContent = 'Submit';
             }
           }, 3000);
 
         } catch (error) {
-          console.error('❌ Error submitting fishing charter contact form:', error);
 
           // Hide loader, show button text
           if (buttonLoader) buttonLoader.style.display = 'none';
@@ -17691,7 +17350,6 @@ document.addEventListener('DOMContentLoaded', () => {
             window.fishingCharterService.handleEditSpecificFishingCharter(trip);
           }
         } catch (error) {
-          console.error('Error editing single charter:', error);
         }
       }
 
@@ -18158,11 +17816,9 @@ document.addEventListener('DOMContentLoaded', () => {
           (mobileCalendarModal && mobileCalendarModal.style.display === 'flex');
 
         if (isCalendarOpen) {
-          console.log('⏳ Calendar open - waiting for user to complete date selection');
           return; // Don't remove extras while user is actively selecting dates
         }
 
-        console.log('🚫 User cleared dates - removing all extras');
         removeAllExtras();
         return;
       }
@@ -18172,7 +17828,6 @@ document.addEventListener('DOMContentLoaded', () => {
       const checkout = urlParams.get('checkout');
 
       if (!checkin || !checkout) {
-        console.log('⚠️ Missing checkin/checkout params');
         return;
       }
 
@@ -18182,7 +17837,6 @@ document.addEventListener('DOMContentLoaded', () => {
       const checkInTime = Date.UTC(checkInYear, checkInMonth - 1, checkInDay);
       const checkOutTime = Date.UTC(checkOutYear, checkOutMonth - 1, checkOutDay);
 
-      console.log('📅 Validating extras against date range:', { checkin, checkout });
 
       let hasRemovedExtras = false;
 
@@ -18198,11 +17852,9 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         if (!allBoatDatesValid) {
-          console.log('🚫 Boat dates outside reservation range - removing boat');
           removeBoatFromReservation();
           hasRemovedExtras = true;
         } else {
-          console.log('✅ Boat dates valid');
         }
       }
 
@@ -18221,11 +17873,9 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             if (!allCharterDatesValid) {
-              console.log(`🚫 Fishing charter ${number} dates outside reservation range - removing`);
               removeFishingCharterFromReservation(number);
               hasRemovedExtras = true;
             } else {
-              console.log(`✅ Fishing charter ${number} dates valid`);
             }
           }
         });
