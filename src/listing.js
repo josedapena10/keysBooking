@@ -9466,7 +9466,11 @@ document.addEventListener('DOMContentLoaded', () => {
         // Initialize state
         if (errorElement) errorElement.style.display = 'none';
         if (buttonLoader) buttonLoader.style.display = 'none';
-        if (buttonText) buttonText.textContent = 'Submit';
+        if (buttonText) {
+          buttonText.textContent = 'Submit';
+          buttonText.style.display = 'block'; // Explicitly set display
+          console.log('🔘 Button text initialized - display:', buttonText.style.display);
+        }
 
         // Check if user is logged in
         const isUserLoggedIn = this.isUserLoggedIn();
@@ -9520,12 +9524,31 @@ document.addEventListener('DOMContentLoaded', () => {
       isUserLoggedIn() {
         // Check if user is logged in via Wized data
         try {
+          console.log('🔍 Checking Wized data structure:', window.Wized);
+
           if (window.Wized && window.Wized.data && window.Wized.data.r) {
-            const loadUserRequest = window.Wized.data.r.load_user;
-            if (loadUserRequest && loadUserRequest.statusCode === 200) {
-              return true;
+            console.log('📊 Wized.data.r keys:', Object.keys(window.Wized.data.r));
+
+            // Check both possible property names
+            const loadUserRequest = window.Wized.data.r.load_user || window.Wized.data.r.Load_User;
+            console.log('👤 loadUserRequest:', loadUserRequest);
+
+            if (loadUserRequest) {
+              console.log('📋 loadUserRequest details:', {
+                statusCode: loadUserRequest.statusCode,
+                status: loadUserRequest.status,
+                hasData: !!loadUserRequest.data,
+                dataId: loadUserRequest.data?.id
+              });
+
+              if (loadUserRequest.statusCode === 200 || loadUserRequest.status === 200) {
+                console.log('✅ User is logged in!');
+                return true;
+              }
             }
           }
+
+          console.log('❌ User is NOT logged in');
         } catch (error) {
           console.error('Error checking user login status:', error);
         }
@@ -9536,14 +9559,17 @@ document.addEventListener('DOMContentLoaded', () => {
         // Get user ID from Wized data
         try {
           if (window.Wized && window.Wized.data && window.Wized.data.r) {
-            const loadUserRequest = window.Wized.data.r.load_user;
+            // Check both possible property names
+            const loadUserRequest = window.Wized.data.r.load_user || window.Wized.data.r.Load_User;
             if (loadUserRequest && loadUserRequest.data && loadUserRequest.data.id) {
+              console.log('🆔 Got user ID:', loadUserRequest.data.id);
               return loadUserRequest.data.id;
             }
           }
         } catch (error) {
           console.error('Error getting user ID:', error);
         }
+        console.log('🆔 No user ID found');
         return null;
       }
 
@@ -9637,12 +9663,27 @@ document.addEventListener('DOMContentLoaded', () => {
         // Show loader, hide button text
         console.log('⏳ Showing loader...');
         if (buttonText) {
-          console.log('Hiding button text, current display:', buttonText.style.display);
+          console.log('📝 ButtonText element:', buttonText);
+          console.log('📝 ButtonText tagName:', buttonText.tagName);
+          console.log('📝 ButtonText computed style:', window.getComputedStyle(buttonText).display);
+          console.log('📝 ButtonText inline style before:', buttonText.style.display);
           buttonText.style.display = 'none';
+          buttonText.style.visibility = 'hidden';
+          console.log('📝 ButtonText inline style after:', buttonText.style.display);
+          console.log('📝 ButtonText computed style after:', window.getComputedStyle(buttonText).display);
         }
         if (buttonLoader) {
-          console.log('Showing button loader, current display:', buttonLoader.style.display);
+          console.log('🔄 ButtonLoader element:', buttonLoader);
+          console.log('🔄 ButtonLoader tagName:', buttonLoader.tagName);
+          console.log('🔄 ButtonLoader computed style:', window.getComputedStyle(buttonLoader).display);
+          console.log('🔄 ButtonLoader inline style before:', buttonLoader.style.display);
           buttonLoader.style.display = 'flex';
+          buttonLoader.style.visibility = 'visible';
+          buttonLoader.style.setProperty('display', 'flex', 'important');
+          console.log('🔄 ButtonLoader inline style after:', buttonLoader.style.display);
+          console.log('🔄 ButtonLoader computed style after:', window.getComputedStyle(buttonLoader).display);
+          console.log('🔄 ButtonLoader parent:', buttonLoader.parentElement);
+          console.log('🔄 ButtonLoader parent display:', window.getComputedStyle(buttonLoader.parentElement).display);
         }
 
         try {
@@ -9659,12 +9700,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
           // Hide loader, show button text
           if (buttonLoader) {
-            console.log('Hiding button loader');
+            console.log('🔄 Hiding button loader');
+            console.log('🔄 ButtonLoader inline style before hide:', buttonLoader.style.display);
             buttonLoader.style.display = 'none';
+            buttonLoader.style.visibility = 'hidden';
+            console.log('🔄 ButtonLoader inline style after hide:', buttonLoader.style.display);
+            console.log('🔄 ButtonLoader computed style after hide:', window.getComputedStyle(buttonLoader).display);
           }
           if (buttonText) {
-            console.log('Showing button text');
+            console.log('📝 Showing button text');
+            console.log('📝 ButtonText inline style before show:', buttonText.style.display);
             buttonText.style.display = 'block';
+            buttonText.style.visibility = 'visible';
+            buttonText.style.setProperty('display', 'block', 'important');
+            console.log('📝 ButtonText inline style after show:', buttonText.style.display);
+            console.log('📝 ButtonText computed style after show:', window.getComputedStyle(buttonText).display);
+            console.log('📝 ButtonText current content:', buttonText.textContent);
           }
 
           if (!response.ok) {
@@ -9675,7 +9726,11 @@ document.addEventListener('DOMContentLoaded', () => {
           console.log('✅ Message sent successfully!');
           if (buttonText) {
             console.log('📝 Changing button text to "Message Submitted!"');
+            console.log('📝 ButtonText before update:', buttonText.textContent);
             buttonText.textContent = 'Message Submitted!';
+            buttonText.innerText = 'Message Submitted!';
+            console.log('📝 ButtonText after update:', buttonText.textContent);
+            console.log('📝 ButtonText innerHTML:', buttonText.innerHTML);
           }
 
           // Clear the message input
@@ -14390,7 +14445,11 @@ document.addEventListener('DOMContentLoaded', () => {
         // Initialize state
         if (errorElement) errorElement.style.display = 'none';
         if (buttonLoader) buttonLoader.style.display = 'none';
-        if (buttonText) buttonText.textContent = 'Submit';
+        if (buttonText) {
+          buttonText.textContent = 'Submit';
+          buttonText.style.display = 'block'; // Explicitly set display
+          console.log('🔘 Button text initialized - display:', buttonText.style.display);
+        }
 
         // Check if user is logged in
         const isUserLoggedIn = this.isFishingCharterUserLoggedIn();
@@ -14444,12 +14503,31 @@ document.addEventListener('DOMContentLoaded', () => {
       isFishingCharterUserLoggedIn() {
         // Check if user is logged in via Wized data
         try {
+          console.log('🔍 [Fishing Charter] Checking Wized data structure:', window.Wized);
+
           if (window.Wized && window.Wized.data && window.Wized.data.r) {
-            const loadUserRequest = window.Wized.data.r.load_user;
-            if (loadUserRequest && loadUserRequest.statusCode === 200) {
-              return true;
+            console.log('📊 [Fishing Charter] Wized.data.r keys:', Object.keys(window.Wized.data.r));
+
+            // Check both possible property names
+            const loadUserRequest = window.Wized.data.r.load_user || window.Wized.data.r.Load_User;
+            console.log('👤 [Fishing Charter] loadUserRequest:', loadUserRequest);
+
+            if (loadUserRequest) {
+              console.log('📋 [Fishing Charter] loadUserRequest details:', {
+                statusCode: loadUserRequest.statusCode,
+                status: loadUserRequest.status,
+                hasData: !!loadUserRequest.data,
+                dataId: loadUserRequest.data?.id
+              });
+
+              if (loadUserRequest.statusCode === 200 || loadUserRequest.status === 200) {
+                console.log('✅ [Fishing Charter] User is logged in!');
+                return true;
+              }
             }
           }
+
+          console.log('❌ [Fishing Charter] User is NOT logged in');
         } catch (error) {
           console.error('Error checking user login status:', error);
         }
@@ -14460,14 +14538,17 @@ document.addEventListener('DOMContentLoaded', () => {
         // Get user ID from Wized data
         try {
           if (window.Wized && window.Wized.data && window.Wized.data.r) {
-            const loadUserRequest = window.Wized.data.r.load_user;
+            // Check both possible property names
+            const loadUserRequest = window.Wized.data.r.load_user || window.Wized.data.r.Load_User;
             if (loadUserRequest && loadUserRequest.data && loadUserRequest.data.id) {
+              console.log('🆔 [Fishing Charter] Got user ID:', loadUserRequest.data.id);
               return loadUserRequest.data.id;
             }
           }
         } catch (error) {
           console.error('Error getting user ID:', error);
         }
+        console.log('🆔 [Fishing Charter] No user ID found');
         return null;
       }
 
@@ -14559,14 +14640,29 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('📦 Request data:', requestData);
 
         // Show loader, hide button text
-        console.log('⏳ Showing loader...');
+        console.log('⏳ [Fishing] Showing loader...');
         if (buttonText) {
-          console.log('Hiding button text, current display:', buttonText.style.display);
+          console.log('📝 [Fishing] ButtonText element:', buttonText);
+          console.log('📝 [Fishing] ButtonText tagName:', buttonText.tagName);
+          console.log('📝 [Fishing] ButtonText computed style:', window.getComputedStyle(buttonText).display);
+          console.log('📝 [Fishing] ButtonText inline style before:', buttonText.style.display);
           buttonText.style.display = 'none';
+          buttonText.style.visibility = 'hidden';
+          console.log('📝 [Fishing] ButtonText inline style after:', buttonText.style.display);
+          console.log('📝 [Fishing] ButtonText computed style after:', window.getComputedStyle(buttonText).display);
         }
         if (buttonLoader) {
-          console.log('Showing button loader, current display:', buttonLoader.style.display);
+          console.log('🔄 [Fishing] ButtonLoader element:', buttonLoader);
+          console.log('🔄 [Fishing] ButtonLoader tagName:', buttonLoader.tagName);
+          console.log('🔄 [Fishing] ButtonLoader computed style:', window.getComputedStyle(buttonLoader).display);
+          console.log('🔄 [Fishing] ButtonLoader inline style before:', buttonLoader.style.display);
           buttonLoader.style.display = 'flex';
+          buttonLoader.style.visibility = 'visible';
+          buttonLoader.style.setProperty('display', 'flex', 'important');
+          console.log('🔄 [Fishing] ButtonLoader inline style after:', buttonLoader.style.display);
+          console.log('🔄 [Fishing] ButtonLoader computed style after:', window.getComputedStyle(buttonLoader).display);
+          console.log('🔄 [Fishing] ButtonLoader parent:', buttonLoader.parentElement);
+          console.log('🔄 [Fishing] ButtonLoader parent display:', window.getComputedStyle(buttonLoader.parentElement).display);
         }
 
         try {
@@ -14583,12 +14679,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
           // Hide loader, show button text
           if (buttonLoader) {
-            console.log('Hiding button loader');
+            console.log('🔄 [Fishing] Hiding button loader');
+            console.log('🔄 [Fishing] ButtonLoader inline style before hide:', buttonLoader.style.display);
             buttonLoader.style.display = 'none';
+            buttonLoader.style.visibility = 'hidden';
+            console.log('🔄 [Fishing] ButtonLoader inline style after hide:', buttonLoader.style.display);
+            console.log('🔄 [Fishing] ButtonLoader computed style after hide:', window.getComputedStyle(buttonLoader).display);
           }
           if (buttonText) {
-            console.log('Showing button text');
+            console.log('📝 [Fishing] Showing button text');
+            console.log('📝 [Fishing] ButtonText inline style before show:', buttonText.style.display);
             buttonText.style.display = 'block';
+            buttonText.style.visibility = 'visible';
+            buttonText.style.setProperty('display', 'block', 'important');
+            console.log('📝 [Fishing] ButtonText inline style after show:', buttonText.style.display);
+            console.log('📝 [Fishing] ButtonText computed style after show:', window.getComputedStyle(buttonText).display);
+            console.log('📝 [Fishing] ButtonText current content:', buttonText.textContent);
           }
 
           if (!response.ok) {
@@ -14598,8 +14704,12 @@ document.addEventListener('DOMContentLoaded', () => {
           // Success - update button text and clear form
           console.log('✅ Message sent successfully!');
           if (buttonText) {
-            console.log('📝 Changing button text to "Message Submitted!"');
+            console.log('📝 [Fishing] Changing button text to "Message Submitted!"');
+            console.log('📝 [Fishing] ButtonText before update:', buttonText.textContent);
             buttonText.textContent = 'Message Submitted!';
+            buttonText.innerText = 'Message Submitted!';
+            console.log('📝 [Fishing] ButtonText after update:', buttonText.textContent);
+            console.log('📝 [Fishing] ButtonText innerHTML:', buttonText.innerHTML);
           }
 
           // Clear the message input
