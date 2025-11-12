@@ -9672,12 +9672,12 @@ document.addEventListener('DOMContentLoaded', () => {
         // Show loader, hide button text
         console.log('🔄 BEFORE - buttonText:', buttonText?.style.display, 'buttonLoader:', buttonLoader?.style.display);
         if (buttonText) {
-          buttonText.style.display = 'none';
-          console.log('✅ Set buttonText display = none');
+          buttonText.style.setProperty('display', 'none', 'important');
+          console.log('✅ Set buttonText display = none !important');
         }
         if (buttonLoader) {
-          buttonLoader.style.display = 'flex';
-          console.log('✅ Set buttonLoader display = flex');
+          buttonLoader.style.setProperty('display', 'flex', 'important');
+          console.log('✅ Set buttonLoader display = flex !important');
         }
         console.log('🔄 AFTER - buttonText:', buttonText?.style.display, 'buttonLoader:', buttonLoader?.style.display);
 
@@ -9696,12 +9696,12 @@ document.addEventListener('DOMContentLoaded', () => {
           // Hide loader, show button text
           console.log('🔄 BEFORE showing text - buttonText:', buttonText?.style.display, 'buttonLoader:', buttonLoader?.style.display);
           if (buttonLoader) {
-            buttonLoader.style.display = 'none';
-            console.log('✅ Set buttonLoader display = none');
+            buttonLoader.style.setProperty('display', 'none', 'important');
+            console.log('✅ Set buttonLoader display = none !important');
           }
           if (buttonText) {
-            buttonText.style.display = 'block';
-            console.log('✅ Set buttonText display = block, computed:', window.getComputedStyle(buttonText).display);
+            buttonText.style.setProperty('display', 'block', 'important');
+            console.log('✅ Set buttonText display = block !important, computed:', window.getComputedStyle(buttonText).display);
           }
           console.log('🔄 AFTER showing text - buttonText:', buttonText?.style.display, 'buttonLoader:', buttonLoader?.style.display);
 
@@ -14633,10 +14633,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Show loader, hide button text
         if (buttonText) {
-          buttonText.style.display = 'none';
+          buttonText.style.setProperty('display', 'none', 'important');
         }
         if (buttonLoader) {
-          buttonLoader.style.display = 'flex';
+          buttonLoader.style.setProperty('display', 'flex', 'important');
         }
 
         try {
@@ -14653,10 +14653,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
           // Hide loader, show button text
           if (buttonLoader) {
-            buttonLoader.style.display = 'none';
+            buttonLoader.style.setProperty('display', 'none', 'important');
           }
           if (buttonText) {
-            buttonText.style.display = 'block';
+            buttonText.style.setProperty('display', 'block', 'important');
           }
 
           if (!response.ok) {
