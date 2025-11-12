@@ -9527,6 +9527,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const newSubmitButton = submitButton.cloneNode(true);
         submitButton.parentNode.replaceChild(newSubmitButton, submitButton);
 
+        // Get fresh references from the new button
+        const newButtonText = newSubmitButton.querySelector('[data-element="ContactUs_Button_Text_boatRental"]');
+        const newButtonLoader = newSubmitButton.querySelector('[data-element="ContactUs_Button_Loader_boatRental"]');
+
         // Add submit handler
         newSubmitButton.addEventListener('click', async () => {
           console.log('🖱️ Contact form submit button clicked');
@@ -9535,8 +9539,8 @@ document.addEventListener('DOMContentLoaded', () => {
             emailInput,
             messageInput,
             errorElement,
-            buttonText,
-            buttonLoader,
+            buttonText: newButtonText,
+            buttonLoader: newButtonLoader,
             isUserLoggedIn
           });
         });
@@ -14497,6 +14501,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const newSubmitButton = submitButton.cloneNode(true);
         submitButton.parentNode.replaceChild(newSubmitButton, submitButton);
 
+        // Get fresh references from the new button
+        const newButtonText = newSubmitButton.querySelector('[data-element="ContactUs_Button_Text_fishingCharter"]');
+        const newButtonLoader = newSubmitButton.querySelector('[data-element="ContactUs_Button_Loader_fishingCharter"]');
+
         // Add submit handler
         newSubmitButton.addEventListener('click', async () => {
           console.log('🖱️ Fishing charter contact form submit button clicked');
@@ -14505,8 +14513,8 @@ document.addEventListener('DOMContentLoaded', () => {
             emailInput,
             messageInput,
             errorElement,
-            buttonText,
-            buttonLoader,
+            buttonText: newButtonText,
+            buttonLoader: newButtonLoader,
             isUserLoggedIn
           });
         });
