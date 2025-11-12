@@ -9670,22 +9670,11 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('📦 Request data:', requestData);
 
         // Show loader, hide button text
-        console.log('⏳ Showing loader...');
         if (buttonText) {
-          console.log('📝 ButtonText element:', buttonText);
-          console.log('📝 ButtonText computed display:', window.getComputedStyle(buttonText).getPropertyValue('display'));
-          console.log('📝 ButtonText classes:', buttonText.className);
-          buttonText.style.cssText = 'display: none !important; visibility: hidden !important;';
-          console.log('📝 ButtonText after hide - cssText:', buttonText.style.cssText);
+          buttonText.style.display = 'none';
         }
         if (buttonLoader) {
-          console.log('🔄 ButtonLoader element:', buttonLoader);
-          console.log('🔄 ButtonLoader computed display:', window.getComputedStyle(buttonLoader).getPropertyValue('display'));
-          console.log('🔄 ButtonLoader classes:', buttonLoader.className);
-          buttonLoader.style.cssText = 'display: flex !important; visibility: visible !important;';
-          console.log('🔄 ButtonLoader after show - cssText:', buttonLoader.style.cssText);
-          console.log('🔄 ButtonLoader parent element:', buttonLoader.parentElement);
-          console.log('🔄 ButtonLoader parent display:', window.getComputedStyle(buttonLoader.parentElement).getPropertyValue('display'));
+          buttonLoader.style.display = 'flex';
         }
 
         try {
@@ -9702,15 +9691,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
           // Hide loader, show button text
           if (buttonLoader) {
-            console.log('🔄 Hiding button loader');
-            buttonLoader.style.cssText = 'display: none !important; visibility: hidden !important;';
-            console.log('🔄 ButtonLoader after hide - cssText:', buttonLoader.style.cssText);
+            buttonLoader.style.display = 'none';
           }
           if (buttonText) {
-            console.log('📝 Showing button text');
-            buttonText.style.cssText = 'display: block !important; visibility: visible !important;';
-            console.log('📝 ButtonText after show - cssText:', buttonText.style.cssText);
-            console.log('📝 ButtonText computed display:', window.getComputedStyle(buttonText).getPropertyValue('display'));
+            buttonText.style.display = 'block';
           }
 
           if (!response.ok) {
@@ -14644,22 +14628,11 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('📦 Request data:', requestData);
 
         // Show loader, hide button text
-        console.log('⏳ [Fishing] Showing loader...');
         if (buttonText) {
-          console.log('📝 [Fishing] ButtonText element:', buttonText);
-          console.log('📝 [Fishing] ButtonText computed display:', window.getComputedStyle(buttonText).getPropertyValue('display'));
-          console.log('📝 [Fishing] ButtonText classes:', buttonText.className);
-          buttonText.style.cssText = 'display: none !important; visibility: hidden !important;';
-          console.log('📝 [Fishing] ButtonText after hide - cssText:', buttonText.style.cssText);
+          buttonText.style.display = 'none';
         }
         if (buttonLoader) {
-          console.log('🔄 [Fishing] ButtonLoader element:', buttonLoader);
-          console.log('🔄 [Fishing] ButtonLoader computed display:', window.getComputedStyle(buttonLoader).getPropertyValue('display'));
-          console.log('🔄 [Fishing] ButtonLoader classes:', buttonLoader.className);
-          buttonLoader.style.cssText = 'display: flex !important; visibility: visible !important;';
-          console.log('🔄 [Fishing] ButtonLoader after show - cssText:', buttonLoader.style.cssText);
-          console.log('🔄 [Fishing] ButtonLoader parent element:', buttonLoader.parentElement);
-          console.log('🔄 [Fishing] ButtonLoader parent display:', window.getComputedStyle(buttonLoader.parentElement).getPropertyValue('display'));
+          buttonLoader.style.display = 'flex';
         }
 
         try {
@@ -14676,15 +14649,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
           // Hide loader, show button text
           if (buttonLoader) {
-            console.log('🔄 [Fishing] Hiding button loader');
-            buttonLoader.style.cssText = 'display: none !important; visibility: hidden !important;';
-            console.log('🔄 [Fishing] ButtonLoader after hide - cssText:', buttonLoader.style.cssText);
+            buttonLoader.style.display = 'none';
           }
           if (buttonText) {
-            console.log('📝 [Fishing] Showing button text');
-            buttonText.style.cssText = 'display: block !important; visibility: visible !important;';
-            console.log('📝 [Fishing] ButtonText after show - cssText:', buttonText.style.cssText);
-            console.log('📝 [Fishing] ButtonText computed display:', window.getComputedStyle(buttonText).getPropertyValue('display'));
+            buttonText.style.display = 'block';
           }
 
           if (!response.ok) {
