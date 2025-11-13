@@ -9564,16 +9564,18 @@ document.addEventListener('DOMContentLoaded', () => {
         // Sort photos by order
         const sortedPhotos = [...boat.photos].sort((a, b) => (a.order || 0) - (b.order || 0));
 
+        // Check screen width for responsive behavior
+        const isMobile = window.innerWidth <= 767;
+        const carouselHeight = isMobile ? '300px' : '400px';
+
         // Create carousel structure
         const carouselWrapper = document.createElement('div');
         carouselWrapper.style.cssText = `
           position: relative;
           width: 100%;
-          height: 400px;
+          height: ${carouselHeight};
           overflow: hidden;
           border-radius: 5px;
-          touch-action: pan-x;
-          overscroll-behavior: contain;
         `;
 
         const imagesTrack = document.createElement('div');
@@ -9586,13 +9588,11 @@ document.addEventListener('DOMContentLoaded', () => {
         // Add images to track
         sortedPhotos.forEach((photo, index) => {
           const imageContainer = document.createElement('div');
-          // Check screen width for responsive behavior
-          const isMobile = window.innerWidth < 767;
           const flexBasis = isMobile ? '100%' : '50%';
 
           imageContainer.style.cssText = `
             flex: 0 0 ${flexBasis};
-            height: 400px;
+            height: ${carouselHeight};
             padding: 0 4px;
             box-sizing: border-box;
           `;
@@ -9635,7 +9635,6 @@ document.addEventListener('DOMContentLoaded', () => {
         carouselWrapper.appendChild(imagesTrack);
 
         // Add navigation buttons only if there are more than the visible count
-        const isMobile = window.innerWidth < 767;
         const visibleCount = isMobile ? 1 : 2;
 
         if (sortedPhotos.length > visibleCount) {
@@ -9750,8 +9749,6 @@ document.addEventListener('DOMContentLoaded', () => {
             touchStartX = e.changedTouches[0].screenX;
             touchStartY = e.changedTouches[0].screenY;
             isSwiping = true;
-            // Prevent body scrolling during swipe
-            document.body.style.touchAction = 'none';
           }, { passive: false });
 
           carouselWrapper.addEventListener('touchmove', (e) => {
@@ -9773,9 +9770,6 @@ document.addEventListener('DOMContentLoaded', () => {
           carouselWrapper.addEventListener('touchend', () => {
             if (!isSwiping) return;
             isSwiping = false;
-
-            // Re-enable body scrolling
-            document.body.style.touchAction = '';
 
             const swipeThreshold = 50; // Minimum swipe distance in pixels
             const swipeDistance = touchStartX - touchEndX;
@@ -14543,16 +14537,18 @@ document.addEventListener('DOMContentLoaded', () => {
         // Sort images by order if available, otherwise keep original order
         const sortedImages = [...charter.images];
 
+        // Check screen width for responsive behavior
+        const isMobile = window.innerWidth <= 767;
+        const carouselHeight = isMobile ? '300px' : '400px';
+
         // Create carousel structure
         const carouselWrapper = document.createElement('div');
         carouselWrapper.style.cssText = `
           position: relative;
           width: 100%;
-          height: 400px;
+          height: ${carouselHeight};
           overflow: hidden;
           border-radius: 5px;
-          touch-action: pan-x;
-          overscroll-behavior: contain;
         `;
 
         const imagesTrack = document.createElement('div');
@@ -14565,13 +14561,11 @@ document.addEventListener('DOMContentLoaded', () => {
         // Add images to track
         sortedImages.forEach((image, index) => {
           const imageContainer = document.createElement('div');
-          // Check screen width for responsive behavior
-          const isMobile = window.innerWidth < 767;
           const flexBasis = isMobile ? '100%' : '50%';
 
           imageContainer.style.cssText = `
             flex: 0 0 ${flexBasis};
-            height: 400px;
+            height: ${carouselHeight};
             padding: 0 6px;
             box-sizing: border-box;
           `;
@@ -14614,7 +14608,6 @@ document.addEventListener('DOMContentLoaded', () => {
         carouselWrapper.appendChild(imagesTrack);
 
         // Add navigation buttons only if there are more than the visible count
-        const isMobile = window.innerWidth < 767;
         const visibleCount = isMobile ? 1 : 2;
 
         if (sortedImages.length > visibleCount) {
@@ -14744,8 +14737,6 @@ document.addEventListener('DOMContentLoaded', () => {
             touchStartX = e.changedTouches[0].screenX;
             touchStartY = e.changedTouches[0].screenY;
             isSwiping = true;
-            // Prevent body scrolling during swipe
-            document.body.style.touchAction = 'none';
           }, { passive: false });
 
           carouselWrapper.addEventListener('touchmove', (e) => {
@@ -14767,9 +14758,6 @@ document.addEventListener('DOMContentLoaded', () => {
           carouselWrapper.addEventListener('touchend', () => {
             if (!isSwiping) return;
             isSwiping = false;
-
-            // Re-enable body scrolling
-            document.body.style.touchAction = '';
 
             const swipeThreshold = 50; // Minimum swipe distance in pixels
             const swipeDistance = touchStartX - touchEndX;
