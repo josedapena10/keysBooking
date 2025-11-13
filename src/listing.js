@@ -7223,17 +7223,7 @@ document.addEventListener('DOMContentLoaded', () => {
           selectedGuests: this.selectedGuests
         });
 
-        if (effectiveMinLength <= 0.5) {
-          return `Starting at $${quote.total.toLocaleString()}`;
-        } else if (effectiveMinLength === 1) {
-          return `Starting at $${quote.total.toLocaleString()}`;
-        } else {
-          // For multi-day minimums, show the number of days so users understand the price includes multiple days
-          const daysText = effectiveMinLength === Math.floor(effectiveMinLength)
-            ? `${effectiveMinLength} Days`
-            : `${effectiveMinLength} Days`;
-          return `Starting at $${quote.total.toLocaleString()} (${daysText})`;
-        }
+        return `Starting at $${quote.total.toLocaleString()}`;
       }
 
       calculateSelectedPriceText(boat) {
@@ -8874,13 +8864,22 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Public dock address (show if applicable)
+        const boatDetailsLocationContainer = document.querySelector('[data-element="boatDetails_locationContainer"]');
         if (this.publicDockAddressElement) {
           const publicDockDetails = this.getPublicDockDeliveryDetails(boat);
           if (publicDockDetails && publicDockDetails.address) {
             this.publicDockAddressElement.textContent = `Pickup Location: ${publicDockDetails.address}`;
             this.publicDockAddressElement.style.display = 'flex';
+            // Hide location container to avoid confusion
+            if (boatDetailsLocationContainer) {
+              boatDetailsLocationContainer.style.display = 'none';
+            }
           } else {
             this.publicDockAddressElement.style.display = 'none';
+            // Show location container when public dock is not displayed
+            if (boatDetailsLocationContainer) {
+              boatDetailsLocationContainer.style.display = '';
+            }
           }
         }
 
@@ -9242,7 +9241,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const boatDetailsAddress = document.querySelector('[data-element="boatDetails_cityState"]');
         if (boatDetailsAddress) {
-          boatDetailsAddress.textContent = boat.city ? `${boat.city}, FL` : '';
+          let cityStateText = boat.city ? `${boat.city}, FL` : '';
+
+          // Check if public dock delivery is being shown
+          const publicDockDetails = this.getPublicDockDeliveryDetails(boat);
+          if (publicDockDetails && publicDockDetails.address) {
+            // Extract city from public dock address
+            const addressParts = publicDockDetails.address.split(',').map(part => part.trim());
+            let publicDockCity = '';
+
+            if (addressParts.length >= 2) {
+              // Get the city (usually the second-to-last part before state)
+              publicDockCity = addressParts[addressParts.length - 2];
+            } else if (addressParts.length === 1) {
+              // If only one part, try to extract city from it
+              publicDockCity = addressParts[0];
+            }
+
+            // Add delivery message if we have a city
+            if (publicDockCity && cityStateText) {
+              cityStateText += ` (Boat is delivered to ${publicDockCity})`;
+            }
+          }
+
+          boatDetailsAddress.textContent = cityStateText;
         }
 
         const cancellationPolicy = document.querySelector('[data-element="boatDetails_cancellationPolicy"]');
@@ -10434,7 +10456,24 @@ document.addEventListener('DOMContentLoaded', () => {
           }
           // No dates selected - show starting price
           if (reservationPrice) {
-            reservationPrice.textContent = this.getStartingPriceText(boat);
+            let startingPriceText = this.getStartingPriceText(boat);
+
+            // For boatDetails_reservation_price, add days text if min is > 1
+            const boatMinLength = boat.minReservationLength || 0;
+            const publicDockDetails = this.getPublicDockDeliveryDetails(boat);
+            const publicDockMinDays = publicDockDetails?.minDays ? Number(publicDockDetails.minDays) : 0;
+            let privateDockMinDays = 0;
+            if (this.deliverySelected) {
+              const privateDockDetails = this.getPrivateDockDeliveryDetails(boat);
+              privateDockMinDays = privateDockDetails?.minDays ? Number(privateDockDetails.minDays) : 0;
+            }
+            const effectiveMinLength = Math.max(boatMinLength, publicDockMinDays, privateDockMinDays);
+
+            if (effectiveMinLength > 1) {
+              startingPriceText += ` (${effectiveMinLength} Days)`;
+            }
+
+            reservationPrice.textContent = startingPriceText;
           }
           // Clear breakdown elements when no dates selected
           if (priceFeeElement) priceFeeElement.textContent = '';
