@@ -15087,7 +15087,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       populateFishingCharterFishingTypes(charter) {
         const section = document.querySelector('[data-element="fishingCharterDetails_typeOfFishingSection"]');
-        const templateStackBlock = document.querySelector('[data-element="boatDetails_typeOfFishingBlockStackBlock"]');
+        const templateStackBlock = document.querySelector('[data-element="fishingCharterDetails_typeOfFishingBlockStackBlock"]');
         const parentContainer = templateStackBlock?.parentElement;
 
         // Hide section if no fishing types
@@ -15102,7 +15102,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!templateStackBlock || !parentContainer) return;
 
         // Clear existing stack blocks except template
-        const existingStackBlocks = parentContainer.querySelectorAll('[data-element="boatDetails_typeOfFishingBlockStackBlock"]');
+        const existingStackBlocks = parentContainer.querySelectorAll('[data-element="fishingCharterDetails_typeOfFishingBlockStackBlock"]');
         existingStackBlocks.forEach((block, index) => {
           if (index > 0) block.remove();
         });
@@ -15127,49 +15127,84 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       populateFishingCharterAmenities(charter) {
+        console.log('🛠️ populateFishingCharterAmenities called', {
+          hasAmenities: !!charter.amenities,
+          amenitiesCount: charter.amenities?.length || 0,
+          amenities: charter.amenities
+        });
+
         const section = document.querySelector('[data-element="fishingCharterDetails_amenitySection"]');
-        const templateStackBlock = document.querySelector('[data-element="boatDetails_amenityBlockStackBlock"]');
+        const templateStackBlock = document.querySelector('[data-element="fishingCharterDetails_amenityBlockStackBlock"]');
         const parentContainer = templateStackBlock?.parentElement;
+
+        console.log('🛠️ Amenity DOM elements found:', {
+          section: !!section,
+          templateStackBlock: !!templateStackBlock,
+          parentContainer: !!parentContainer,
+          sectionDisplay: section?.style.display,
+          templateDisplay: templateStackBlock?.style.display
+        });
 
         // Hide section if no amenities
         if (!charter.amenities || charter.amenities.length === 0) {
+          console.log('🛠️ No amenities - hiding section');
           if (section) section.style.display = 'none';
           return;
         }
 
         // Show section if it has data
-        if (section) section.style.display = 'flex';
+        if (section) {
+          section.style.display = 'flex';
+          console.log('🛠️ Section display set to flex');
+        }
 
-        if (!templateStackBlock || !parentContainer) return;
+        if (!templateStackBlock || !parentContainer) {
+          console.log('🛠️ Template or parent container not found - returning');
+          return;
+        }
 
         // Clear existing stack blocks except template
-        const existingStackBlocks = parentContainer.querySelectorAll('[data-element="boatDetails_amenityBlockStackBlock"]');
+        const existingStackBlocks = parentContainer.querySelectorAll('[data-element="fishingCharterDetails_amenityBlockStackBlock"]');
+        console.log('🛠️ Clearing existing blocks:', existingStackBlocks.length);
         existingStackBlocks.forEach((block, index) => {
           if (index > 0) block.remove();
         });
 
         // Populate amenities
+        console.log('🛠️ Populating amenities:', charter.amenities.length);
         charter.amenities.forEach((amenity, index) => {
+          console.log(`🛠️ Processing amenity ${index}:`, amenity);
+
           let stackBlock;
           if (index === 0) {
             stackBlock = templateStackBlock;
+            console.log('🛠️ Using template for first amenity');
           } else {
             stackBlock = templateStackBlock.cloneNode(true);
             parentContainer.appendChild(stackBlock);
+            console.log('🛠️ Cloned and appended stack block');
           }
 
           stackBlock.style.display = 'flex';
+          console.log('🛠️ Stack block display set to flex');
 
           const textElement = stackBlock.querySelector('[data-element="fishingCharterDetails_amenityBlock_text"]');
+          console.log('🛠️ Text element found:', !!textElement);
+
           if (textElement) {
             textElement.textContent = amenity.amenity || '';
+            console.log('🛠️ Text content set to:', amenity.amenity);
+          } else {
+            console.warn('🛠️ Text element NOT found in stack block!');
           }
         });
+
+        console.log('🛠️ Amenities population complete');
       }
 
       populateFishingCharterWhatsIncluded(charter) {
         const section = document.querySelector('[data-element="fishingCharterDetails_whatsIncludedSection"]');
-        const templateStackBlock = document.querySelector('[data-element="boatDetails_whatsIncludedBlockStackBlock"]');
+        const templateStackBlock = document.querySelector('[data-element="fishingCharterDetails_whatsIncludedBlockStackBlock"]');
         const parentContainer = templateStackBlock?.parentElement;
 
         // Hide section if no items
@@ -15184,7 +15219,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!templateStackBlock || !parentContainer) return;
 
         // Clear existing stack blocks except template
-        const existingStackBlocks = parentContainer.querySelectorAll('[data-element="boatDetails_whatsIncludedBlockStackBlock"]');
+        const existingStackBlocks = parentContainer.querySelectorAll('[data-element="fishingCharterDetails_whatsIncludedBlockStackBlock"]');
         existingStackBlocks.forEach((block, index) => {
           if (index > 0) block.remove();
         });
@@ -15210,7 +15245,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       populateFishingCharterFishingTechniques(charter) {
         const section = document.querySelector('[data-element="fishingCharterDetails_fishingTechniquesSection"]');
-        const templateStackBlock = document.querySelector('[data-element="boatDetails_fishingTechniquesBlockStackBlock"]');
+        const templateStackBlock = document.querySelector('[data-element="fishingCharterDetails_fishingTechniquesBlockStackBlock"]');
         const parentContainer = templateStackBlock?.parentElement;
 
         // Hide section if no fishing techniques
@@ -15225,7 +15260,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!templateStackBlock || !parentContainer) return;
 
         // Clear existing stack blocks except template
-        const existingStackBlocks = parentContainer.querySelectorAll('[data-element="boatDetails_fishingTechniquesBlockStackBlock"]');
+        const existingStackBlocks = parentContainer.querySelectorAll('[data-element="fishingCharterDetails_fishingTechniquesBlockStackBlock"]');
         existingStackBlocks.forEach((block, index) => {
           if (index > 0) block.remove();
         });
