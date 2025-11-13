@@ -16695,7 +16695,7 @@ document.addEventListener('DOMContentLoaded', () => {
           }
 
           if (pricePeopleElement) {
-            pricePeopleElement.textContent = `Price for ${peopleCount} people`;
+            pricePeopleElement.textContent = `Price for ${peopleCount} ${peopleCount === 1 ? 'person' : 'people'}`;
           }
         } else {
           // Show base price for base number of people
@@ -16721,7 +16721,7 @@ document.addEventListener('DOMContentLoaded', () => {
           }
 
           if (pricePeopleElement) {
-            pricePeopleElement.textContent = `Price for ${basePeople} people`;
+            pricePeopleElement.textContent = `Price for ${basePeople} ${basePeople === 1 ? 'person' : 'people'}`;
           }
         }
 
