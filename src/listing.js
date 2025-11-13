@@ -7228,8 +7228,11 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (effectiveMinLength === 1) {
           return `Starting at $${quote.total.toLocaleString()}`;
         } else {
-          // For multi-day minimums, don't show "per day" since the price is for minimum days
-          return `Starting at $${quote.total.toLocaleString()}`;
+          // For multi-day minimums, show the number of days so users understand the price includes multiple days
+          const daysText = effectiveMinLength === Math.floor(effectiveMinLength)
+            ? `${effectiveMinLength} Days`
+            : `${effectiveMinLength} Days`;
+          return `Starting at $${quote.total.toLocaleString()} (${daysText})`;
         }
       }
 
