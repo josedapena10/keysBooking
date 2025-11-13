@@ -4600,7 +4600,7 @@ function validateExtrasWithinReservationDates() {
     if (window.updatePricingDisplayForExtras) {
       const pricingResult = window.updatePricingDisplayForExtras();
       if (pricingResult && typeof pricingResult.catch === 'function') {
-        pricingResult.catch(err => );
+        pricingResult.catch(err => { });
       }
     }
     if (window.updateListingOnlyPricing) {
@@ -4623,7 +4623,7 @@ function validateExtrasWithinReservationDates() {
       if (stillHasCharters && window.fishingCharterService.populateSelectedFishingCharterBlock) {
         const charterResult = window.fishingCharterService.populateSelectedFishingCharterBlock();
         if (charterResult && typeof charterResult.catch === 'function') {
-          charterResult.catch(err => );
+          charterResult.catch(err => { });
         }
       }
     }
