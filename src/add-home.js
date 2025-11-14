@@ -224,6 +224,7 @@ document.addEventListener('DOMContentLoaded', function () {
             if (reviewInfoStep && window.getComputedStyle(reviewInfoStep).display !== 'none') {
                 propertyData.addHome_complete = true;
                 propertyData.serviceFee = 0.12;
+                propertyData.hostFee = 0.03;
             }
 
             // Only add fields that have been filled out
