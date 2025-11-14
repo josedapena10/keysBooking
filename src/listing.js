@@ -13420,6 +13420,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (this.pricePopup) this.pricePopup.style.display = 'none';
         if (this.typePopup) this.typePopup.style.display = 'none';
 
+        // Restore details popups to original parents (mobile fix)
+        if (this.detailsDatesPopup && this.detailsDatesPopup._originalParent) {
+          this.detailsDatesPopup.style.display = 'none';
+          this.detailsDatesPopup._originalParent.appendChild(this.detailsDatesPopup);
+        }
+        if (this.detailsGuestsPopup && this.detailsGuestsPopup._originalParent) {
+          this.detailsGuestsPopup.style.display = 'none';
+          this.detailsGuestsPopup._originalParent.appendChild(this.detailsGuestsPopup);
+        }
+
         // Reset editing state when modal is closed
         this.editingCharterNumber = null;
         this.editingTripId = null;
@@ -16194,65 +16204,20 @@ document.addEventListener('DOMContentLoaded', () => {
             e.stopPropagation();
             closeAllDetailsPopups();
             if (this.detailsDatesPopup) {
+              // Only move to body on mobile (991px and below) where popup is position: fixed
+              if (window.innerWidth <= 991) {
+                // Store original parent to restore later
+                if (!this.detailsDatesPopup._originalParent) {
+                  this.detailsDatesPopup._originalParent = this.detailsDatesPopup.parentElement;
+                }
+
+                // Move popup to body to escape stacking context (mobile fix)
+                document.body.appendChild(this.detailsDatesPopup);
+
+                console.log('Dates popup moved to body (mobile view)');
+              }
+
               this.detailsDatesPopup.style.display = 'flex';
-
-              // Debug: Log styles after popup is shown
-              setTimeout(() => {
-                console.log('=== DATES POPUP OPENED ===');
-
-                // Check dates popup styles
-                const datesPopupStyle = window.getComputedStyle(this.detailsDatesPopup);
-                console.log('Dates Popup [data-element="fishingCharterDetailsModal_selectFishingCharter_datesPopup"]:', {
-                  display: datesPopupStyle.display,
-                  position: datesPopupStyle.position,
-                  zIndex: datesPopupStyle.zIndex,
-                  top: datesPopupStyle.top,
-                  bottom: datesPopupStyle.bottom,
-                  left: datesPopupStyle.left,
-                  right: datesPopupStyle.right,
-                  transform: datesPopupStyle.transform,
-                  willChange: datesPopupStyle.willChange,
-                  isolation: datesPopupStyle.isolation
-                });
-
-                // Check parent hierarchy
-                console.log('Dates Popup Parent:', this.detailsDatesPopup.parentElement?.getAttribute('data-element'));
-                let parent = this.detailsDatesPopup.parentElement;
-                let level = 0;
-                while (parent && level < 5) {
-                  const parentStyle = window.getComputedStyle(parent);
-                  console.log(`Parent level ${level}:`, {
-                    element: parent.getAttribute('data-element') || parent.tagName,
-                    position: parentStyle.position,
-                    zIndex: parentStyle.zIndex,
-                    transform: parentStyle.transform,
-                    overflow: parentStyle.overflow
-                  });
-                  parent = parent.parentElement;
-                  level++;
-                }
-
-                // Check sticky header styles
-                const stickyHeader = document.querySelector('[data-element="fishingCharterDetails_stickyHeader"]');
-                if (stickyHeader) {
-                  const headerStyle = window.getComputedStyle(stickyHeader);
-                  console.log('Sticky Header [data-element="fishingCharterDetails_stickyHeader"]:', {
-                    display: headerStyle.display,
-                    position: headerStyle.position,
-                    zIndex: headerStyle.zIndex,
-                    top: headerStyle.top,
-                    bottom: headerStyle.bottom,
-                    transform: headerStyle.transform,
-                    willChange: headerStyle.willChange,
-                    isolation: headerStyle.isolation
-                  });
-
-                  // Check if sticky header and popup share a parent
-                  console.log('Sticky Header Parent:', stickyHeader.parentElement?.getAttribute('data-element'));
-                } else {
-                  console.log('Sticky header element not found');
-                }
-              }, 100);
             } else {
 
             }
@@ -16274,65 +16239,20 @@ document.addEventListener('DOMContentLoaded', () => {
             e.stopPropagation();
             closeAllDetailsPopups();
             if (this.detailsGuestsPopup) {
+              // Only move to body on mobile (991px and below) where popup is position: fixed
+              if (window.innerWidth <= 991) {
+                // Store original parent to restore later
+                if (!this.detailsGuestsPopup._originalParent) {
+                  this.detailsGuestsPopup._originalParent = this.detailsGuestsPopup.parentElement;
+                }
+
+                // Move popup to body to escape stacking context (mobile fix)
+                document.body.appendChild(this.detailsGuestsPopup);
+
+                console.log('Guests popup moved to body (mobile view)');
+              }
+
               this.detailsGuestsPopup.style.display = 'flex';
-
-              // Debug: Log styles after popup is shown
-              setTimeout(() => {
-                console.log('=== GUESTS POPUP OPENED ===');
-
-                // Check guests popup styles
-                const guestsPopupStyle = window.getComputedStyle(this.detailsGuestsPopup);
-                console.log('Guests Popup [data-element="fishingCharterDetailsModal_selectFishingCharter_guestsPopup"]:', {
-                  display: guestsPopupStyle.display,
-                  position: guestsPopupStyle.position,
-                  zIndex: guestsPopupStyle.zIndex,
-                  top: guestsPopupStyle.top,
-                  bottom: guestsPopupStyle.bottom,
-                  left: guestsPopupStyle.left,
-                  right: guestsPopupStyle.right,
-                  transform: guestsPopupStyle.transform,
-                  willChange: guestsPopupStyle.willChange,
-                  isolation: guestsPopupStyle.isolation
-                });
-
-                // Check parent hierarchy
-                console.log('Guests Popup Parent:', this.detailsGuestsPopup.parentElement?.getAttribute('data-element'));
-                let parent = this.detailsGuestsPopup.parentElement;
-                let level = 0;
-                while (parent && level < 5) {
-                  const parentStyle = window.getComputedStyle(parent);
-                  console.log(`Parent level ${level}:`, {
-                    element: parent.getAttribute('data-element') || parent.tagName,
-                    position: parentStyle.position,
-                    zIndex: parentStyle.zIndex,
-                    transform: parentStyle.transform,
-                    overflow: parentStyle.overflow
-                  });
-                  parent = parent.parentElement;
-                  level++;
-                }
-
-                // Check sticky header styles
-                const stickyHeader = document.querySelector('[data-element="fishingCharterDetails_stickyHeader"]');
-                if (stickyHeader) {
-                  const headerStyle = window.getComputedStyle(stickyHeader);
-                  console.log('Sticky Header [data-element="fishingCharterDetails_stickyHeader"]:', {
-                    display: headerStyle.display,
-                    position: headerStyle.position,
-                    zIndex: headerStyle.zIndex,
-                    top: headerStyle.top,
-                    bottom: headerStyle.bottom,
-                    transform: headerStyle.transform,
-                    willChange: headerStyle.willChange,
-                    isolation: headerStyle.isolation
-                  });
-
-                  // Check if sticky header and popup share a parent
-                  console.log('Sticky Header Parent:', stickyHeader.parentElement?.getAttribute('data-element'));
-                } else {
-                  console.log('Sticky header element not found');
-                }
-              }, 100);
             } else {
 
             }
