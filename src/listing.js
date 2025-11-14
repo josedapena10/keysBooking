@@ -7177,6 +7177,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (effectiveMinLength === 0) {
           return "Daily (4-8 hours) • Multi-Day";
+        } else if (effectiveMinLength === 0.5) {
+          return "Daily (4-8 Hours) • Multi-Day";
         } else if (effectiveMinLength === 1) {
           return "Daily (8 hours) • Multi-Day";
         } else {
