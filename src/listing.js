@@ -16195,6 +16195,42 @@ document.addEventListener('DOMContentLoaded', () => {
             closeAllDetailsPopups();
             if (this.detailsDatesPopup) {
               this.detailsDatesPopup.style.display = 'flex';
+
+              // Debug: Log styles after popup is shown
+              setTimeout(() => {
+                console.log('=== DATES POPUP OPENED ===');
+
+                // Check dates popup styles
+                const datesPopupStyle = window.getComputedStyle(this.detailsDatesPopup);
+                console.log('Dates Popup [data-element="fishingCharterDetailsModal_selectFishingCharter_datesPopup"]:', {
+                  display: datesPopupStyle.display,
+                  position: datesPopupStyle.position,
+                  zIndex: datesPopupStyle.zIndex,
+                  top: datesPopupStyle.top,
+                  bottom: datesPopupStyle.bottom,
+                  left: datesPopupStyle.left,
+                  right: datesPopupStyle.right,
+                  transform: datesPopupStyle.transform,
+                  width: datesPopupStyle.width,
+                  height: datesPopupStyle.height
+                });
+
+                // Check sticky header styles
+                const stickyHeader = document.querySelector('[data-element="fishingCharterDetails_stickyHeader"]');
+                if (stickyHeader) {
+                  const headerStyle = window.getComputedStyle(stickyHeader);
+                  console.log('Sticky Header [data-element="fishingCharterDetails_stickyHeader"]:', {
+                    display: headerStyle.display,
+                    position: headerStyle.position,
+                    zIndex: headerStyle.zIndex,
+                    top: headerStyle.top,
+                    bottom: headerStyle.bottom,
+                    transform: headerStyle.transform
+                  });
+                } else {
+                  console.log('Sticky header element not found');
+                }
+              }, 100);
             } else {
 
             }
@@ -16217,6 +16253,42 @@ document.addEventListener('DOMContentLoaded', () => {
             closeAllDetailsPopups();
             if (this.detailsGuestsPopup) {
               this.detailsGuestsPopup.style.display = 'flex';
+
+              // Debug: Log styles after popup is shown
+              setTimeout(() => {
+                console.log('=== GUESTS POPUP OPENED ===');
+
+                // Check guests popup styles
+                const guestsPopupStyle = window.getComputedStyle(this.detailsGuestsPopup);
+                console.log('Guests Popup [data-element="fishingCharterDetailsModal_selectFishingCharter_guestsPopup"]:', {
+                  display: guestsPopupStyle.display,
+                  position: guestsPopupStyle.position,
+                  zIndex: guestsPopupStyle.zIndex,
+                  top: guestsPopupStyle.top,
+                  bottom: guestsPopupStyle.bottom,
+                  left: guestsPopupStyle.left,
+                  right: guestsPopupStyle.right,
+                  transform: guestsPopupStyle.transform,
+                  width: guestsPopupStyle.width,
+                  height: guestsPopupStyle.height
+                });
+
+                // Check sticky header styles
+                const stickyHeader = document.querySelector('[data-element="fishingCharterDetails_stickyHeader"]');
+                if (stickyHeader) {
+                  const headerStyle = window.getComputedStyle(stickyHeader);
+                  console.log('Sticky Header [data-element="fishingCharterDetails_stickyHeader"]:', {
+                    display: headerStyle.display,
+                    position: headerStyle.position,
+                    zIndex: headerStyle.zIndex,
+                    top: headerStyle.top,
+                    bottom: headerStyle.bottom,
+                    transform: headerStyle.transform
+                  });
+                } else {
+                  console.log('Sticky header element not found');
+                }
+              }, 100);
             } else {
 
             }
