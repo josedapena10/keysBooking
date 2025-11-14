@@ -16211,9 +16211,26 @@ document.addEventListener('DOMContentLoaded', () => {
                   left: datesPopupStyle.left,
                   right: datesPopupStyle.right,
                   transform: datesPopupStyle.transform,
-                  width: datesPopupStyle.width,
-                  height: datesPopupStyle.height
+                  willChange: datesPopupStyle.willChange,
+                  isolation: datesPopupStyle.isolation
                 });
+
+                // Check parent hierarchy
+                console.log('Dates Popup Parent:', this.detailsDatesPopup.parentElement?.getAttribute('data-element'));
+                let parent = this.detailsDatesPopup.parentElement;
+                let level = 0;
+                while (parent && level < 5) {
+                  const parentStyle = window.getComputedStyle(parent);
+                  console.log(`Parent level ${level}:`, {
+                    element: parent.getAttribute('data-element') || parent.tagName,
+                    position: parentStyle.position,
+                    zIndex: parentStyle.zIndex,
+                    transform: parentStyle.transform,
+                    overflow: parentStyle.overflow
+                  });
+                  parent = parent.parentElement;
+                  level++;
+                }
 
                 // Check sticky header styles
                 const stickyHeader = document.querySelector('[data-element="fishingCharterDetails_stickyHeader"]');
@@ -16225,8 +16242,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     zIndex: headerStyle.zIndex,
                     top: headerStyle.top,
                     bottom: headerStyle.bottom,
-                    transform: headerStyle.transform
+                    transform: headerStyle.transform,
+                    willChange: headerStyle.willChange,
+                    isolation: headerStyle.isolation
                   });
+
+                  // Check if sticky header and popup share a parent
+                  console.log('Sticky Header Parent:', stickyHeader.parentElement?.getAttribute('data-element'));
                 } else {
                   console.log('Sticky header element not found');
                 }
@@ -16269,9 +16291,26 @@ document.addEventListener('DOMContentLoaded', () => {
                   left: guestsPopupStyle.left,
                   right: guestsPopupStyle.right,
                   transform: guestsPopupStyle.transform,
-                  width: guestsPopupStyle.width,
-                  height: guestsPopupStyle.height
+                  willChange: guestsPopupStyle.willChange,
+                  isolation: guestsPopupStyle.isolation
                 });
+
+                // Check parent hierarchy
+                console.log('Guests Popup Parent:', this.detailsGuestsPopup.parentElement?.getAttribute('data-element'));
+                let parent = this.detailsGuestsPopup.parentElement;
+                let level = 0;
+                while (parent && level < 5) {
+                  const parentStyle = window.getComputedStyle(parent);
+                  console.log(`Parent level ${level}:`, {
+                    element: parent.getAttribute('data-element') || parent.tagName,
+                    position: parentStyle.position,
+                    zIndex: parentStyle.zIndex,
+                    transform: parentStyle.transform,
+                    overflow: parentStyle.overflow
+                  });
+                  parent = parent.parentElement;
+                  level++;
+                }
 
                 // Check sticky header styles
                 const stickyHeader = document.querySelector('[data-element="fishingCharterDetails_stickyHeader"]');
@@ -16283,8 +16322,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     zIndex: headerStyle.zIndex,
                     top: headerStyle.top,
                     bottom: headerStyle.bottom,
-                    transform: headerStyle.transform
+                    transform: headerStyle.transform,
+                    willChange: headerStyle.willChange,
+                    isolation: headerStyle.isolation
                   });
+
+                  // Check if sticky header and popup share a parent
+                  console.log('Sticky Header Parent:', stickyHeader.parentElement?.getAttribute('data-element'));
                 } else {
                   console.log('Sticky header element not found');
                 }
