@@ -3443,13 +3443,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isMoreThanOneYear) {
           freeCancellationTextElements.forEach(element => {
             if (element) {
-              element.textContent = `Free cancel until ${cutoffMonth} ${cutoffDay}${cutoffDaySuffix}, ${cutoffYear}`;
+              element.textContent = `Free cancellation until ${cutoffMonth} ${cutoffDay}${cutoffDaySuffix}, ${cutoffYear}`;
             }
           });
         } else {
           freeCancellationTextElements.forEach(element => {
             if (element) {
-              element.textContent = `Free cancel until ${cutoffMonth} ${cutoffDay}${cutoffDaySuffix}`;
+              element.textContent = `Free cancellation until ${cutoffMonth} ${cutoffDay}${cutoffDaySuffix}`;
             }
           });
         }
@@ -3741,9 +3741,9 @@ document.addEventListener('DOMContentLoaded', () => {
           const isMoreThanOneYear = cutoffDate - today > 365 * 24 * 60 * 60 * 1000;
 
           if (isMoreThanOneYear) {
-            cancellationText = `Free cancel until ${cutoffMonth} ${cutoffDay}${cutoffDaySuffix}, ${cutoffYear}`;
+            cancellationText = `Free cancellation until ${cutoffMonth} ${cutoffDay}${cutoffDaySuffix}, ${cutoffYear}`;
           } else {
-            cancellationText = `Free cancel until ${cutoffMonth} ${cutoffDay}${cutoffDaySuffix}`;
+            cancellationText = `Free cancellation until ${cutoffMonth} ${cutoffDay}${cutoffDaySuffix}`;
           }
         }
       }
@@ -13065,15 +13065,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const maxPrice = 5000;
 
-        // Create range slider
+        // Create range slider with larger touch targets for mobile
         this.priceScrollBar.innerHTML = `
           <div class="price-slider-container" style="position: relative; width: 100%; height: 32px; margin: 20px 0;">
             <div class="price-slider-track" style="position: absolute; top: 50%; transform: translateY(-50%); width: 100%; height: 4px; background: #E5E5E5; border-radius: 2px;"></div>
             <div class="price-slider-range" style="position: absolute; top: 50%; transform: translateY(-50%); height: 4px; background: #000; border-radius: 2px;"></div>
             <input type="range" class="price-slider-min" min="0" max="${maxPrice}" value="0" style="position: absolute; width: 100%; opacity: 0; cursor: pointer;">
             <input type="range" class="price-slider-max" min="0" max="${maxPrice}" value="${maxPrice}" style="position: absolute; width: 100%; opacity: 0; cursor: pointer;">
-            <div class="price-slider-thumb-min" style="position: absolute; top: 50%; transform: translate(-50%, -50%); width: 24px; height: 24px; background: white; border: 1px solid #000; border-radius: 50%; cursor: pointer;"></div>
-            <div class="price-slider-thumb-max" style="position: absolute; top: 50%; transform: translate(-50%, -50%); width: 24px; height: 24px; background: white; border: 1px solid #000; border-radius: 50%; cursor: pointer;"></div>
+            <div class="price-slider-thumb-min" style="position: absolute; top: 50%; transform: translate(-50%, -50%); width: 40px; height: 40px; background: white; border: 2px solid #000; border-radius: 50%; cursor: pointer; touch-action: none; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"></div>
+            <div class="price-slider-thumb-max" style="position: absolute; top: 50%; transform: translate(-50%, -50%); width: 40px; height: 40px; background: white; border: 2px solid #000; border-radius: 50%; cursor: pointer; touch-action: none; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"></div>
           </div>
         `;
 
@@ -13116,14 +13116,20 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         const handleDragStart = (e, isMin) => {
-          e.preventDefault();
+          // Handle both mouse events and touch objects
+          if (e.preventDefault) {
+            e.preventDefault();
+          }
+
+          const clientX = e.clientX || e.clientX === 0 ? e.clientX : (e.touches ? e.touches[0].clientX : e.clientX);
+
           if (isMin) {
             isDraggingMin = true;
-            startX = e.clientX;
+            startX = clientX;
             startLeft = parseInt(sliderMin.value);
           } else {
             isDraggingMax = true;
-            startX = e.clientX;
+            startX = clientX;
             startLeft = parseInt(sliderMax.value);
           }
         };
@@ -13133,7 +13139,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
           const containerRect = container.getBoundingClientRect();
           const containerWidth = containerRect.width;
-          const moveX = e.clientX - startX;
+          const clientX = e.clientX || e.clientX === 0 ? e.clientX : (e.touches ? e.touches[0].clientX : e.clientX);
+          const moveX = clientX - startX;
           const movePercent = (moveX / containerWidth) * 100;
           const moveValue = Math.round((movePercent / 100) * maxPrice);
 
@@ -13159,11 +13166,48 @@ document.addEventListener('DOMContentLoaded', () => {
         document.addEventListener('mousemove', handleDragMove);
         document.addEventListener('mouseup', handleDragEnd);
 
-        // Add touch event listeners for mobile
-        thumbMin.addEventListener('touchstart', (e) => handleDragStart(e.touches[0], true));
-        thumbMax.addEventListener('touchstart', (e) => handleDragStart(e.touches[0], false));
-        document.addEventListener('touchmove', (e) => handleDragMove(e.touches[0]));
-        document.addEventListener('touchend', handleDragEnd);
+        // Add touch event listeners for mobile with proper event handling
+        thumbMin.addEventListener('touchstart', (e) => {
+          e.stopPropagation();
+          handleDragStart(e.touches[0], true);
+        });
+
+        thumbMin.addEventListener('touchmove', (e) => {
+          if (isDraggingMin) {
+            e.preventDefault();
+            e.stopPropagation();
+            handleDragMove(e.touches[0]);
+          }
+        }, { passive: false });
+
+        thumbMin.addEventListener('touchend', (e) => {
+          if (isDraggingMin) {
+            e.preventDefault();
+            e.stopPropagation();
+            handleDragEnd();
+          }
+        });
+
+        thumbMax.addEventListener('touchstart', (e) => {
+          e.stopPropagation();
+          handleDragStart(e.touches[0], false);
+        });
+
+        thumbMax.addEventListener('touchmove', (e) => {
+          if (isDraggingMax) {
+            e.preventDefault();
+            e.stopPropagation();
+            handleDragMove(e.touches[0]);
+          }
+        }, { passive: false });
+
+        thumbMax.addEventListener('touchend', (e) => {
+          if (isDraggingMax) {
+            e.preventDefault();
+            e.stopPropagation();
+            handleDragEnd();
+          }
+        });
 
         // Input event listeners
         sliderMin?.addEventListener('input', () => {

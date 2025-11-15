@@ -5827,7 +5827,7 @@ document.addEventListener('DOMContentLoaded', function () {
             <div class="boat-length-slider" style="position: relative; width: 100%; height: 32px; margin: 20px 0;">
                 <div class="slider-track" style="position: absolute; top: 50%; transform: translateY(-50%); width: 100%; height: 4px; background: #E5E5E5; border-radius: 2px;"></div>
                 <input type="range" class="boat-slider" min="0" max="80" value="15" style="position: absolute; width: 100%; opacity: 0; cursor: pointer;">
-                <div class="slider-thumb" style="position: absolute; top: 50%; transform: translate(-50%, -50%); left: 18.75%; width: 24px; height: 24px; background: white; border: 1px solid #000; border-radius: 50%; cursor: pointer;"></div>
+                <div class="slider-thumb" style="position: absolute; top: 50%; transform: translate(-50%, -50%); left: 18.75%; width: 40px; height: 40px; background: white; border: 2px solid #000; border-radius: 50%; cursor: pointer; touch-action: none; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"></div>
             </div>
         `;
 
@@ -5929,7 +5929,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 <div class="dock-boat-length-slider" style="position: relative; width: 100%; height: 32px; margin: 20px 0;">
                     <div class="dock-slider-track" style="position: absolute; top: 50%; transform: translateY(-50%); width: 100%; height: 4px; background: #E5E5E5; border-radius: 2px;"></div>
                     <input type="range" class="dock-boat-slider" min="0" max="55" value="0" style="position: absolute; width: 100%; opacity: 0; cursor: pointer;">
-                    <div class="dock-slider-thumb" style="position: absolute; top: 50%; transform: translate(-50%, -50%); left: 0%; width: 24px; height: 24px; background: white; border: 1px solid #000; border-radius: 50%; cursor: pointer;"></div>
+                    <div class="dock-slider-thumb" style="position: absolute; top: 50%; transform: translate(-50%, -50%); left: 0%; width: 40px; height: 40px; background: white; border: 2px solid #000; border-radius: 50%; cursor: pointer; touch-action: none; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"></div>
                 </div>
             `;
 
