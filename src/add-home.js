@@ -2415,10 +2415,15 @@ async function fetchAndRenderAmenities() {
                     textElements[i].textContent = amenity.attribute_name;
                 }
 
-                // Add click handler and styling to existing elements
-                amenityElements[i].style.cursor = 'pointer';
-                amenityElements[i].dataset.amenityId = amenity.id;
-                amenityElements[i].addEventListener('click', () => handleAmenityClick(amenityElements[i], amenity.id));
+                // Only add click handler if not already added (check if dataset exists)
+                if (!amenityElements[i].dataset.amenityId) {
+                    amenityElements[i].style.cursor = 'pointer';
+                    amenityElements[i].dataset.amenityId = amenity.id;
+                    amenityElements[i].addEventListener('click', () => handleAmenityClick(amenityElements[i], amenity.id));
+                } else {
+                    // Just update the amenity ID in case it changed
+                    amenityElements[i].dataset.amenityId = amenity.id;
+                }
             }
         });
 
