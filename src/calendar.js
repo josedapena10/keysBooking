@@ -216,7 +216,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Initialize variables for user and property data
     let userId = null;
-    let propertyId = null; // We'll handle this later
+
+    // Check for property_id in URL parameters
+    const urlParams = new URLSearchParams(window.location.search);
+    let propertyId = urlParams.get('property_id') || null;
+
     let calendarEvents = [];
     let calendar = null;
     let lastAvailableDate = null; // Track the last available date from API
@@ -360,6 +364,16 @@ document.addEventListener('DOMContentLoaded', function () {
                 const currentProperty = data.properties.find(property =>
                     property.id.toString() === propertyId?.toString()
                 ) || data.properties[0];
+
+                // Update propertyId to match the current property (in case we defaulted to first property)
+                if (!propertyId && currentProperty) {
+                    propertyId = currentProperty.id.toString();
+
+                    // Update URL with the current property ID so it persists on reload
+                    const url = new URL(window.location);
+                    url.searchParams.set('property_id', propertyId);
+                    window.history.replaceState({}, '', url);
+                }
 
                 // Update the current listing name in the UI
                 updateCurrentListingName(currentProperty.property_name);
@@ -6581,6 +6595,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
                                 // Store the selected property ID to maintain selection
                                 propertyId = selectedPropertyId;
+
+                                // Update URL with the selected property ID so it persists on reload
+                                const url = new URL(window.location);
+                                url.searchParams.set('property_id', selectedPropertyId);
+                                window.history.pushState({}, '', url);
 
                                 // Fetch calendar data with the selected property ID
                                 fetchCalendarData(selectedPropertyId).then(() => {

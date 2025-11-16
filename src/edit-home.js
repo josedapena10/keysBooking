@@ -3146,6 +3146,22 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Helper functions for handling interactions
         function handleTimeInput(e) {
+            const input = e.target;
+            let value = parseInt(input.value);
+
+            // Remove any non-numeric characters
+            input.value = input.value.replace(/[^0-9]/g, '');
+
+            // If value is greater than 12, limit it to 12
+            if (value > 12) {
+                input.value = '12';
+            }
+
+            // If value is 0, clear it (we want 1-12 range)
+            if (value === 0) {
+                input.value = '';
+            }
+
             validateCheckInOut();
         }
 

@@ -3907,7 +3907,7 @@ function initializeReviewInfoStep() {
         const pricePerNight = parseFloat(listingData.price) || 0;
         const cleaningFee = parseFloat(listingData.cleaningFee) || 0;
         const subtotal = (pricePerNight * nights) + cleaningFee;
-        const total = subtotal * 1.1;
+        const total = subtotal * 1.12;
 
         reviewDateTotal.textContent = `${formatDate(startDate)} - ${formatDate(endDate)} • $${total.toLocaleString()}`;
     }
