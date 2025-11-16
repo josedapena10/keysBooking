@@ -2311,6 +2311,21 @@ function updateProgressBar() {
 
 // Helper function to update the progress bar element
 function updateProgressBarElement(progressBar) {
+    // Ensure progress bar has proper styling
+    progressBar.style.backgroundColor = '#9ecaff'; // Blue color
+    progressBar.style.height = '10px'; // Height of the bar
+    progressBar.style.position = 'absolute';
+    progressBar.style.top = '0';
+    progressBar.style.left = '0';
+    progressBar.style.transition = 'width 0.3s ease-in-out';
+    progressBar.style.zIndex = '1000';
+
+    // Ensure parent container has proper positioning
+    const parent = progressBar.parentElement;
+    if (parent && window.getComputedStyle(parent).position === 'static') {
+        parent.style.position = 'relative';
+    }
+
     // Progress bar should only show from "basics" (step 2) onwards
     const basicsStepIndex = steps.indexOf('basics'); // Index 1 (step 2)
     const reviewInfoStepIndex = steps.indexOf('reviewInfo'); // Index 17 (step 18)
@@ -2342,7 +2357,6 @@ function updateProgressBarElement(progressBar) {
 
     // Update progress bar width
     progressBar.style.width = `${progressPercentage}%`;
-    progressBar.style.transition = 'width 0.3s ease-in-out';
 }
 
 // Variable to track selected address type
