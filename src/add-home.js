@@ -201,7 +201,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
             // Check if userId is set before proceeding
             if (!listingData.userId) {
-                console.log('Cannot save property: User ID is not set');
                 return;
             }
 
@@ -344,7 +343,6 @@ document.addEventListener('DOMContentLoaded', function () {
             }
 
             const propertyResult = await propertyResponse.json();
-            console.log('Property saved successfully:', propertyResult);
 
             // If amenities were selected, make the property_attribute_add_home request
             if (listingData.selectedAmenities.length > 0) {
@@ -443,8 +441,6 @@ document.addEventListener('DOMContentLoaded', function () {
                     photoData.unfinishedListing = true;
                 }
 
-                console.log(photoData);
-
                 const photoPromise = fetch('https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/property_add_home_photos', {
                     method: 'POST',
                     headers: {
@@ -485,7 +481,6 @@ document.addEventListener('DOMContentLoaded', function () {
             window.location.href = '/host/dashboard';
 
         } catch (error) {
-            console.error('Error saving property:', error);
             // Hide loader and show text on error
             if (isFinalSubmit) {
                 if (submitLoader) submitLoader.style.display = 'none';
@@ -799,7 +794,6 @@ document.addEventListener('DOMContentLoaded', async function () {
                                             } else if (listing.private_dock === true && listing._property_pictures.filter(pic => pic.in_dock_section).length < 2) {
                                                 resumeStep = 'dockPhotos';
                                             } else if (!listing.property_name) {
-                                                console.log("Leah gets here resume step is title")
                                                 resumeStep = 'title';
                                             } else if (!listing.listing_description) {
                                                 resumeStep = 'description';
@@ -830,10 +824,8 @@ document.addEventListener('DOMContentLoaded', async function () {
                             }
                         }
 
-                        console.log({ resumeStep })
                         // Navigate to the determined step
                         const stepIndex = steps.indexOf(resumeStep);
-                        console.log({ stepIndex })
                         if (stepIndex !== -1) {
                             // Initialize and populate all previous steps before navigating
                             for (let i = 0; i <= stepIndex; i++) {
@@ -949,14 +941,10 @@ document.addEventListener('DOMContentLoaded', async function () {
                                         }
                                         break;
                                     case 'title':
-                                        console.log("Leah gets here title step is ab to be rendered")
                                         await initializeTitleStep();
-                                        console.log("leah after title step is rendered")
                                         break;
                                     case 'description':
-                                        console.log("Leah gets here description step is ab to be rendered")
                                         await initializeDescriptionStep();
-                                        console.log("Leah gets here description step was rendered")
                                         const descriptionInput = document.querySelector('[data-element="description_input"]');
                                         if (descriptionInput) descriptionInput.value = listingData.description;
                                         break;
@@ -1094,7 +1082,6 @@ document.addEventListener('DOMContentLoaded', async function () {
                 goToStep(initialStepNumber);
             }
         } catch (error) {
-            console.error('Error checking unfinished listings:', error);
             window.location.href = '/host/dashboard';
         }
     }));
@@ -1225,14 +1212,12 @@ function handlePhotoSelection(event) {
 
         reader.onloadstart = function () {
             // File reading has started
-            console.log(`Started loading file: ${file.name}`);
         };
 
         reader.onprogress = function (e) {
             // File reading in progress
             if (e.lengthComputable) {
                 const percentLoaded = Math.round((e.loaded / e.total) * 100);
-                console.log(`Loading file ${file.name}: ${percentLoaded}%`);
             }
         };
 
@@ -1273,7 +1258,6 @@ function handlePhotoSelection(event) {
         };
 
         reader.onerror = function () {
-            console.error(`Error loading file: ${file.name}`);
             filesProcessed++;
 
             // Check if all files have been processed even if there was an error
@@ -1329,9 +1313,6 @@ function renderPhotos() {
     // Only show photo container when we have photos
     photoContainerParent.style.display = listingData.photos.length ? 'grid' : 'none';
 
-    // Log photos array
-    console.log('Current photos:', listingData.photos);
-
     // Clear existing photos
     const allContainers = document.querySelectorAll('[data-element="photo_container_parent"]');
     allContainers.forEach((container, idx) => {
@@ -1386,7 +1367,6 @@ function resetPhotoUI() {
 
 // Function to initialize cover photos section
 function initializeCoverPhotosStep() {
-    console.log(listingData.photos);
     let coverPhotosContainer = document.querySelector('[data-element="coverPhotos_photoContainer"]');
     const coverPhotosError = document.getElementById('coverPhotos-error');
     const coverPhotosSubText = document.getElementById('coverPhotos-subText');
@@ -1862,7 +1842,6 @@ function validatePhotos() {
 
 // Initial step on page load
 document.addEventListener('DOMContentLoaded', () => {
-    //console.log("Page loaded, initializing steps");
 
     // Hide the error elements initially
     const basicsError = document.getElementById('basics-error');
@@ -2007,21 +1986,13 @@ document.getElementById('nextStep').addEventListener('click', function () {
 
     const currentStepId = steps[currentStepNumber - 1];
 
-    console.log('Next button clicked:', {
-        currentStepId,
-        currentStepNumber,
-        shouldValidate: shouldValidateStep(currentStepId)
-    });
-
     // Set hasAttemptedToLeave to true for the current step when trying to move forward
     if (shouldValidateStep(currentStepId)) {
         hasAttemptedToLeave[currentStepId] = true;
-        console.log(`hasAttemptedToLeave[${currentStepId}] set to true`);
     }
 
     // Proceed to the next step if valid
     if (currentStepNumber < steps.length) {
-        console.log(`Calling goToStep(${currentStepNumber + 1}, 'forward')`);
         goToStep(currentStepNumber + 1, 'forward');
     }
 });
@@ -2034,8 +2005,6 @@ document.getElementById('prevStep').addEventListener('click', function () {
     }
     lastClickTime = now;
 
-    console.log(`Previous step clicked: Current step ${currentStepNumber}`);
-
     // Go to the previous step if not the first step
     if (currentStepNumber > 1) {
         goToStep(currentStepNumber - 1, 'back');
@@ -2046,7 +2015,6 @@ document.getElementById('prevStep').addEventListener('click', function () {
 window.addEventListener('hashchange', function () {
     const hash = window.location.hash.substring(1); // Remove the leading "#"
     const stepNumber = steps.indexOf(hash) + 1;
-    console.log(`Handling hash change, step number: ${stepNumber}`);
     if (stepNumber > 0) {
         goToStep(stepNumber, currentStepNumber < stepNumber ? 'forward' : 'back');
     }
@@ -2054,11 +2022,8 @@ window.addEventListener('hashchange', function () {
 
 // Function to show a specific step and update URL hash
 function goToStep(stepNumber, direction = 'forward') {
-    //console.log(`Navigating to step ${stepNumber}`);
-    console.log(listingData);
     // Ensure stepNumber is within bounds
     if (stepNumber < 1 || stepNumber > steps.length) {
-        //console.error(`Invalid step number: ${stepNumber}`);
         return;
     }
 
@@ -2079,18 +2044,13 @@ function goToStep(stepNumber, direction = 'forward') {
     // Check if current step needs validation before moving on
     if (shouldValidateStep(currentStepId) && direction === 'forward') {
         hasAttemptedToLeave[currentStepId] = true;
-        console.log(`Validating step ${currentStepId} before proceeding...`);
         validateStep(currentStepId).then(isValid => {
-            console.log(`Validation result for ${currentStepId}:`, isValid);
             if (!isValid) {
-                console.warn(`Validation failed for ${currentStepId} section - staying on current step`);
                 return; // Exit if validation fails
             }
-            console.log(`Validation passed for ${currentStepId} - proceeding to next step`);
             proceedToNextStep();
         });
     } else {
-        console.log(`No validation needed for ${currentStepId} or going backwards - proceeding`);
         proceedToNextStep();
     }
 
@@ -2143,7 +2103,6 @@ function showStep(stepId) {
         }, 50); // Small delay to trigger the transition
         currentStep.classList.add('active');
     } else {
-        //console.error(`Step ID not found: ${stepId}`);
     }
 
     // Initialize the counter logic when the "basics" step is shown
@@ -2428,19 +2387,16 @@ async function fetchAndRenderAmenities() {
         });
 
     } catch (error) {
-        console.error('Error fetching amenities:', error);
     }
 }
 
 // Helper function to scroll to error element on mobile
 function scrollToErrorOnMobile(errorElement, errorName) {
     if (window.innerWidth <= 767 && errorElement) {
-        console.log(`${errorName} validation failed on mobile, scrolling to error`);
         setTimeout(() => {
             const rect = errorElement.getBoundingClientRect();
             const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
             const targetY = rect.top + scrollTop - 50; // 50px offset from top
-            console.log('Scrolling to position:', targetY, 'from scrollTop:', scrollTop, 'rect.top:', rect.top);
             window.scrollTo({ top: targetY, behavior: 'smooth' });
         }, 100);
     }
@@ -2449,12 +2405,6 @@ function scrollToErrorOnMobile(errorElement, errorName) {
 // Function to handle amenity click
 function handleAmenityClick(element, amenityId) {
     const isSelected = element.style.borderWidth === '2px';
-
-    console.log('handleAmenityClick called:', {
-        amenityId,
-        isSelected,
-        beforeClick: [...listingData.selectedAmenities]
-    });
 
     if (isSelected) {
         element.style.borderWidth = '1px';
@@ -2470,17 +2420,10 @@ function handleAmenityClick(element, amenityId) {
         }
     }
 
-    console.log('After click:', {
-        selectedAmenities: [...listingData.selectedAmenities]
-    });
-
     // Revalidate if user has attempted to leave
     if (hasAttemptedToLeave.amenities) {
-        console.log('hasAttemptedToLeave.amenities is true, calling validateAmenities');
         const validationResult = validateAmenities();
-        console.log('Validation result:', validationResult);
     } else {
-        console.log('hasAttemptedToLeave.amenities is false, skipping validation');
     }
 }
 
@@ -2498,22 +2441,13 @@ function validateLocation() {
         const requiredFields = [addressLine1Input, addressCityInput, addressStateInput, addressZipcodeInput];
         const hasEmptyFields = requiredFields.some(input => !input.value.trim());
 
-        console.log('Validating location fields:');
-        console.log('Address Line 1:', addressLine1Input?.value || 'empty');
-        console.log('Address Line 2:', addressLine2Input?.value || 'empty');
-        console.log('City:', addressCityInput?.value || 'empty');
-        console.log('State:', addressStateInput?.value || 'empty');
-        console.log('Zipcode:', addressZipcodeInput?.value || 'empty');
-
         // Florida Keys ZIP codes
         const keysZipCodes = ['33001', '33036', '33037', '33040', '33041', '33042', '33043', '33044', '33045', '33050', '33051', '33052', '33070'];
 
         // Check if zipcode is in Florida Keys
         const isKeysZipcode = keysZipCodes.includes(addressZipcodeInput?.value?.trim());
-        console.log('Is Florida Keys ZIP code:', isKeysZipcode);
 
         if (hasEmptyFields) {
-            console.log('Empty required fields detected');
             if (locationError && hasAttemptedToLeave.location) {
                 locationError.textContent = "Please fill in all required fields";
                 locationError.style.display = 'block';
@@ -2528,7 +2462,6 @@ function validateLocation() {
         }
 
         if (!isKeysZipcode) {
-            console.log('Not a Florida Keys ZIP code');
             if (locationError && hasAttemptedToLeave.location) {
                 locationError.textContent = "Please enter a valid Florida Keys ZIP code";
                 locationError.style.display = 'block';
@@ -2572,11 +2505,8 @@ function validateLocation() {
             address.address.addressLines.push(addressLine2Input.value);
         }
 
-        console.log('Sending address to Google API:', address);
-
         // Validate with Google API
         validateAddressWithGoogle(address).then(result => {
-            console.log('Google API response:', result);
             if (result.isValid) {
                 // Show suggested address in confirmLocation step
                 const confirmSuggestedAddress = document.getElementById("confirmSuggestedAddress");
@@ -2610,7 +2540,6 @@ function validateLocation() {
                 // Set initial neighborhood based on coordinates if not already set
                 if (!listingData.address.neighborhood && result.latitude && result.longitude) {
                     listingData.address.neighborhood = determineNeighborhood(result.latitude, result.longitude);
-                    console.log('Initial neighborhood determined:', listingData.address.neighborhood);
                 }
 
                 // Add click handlers for address selection
@@ -2651,8 +2580,6 @@ function validateLocation() {
                         };
                         listingData.addressNotSelected = enteredAddress;
                         updateAddressSelection();
-                        console.log('Listing data:', listingData);
-                        console.log('Determined neighborhood:', neighborhood);
                     };
 
                     confirmEnteredContainer.onclick = () => {
@@ -2677,7 +2604,6 @@ function validateLocation() {
                         };
                         listingData.addressNotSelected = result.formattedAddress;
                         updateAddressSelection();
-                        console.log('Determined neighborhood:', neighborhood);
                     };
                 }
 
@@ -2688,7 +2614,6 @@ function validateLocation() {
 
 
             } else {
-                console.log('Address validation failed');
                 if (locationError && hasAttemptedToLeave.location) {
                     locationError.textContent = "Please enter a valid address";
                     locationError.style.display = 'block';
@@ -2771,7 +2696,6 @@ function updateAddressSelection() {
 
 async function validateAddressWithGoogle(address) {
     try {
-        console.log('Making request to Google Address Validation API');
         const response = await fetch('https://addressvalidation.googleapis.com/v1:validateAddress', {
             method: 'POST',
             headers: {
@@ -2785,10 +2709,8 @@ async function validateAddressWithGoogle(address) {
         });
 
         const data = await response.json();
-        console.log('Google API Response:', data);
 
         if (!data.result) {
-            console.log('No result from Google API');
             return { isValid: false };
         }
 
@@ -2810,7 +2732,6 @@ async function validateAddressWithGoogle(address) {
             latitude: latitude
         };
     } catch (error) {
-        console.error('Address validation failed:', error);
         return { isValid: false };
     }
 }
@@ -4363,13 +4284,6 @@ function validateAmenities() {
     const amenitiesSubText = document.getElementById('amenities-subText');
     const isValid = listingData.selectedAmenities.length > 0;
 
-    console.log('validateAmenities called:', {
-        isValid,
-        selectedAmenities: listingData.selectedAmenities,
-        hasAttemptedToLeave: hasAttemptedToLeave.amenities,
-        windowWidth: window.innerWidth
-    });
-
     if (!isValid && hasAttemptedToLeave.amenities) {
         if (amenitiesError) {
             amenitiesError.textContent = "Please select at least one amenity to continue";
@@ -4386,7 +4300,6 @@ function validateAmenities() {
         }
     }
 
-    console.log('validateAmenities returning:', isValid);
     return isValid;
 }
 
