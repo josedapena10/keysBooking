@@ -2293,8 +2293,24 @@ function updateButtonStates() {
 // Function to update progress bar based on current step
 function updateProgressBar() {
     const progressBar = document.querySelector('[data-element="progressBar"]');
-    if (!progressBar) return;
+    if (!progressBar) {
+        console.log('Progress bar element not found. Checking for alternatives...');
+        // Try alternative selectors
+        const altProgressBar = document.querySelector('.progress-bar') ||
+            document.querySelector('#progressBar') ||
+            document.querySelector('[data-progress-bar]');
+        if (altProgressBar) {
+            console.log('Found progress bar with alternative selector');
+            updateProgressBarElement(altProgressBar);
+        }
+        return;
+    }
 
+    updateProgressBarElement(progressBar);
+}
+
+// Helper function to update the progress bar element
+function updateProgressBarElement(progressBar) {
     // Progress bar should only show from "basics" (step 2) onwards
     const basicsStepIndex = steps.indexOf('basics'); // Index 1 (step 2)
     const reviewInfoStepIndex = steps.indexOf('reviewInfo'); // Index 17 (step 18)
@@ -2317,6 +2333,12 @@ function updateProgressBar() {
     // At basics (step 2): (1 / 17) * 100 = 5.88%
     // At reviewInfo (step 18): (17 / 17) * 100 = 100%
     const progressPercentage = (currentProgressPosition / totalProgressSteps) * 100;
+
+    console.log('Progress bar update:', {
+        currentStep: steps[currentStepNumber - 1],
+        currentStepNumber,
+        percentage: progressPercentage.toFixed(2) + '%'
+    });
 
     // Update progress bar width
     progressBar.style.width = `${progressPercentage}%`;
