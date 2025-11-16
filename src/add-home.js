@@ -143,6 +143,9 @@ let listingData = {
     unfinishedPropertyId: null // Store ID of unfinished property if continuing one
 };
 
+// Flag to track if user has started the form in this session
+let formSessionStarted = false;
+
 // Add event listeners for save and exit button and submit button
 document.addEventListener('DOMContentLoaded', function () {
     const saveAndExitButton = document.querySelector('[data-element="addHome_saveAndExit"]');
@@ -579,6 +582,9 @@ document.addEventListener('DOMContentLoaded', async function () {
                     newBlock.addEventListener('click', async () => {
                         // Store the unfinished property ID
                         listingData.unfinishedPropertyId = listing.id;
+
+                        // Mark form session as started since we're loading existing data
+                        formSessionStarted = true;
 
                         // Populate listingData with existing data
                         if (listing.num_guests) listingData.basics.guests = listing.num_guests;
@@ -1077,9 +1083,18 @@ document.addEventListener('DOMContentLoaded', async function () {
             } else {
                 // Go directly to get-started step if no unfinished listings
                 const hash = window.location.hash.substring(1);
-                const initialStepId = hash || 'get-started';
-                const initialStepNumber = steps.indexOf(initialStepId) !== -1 ? steps.indexOf(initialStepId) + 1 : 1;
-                goToStep(initialStepNumber);
+
+                // If user reloads on a step other than get-started without an unfinished listing,
+                // redirect to get-started to prevent empty forms
+                if (hash && hash !== 'get-started' && hash !== 'manageAddHome') {
+                    // Clear the hash and redirect to get-started
+                    window.location.hash = 'get-started';
+                    goToStep(1);
+                } else {
+                    const initialStepId = hash || 'get-started';
+                    const initialStepNumber = steps.indexOf(initialStepId) !== -1 ? steps.indexOf(initialStepId) + 1 : 1;
+                    goToStep(initialStepNumber);
+                }
             }
         } catch (error) {
             window.location.href = '/host/dashboard';
@@ -2015,8 +2030,20 @@ document.getElementById('prevStep').addEventListener('click', function () {
 window.addEventListener('hashchange', function () {
     const hash = window.location.hash.substring(1); // Remove the leading "#"
     const stepNumber = steps.indexOf(hash) + 1;
+
     if (stepNumber > 0) {
-        goToStep(stepNumber, currentStepNumber < stepNumber ? 'forward' : 'back');
+        // Check if user is trying to jump to a step without having started the form
+        // Only allow if: form session has started, or going backwards, or navigating to get-started/manageAddHome
+        const isGoingBackwards = stepNumber < currentStepNumber;
+        const isInitialStep = hash === 'get-started' || hash === 'manageAddHome';
+
+        // If trying to skip ahead without starting the form, redirect to get-started
+        if (stepNumber > 1 && !isGoingBackwards && !formSessionStarted && !isInitialStep) {
+            window.location.hash = 'get-started';
+            goToStep(1);
+        } else {
+            goToStep(stepNumber, currentStepNumber < stepNumber ? 'forward' : 'back');
+        }
     }
 });
 
@@ -2058,6 +2085,11 @@ function goToStep(stepNumber, direction = 'forward') {
         // Reset the hasAttemptedToLeave flag when leaving a step
         if (hasAttemptedToLeave[currentStepId]) {
             hasAttemptedToLeave[currentStepId] = false;
+        }
+
+        // Mark form session as started when moving past get-started step
+        if (currentStepId === 'get-started' && nextStepId !== 'get-started') {
+            formSessionStarted = true;
         }
 
         const previousStep = document.querySelector('.step.active');
@@ -2294,13 +2326,11 @@ function updateButtonStates() {
 function updateProgressBar() {
     const progressBar = document.querySelector('[data-element="progressBar"]');
     if (!progressBar) {
-        console.log('Progress bar element not found. Checking for alternatives...');
         // Try alternative selectors
         const altProgressBar = document.querySelector('.progress-bar') ||
             document.querySelector('#progressBar') ||
             document.querySelector('[data-progress-bar]');
         if (altProgressBar) {
-            console.log('Found progress bar with alternative selector');
             updateProgressBarElement(altProgressBar);
         }
         return;
@@ -2348,12 +2378,6 @@ function updateProgressBarElement(progressBar) {
     // At basics (step 2): (1 / 17) * 100 = 5.88%
     // At reviewInfo (step 18): (17 / 17) * 100 = 100%
     const progressPercentage = (currentProgressPosition / totalProgressSteps) * 100;
-
-    console.log('Progress bar update:', {
-        currentStep: steps[currentStepNumber - 1],
-        currentStepNumber,
-        percentage: progressPercentage.toFixed(2) + '%'
-    });
 
     // Update progress bar width
     progressBar.style.width = `${progressPercentage}%`;
