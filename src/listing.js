@@ -7712,6 +7712,12 @@ document.addEventListener('DOMContentLoaded', () => {
             : 'Dates must be selected to add boat rental';
 
           this.showMessage(message);
+
+          // Flash check availability button if no dates are selected
+          if (!hasDates) {
+            this.flashCheckAvailabilityButton();
+          }
+
           return;
         }
 
@@ -10667,6 +10673,23 @@ document.addEventListener('DOMContentLoaded', () => {
         if (hasValidDates && hasValidGuests && hasValidPickupTime && hasValidLengthType) {
           errorElement.style.display = 'none';
         }
+      }
+
+      // Flash check availability button with red border to get user's attention
+      flashCheckAvailabilityButton() {
+        const checkAvailabilityButton = document.querySelector('[data-element="listing_checkAvailability_button"]');
+        if (!checkAvailabilityButton) return;
+
+        // Store original border
+        const originalBorder = checkAvailabilityButton.style.border;
+
+        // Set red border
+        checkAvailabilityButton.style.border = '2px solid #dc2626';
+
+        // Remove red border after 2 seconds
+        setTimeout(() => {
+          checkAvailabilityButton.style.border = originalBorder;
+        }, 2000);
       }
 
       // Highlight error fields in boat details section
@@ -14111,6 +14134,12 @@ document.addEventListener('DOMContentLoaded', () => {
               : 'Dates must be selected to add fishing charter';
 
             this.showMessage(message);
+
+            // Flash check availability button if no dates are selected
+            if (!hasDates) {
+              this.flashCheckAvailabilityButton();
+            }
+
             return;
           }
 
@@ -17873,6 +17902,23 @@ document.addEventListener('DOMContentLoaded', () => {
             textElement.textContent = fish.fish || '';
           }
         });
+      }
+
+      // Flash check availability button with red border to get user's attention
+      flashCheckAvailabilityButton() {
+        const checkAvailabilityButton = document.querySelector('[data-element="listing_checkAvailability_button"]');
+        if (!checkAvailabilityButton) return;
+
+        // Store original border
+        const originalBorder = checkAvailabilityButton.style.border;
+
+        // Set red border
+        checkAvailabilityButton.style.border = '2px solid #dc2626';
+
+        // Remove red border after 2 seconds
+        setTimeout(() => {
+          checkAvailabilityButton.style.border = originalBorder;
+        }, 2000);
       }
 
       // Highlight error fields in fishing charter details section
