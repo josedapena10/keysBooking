@@ -7916,20 +7916,20 @@ document.addEventListener('DOMContentLoaded', () => {
         messageElement.style.display = 'block';
 
         // Shake the check availability button to draw attention
-        const checkAvailabilityButton = document.querySelectorAll('[data-element="listing_checkAvailability_button"]');
-        checkAvailabilityButton.forEach(button => {
+        const checkAvailabilityButtons = document.querySelectorAll('[data-element="listing_checkAvailability_button"]');
+        checkAvailabilityButtons.forEach(button => {
           // Remove existing animation if present
-          checkAvailabilityButton.classList.remove('shake-animation');
+          button.classList.remove('shake-animation');
 
           // Trigger reflow to restart animation
-          void checkAvailabilityButton.offsetWidth;
+          void button.offsetWidth;
 
           // Add shake animation
-          checkAvailabilityButton.classList.add('shake-animation');
+          button.classList.add('shake-animation');
 
           // Remove animation class after it completes
           setTimeout(() => {
-            checkAvailabilityButton.classList.remove('shake-animation');
+            button.classList.remove('shake-animation');
           }, 600);
         });
 
@@ -18130,22 +18130,22 @@ document.addEventListener('DOMContentLoaded', () => {
         messageElement.style.display = 'block';
 
         // Shake the check availability button to draw attention
-        const checkAvailabilityButton = document.querySelector('[data-element="listing_checkAvailability_button"]');
-        if (checkAvailabilityButton) {
+        const checkAvailabilityButtons = document.querySelectorAll('[data-element="listing_checkAvailability_button"]');
+        checkAvailabilityButtons.forEach(button => {
           // Remove existing animation if present
-          checkAvailabilityButton.classList.remove('shake-animation');
+          button.classList.remove('shake-animation');
 
           // Trigger reflow to restart animation
-          void checkAvailabilityButton.offsetWidth;
+          void button.offsetWidth;
 
           // Add shake animation
-          checkAvailabilityButton.classList.add('shake-animation');
+          button.classList.add('shake-animation');
 
           // Remove animation class after it completes
           setTimeout(() => {
-            checkAvailabilityButton.classList.remove('shake-animation');
+            button.classList.remove('shake-animation');
           }, 600);
-        }
+        });
 
         // Hide after 3 seconds
         this.messageTimeout = setTimeout(() => {
