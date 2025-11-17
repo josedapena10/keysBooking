@@ -5094,6 +5094,48 @@ document.addEventListener('DOMContentLoaded', () => {
         this.initialize();
       }
 
+      // Close all popups for boat rental service
+      closeAllPopups() {
+        // Add boat wrapper popups
+        if (this.datesPopup) this.datesPopup.style.display = 'none';
+        if (this.pickupTimePopup) this.pickupTimePopup.style.display = 'none';
+        if (this.guestsPopup) this.guestsPopup.style.display = 'none';
+        if (this.pricePopup) this.pricePopup.style.display = 'none';
+        if (this.lengthPopup) this.lengthPopup.style.display = 'none';
+        if (this.typePopup) this.typePopup.style.display = 'none';
+
+        // Boat details popups
+        if (this.boatDetailsPopup) this.boatDetailsPopup.style.display = 'none';
+        if (this.boatDetailsPickupTimePopup) this.boatDetailsPickupTimePopup.style.display = 'none';
+        if (this.boatDetailsGuestsPopup) this.boatDetailsGuestsPopup.style.display = 'none';
+      }
+
+      // Setup click-outside-to-close for all popups
+      setupClickOutsideToClosePopups() {
+        const popups = [
+          this.datesPopup,
+          this.pickupTimePopup,
+          this.guestsPopup,
+          this.pricePopup,
+          this.lengthPopup,
+          this.typePopup,
+          this.boatDetailsPopup,
+          this.boatDetailsPickupTimePopup,
+          this.boatDetailsGuestsPopup
+        ];
+
+        popups.forEach(popup => {
+          if (popup) {
+            popup.addEventListener('click', (e) => {
+              // Close popup if clicking directly on the popup background (not its children)
+              if (e.target === popup) {
+                popup.style.display = 'none';
+              }
+            });
+          }
+        });
+      }
+
       // Helper method to parse property check-in time to 24-hour format
       parseCheckInTime(checkInTimeStr) {
         if (!checkInTimeStr) return null;
@@ -5482,6 +5524,9 @@ document.addEventListener('DOMContentLoaded', () => {
           // // Set initial visibility based on mobile view
           // this.updateBoatDetailsXButtonVisibility();
         }
+
+        // Click-outside-to-close for all popups
+        this.setupClickOutsideToClosePopups();
 
         // Filter handlers
         this.setupFilterHandlers();
@@ -7559,6 +7604,9 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       closeModal() {
+        // Close all popups first
+        this.closeAllPopups();
+
         this.modal.style.display = 'none';
         this.detailsWrapper.style.display = 'none';
 
@@ -7690,6 +7738,9 @@ document.addEventListener('DOMContentLoaded', () => {
           this.showMessage(message);
           return;
         }
+
+        // Close all popups when modal opens
+        this.closeAllPopups();
 
         // Load user age for age-based filtering
         await this.loadUserAge();
@@ -8019,6 +8070,9 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       clearDatesFilter() {
+        // Close all popups
+        this.closeAllPopups();
+
         // Clear date-related filters (excluding pickup time now)
         this.selectedDates = [];
         this.selectedLengthType = 'full';
@@ -8039,6 +8093,9 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       clearPickupTimeFilter() {
+        // Close all popups
+        this.closeAllPopups();
+
         // Clear pickup time filter
         this.selectedPickupTime = '';
 
@@ -8067,6 +8124,9 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       clearGuestsFilter() {
+        // Close all popups
+        this.closeAllPopups();
+
         // Clear guests filter
         this.selectedGuests = 0;
         if (this.guestNumber) this.guestNumber.textContent = this.selectedGuests;
@@ -8762,6 +8822,9 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       clearPriceFilter() {
+        // Close all popups
+        this.closeAllPopups();
+
         // Reset price filter to default values
         this.selectedPriceMin = 0;
         this.selectedPriceMax = Infinity; // Use Infinity for no upper bound
@@ -9001,6 +9064,9 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       clearLengthFilter() {
+        // Close all popups
+        this.closeAllPopups();
+
         // Reset length filter to default values
         this.selectedLengthMin = 0;
         this.selectedLengthMax = 50;
@@ -9081,6 +9147,9 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       clearBoatTypeFilter() {
+        // Close all popups
+        this.closeAllPopups();
+
         // Reset boat type filter
         this.selectedBoatTypes = [];
 
@@ -9129,6 +9198,9 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       clearPrivateDockFilter() {
+        // Close all popups
+        this.closeAllPopups();
+
         this.selectedPrivateDock = false;
         this.updatePrivateDockFilterText();
         this.updateFilterStyles();
@@ -9156,6 +9228,9 @@ document.addEventListener('DOMContentLoaded', () => {
       // ==========================================
 
       showBoatDetails(boat) {
+        // Close all popups when entering boat details view
+        this.closeAllPopups();
+
         // Store the current boat data
         this.currentBoatData = boat;
 
@@ -9226,7 +9301,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (this.boatDetailsMinDaysText) {
           if (effectiveMinDays > 1) {
             const daysText = effectiveMinDays === 1 ? 'Day' : 'Days';
-            this.boatDetailsMinDaysText.textContent = `${effectiveMinDays} ${daysText} minimum`;
+            this.boatDetailsMinDaysText.textContent = `${effectiveMinDays} ${daysText} Minimum`;
             this.boatDetailsMinDaysText.style.display = 'block';
           } else {
             this.boatDetailsMinDaysText.style.display = 'none';
@@ -12718,6 +12793,41 @@ document.addEventListener('DOMContentLoaded', () => {
         this.initialize();
       }
 
+      // Close all popups for fishing charter service
+      closeAllPopups() {
+        // Select wrapper popups
+        if (this.datesPopup) this.datesPopup.style.display = 'none';
+        if (this.guestsPopup) this.guestsPopup.style.display = 'none';
+        if (this.pricePopup) this.pricePopup.style.display = 'none';
+        if (this.typePopup) this.typePopup.style.display = 'none';
+
+        // Details wrapper popups
+        if (this.detailsDatesPopup) this.detailsDatesPopup.style.display = 'none';
+        if (this.detailsGuestsPopup) this.detailsGuestsPopup.style.display = 'none';
+      }
+
+      // Setup click-outside-to-close for all popups
+      setupClickOutsideToClosePopups() {
+        const popups = [
+          this.datesPopup,
+          this.guestsPopup,
+          this.pricePopup,
+          this.typePopup,
+          this.detailsDatesPopup,
+          this.detailsGuestsPopup
+        ];
+
+        popups.forEach(popup => {
+          if (popup) {
+            popup.addEventListener('click', (e) => {
+              // Close popup if clicking directly on the popup background (not its children)
+              if (e.target === popup) {
+                popup.style.display = 'none';
+              }
+            });
+          }
+        });
+      }
 
       async getSelectedFishingCharterData() {
         const numbers = (this.getAllFishingCharterNumbers() || []).filter(Boolean);
@@ -13342,6 +13452,9 @@ document.addEventListener('DOMContentLoaded', () => {
           });
         }
 
+        // Click-outside-to-close for all popups
+        this.setupClickOutsideToClosePopups();
+
         // Filter handlers
         this.setupFilterHandlers();
         this.setupGuestButtons();
@@ -13924,6 +14037,9 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
           }
 
+          // Close all popups when modal opens
+          this.closeAllPopups();
+
           // Clear editing state when adding new charter (not editing existing one)
           this.editingCharterNumber = null;
           this.editingTripId = null;
@@ -14026,19 +14142,16 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       closeModal() {
+        // Close all popups first
+        this.closeAllPopups();
+
         if (this.modal) this.modal.style.display = 'none';
-        if (this.datesPopup) this.datesPopup.style.display = 'none';
-        if (this.guestsPopup) this.guestsPopup.style.display = 'none';
-        if (this.pricePopup) this.pricePopup.style.display = 'none';
-        if (this.typePopup) this.typePopup.style.display = 'none';
 
         // Restore details popups to original parents (mobile fix)
         if (this.detailsDatesPopup && this.detailsDatesPopup._originalParent) {
-          this.detailsDatesPopup.style.display = 'none';
           this.detailsDatesPopup._originalParent.appendChild(this.detailsDatesPopup);
         }
         if (this.detailsGuestsPopup && this.detailsGuestsPopup._originalParent) {
-          this.detailsGuestsPopup.style.display = 'none';
           this.detailsGuestsPopup._originalParent.appendChild(this.detailsGuestsPopup);
         }
 
@@ -14803,6 +14916,9 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       showFishingCharterDetails(charter) {
+        // Close all popups when entering charter details view
+        this.closeAllPopups();
+
         // Hide select wrapper and show details wrapper
         this.selectWrapper.style.display = 'none';
         this.detailsWrapper.style.display = 'flex';
@@ -16215,6 +16331,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Filter management methods
       clearDatesFilter() {
+        // Close all popups
+        this.closeAllPopups();
+
         this.selectedDates = [];
         this.updateDatesFilterText();
         this.updateFilterStyles();
@@ -16224,6 +16343,9 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       clearGuestsFilter() {
+        // Close all popups
+        this.closeAllPopups();
+
         this.selectedGuests = 0;
         if (this.guestNumber) this.guestNumber.textContent = this.selectedGuests;
         this.updateGuestsFilterText();
@@ -16233,6 +16355,9 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       clearPriceFilter() {
+        // Close all popups
+        this.closeAllPopups();
+
         // Reset price filter to default values
         this.priceMin = 0;
         this.priceMax = 5000;
@@ -16259,6 +16384,9 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       clearFishingTypeFilter() {
+        // Close all popups
+        this.closeAllPopups();
+
         // Reset fishing type filter
         this.selectedFishingTypes = [];
 
@@ -16277,6 +16405,9 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       clearPrivateDockFilter() {
+        // Close all popups
+        this.closeAllPopups();
+
         this.selectedPrivateDock = false;
         this.updatePrivateDockFilterText();
         this.updateFilterStyles();
@@ -17018,6 +17149,9 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       clearDetailsDateFilter() {
+        // Close all popups
+        this.closeAllPopups();
+
         this.detailsSelectedDates = [];
         // Sync with main filter variable
         this.selectedDates = [];
@@ -17028,6 +17162,9 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       clearDetailsGuestsFilter() {
+        // Close all popups
+        this.closeAllPopups();
+
         this.detailsSelectedGuests = 0;
         // Sync with main filter variable
         this.selectedGuests = 0;
@@ -17038,6 +17175,9 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       clearDetailsPrivateDockFilter() {
+        // Close all popups
+        this.closeAllPopups();
+
         this.detailsSelectedPrivateDock = false;
         // Sync with main filter variable
         this.selectedPrivateDock = false;
