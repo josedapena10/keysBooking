@@ -5084,6 +5084,10 @@ document.addEventListener('DOMContentLoaded', () => {
         this.initialBoats = []; // Store initial boat results (before filters) for disabled dates logic
         this.allowsHalfDay = false; // Track if any boat allows half day
 
+        // Edit mode tracking - store original params to restore if user cancels
+        this.isEditMode = false;
+        this.originalEditParams = null;
+
         // Flag to prevent multiple rapid calls to handleAddToReservation
         this.isAddingToReservation = false;
 
@@ -6745,6 +6749,11 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       updateURLParams() {
+        // Skip URL updates when in edit mode - only update when user clicks "Add to Reservation"
+        if (this.isEditMode) {
+          return;
+        }
+
         const url = new URL(window.location);
 
         // Update boat parameters
@@ -7109,10 +7118,28 @@ document.addEventListener('DOMContentLoaded', () => {
           if (this.initialBoats.length === 0) {
             this.initialBoats = [...allBoats];
 
-            // Check if any boat allows half day (min reservation length < 1)
+            // Check if any boat allows half day after considering all minimums
+            // (boat min, public dock min, and private dock min)
             this.allowsHalfDay = allBoats.some(boat => {
-              const minLength = boat.minReservationLength || 0;
-              return minLength < 1;
+              const publicDockDetails = this.getPublicDockDeliveryDetails(boat);
+              const publicDockMinDays = publicDockDetails?.minDays ? Number(publicDockDetails.minDays) : 0;
+              const boatMinDays = boat.minReservationLength || 0;
+
+              // Get private dock min (consider all possible private docks)
+              let privateDockMinDays = 0;
+              if (boat.privateDockDeliveryLocations && boat.privateDockDeliveryLocations.length > 0) {
+                // Get the minimum across all private dock options for this boat
+                const privateDockMins = boat.privateDockDeliveryLocations.map(loc =>
+                  loc.minDays ? Number(loc.minDays) : 0
+                );
+                privateDockMinDays = Math.min(...privateDockMins);
+              }
+
+              // Effective minimum is the max of all minimums
+              const effectiveMinDays = Math.max(publicDockMinDays, privateDockMinDays, boatMinDays);
+
+              // Allow half day only if effective minimum is less than 1
+              return effectiveMinDays < 1;
             });
 
             // Update full/half day container visibility
@@ -7547,8 +7574,39 @@ document.addEventListener('DOMContentLoaded', () => {
         // Re-enable body scroll
         document.body.classList.remove('no-scroll');
 
+        // If we were in edit mode and user cancelled, restore original URL params
+        if (this.isEditMode && this.originalEditParams) {
+          const url = new URL(window.location);
+
+          // Restore all original parameters
+          if (this.originalEditParams.boatId) {
+            url.searchParams.set('boatId', this.originalEditParams.boatId);
+          }
+          if (this.originalEditParams.boatGuests) {
+            url.searchParams.set('boatGuests', this.originalEditParams.boatGuests);
+          }
+          if (this.originalEditParams.boatDates) {
+            url.searchParams.set('boatDates', this.originalEditParams.boatDates);
+          }
+          if (this.originalEditParams.boatPickupTime) {
+            url.searchParams.set('boatPickupTime', this.originalEditParams.boatPickupTime);
+          }
+          if (this.originalEditParams.boatLengthType) {
+            url.searchParams.set('boatLengthType', this.originalEditParams.boatLengthType);
+          }
+          if (this.originalEditParams.boatPrivateDock) {
+            url.searchParams.set('boatPrivateDock', this.originalEditParams.boatPrivateDock);
+          }
+          if (this.originalEditParams.boatDelivery) {
+            url.searchParams.set('boatDelivery', this.originalEditParams.boatDelivery);
+          }
+
+          window.history.replaceState({}, '', url);
+        }
+
         // Reset editing state
-        this.editingCharterNumber = null;
+        this.isEditMode = false;
+        this.originalEditParams = null;
 
         // Update reservation block visibility (should show in desktop view)
         this.updateReservationBlockVisibility();
@@ -10632,10 +10690,17 @@ document.addEventListener('DOMContentLoaded', () => {
           errorElement.style.display = 'none';
         }
 
+        // Exit edit mode now that user is saving - this allows updateURLParams to work
+        this.isEditMode = false;
+        this.originalEditParams = null;
+
         // Add boatId to URL parameters
         const url = new URL(window.location);
         url.searchParams.set('boatId', boat.id);
         window.history.pushState({}, '', url);
+
+        // Force update all URL params now that we're out of edit mode
+        this.updateURLParams();
 
         // Update the service state to reflect the boat selection
         this.initializeFromURL();
@@ -12094,6 +12159,18 @@ document.addEventListener('DOMContentLoaded', () => {
           const boatPrivateDock = urlParams.get('boatPrivateDock');
           const boatDelivery = urlParams.get('boatDelivery');
 
+          // Enter edit mode and store original parameters to restore if user cancels
+          this.isEditMode = true;
+          this.originalEditParams = {
+            boatId: urlParams.get('boatId'),
+            boatGuests: boatGuests,
+            boatDates: boatDates,
+            boatPickupTime: boatPickupTime,
+            boatLengthType: boatLengthType,
+            boatPrivateDock: boatPrivateDock,
+            boatDelivery: boatDelivery
+          };
+
           // Set the service's internal state to match URL parameters
           this.selectedGuests = boatGuests ? parseInt(boatGuests) : 0;
           this.selectedDates = boatDates ? boatDates.split(',') : [];
@@ -12621,6 +12698,10 @@ document.addEventListener('DOMContentLoaded', () => {
         this.editingCharterNumber = null;
         this.editingTripId = null;
 
+        // Edit mode tracking - store original params to restore if user cancels
+        this.isEditMode = false;
+        this.originalEditParams = null;
+
         // Florida Keys order for proximity sorting
         this.floridaKeysOrder = [
           'Key Largo',
@@ -12912,6 +12993,19 @@ document.addEventListener('DOMContentLoaded', () => {
         const originalDates = urlParams.get(`fishingCharterDates${trip.number}`);
         const originalGuests = urlParams.get(`fishingCharterGuests${trip.number}`);
         const originalPickup = urlParams.get(`fishingCharterPickup${trip.number}`);
+        const originalCharterId = urlParams.get(`fishingCharterId${trip.number}`);
+        const originalTripId = urlParams.get(`fishingCharterTripId${trip.number}`);
+
+        // Enter edit mode and store original parameters to restore if user cancels
+        this.isEditMode = true;
+        this.originalEditParams = {
+          charterNumber: trip.number,
+          charterId: originalCharterId,
+          tripId: originalTripId,
+          dates: originalDates,
+          guests: originalGuests,
+          pickup: originalPickup
+        };
 
         // Set the filter values to match the trip being edited
         this.selectedDates = originalDates ? originalDates.split(',').filter(Boolean) : [];
@@ -13948,9 +14042,36 @@ document.addEventListener('DOMContentLoaded', () => {
           this.detailsGuestsPopup._originalParent.appendChild(this.detailsGuestsPopup);
         }
 
+        // If we were in edit mode and user cancelled, restore original URL params
+        if (this.isEditMode && this.originalEditParams) {
+          const url = new URL(window.location);
+          const num = this.originalEditParams.charterNumber;
+
+          // Restore all original parameters for this charter
+          if (this.originalEditParams.charterId) {
+            url.searchParams.set(`fishingCharterId${num}`, this.originalEditParams.charterId);
+          }
+          if (this.originalEditParams.tripId) {
+            url.searchParams.set(`fishingCharterTripId${num}`, this.originalEditParams.tripId);
+          }
+          if (this.originalEditParams.dates) {
+            url.searchParams.set(`fishingCharterDates${num}`, this.originalEditParams.dates);
+          }
+          if (this.originalEditParams.guests) {
+            url.searchParams.set(`fishingCharterGuests${num}`, this.originalEditParams.guests);
+          }
+          if (this.originalEditParams.pickup) {
+            url.searchParams.set(`fishingCharterPickup${num}`, this.originalEditParams.pickup);
+          }
+
+          window.history.replaceState({}, '', url);
+        }
+
         // Reset editing state when modal is closed
         this.editingCharterNumber = null;
         this.editingTripId = null;
+        this.isEditMode = false;
+        this.originalEditParams = null;
 
         // Clear all filters when modal is closed (for next time it's opened)
         this.selectedGuests = 0;
@@ -17569,11 +17690,11 @@ document.addEventListener('DOMContentLoaded', () => {
             window.updateMobileHandlersState();
           }
 
-          // Reset editing state
-          this.editingCharterNumber = null;
-          this.editingTripId = null;
+          // Exit edit mode - user has successfully saved
+          this.isEditMode = false;
+          this.originalEditParams = null;
 
-          // Reset editing state after successful completion
+          // Reset editing state
           this.editingCharterNumber = null;
           this.editingTripId = null;
 
