@@ -3777,10 +3777,25 @@ function initializeRulesStep() {
         checkInInput.value = listingData.checkIn.time;
         checkInInput.setAttribute('value', listingData.checkIn.time);
 
-        // Only allow numbers
+        // Only allow numbers and limit to 1-12
         checkInInput.addEventListener('input', (e) => {
+            // Remove any non-numeric characters
             e.target.value = e.target.value.replace(/[^0-9]/g, '');
-            listingData.checkIn.time = parseInt(e.target.value);
+
+            let value = parseInt(e.target.value);
+
+            // If value is greater than 12, limit it to 12
+            if (value > 12) {
+                e.target.value = '12';
+                value = 12;
+            }
+
+            // If value is 0, clear it (we want 1-12 range)
+            if (value === 0) {
+                e.target.value = '';
+            }
+
+            listingData.checkIn.time = value || '';
             e.target.setAttribute('value', e.target.value);
             if (hasAttemptedToLeave.rules) {
                 validateRules();
@@ -3794,10 +3809,25 @@ function initializeRulesStep() {
         checkOutInput.value = listingData.checkOut.time;
         checkOutInput.setAttribute('value', listingData.checkOut.time);
 
-        // Only allow numbers
+        // Only allow numbers and limit to 1-12
         checkOutInput.addEventListener('input', (e) => {
+            // Remove any non-numeric characters
             e.target.value = e.target.value.replace(/[^0-9]/g, '');
-            listingData.checkOut.time = parseInt(e.target.value);
+
+            let value = parseInt(e.target.value);
+
+            // If value is greater than 12, limit it to 12
+            if (value > 12) {
+                e.target.value = '12';
+                value = 12;
+            }
+
+            // If value is 0, clear it (we want 1-12 range)
+            if (value === 0) {
+                e.target.value = '';
+            }
+
+            listingData.checkOut.time = value || '';
             e.target.setAttribute('value', e.target.value);
             if (hasAttemptedToLeave.rules) {
                 validateRules();

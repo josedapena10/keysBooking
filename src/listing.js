@@ -5618,6 +5618,14 @@ document.addEventListener('DOMContentLoaded', () => {
               this.selectedPickupTime = '';
               pill.style.borderColor = '';
               pill.style.borderWidth = '';
+
+              // Sync with boat details pills
+              Object.values(this.boatDetailsPickupTimePills).forEach(p => {
+                if (p) {
+                  p.style.borderColor = '';
+                  p.style.borderWidth = '';
+                }
+              });
             } else {
               // Deselect all pills first
               Object.values(this.pickupTimePills).forEach(p => {
@@ -5631,6 +5639,18 @@ document.addEventListener('DOMContentLoaded', () => {
               this.selectedPickupTime = time;
               pill.style.borderColor = '#000000';
               pill.style.borderWidth = '2px';
+
+              // Sync with boat details pills
+              Object.values(this.boatDetailsPickupTimePills).forEach(p => {
+                if (p) {
+                  p.style.borderColor = '';
+                  p.style.borderWidth = '';
+                }
+              });
+              if (this.boatDetailsPickupTimePills[time]) {
+                this.boatDetailsPickupTimePills[time].style.borderColor = '#000000';
+                this.boatDetailsPickupTimePills[time].style.borderWidth = '2px';
+              }
             }
 
             this.updateDatesFilterText();
@@ -5641,6 +5661,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Re-apply gating after pickup time selection changes
             this.applyPickupTimeGating(this.pickupTimePills, false);
+            // Also apply gating to boat details pills to keep them in sync
+            this.applyPickupTimeGating(this.boatDetailsPickupTimePills, true);
           });
         });
 
@@ -6590,7 +6612,52 @@ document.addEventListener('DOMContentLoaded', () => {
           }
 
           // Filter by minimum days requirement (boat minimum + public dock minimum + private dock minimum if selected)
+          // Check stay dates first (checkin/checkout), then boat dates if selected
+          let daysToCheck = 0;
+
+          // First, check property stay dates from URL (format: YYYY-MM-DD)
+          const urlParams = new URLSearchParams(window.location.search);
+          const checkin = urlParams.get('checkin');
+          const checkout = urlParams.get('checkout');
+
+          if (checkin && checkout && checkin.trim() !== '' && checkout.trim() !== '') {
+            // Simple calculation: YYYY-MM-DD format
+            // Split the dates and calculate difference manually
+            const checkinParts = checkin.split('-');
+            const checkoutParts = checkout.split('-');
+
+            if (checkinParts.length === 3 && checkoutParts.length === 3) {
+              // Create dates at noon UTC to avoid timezone issues
+              const checkinDate = new Date(Date.UTC(
+                parseInt(checkinParts[0]),
+                parseInt(checkinParts[1]) - 1,
+                parseInt(checkinParts[2]),
+                12, 0, 0
+              ));
+              const checkoutDate = new Date(Date.UTC(
+                parseInt(checkoutParts[0]),
+                parseInt(checkoutParts[1]) - 1,
+                parseInt(checkoutParts[2]),
+                12, 0, 0
+              ));
+
+              // Calculate days difference
+              const timeDiff = checkoutDate.getTime() - checkinDate.getTime();
+              const daysDiff = Math.floor(timeDiff / (1000 * 60 * 60 * 24));
+
+              if (daysDiff > 0) {
+                daysToCheck = daysDiff;
+              }
+            }
+          }
+
+          // Override with boat dates if selected (boat dates take precedence)
           if (this.selectedDates.length > 0) {
+            daysToCheck = this.selectedDates.length;
+          }
+
+          // Always check minimum days requirement if we have days to check
+          if (daysToCheck > 0) {
             const publicDockDetails = this.getPublicDockDeliveryDetails(boat);
             const publicDockMinDays = publicDockDetails?.minDays ? Number(publicDockDetails.minDays) : 0;
             const boatMinDays = boat.minReservationLength || 0;
@@ -6604,8 +6671,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const effectiveMinDays = Math.max(publicDockMinDays, privateDockMinDays, boatMinDays);
 
-            // If boat requires more days than user selected, filter it out
-            if (effectiveMinDays > 0 && this.selectedDates.length < effectiveMinDays) {
+            // If boat requires more days than available, filter it out from the beginning
+            if (effectiveMinDays > 0 && daysToCheck < effectiveMinDays) {
               return false;
             }
           }
@@ -8018,7 +8085,52 @@ document.addEventListener('DOMContentLoaded', () => {
           }
 
           // Filter by minimum days requirement (boat minimum + public dock minimum + private dock minimum if selected)
+          // Check stay dates first (checkin/checkout), then boat dates if selected
+          let daysToCheck = 0;
+
+          // First, check property stay dates from URL (format: YYYY-MM-DD)
+          const urlParams = new URLSearchParams(window.location.search);
+          const checkin = urlParams.get('checkin');
+          const checkout = urlParams.get('checkout');
+
+          if (checkin && checkout && checkin.trim() !== '' && checkout.trim() !== '') {
+            // Simple calculation: YYYY-MM-DD format
+            // Split the dates and calculate difference manually
+            const checkinParts = checkin.split('-');
+            const checkoutParts = checkout.split('-');
+
+            if (checkinParts.length === 3 && checkoutParts.length === 3) {
+              // Create dates at noon UTC to avoid timezone issues
+              const checkinDate = new Date(Date.UTC(
+                parseInt(checkinParts[0]),
+                parseInt(checkinParts[1]) - 1,
+                parseInt(checkinParts[2]),
+                12, 0, 0
+              ));
+              const checkoutDate = new Date(Date.UTC(
+                parseInt(checkoutParts[0]),
+                parseInt(checkoutParts[1]) - 1,
+                parseInt(checkoutParts[2]),
+                12, 0, 0
+              ));
+
+              // Calculate days difference
+              const timeDiff = checkoutDate.getTime() - checkinDate.getTime();
+              const daysDiff = Math.floor(timeDiff / (1000 * 60 * 60 * 24));
+
+              if (daysDiff > 0) {
+                daysToCheck = daysDiff;
+              }
+            }
+          }
+
+          // Override with boat dates if selected (boat dates take precedence)
           if (this.selectedDates.length > 0) {
+            daysToCheck = this.selectedDates.length;
+          }
+
+          // Always check minimum days requirement if we have days to check
+          if (daysToCheck > 0) {
             const publicDockDetails = this.getPublicDockDeliveryDetails(boat);
             const publicDockMinDays = publicDockDetails?.minDays ? Number(publicDockDetails.minDays) : 0;
             const boatMinDays = boat.minReservationLength || 0;
@@ -8032,8 +8144,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const effectiveMinDays = Math.max(publicDockMinDays, privateDockMinDays, boatMinDays);
 
-            // If boat requires more days than user selected, filter it out
-            if (effectiveMinDays > 0 && this.selectedDates.length < effectiveMinDays) {
+            // If boat requires more days than available, filter it out from the beginning
+            if (effectiveMinDays > 0 && daysToCheck < effectiveMinDays) {
               return false;
             }
           }
@@ -8767,9 +8879,38 @@ document.addEventListener('DOMContentLoaded', () => {
           detailsContent.scrollTop = 0;
         }
 
+        // Sync pickup time visual state from add boat wrapper to boat details
+        // First, clear all boat details pickup time pill borders
+        Object.values(this.boatDetailsPickupTimePills).forEach(pill => {
+          if (pill) {
+            pill.style.borderColor = '';
+            pill.style.borderWidth = '';
+          }
+        });
+
+        // Then, apply the selected pickup time visual state
+        if (this.selectedPickupTime && this.boatDetailsPickupTimePills[this.selectedPickupTime]) {
+          this.boatDetailsPickupTimePills[this.selectedPickupTime].style.borderColor = '#000000';
+          this.boatDetailsPickupTimePills[this.selectedPickupTime].style.borderWidth = '2px';
+        }
+
         // Apply pickup time gating when boat details opens
         this.applyPickupTimeGating(this.pickupTimePills, false);
         this.applyPickupTimeGating(this.boatDetailsPickupTimePills, true);
+
+        // Re-apply selection visual state after gating to ensure it's not lost
+        // This ensures the selected pickup time is always visible even after gating is applied
+        requestAnimationFrame(() => {
+          if (this.selectedPickupTime && this.boatDetailsPickupTimePills[this.selectedPickupTime]) {
+            this.boatDetailsPickupTimePills[this.selectedPickupTime].style.borderColor = '#000000';
+            this.boatDetailsPickupTimePills[this.selectedPickupTime].style.borderWidth = '2px';
+          }
+          // Also sync back to main wrapper pills to ensure consistency
+          if (this.selectedPickupTime && this.pickupTimePills[this.selectedPickupTime]) {
+            this.pickupTimePills[this.selectedPickupTime].style.borderColor = '#000000';
+            this.pickupTimePills[this.selectedPickupTime].style.borderWidth = '2px';
+          }
+        });
 
         // Populate the boat details
         this.populateBoatDetails(boat);
@@ -8824,6 +8965,21 @@ document.addEventListener('DOMContentLoaded', () => {
         // Don't call initializeFromURL() here as it resets filter state
         // The filter values are already in this.selectedDates, this.selectedGuests, etc.
         // and should be preserved when going back to selection view
+
+        // Sync pickup time visual state from boat details back to add boat wrapper
+        // First, clear all main wrapper pickup time pill borders
+        Object.values(this.pickupTimePills).forEach(pill => {
+          if (pill) {
+            pill.style.borderColor = '';
+            pill.style.borderWidth = '';
+          }
+        });
+
+        // Then, apply the selected pickup time visual state
+        if (this.selectedPickupTime && this.pickupTimePills[this.selectedPickupTime]) {
+          this.pickupTimePills[this.selectedPickupTime].style.borderColor = '#000000';
+          this.pickupTimePills[this.selectedPickupTime].style.borderWidth = '2px';
+        }
 
         // Update UI elements to reflect current filter state
         if (this.guestNumber) {
@@ -11267,6 +11423,14 @@ document.addEventListener('DOMContentLoaded', () => {
               this.selectedPickupTime = '';
               pill.style.borderColor = '';
               pill.style.borderWidth = '';
+
+              // Sync with add boat wrapper pills
+              Object.values(this.pickupTimePills).forEach(p => {
+                if (p) {
+                  p.style.borderColor = '';
+                  p.style.borderWidth = '';
+                }
+              });
             } else {
               // Deselect all pills first
               Object.values(this.boatDetailsPickupTimePills).forEach(p => {
@@ -11280,6 +11444,18 @@ document.addEventListener('DOMContentLoaded', () => {
               this.selectedPickupTime = time;
               pill.style.borderColor = '#000000';
               pill.style.borderWidth = '2px';
+
+              // Sync with add boat wrapper pills
+              Object.values(this.pickupTimePills).forEach(p => {
+                if (p) {
+                  p.style.borderColor = '';
+                  p.style.borderWidth = '';
+                }
+              });
+              if (this.pickupTimePills[time]) {
+                this.pickupTimePills[time].style.borderColor = '#000000';
+                this.pickupTimePills[time].style.borderWidth = '2px';
+              }
             }
 
             this.initializeBoatDetailsDateFilter();
@@ -11295,6 +11471,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Re-apply gating after pickup time selection changes
             this.applyPickupTimeGating(this.boatDetailsPickupTimePills, true);
+            // Also apply gating to add boat wrapper pills to keep them in sync
+            this.applyPickupTimeGating(this.pickupTimePills, false);
           });
         });
 
