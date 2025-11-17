@@ -7615,6 +7615,9 @@ document.addEventListener('DOMContentLoaded', () => {
         // Re-render date selections
         this.renderDateSelection();
         this.renderBoatDetailsDateSelection();
+
+        // Reset disabled states
+        this.updateDateButtonDisabledStates();
       }
 
       async handleButtonClick() {
@@ -7969,6 +7972,10 @@ document.addEventListener('DOMContentLoaded', () => {
         this.updateFilterStyles();
         this.updateExistingCards();
         this.updateURLParams();
+
+        // Reset disabled states when dates are cleared
+        this.updateDateButtonDisabledStates();
+
         // Re-filter boats to show all boats again
         this.fetchAndRenderBoats();
       }
@@ -13954,13 +13961,22 @@ document.addEventListener('DOMContentLoaded', () => {
         this.priceMin = 0;
         this.priceMax = 5000;
 
+        // Clear details section filters as well
+        this.detailsSelectedDates = [];
+        this.detailsSelectedGuests = 0;
+        this.detailsSelectedPrivateDock = false;
+
         // Update UI elements to reflect cleared state
         if (this.guestNumber) this.guestNumber.textContent = this.selectedGuests;
+        if (this.detailsGuestNumber) this.detailsGuestNumber.textContent = this.detailsSelectedGuests;
         this.updateGuestsFilterText();
         this.updateDatesFilterText();
         this.updatePrivateDockFilterText();
         this.updateFishingTypeFilterText();
         this.updatePriceFilterText();
+        this.updateDetailsGuestsFilterText();
+        this.updateDetailsDateFilterText();
+        this.updateDetailsPrivateDockFilterText();
 
         // Reset checkbox styles for fishing types
         Object.values(this.fishingTypes).forEach(checkbox => {
@@ -13979,6 +13995,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Update filter styles
         this.updateFilterStyles();
+        this.updateDetailsFilterStyles();
 
         // Re-enable body scroll
         document.body.classList.remove('no-scroll');
@@ -14970,18 +14987,23 @@ document.addEventListener('DOMContentLoaded', () => {
           backButton.replaceWith(backButton.cloneNode(true));
           const newBackButton = document.querySelector('[data-element="fishingCharterDetails_back"]');
 
-          newBackButton.addEventListener('click', () => {
-            // Reset editing state when going back
-            this.editingCharterNumber = null;
-            this.editingTripId = null;
+          newBackButton.addEventListener('click', async () => {
+            // DON'T reset editing state when going back - preserve it so user can select different charter
+            // this.editingCharterNumber and this.editingTripId remain set
 
             // Sync all filter states back to main view
             this.transferValuesToMain();
-            // this.updateURLParams();
-            this.refilterChartersIfModalOpen();
 
+            // Show select wrapper
             this.detailsWrapper.style.display = 'none';
             this.selectWrapper.style.display = 'flex';
+
+            // Fetch and render charters if not already loaded
+            if (this.allFishingCharters.length === 0) {
+              await this.fetchAndRenderFishingCharters();
+            } else {
+              this.refilterChartersIfModalOpen();
+            }
           });
         }
       }
