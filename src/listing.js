@@ -12988,10 +12988,23 @@ document.addEventListener('DOMContentLoaded', () => {
         // Double-check: if no charters exist in URL, hide all blocks and exit
         // This prevents race conditions from async calls
         if (!this.hasAnyFishingCharters()) {
-          this.selectedFishingCharterBlocks.forEach(block => {
-            if (block) {
-              block.style.display = 'none';
-            }
+          this.selectedFishingCharterBlocks.forEach(templateBlock => {
+            if (!templateBlock) return;
+
+            const container = templateBlock.parentElement;
+            if (!container) return;
+
+            // Remove ALL existing blocks including clones
+            const existingBlocks = container.querySelectorAll('[data-element="selectedFishingCharterBlock"]');
+            existingBlocks.forEach((block, index) => {
+              if (index !== 0) {
+                // Remove cloned blocks
+                block.remove();
+              } else {
+                // Hide template block
+                block.style.display = 'none';
+              }
+            });
           });
           return;
         }
@@ -13516,10 +13529,26 @@ document.addEventListener('DOMContentLoaded', () => {
             }
           });
         } else {
-          this.selectedFishingCharterBlocks.forEach(block => {
-            if (block) {
-              block.style.display = 'none';
+          this.selectedFishingCharterBlocks.forEach(templateBlock => {
+            if (!templateBlock) return;
+
+            const container = templateBlock.parentElement;
+            if (!container) {
+              templateBlock.style.display = 'none';
+              return;
             }
+
+            // Remove ALL existing cloned blocks
+            const existingBlocks = container.querySelectorAll('[data-element="selectedFishingCharterBlock"]');
+            existingBlocks.forEach((block, index) => {
+              if (index !== 0) {
+                // Remove cloned blocks
+                block.remove();
+              } else {
+                // Hide template block
+                block.style.display = 'none';
+              }
+            });
           });
 
           // If no charters exist and not editing, clear all filter states
@@ -16609,10 +16638,26 @@ document.addEventListener('DOMContentLoaded', () => {
             }
           });
         } else {
-          this.selectedFishingCharterBlocks.forEach(block => {
-            if (block) {
-              block.style.display = 'none';
+          this.selectedFishingCharterBlocks.forEach(templateBlock => {
+            if (!templateBlock) return;
+
+            const container = templateBlock.parentElement;
+            if (!container) {
+              templateBlock.style.display = 'none';
+              return;
             }
+
+            // Remove ALL existing cloned blocks
+            const existingBlocks = container.querySelectorAll('[data-element="selectedFishingCharterBlock"]');
+            existingBlocks.forEach((block, index) => {
+              if (index !== 0) {
+                // Remove cloned blocks
+                block.remove();
+              } else {
+                // Hide template block
+                block.style.display = 'none';
+              }
+            });
           });
         }
       }
@@ -18832,19 +18877,57 @@ document.addEventListener('DOMContentLoaded', () => {
     // are defined globally (lines 4688 and 4742) and reused here
 
     // Helper function to remove fishing charter from reservation
-    function removeFishingCharterFromReservation(number) {
-      const urlParams = new URLSearchParams(window.location.search);
+    function removeFishingCharterFromReservation(numberToRemove) {
+      const url = new URL(window.location);
+      const allNumbers = window.fishingCharterService ? window.fishingCharterService.getAllFishingCharterNumbers() : [];
 
-      // Remove fishing charter related parameters for this number
-      urlParams.delete(`fishingCharterId${number}`);
-      urlParams.delete(`fishingCharterTripId${number}`);
-      urlParams.delete(`fishingCharterGuests${number}`);
-      urlParams.delete(`fishingCharterDates${number}`);
-      urlParams.delete(`fishingCharterPickup${number}`);
+      // Remove the specific numbered parameters
+      url.searchParams.delete(`fishingCharterId${numberToRemove}`);
+      url.searchParams.delete(`fishingCharterTripId${numberToRemove}`);
+      url.searchParams.delete(`fishingCharterGuests${numberToRemove}`);
+      url.searchParams.delete(`fishingCharterDates${numberToRemove}`);
+      url.searchParams.delete(`fishingCharterPickup${numberToRemove}`);
+
+      // Get remaining numbers (excluding the one we just removed)
+      const remainingNumbers = allNumbers.filter(num => num !== numberToRemove).sort((a, b) => a - b);
+
+      // If there are remaining charters, renumber them sequentially
+      if (remainingNumbers.length > 0) {
+        const tempParams = {};
+
+        // Store remaining parameters temporarily
+        remainingNumbers.forEach(oldNumber => {
+          const charterId = url.searchParams.get(`fishingCharterId${oldNumber}`);
+          const tripId = url.searchParams.get(`fishingCharterTripId${oldNumber}`);
+          const guests = url.searchParams.get(`fishingCharterGuests${oldNumber}`);
+          const dates = url.searchParams.get(`fishingCharterDates${oldNumber}`);
+          const pickup = url.searchParams.get(`fishingCharterPickup${oldNumber}`);
+
+          if (charterId) {
+            tempParams[oldNumber] = { charterId, tripId, guests, dates, pickup };
+          }
+
+          // Remove old numbered parameters
+          url.searchParams.delete(`fishingCharterId${oldNumber}`);
+          url.searchParams.delete(`fishingCharterTripId${oldNumber}`);
+          url.searchParams.delete(`fishingCharterGuests${oldNumber}`);
+          url.searchParams.delete(`fishingCharterDates${oldNumber}`);
+          url.searchParams.delete(`fishingCharterPickup${oldNumber}`);
+        });
+
+        // Re-add parameters with sequential numbering (1, 2, 3, etc.)
+        Object.values(tempParams).forEach((params, index) => {
+          const newNumber = index + 1;
+          url.searchParams.set(`fishingCharterId${newNumber}`, params.charterId);
+          if (params.tripId) url.searchParams.set(`fishingCharterTripId${newNumber}`, params.tripId);
+          if (params.guests) url.searchParams.set(`fishingCharterGuests${newNumber}`, params.guests);
+          if (params.dates) url.searchParams.set(`fishingCharterDates${newNumber}`, params.dates);
+          if (params.pickup) url.searchParams.set(`fishingCharterPickup${newNumber}`, params.pickup);
+        });
+      }
 
       // Update URL
-      const newUrl = window.location.pathname + '?' + urlParams.toString();
-      window.history.replaceState({}, '', newUrl);
+      window.history.replaceState({}, '', url);
 
       // Check if any fishing charters remain and reset filter states if none remain
       if (window.fishingCharterService) {
