@@ -4963,6 +4963,7 @@ document.addEventListener('DOMContentLoaded', () => {
         this.boatDetailsFullDayBtn = document.querySelector('[data-element="addBoatModal_boatDetails_datesPopup_fullDay"]');
         this.boatDetailsHalfDayBtn = document.querySelector('[data-element="addBoatModal_boatDetails_datesPopup_halfDay"]');
         this.boatDetailsFullHalfDaysContainer = document.querySelector('[data-element="addBoatModal_boatDetails_datesPopup_fullHalfDaysContainer"]');
+        this.boatDetailsMinDaysText = document.querySelector('[data-element="addBoatModal_boatDetails_datesPopup_minDaysText"]');
 
         // Boat details pickup time filter elements (separate from dates now)
         this.boatDetailsPickupTimeFilter = document.querySelector('[data-element="boatDetails_reservation_pickupTime"]');
@@ -5078,6 +5079,7 @@ document.addEventListener('DOMContentLoaded', () => {
         this.selectedBoatTypes = []; // Track selected boat types
         this.selectedPrivateDock = false; // Track if private dock filter is selected
         this.userAge = null; // Store user's age for filtering
+        this.availableBoats = []; // Store available boats for date disabling logic
 
         // Flag to prevent multiple rapid calls to handleAddToReservation
         this.isAddingToReservation = false;
@@ -5380,12 +5382,12 @@ document.addEventListener('DOMContentLoaded', () => {
               // Update UI and state
               this.updateDatesFilterText();
               this.updatePickupTimeFilterText();
+              this.updateBoatDetailsPickupTimeFilterText(); // Always keep both texts in sync
               this.updateFilterStyles();
               this.updateURLParams();
 
               if (isBoatDetails) {
                 this.updateBoatDetailsDateFilterText();
-                this.updateBoatDetailsPickupTimeFilterText();
                 this.updateBoatDetailsPrice();
                 this.clearErrorIfResolved(this.boatDetailsErrorElement);
                 this.updateBoatDetailsDateButtonStyles();
@@ -5655,6 +5657,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             this.updateDatesFilterText();
             this.updatePickupTimeFilterText();
+            this.updateBoatDetailsPickupTimeFilterText(); // Keep boat details text in sync
             this.updateFilterStyles();
             this.updateURLParams();
             this.updateExistingCards();
@@ -6137,6 +6140,33 @@ document.addEventListener('DOMContentLoaded', () => {
           datesGrid.appendChild(emptyCell);
         }
 
+        // Check if all boats require multiple days and get the minimum
+        const allBoatsRequireMultipleDays = this.checkIfAllBoatsRequireMultipleDays();
+        let minDaysRequired = 0;
+
+        if (allBoatsRequireMultipleDays && this.availableBoats && this.availableBoats.length > 0) {
+          // Get the minimum days required across all boats
+          const minDaysArray = this.availableBoats.map(boat => {
+            const publicDockDetails = this.getPublicDockDeliveryDetails(boat);
+            const publicDockMinDays = publicDockDetails?.minDays ? Number(publicDockDetails.minDays) : 0;
+            const boatMinDays = boat.minReservationLength || 0;
+
+            let privateDockMinDays = 0;
+            if (this.selectedPrivateDock) {
+              const privateDockDetails = this.getPrivateDockDeliveryDetails(boat);
+              privateDockMinDays = privateDockDetails?.minDays ? Number(privateDockDetails.minDays) : 0;
+            }
+
+            return Math.max(publicDockMinDays, privateDockMinDays, boatMinDays);
+          });
+
+          minDaysRequired = Math.min(...minDaysArray); // Use the smallest minimum to be safe
+        }
+
+        // Check if we need to disable intermediate dates (when one date is selected and all boats require multiple days)
+        const shouldDisableIntermediateDates = allBoatsRequireMultipleDays && this.selectedDates.length === 1 && minDaysRequired > 1;
+        const selectedSingleDate = shouldDisableIntermediateDates ? this.selectedDates[0] : null;
+
         // Create date buttons
         dateArray.forEach(dateStr => {
           const [year, month, day] = dateStr.split('-').map(Number);
@@ -6149,9 +6179,26 @@ document.addEventListener('DOMContentLoaded', () => {
           dateBtn.style.height = '40px';
           dateBtn.style.border = '1px solid #ddd';
           dateBtn.style.borderRadius = '1000px';
+
+          // Determine if this date should be disabled
+          let isDisabled = false;
+          if (shouldDisableIntermediateDates && dateStr !== selectedSingleDate) {
+            // Calculate how many days would be in the range if this date was selected
+            const range = this.generateDateRange(
+              selectedSingleDate < dateStr ? selectedSingleDate : dateStr,
+              selectedSingleDate < dateStr ? dateStr : selectedSingleDate
+            );
+            const daysInRange = range.length;
+
+            // Disable dates that would create a range less than minimum required
+            if (daysInRange < minDaysRequired) {
+              isDisabled = true;
+            }
+          }
+
           dateBtn.style.background = this.selectedDates.includes(dateStr) ? '#000000' : 'white';
           dateBtn.style.color = this.selectedDates.includes(dateStr) ? 'white' : 'black';
-          dateBtn.style.cursor = 'pointer';
+          dateBtn.style.cursor = isDisabled ? 'not-allowed' : 'pointer';
           dateBtn.style.display = 'flex';
           dateBtn.style.alignItems = 'center';
           dateBtn.style.justifyContent = 'center';
@@ -6159,8 +6206,14 @@ document.addEventListener('DOMContentLoaded', () => {
           dateBtn.style.fontFamily = 'TT Fors, sans-serif';
           dateBtn.style.fontWeight = '500';
 
+          if (isDisabled) {
+            dateBtn.style.opacity = '0.3';
+          }
+
           dateBtn.addEventListener('click', () => {
-            this.handleDateSelection(dateStr);
+            if (!isDisabled) {
+              this.handleDateSelection(dateStr);
+            }
           });
 
           datesGrid.appendChild(dateBtn);
@@ -6204,10 +6257,46 @@ document.addEventListener('DOMContentLoaded', () => {
         return (h + 6) % 7;
       }
 
+      checkIfAllBoatsRequireMultipleDays() {
+        // Check if all available boats require more than 1 day
+        if (!this.availableBoats || this.availableBoats.length === 0) {
+          return false;
+        }
+
+        // Check each boat's minimum days requirement
+        return this.availableBoats.every(boat => {
+          const publicDockDetails = this.getPublicDockDeliveryDetails(boat);
+          const publicDockMinDays = publicDockDetails?.minDays ? Number(publicDockDetails.minDays) : 0;
+          const boatMinDays = boat.minReservationLength || 0;
+
+          // Get private dock min days if private dock is selected
+          let privateDockMinDays = 0;
+          if (this.selectedPrivateDock) {
+            const privateDockDetails = this.getPrivateDockDeliveryDetails(boat);
+            privateDockMinDays = privateDockDetails?.minDays ? Number(privateDockDetails.minDays) : 0;
+          }
+
+          const effectiveMinDays = Math.max(publicDockMinDays, privateDockMinDays, boatMinDays);
+
+          // Return true if this boat requires more than 1 day
+          return effectiveMinDays > 1;
+        });
+      }
+
       handleDateSelection(dateStr) {
+        // Check if all boats require more than 1 day
+        const allBoatsRequireMultipleDays = this.checkIfAllBoatsRequireMultipleDays();
+
         // If no dates selected, select this date
         if (this.selectedDates.length === 0) {
           this.selectedDates = [dateStr];
+
+          // If all boats require > 1 day, show a message or visual indicator
+          // that they need to select an end date
+          if (allBoatsRequireMultipleDays) {
+            // User must select an end date - the visual indication comes from
+            // the date buttons showing they need a range
+          }
         }
         // If one date selected
         else if (this.selectedDates.length === 1) {
@@ -6237,8 +6326,8 @@ document.addEventListener('DOMContentLoaded', () => {
           this.selectedDates = [dateStr];
         }
 
-        // Update all button styles
-        this.updateDateButtonStyles();
+        // Re-render date selection to update disabled states (important for min days logic)
+        this.renderDateSelection();
 
         // Update length type options
         this.updateLengthTypeButtons();
@@ -6641,12 +6730,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 12, 0, 0
               ));
 
-              // Calculate days difference
+              // Calculate days difference (nights between dates)
               const timeDiff = checkoutDate.getTime() - checkinDate.getTime();
-              const daysDiff = Math.floor(timeDiff / (1000 * 60 * 60 * 24));
+              const nightsDiff = Math.floor(timeDiff / (1000 * 60 * 60 * 24));
 
-              if (daysDiff > 0) {
-                daysToCheck = daysDiff;
+              // For boat rentals, we need total days including checkin and checkout
+              // 6 nights = 7 days (checkin day + 6 nights + checkout day = 7 days)
+              if (nightsDiff > 0) {
+                daysToCheck = nightsDiff + 1; // Add 1 to convert nights to total days
               }
             }
           }
@@ -6915,17 +7006,24 @@ document.addEventListener('DOMContentLoaded', () => {
             return lengthA - lengthB;
           });
 
+          // Store available boats for date disabling logic
+          this.availableBoats = sortedBoats;
+
           // Hide skeleton cards
           this.hideSkeletonCards();
 
           // Render the sorted boats
           this.renderBoatCards(sortedBoats);
 
+          // Re-render date selection to update disabled states based on available boats
+          this.renderDateSelection();
+
           return sortedBoats;
         } catch (error) {
           // Hide skeleton cards on error too
           this.hideSkeletonCards();
           this.renderBoatCards([]);
+          this.availableBoats = [];
           return [];
         }
       }
@@ -8114,12 +8212,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 12, 0, 0
               ));
 
-              // Calculate days difference
+              // Calculate days difference (nights between dates)
               const timeDiff = checkoutDate.getTime() - checkinDate.getTime();
-              const daysDiff = Math.floor(timeDiff / (1000 * 60 * 60 * 24));
+              const nightsDiff = Math.floor(timeDiff / (1000 * 60 * 60 * 24));
 
-              if (daysDiff > 0) {
-                daysToCheck = daysDiff;
+              // For boat rentals, we need total days including checkin and checkout
+              // 6 nights = 7 days (checkin day + 6 nights + checkout day = 7 days)
+              if (nightsDiff > 0) {
+                daysToCheck = nightsDiff + 1; // Add 1 to convert nights to total days
               }
             }
           }
@@ -8910,6 +9010,9 @@ document.addEventListener('DOMContentLoaded', () => {
             this.pickupTimePills[this.selectedPickupTime].style.borderColor = '#000000';
             this.pickupTimePills[this.selectedPickupTime].style.borderWidth = '2px';
           }
+          // Update text elements to show current selection
+          this.updatePickupTimeFilterText();
+          this.updateBoatDetailsPickupTimeFilterText();
         });
 
         // Populate the boat details
@@ -8928,6 +9031,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const effectiveMinDays = Math.max(publicDockMinDays, privateDockMinDays, boatMinDays);
+
+        // Update min days text display
+        if (this.boatDetailsMinDaysText) {
+          if (effectiveMinDays > 1) {
+            const daysText = effectiveMinDays === 1 ? 'Day' : 'Days';
+            this.boatDetailsMinDaysText.textContent = `${effectiveMinDays} ${daysText} minimum`;
+            this.boatDetailsMinDaysText.style.display = 'block';
+          } else {
+            this.boatDetailsMinDaysText.style.display = 'none';
+          }
+        }
 
         // Hide half-day option if minimum days > 0.5
         if (effectiveMinDays > 0.5 && this.boatDetailsFullHalfDaysContainer) {
@@ -8987,6 +9101,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         this.updateDatesFilterText();
         this.updatePickupTimeFilterText();
+        this.updateBoatDetailsPickupTimeFilterText(); // Keep boat details text in sync
         this.updateGuestsFilterText();
         this.updatePrivateDockFilterText();
         this.updateLengthTypeButtons();
@@ -11249,6 +11364,30 @@ document.addEventListener('DOMContentLoaded', () => {
         // Boat details popup exit handler
         if (this.boatDetailsPopupExit) {
           this.boatDetailsPopupExit.addEventListener('click', () => {
+            // Check if single date selected with min days > 1, reset if so
+            if (this.selectedDates.length === 1 && this.currentBoatData) {
+              const publicDockDetails = this.getPublicDockDeliveryDetails(this.currentBoatData);
+              const publicDockMinDays = publicDockDetails?.minDays ? Number(publicDockDetails.minDays) : 0;
+              const boatMinDays = this.currentBoatData.minReservationLength || 0;
+
+              let privateDockMinDays = 0;
+              if (this.selectedPrivateDock) {
+                const privateDockDetails = this.getPrivateDockDeliveryDetails(this.currentBoatData);
+                privateDockMinDays = privateDockDetails?.minDays ? Number(privateDockDetails.minDays) : 0;
+              }
+
+              const effectiveMinDays = Math.max(publicDockMinDays, privateDockMinDays, boatMinDays);
+
+              // If min days > 1 and only one date selected, reset to no selection
+              if (effectiveMinDays > 1) {
+                this.selectedDates = [];
+                this.updateBoatDetailsDateButtonStyles();
+                this.initializeBoatDetailsDateFilter();
+                this.updateURLParams();
+                this.updateBoatDetailsPrice();
+              }
+            }
+
             if (this.boatDetailsPopup) this.boatDetailsPopup.style.display = 'none';
           });
         }
@@ -11256,6 +11395,30 @@ document.addEventListener('DOMContentLoaded', () => {
         // Boat details popup done handler
         if (this.boatDetailsPopupDone) {
           this.boatDetailsPopupDone.addEventListener('click', () => {
+            // Check if single date selected with min days > 1, reset if so
+            if (this.selectedDates.length === 1 && this.currentBoatData) {
+              const publicDockDetails = this.getPublicDockDeliveryDetails(this.currentBoatData);
+              const publicDockMinDays = publicDockDetails?.minDays ? Number(publicDockDetails.minDays) : 0;
+              const boatMinDays = this.currentBoatData.minReservationLength || 0;
+
+              let privateDockMinDays = 0;
+              if (this.selectedPrivateDock) {
+                const privateDockDetails = this.getPrivateDockDeliveryDetails(this.currentBoatData);
+                privateDockMinDays = privateDockDetails?.minDays ? Number(privateDockDetails.minDays) : 0;
+              }
+
+              const effectiveMinDays = Math.max(publicDockMinDays, privateDockMinDays, boatMinDays);
+
+              // If min days > 1 and only one date selected, reset to no selection
+              if (effectiveMinDays > 1) {
+                this.selectedDates = [];
+                this.updateBoatDetailsDateButtonStyles();
+                this.initializeBoatDetailsDateFilter();
+                this.updateURLParams();
+                this.updateBoatDetailsPrice();
+              }
+            }
+
             // In mobile view, follow the flow: dates → pickup time → guests
             if (this.isMobileView()) {
               const hasPickupTime = this.selectedPickupTime && this.selectedPickupTime !== '';
@@ -11460,6 +11623,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             this.initializeBoatDetailsDateFilter();
             this.updateBoatDetailsPickupTimeFilterText();
+            this.updatePickupTimeFilterText(); // Keep add boat wrapper text in sync
             this.updateURLParams();
             this.updateBoatDetailsPrice();
 
