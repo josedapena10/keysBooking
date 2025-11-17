@@ -10712,7 +10712,6 @@ document.addEventListener('DOMContentLoaded', () => {
           }
 
           if (element) {
-            element.style.border = '2px solid #dc2626';
             element.style.backgroundColor = '#fee2e2';
           }
         });
@@ -17938,7 +17937,6 @@ document.addEventListener('DOMContentLoaded', () => {
           }
 
           if (element) {
-            element.style.border = '2px solid #dc2626';
             element.style.backgroundColor = '#fee2e2';
           }
         });
