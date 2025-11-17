@@ -10677,19 +10677,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Flash check availability button with red border to get user's attention
       flashCheckAvailabilityButton() {
-        const checkAvailabilityButton = document.querySelector('[data-element="listing_checkAvailability_button"]');
-        if (!checkAvailabilityButton) return;
+        const checkAvailabilityButtons = document.querySelectorAll('[data-element="listing_checkAvailability_button"]');
+        if (!checkAvailabilityButtons.length) return;
 
-        // Store original border
-        const originalBorder = checkAvailabilityButton.style.border;
+        checkAvailabilityButtons.forEach(button => {
+          // Store original border
+          const originalBorder = button.style.border;
 
-        // Set red border
-        checkAvailabilityButton.style.border = '2px solid #dc2626';
+          // Set red border
+          button.style.border = '2px solid #dc2626';
 
-        // Remove red border after 2 seconds
-        setTimeout(() => {
-          checkAvailabilityButton.style.border = originalBorder;
-        }, 2000);
+          // Remove red border after 2 seconds
+          setTimeout(() => {
+            button.style.border = originalBorder;
+          }, 2000);
+        });
       }
 
       // Highlight error fields in boat details section
@@ -17905,19 +17907,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Flash check availability button with red border to get user's attention
       flashCheckAvailabilityButton() {
-        const checkAvailabilityButton = document.querySelector('[data-element="listing_checkAvailability_button"]');
-        if (!checkAvailabilityButton) return;
+        const checkAvailabilityButtons = document.querySelectorAll('[data-element="listing_checkAvailability_button"]');
+        if (!checkAvailabilityButtons.length) return;
 
-        // Store original border
-        const originalBorder = checkAvailabilityButton.style.border;
+        checkAvailabilityButtons.forEach(button => {
+          // Store original border
+          const originalBorder = button.style.border;
 
-        // Set red border
-        checkAvailabilityButton.style.border = '2px solid #dc2626';
+          // Set red border
+          button.style.border = '2px solid #dc2626';
 
-        // Remove red border after 2 seconds
-        setTimeout(() => {
-          checkAvailabilityButton.style.border = originalBorder;
-        }, 2000);
+          // Remove red border after 2 seconds
+          setTimeout(() => {
+            button.style.border = originalBorder;
+          }, 2000);
+        });
       }
 
       // Highlight error fields in fishing charter details section
