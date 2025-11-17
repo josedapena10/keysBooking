@@ -12870,6 +12870,37 @@ document.addEventListener('DOMContentLoaded', () => {
         return Array.from(reservedDates);
       }
 
+      // Get reserved dates only for THIS specific charter (not other charters)
+      // Used in details section to prevent double-booking the same charter on the same date
+      getReservedDatesForThisCharter() {
+        if (!this.currentCharterData || !this.currentCharterData.id) {
+          return [];
+        }
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const allNumbers = this.getAllFishingCharterNumbers();
+        const reservedDates = new Set();
+        const currentCharterId = String(this.currentCharterData.id);
+
+        allNumbers.forEach(number => {
+          // Skip the charter we're currently editing (if editing)
+          if (this.editingCharterNumber && number === this.editingCharterNumber) {
+            return;
+          }
+
+          const bookedCharterId = urlParams.get(`fishingCharterId${number}`);
+          const datesParam = urlParams.get(`fishingCharterDates${number}`);
+
+          // Only get dates if this booking is for the SAME charter we're viewing
+          if (bookedCharterId === currentCharterId && datesParam) {
+            const dates = datesParam.split(',').filter(Boolean);
+            dates.forEach(date => reservedDates.add(date));
+          }
+        });
+
+        return Array.from(reservedDates);
+      }
+
 
       // Format dates for display like "May 1, 2, 4" or "May 1, 2 & Jun 1"
       formatDatesForDisplay(datesList) {
@@ -17372,8 +17403,9 @@ document.addEventListener('DOMContentLoaded', () => {
           datesGrid.appendChild(emptyCell);
         }
 
-        // Get reserved dates from other fishing charters
-        const reservedDates = this.getReservedDatesForOtherCharters();
+        // Get reserved dates only for THIS specific charter
+        // (not all other charters - users can book different charters on the same day)
+        const reservedDatesForThisCharter = this.getReservedDatesForThisCharter();
 
         dateArray.forEach(dateStr => {
           const [year, month, day] = dateStr.split('-').map(Number);
@@ -17386,12 +17418,12 @@ document.addEventListener('DOMContentLoaded', () => {
           dateBtn.style.border = '1px solid #ddd';
           dateBtn.style.borderRadius = '1000px';
 
-          // Check if this date is reserved by other charters
-          const isReserved = reservedDates.includes(dateStr);
+          // Check if this date is already reserved for THIS specific charter
+          const isReserved = reservedDatesForThisCharter.includes(dateStr);
           const isSelected = this.detailsSelectedDates.includes(dateStr);
 
           if (isReserved) {
-            // Date is reserved by another charter - disable it
+            // Date is reserved for THIS charter already - disable it
             dateBtn.style.background = '#f5f5f5';
             dateBtn.style.color = '#999';
             dateBtn.style.cursor = 'not-allowed';
