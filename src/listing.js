@@ -2847,10 +2847,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Update selectedBoatBlock_image
       const imageElements = document.querySelectorAll('[data-element="selectedBoatBlock_image"]');
-      if (imageElements.length > 0 && window.selectedBoatData.photos && window.selectedBoatData.photos[0]) {
+      if (imageElements.length > 0) {
         imageElements.forEach(element => {
           if (element) {
-            element.src = window.selectedBoatData.photos[0].image.url;
+            if (window.selectedBoatData.photos && window.selectedBoatData.photos[0]) {
+              element.src = window.selectedBoatData.photos[0].image.url;
+              element.style.display = 'block';
+            } else {
+              element.style.display = 'none';
+            }
           }
         });
       }
@@ -5110,32 +5115,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (this.boatDetailsGuestsPopup) this.boatDetailsGuestsPopup.style.display = 'none';
       }
 
-      // Setup click-outside-to-close for all popups
-      setupClickOutsideToClosePopups() {
-        const popups = [
-          this.datesPopup,
-          this.pickupTimePopup,
-          this.guestsPopup,
-          this.pricePopup,
-          this.lengthPopup,
-          this.typePopup,
-          this.boatDetailsPopup,
-          this.boatDetailsPickupTimePopup,
-          this.boatDetailsGuestsPopup
-        ];
-
-        popups.forEach(popup => {
-          if (popup) {
-            popup.addEventListener('click', (e) => {
-              // Close popup if clicking directly on the popup background (not its children)
-              if (e.target === popup) {
-                popup.style.display = 'none';
-              }
-            });
-          }
-        });
-      }
-
       // Helper method to parse property check-in time to 24-hour format
       parseCheckInTime(checkInTimeStr) {
         if (!checkInTimeStr) return null;
@@ -5524,9 +5503,6 @@ document.addEventListener('DOMContentLoaded', () => {
           // // Set initial visibility based on mobile view
           // this.updateBoatDetailsXButtonVisibility();
         }
-
-        // Click-outside-to-close for all popups
-        this.setupClickOutsideToClosePopups();
 
         // Filter handlers
         this.setupFilterHandlers();
@@ -12806,29 +12782,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (this.detailsGuestsPopup) this.detailsGuestsPopup.style.display = 'none';
       }
 
-      // Setup click-outside-to-close for all popups
-      setupClickOutsideToClosePopups() {
-        const popups = [
-          this.datesPopup,
-          this.guestsPopup,
-          this.pricePopup,
-          this.typePopup,
-          this.detailsDatesPopup,
-          this.detailsGuestsPopup
-        ];
-
-        popups.forEach(popup => {
-          if (popup) {
-            popup.addEventListener('click', (e) => {
-              // Close popup if clicking directly on the popup background (not its children)
-              if (e.target === popup) {
-                popup.style.display = 'none';
-              }
-            });
-          }
-        });
-      }
-
       async getSelectedFishingCharterData() {
         const numbers = (this.getAllFishingCharterNumbers() || []).filter(Boolean);
         const base = 'https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/fishingcharters';
@@ -13059,8 +13012,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Update selectedFishingCharterBlock_image
         const imageElement = block.querySelector('[data-element="selectedFishingCharterBlock_image"]');
-        if (imageElement && trip.image) {
-          imageElement.src = trip.image;
+        if (imageElement) {
+          if (trip.image) {
+            imageElement.src = trip.image;
+            imageElement.style.display = 'block';
+          } else {
+            imageElement.style.display = 'none';
+          }
         }
 
         // Update selectedFishingCharterBlock_tripName
@@ -13464,9 +13422,6 @@ document.addEventListener('DOMContentLoaded', () => {
             this.closeModal();
           });
         }
-
-        // Click-outside-to-close for all popups
-        this.setupClickOutsideToClosePopups();
 
         // Filter handlers
         this.setupFilterHandlers();
