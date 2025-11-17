@@ -10669,26 +10669,70 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
 
+      // Highlight error fields in boat details section
+      highlightBoatDetailsErrorFields(errorFields) {
+        // Get the filter elements
+        const dateFilter = document.querySelector('[data-element="boatDetails_reservation_date"]');
+        const passengersFilter = document.querySelector('[data-element="boatDetails_reservation_passengers"]');
+        const pickupTimeFilter = document.querySelector('[data-element="boatDetails_reservation_pickupTime"]');
+
+        // Apply error styles to relevant fields
+        errorFields.forEach(field => {
+          let element = null;
+
+          if (field === 'date' && dateFilter) {
+            element = dateFilter;
+          } else if (field === 'passengers' && passengersFilter) {
+            element = passengersFilter;
+          } else if (field === 'pickupTime' && pickupTimeFilter) {
+            element = pickupTimeFilter;
+          }
+
+          if (element) {
+            element.style.border = '2px solid #dc2626';
+            element.style.backgroundColor = '#fee2e2';
+          }
+        });
+      }
+
+      // Clear error highlights from boat details fields
+      clearBoatDetailsErrorHighlights() {
+        const dateFilter = document.querySelector('[data-element="boatDetails_reservation_date"]');
+        const passengersFilter = document.querySelector('[data-element="boatDetails_reservation_passengers"]');
+        const pickupTimeFilter = document.querySelector('[data-element="boatDetails_reservation_pickupTime"]');
+
+        [dateFilter, passengersFilter, pickupTimeFilter].forEach(element => {
+          if (element) {
+            element.style.border = '';
+            element.style.backgroundColor = '';
+          }
+        });
+      }
+
       handleAddToReservation(boat, errorElement) {
         // Get current URL parameters
         const urlParams = new URLSearchParams(window.location.search);
 
         // Check required parameters
         const missingParams = [];
+        const errorFields = []; // Track which fields have errors
 
         // Check boatDates
         if (!this.selectedDates || this.selectedDates.length === 0) {
           missingParams.push('Please select boat rental dates');
+          errorFields.push('date');
         }
 
         // Check boatGuests
         if (!this.selectedGuests || this.selectedGuests === 0) {
           missingParams.push('Please add total passengers');
+          errorFields.push('passengers');
         }
 
         // Check boatPickupTime
         if (!this.selectedPickupTime) {
           missingParams.push('Please select a pickup time');
+          errorFields.push('pickupTime');
         }
 
         // Check boatLengthType (this should always have a default value, but let's be safe)
@@ -10722,24 +10766,30 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
               missingParams.push(`This boat requires a minimum of ${effectiveMinDays} ${daysText}`);
             }
+            errorFields.push('date');
           }
         }
 
-        // If there are missing parameters, show error and return
+        // If there are missing parameters, show error and highlight fields
         if (missingParams.length > 0) {
           if (errorElement) {
             errorElement.textContent = missingParams[0]; // Show the first missing parameter
             errorElement.style.display = 'flex';
           }
+
+          // Highlight error fields with red border and light red background
+          this.highlightBoatDetailsErrorFields(errorFields);
+
           return;
         }
 
         // All parameters are present, proceed with adding boat to reservation
 
-        // Hide error element
+        // Hide error element and remove any error highlighting
         if (errorElement) {
           errorElement.style.display = 'none';
         }
+        this.clearBoatDetailsErrorHighlights();
 
         // Exit edit mode now that user is saving - this allows updateURLParams to work
         this.isEditMode = false;
@@ -11557,6 +11607,9 @@ document.addEventListener('DOMContentLoaded', () => {
         this.applyPickupTimeGating(this.pickupTimePills, false);
         this.applyPickupTimeGating(this.boatDetailsPickupTimePills, true);
 
+        // Clear error highlights when user provides dates
+        this.clearBoatDetailsErrorHighlights();
+
         // Re-check private dock filter availability when dates change
         this.checkPrivateDockFilterAvailabilityForBoatDates();
 
@@ -11881,6 +11934,9 @@ document.addEventListener('DOMContentLoaded', () => {
             // Clear error if conditions are now met
             this.clearErrorIfResolved(this.boatDetailsErrorElement);
 
+            // Clear error highlights when user provides pickup time
+            this.clearBoatDetailsErrorHighlights();
+
             // Re-apply gating after pickup time selection changes
             this.applyPickupTimeGating(this.boatDetailsPickupTimePills, true);
             // Also apply gating to add boat wrapper pills to keep them in sync
@@ -12116,6 +12172,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Clear error if conditions are now met
             this.clearErrorIfResolved(this.boatDetailsErrorElement);
+
+            // Clear error highlights when user provides guests
+            this.clearBoatDetailsErrorHighlights();
           }
         });
 
@@ -12130,6 +12189,9 @@ document.addEventListener('DOMContentLoaded', () => {
             // Update button states
             updatePlusButtonState();
             updateMinusButtonState();
+
+            // Clear error highlights when user provides guests
+            this.clearBoatDetailsErrorHighlights();
 
             // Update done button texts (both dates and pickup time can show "Next")
             this.updateDatesDoneButtonText();
@@ -17479,6 +17541,10 @@ document.addEventListener('DOMContentLoaded', () => {
         this.updateDetailsFilterStyles();
         this.updateDetailsDateButtonStyles();
         this.renderTripTypes(this.currentCharterData);
+
+        // Clear error highlights when user provides dates
+        this.clearFishingCharterErrorHighlights();
+
         // Call main updateURLParams method like main filters do
         // this.updateURLParams();
       }
@@ -17809,6 +17875,57 @@ document.addEventListener('DOMContentLoaded', () => {
         });
       }
 
+      // Highlight error fields in fishing charter details section
+      highlightFishingCharterErrorFields(errorFields) {
+        // Get the filter elements
+        const datesFilter = document.querySelector('[data-element="fishingCharterDetailsModal_selectFishingCharter_dates"]');
+        const guestsFilter = document.querySelector('[data-element="fishingCharterDetailsModal_selectFishingCharter_guests"]');
+
+        // Apply error styles to relevant fields
+        errorFields.forEach(field => {
+          let element = null;
+
+          if (field === 'dates' && datesFilter) {
+            element = datesFilter;
+          } else if (field === 'guests' && guestsFilter) {
+            element = guestsFilter;
+          }
+
+          if (element) {
+            element.style.border = '2px solid #dc2626';
+            element.style.backgroundColor = '#fee2e2';
+          }
+        });
+
+        // Scroll to the first error field
+        if (errorFields.length > 0) {
+          let firstErrorElement = null;
+
+          if (errorFields[0] === 'dates' && datesFilter) {
+            firstErrorElement = datesFilter;
+          } else if (errorFields[0] === 'guests' && guestsFilter) {
+            firstErrorElement = guestsFilter;
+          }
+
+          if (firstErrorElement) {
+            firstErrorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }
+      }
+
+      // Clear error highlights from fishing charter details fields
+      clearFishingCharterErrorHighlights() {
+        const datesFilter = document.querySelector('[data-element="fishingCharterDetailsModal_selectFishingCharter_dates"]');
+        const guestsFilter = document.querySelector('[data-element="fishingCharterDetailsModal_selectFishingCharter_guests"]');
+
+        [datesFilter, guestsFilter].forEach(element => {
+          if (element) {
+            element.style.border = '';
+            element.style.backgroundColor = '';
+          }
+        });
+      }
+
       async handleAddToReservation(charterId, trip) {
         // Prevent multiple rapid calls
         if (this.isAddingToReservation) {
@@ -17824,16 +17941,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
           if (needsDates || needsGuests) {
             let message = 'Please select ';
+            const errorFields = [];
+
             if (needsDates && needsGuests) {
               message += 'date(s) and guests';
+              errorFields.push('dates', 'guests');
             } else if (needsDates) {
               message += 'date(s)';
+              errorFields.push('dates');
             } else {
               message += 'guests';
+              errorFields.push('guests');
             }
+
             this.showMessage(message + ' before adding to reservation.');
+
+            // Highlight error fields
+            this.highlightFishingCharterErrorFields(errorFields);
+
             return;
           }
+
+          // Clear any error highlights since validation passed
+          this.clearFishingCharterErrorHighlights();
 
           // Check if we're editing an existing charter or adding a new one
           let charterNumber;
