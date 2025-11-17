@@ -4935,6 +4935,7 @@ document.addEventListener('DOMContentLoaded', () => {
         this.selectDatesSection = document.querySelector('[data-element="addBoatModal_selectBoat_datesPopup_selectDates"]');
         this.fullDayBtn = document.querySelector('[data-element="addBoatModal_selectBoat_datesPopup_fullDay"]');
         this.halfDayBtn = document.querySelector('[data-element="addBoatModal_selectBoat_datesPopup_halfDay"]');
+        this.fullHalfDayContainer = document.querySelector('[data-element="addBoatModal_selectBoat_datesPopup_fullHalfDayContainer"]');
         // Pickup time filter elements (separate from dates now)
         this.pickupTimeFilter = document.querySelector('[data-element="addBoatModal_selectBoat_pickupTime"]');
         this.pickupTimeFilterText = document.querySelector('[data-element="addBoatModal_selectBoat_pickupTimeText"]');
@@ -5080,6 +5081,8 @@ document.addEventListener('DOMContentLoaded', () => {
         this.selectedPrivateDock = false; // Track if private dock filter is selected
         this.userAge = null; // Store user's age for filtering
         this.availableBoats = []; // Store available boats for date disabling logic
+        this.initialBoats = []; // Store initial boat results (before filters) for disabled dates logic
+        this.allowsHalfDay = false; // Track if any boat allows half day
 
         // Flag to prevent multiple rapid calls to handleAddToReservation
         this.isAddingToReservation = false;
@@ -6140,13 +6143,17 @@ document.addEventListener('DOMContentLoaded', () => {
           datesGrid.appendChild(emptyCell);
         }
 
+        // Use initial boats (not filtered) to determine disabled dates
+        // This ensures disabled states don't change when user applies filters like boat type
+        const boatsForDisabledCheck = this.initialBoats.length > 0 ? this.initialBoats : this.availableBoats;
+
         // Check if all boats require multiple days and get the minimum
-        const allBoatsRequireMultipleDays = this.checkIfAllBoatsRequireMultipleDays();
+        let allBoatsRequireMultipleDays = false;
         let minDaysRequired = 0;
 
-        if (allBoatsRequireMultipleDays && this.availableBoats && this.availableBoats.length > 0) {
-          // Get the minimum days required across all boats
-          const minDaysArray = this.availableBoats.map(boat => {
+        if (boatsForDisabledCheck && boatsForDisabledCheck.length > 0) {
+          // Check each boat's minimum days requirement
+          allBoatsRequireMultipleDays = boatsForDisabledCheck.every(boat => {
             const publicDockDetails = this.getPublicDockDeliveryDetails(boat);
             const publicDockMinDays = publicDockDetails?.minDays ? Number(publicDockDetails.minDays) : 0;
             const boatMinDays = boat.minReservationLength || 0;
@@ -6157,10 +6164,28 @@ document.addEventListener('DOMContentLoaded', () => {
               privateDockMinDays = privateDockDetails?.minDays ? Number(privateDockDetails.minDays) : 0;
             }
 
-            return Math.max(publicDockMinDays, privateDockMinDays, boatMinDays);
+            const effectiveMinDays = Math.max(publicDockMinDays, privateDockMinDays, boatMinDays);
+            return effectiveMinDays > 1;
           });
 
-          minDaysRequired = Math.min(...minDaysArray); // Use the smallest minimum to be safe
+          if (allBoatsRequireMultipleDays) {
+            // Get the minimum days required across all boats
+            const minDaysArray = boatsForDisabledCheck.map(boat => {
+              const publicDockDetails = this.getPublicDockDeliveryDetails(boat);
+              const publicDockMinDays = publicDockDetails?.minDays ? Number(publicDockDetails.minDays) : 0;
+              const boatMinDays = boat.minReservationLength || 0;
+
+              let privateDockMinDays = 0;
+              if (this.selectedPrivateDock) {
+                const privateDockDetails = this.getPrivateDockDeliveryDetails(boat);
+                privateDockMinDays = privateDockDetails?.minDays ? Number(privateDockDetails.minDays) : 0;
+              }
+
+              return Math.max(publicDockMinDays, privateDockMinDays, boatMinDays);
+            });
+
+            minDaysRequired = Math.min(...minDaysArray); // Use the smallest minimum to be safe
+          }
         }
 
         // Check if we need to disable intermediate dates (when one date is selected and all boats require multiple days)
@@ -6257,6 +6282,90 @@ document.addEventListener('DOMContentLoaded', () => {
         return (h + 6) % 7;
       }
 
+      updateDateButtonDisabledStates() {
+        // Update disabled states and selection styles without full re-render
+        if (!this.selectDatesSection) return;
+
+        const dateButtons = this.selectDatesSection.querySelectorAll('button[data-date]');
+        if (dateButtons.length === 0) return;
+
+        // Use initial boats (not filtered) to determine disabled dates
+        const boatsForDisabledCheck = this.initialBoats.length > 0 ? this.initialBoats : this.availableBoats;
+
+        // Check if all boats require multiple days and get the minimum
+        let allBoatsRequireMultipleDays = false;
+        let minDaysRequired = 0;
+
+        if (boatsForDisabledCheck && boatsForDisabledCheck.length > 0) {
+          allBoatsRequireMultipleDays = boatsForDisabledCheck.every(boat => {
+            const publicDockDetails = this.getPublicDockDeliveryDetails(boat);
+            const publicDockMinDays = publicDockDetails?.minDays ? Number(publicDockDetails.minDays) : 0;
+            const boatMinDays = boat.minReservationLength || 0;
+
+            let privateDockMinDays = 0;
+            if (this.selectedPrivateDock) {
+              const privateDockDetails = this.getPrivateDockDeliveryDetails(boat);
+              privateDockMinDays = privateDockDetails?.minDays ? Number(privateDockDetails.minDays) : 0;
+            }
+
+            const effectiveMinDays = Math.max(publicDockMinDays, privateDockMinDays, boatMinDays);
+            return effectiveMinDays > 1;
+          });
+
+          if (allBoatsRequireMultipleDays) {
+            const minDaysArray = boatsForDisabledCheck.map(boat => {
+              const publicDockDetails = this.getPublicDockDeliveryDetails(boat);
+              const publicDockMinDays = publicDockDetails?.minDays ? Number(publicDockDetails.minDays) : 0;
+              const boatMinDays = boat.minReservationLength || 0;
+
+              let privateDockMinDays = 0;
+              if (this.selectedPrivateDock) {
+                const privateDockDetails = this.getPrivateDockDeliveryDetails(boat);
+                privateDockMinDays = privateDockDetails?.minDays ? Number(privateDockDetails.minDays) : 0;
+              }
+
+              return Math.max(publicDockMinDays, privateDockMinDays, boatMinDays);
+            });
+
+            minDaysRequired = Math.min(...minDaysArray);
+          }
+        }
+
+        const shouldDisableIntermediateDates = allBoatsRequireMultipleDays && this.selectedDates.length === 1 && minDaysRequired > 1;
+        const selectedSingleDate = shouldDisableIntermediateDates ? this.selectedDates[0] : null;
+
+        // Update each date button
+        dateButtons.forEach(dateBtn => {
+          const dateStr = dateBtn.getAttribute('data-date');
+          if (!dateStr) return;
+
+          // Update selection styling
+          const isSelected = this.selectedDates.includes(dateStr);
+          dateBtn.style.background = isSelected ? '#000000' : 'white';
+          dateBtn.style.color = isSelected ? 'white' : 'black';
+          dateBtn.style.borderColor = isSelected ? '#000000' : '#ddd';
+
+          // Determine if this date should be disabled
+          let isDisabled = false;
+          if (shouldDisableIntermediateDates && dateStr !== selectedSingleDate) {
+            const range = this.generateDateRange(
+              selectedSingleDate < dateStr ? selectedSingleDate : dateStr,
+              selectedSingleDate < dateStr ? dateStr : selectedSingleDate
+            );
+            const daysInRange = range.length;
+
+            if (daysInRange < minDaysRequired) {
+              isDisabled = true;
+            }
+          }
+
+          // Apply disabled styling
+          dateBtn.style.cursor = isDisabled ? 'not-allowed' : 'pointer';
+          dateBtn.style.opacity = isDisabled ? '0.3' : '1';
+          dateBtn.style.pointerEvents = isDisabled ? 'none' : 'auto';
+        });
+      }
+
       checkIfAllBoatsRequireMultipleDays() {
         // Check if all available boats require more than 1 day
         if (!this.availableBoats || this.availableBoats.length === 0) {
@@ -6326,8 +6435,8 @@ document.addEventListener('DOMContentLoaded', () => {
           this.selectedDates = [dateStr];
         }
 
-        // Re-render date selection to update disabled states (important for min days logic)
-        this.renderDateSelection();
+        // Update disabled states without full re-render (prevents flickering)
+        this.updateDateButtonDisabledStates();
 
         // Update length type options
         this.updateLengthTypeButtons();
@@ -6996,7 +7105,23 @@ document.addEventListener('DOMContentLoaded', () => {
           // Fetch all boat options (user age is loaded inside fetchBoatOptions)
           const allBoats = await this.fetchBoatOptions();
 
-          // Filter boats based on guest count
+          // Store initial boats on first fetch (for disabled dates logic)
+          if (this.initialBoats.length === 0) {
+            this.initialBoats = [...allBoats];
+
+            // Check if any boat allows half day (min reservation length < 1)
+            this.allowsHalfDay = allBoats.some(boat => {
+              const minLength = boat.minReservationLength || 0;
+              return minLength < 1;
+            });
+
+            // Update full/half day container visibility
+            if (this.fullHalfDayContainer) {
+              this.fullHalfDayContainer.style.display = this.allowsHalfDay ? 'flex' : 'none';
+            }
+          }
+
+          // Filter boats based on current filters
           const filteredBoats = this.filterBoats(allBoats);
 
           // Sort boats by length (smallest to largest)
@@ -7006,7 +7131,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return lengthA - lengthB;
           });
 
-          // Store available boats for date disabling logic
+          // Store current available boats
           this.availableBoats = sortedBoats;
 
           // Hide skeleton cards
@@ -7014,9 +7139,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
           // Render the sorted boats
           this.renderBoatCards(sortedBoats);
-
-          // Re-render date selection to update disabled states based on available boats
-          this.renderDateSelection();
 
           return sortedBoats;
         } catch (error) {
@@ -7530,6 +7652,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Fetch and render boat options with filtering
         await this.fetchAndRenderBoats();
+
+        // Render date selection to set up initial disabled states
+        this.renderDateSelection();
       }
 
       // Check if private dock delivery is available for the current property stay
