@@ -14578,6 +14578,43 @@ document.addEventListener('DOMContentLoaded', () => {
             }
           }
 
+          // Filter out charters that are already booked for the selected dates
+          // (but not when editing - editing charter should still show in results)
+          if (this.selectedDates.length > 0) {
+            const urlParams = new URLSearchParams(window.location.search);
+            const allNumbers = this.getAllFishingCharterNumbers();
+
+            // Check if this charter is already booked for ANY of the selected dates
+            const isCharterAlreadyBookedForSelectedDates = allNumbers.some(number => {
+              // Skip the charter we're currently editing
+              if (this.editingCharterNumber && number === this.editingCharterNumber) {
+                return false;
+              }
+
+              const bookedCharterId = urlParams.get(`fishingCharterId${number}`);
+              const bookedDates = urlParams.get(`fishingCharterDates${number}`);
+
+              // If this charter is booked
+              if (bookedCharterId === String(charter.id) && bookedDates) {
+                const bookedDateArray = bookedDates.split(',').filter(Boolean);
+
+                // Check if any of the selected dates overlap with booked dates
+                const hasOverlap = this.selectedDates.some(selectedDate =>
+                  bookedDateArray.includes(selectedDate)
+                );
+
+                return hasOverlap;
+              }
+
+              return false;
+            });
+
+            // If charter is already booked for any of the selected dates, filter it out
+            if (isCharterAlreadyBookedForSelectedDates) {
+              return false;
+            }
+          }
+
           return true;
         });
       }
@@ -16761,9 +16798,8 @@ document.addEventListener('DOMContentLoaded', () => {
           datesGrid.appendChild(emptyCell);
         }
 
-        // Get reserved dates from other fishing charters
-        const reservedDates = this.getReservedDatesForOtherCharters();
-
+        // In the main "add fishing charter" section, dates should NEVER be disabled
+        // Users can select any dates to search for available charters
         dateArray.forEach(dateStr => {
           const [year, month, day] = dateStr.split('-').map(Number);
 
@@ -16775,41 +16811,28 @@ document.addEventListener('DOMContentLoaded', () => {
           dateBtn.style.border = '1px solid #ddd';
           dateBtn.style.borderRadius = '1000px';
 
-          // Check if this date is reserved by other charters
-          const isReserved = reservedDates.includes(dateStr);
           const isSelected = this.selectedDates.includes(dateStr);
 
-          if (isReserved) {
-            // Date is reserved by another charter - disable it
-            dateBtn.style.background = '#f5f5f5';
-            dateBtn.style.color = '#999';
-            dateBtn.style.cursor = 'not-allowed';
-            dateBtn.style.opacity = '0.5';
-            dateBtn.disabled = true;
-          } else if (isSelected) {
-            // Date is selected for current charter
+          // All dates are always available in the main section
+          if (isSelected) {
             dateBtn.style.background = '#000000';
             dateBtn.style.color = 'white';
-            dateBtn.style.cursor = 'pointer';
-            dateBtn.addEventListener('click', () => {
-              this.handleDateSelection(dateStr);
-            });
           } else {
-            // Date is available
             dateBtn.style.background = 'white';
             dateBtn.style.color = 'black';
-            dateBtn.style.cursor = 'pointer';
-            dateBtn.addEventListener('click', () => {
-              this.handleDateSelection(dateStr);
-            });
           }
 
+          dateBtn.style.cursor = 'pointer';
           dateBtn.style.display = 'flex';
           dateBtn.style.alignItems = 'center';
           dateBtn.style.justifyContent = 'center';
           dateBtn.style.fontSize = '14px';
           dateBtn.style.fontFamily = 'TT Fors, sans-serif';
           dateBtn.style.fontWeight = '500';
+
+          dateBtn.addEventListener('click', () => {
+            this.handleDateSelection(dateStr);
+          });
 
           datesGrid.appendChild(dateBtn);
         });
