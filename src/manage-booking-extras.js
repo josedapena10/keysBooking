@@ -1430,8 +1430,15 @@ function renderFishingCharter(piData, resCodeData, linkState, charterId, tripId,
         charterEntry,
         allCharters: piData.fishingCharters,
         charterId,
-        tripId
+        tripId,
+        firstDate
     };
+
+    console.log('[RENDER FISHING CHARTER] Stored in window.currentPageData:', {
+        charterId,
+        tripId,
+        firstDate
+    });
 
     // CRITICAL: Hide boat sections to ensure only charter sections are visible
     hide('manageBooking_requestDetails_boat');
@@ -1811,7 +1818,9 @@ function renderCharterManageActions(piData, charterEntry, statusVariant) {
     hide('manageBooking_declineCancelTextBox');
     hide('manageBooking_confirmDeclineCancelButton');
 
-    const { allCharters, charterId, tripId } = window.currentPageData || {};
+    const { allCharters, charterId, tripId, firstDate } = window.currentPageData || {};
+
+    console.log('[RENDER CHARTER ACTIONS] Current charter data:', { charterId, tripId, firstDate });
 
     if (statusVariant === 'request') {
         // Show Accept and Decline
@@ -1824,8 +1833,24 @@ function renderCharterManageActions(piData, charterEntry, statusVariant) {
             acceptBtn.onclick = async () => {
                 try {
                     showLoader('Accepting reservation...');
+
+                    console.log('[ACCEPT] Updating charters...');
                     const updatedCharters = allCharters.map(c => {
-                        if (c.charterId == charterId && c.tripId == tripId) {
+                        // Get first date from this charter's dates
+                        const cDates = (c.dates || []).map(d => d.date).sort();
+                        const cFirstDate = cDates.length > 0 ? cDates[0] : null;
+
+                        console.log('[ACCEPT] Checking charter:', {
+                            charterId: c.charterId,
+                            tripId: c.tripId,
+                            cFirstDate,
+                            targetFirstDate: firstDate,
+                            matches: c.charterId == charterId && c.tripId == tripId && cFirstDate === firstDate
+                        });
+
+                        // Match by charterId, tripId, AND firstDate
+                        if (c.charterId == charterId && c.tripId == tripId && cFirstDate === firstDate) {
+                            console.log('[ACCEPT] Updating this charter');
                             return { ...c, reservationApproved: true, reservation_active: true };
                         }
                         return c;
@@ -1836,7 +1861,9 @@ function renderCharterManageActions(piData, charterEntry, statusVariant) {
 
                     // Get the first date from the charter dates
                     const charterDates = charterEntry.dates.map(d => d.date).sort();
-                    const firstDate = charterDates.length > 0 ? charterDates[0] : null;
+                    const charterFirstDate = charterDates.length > 0 ? charterDates[0] : null;
+
+                    console.log('[ACCEPT] Sending POST with firstDate:', charterFirstDate);
 
                     await postHostEdits({
                         fishingCharter: true,
@@ -1846,7 +1873,7 @@ function renderCharterManageActions(piData, charterEntry, statusVariant) {
                         tripId: tripId,
                         reservationApproved: true,
                         reservation_active: true,
-                        firstDate: firstDate
+                        firstDate: charterFirstDate
                     });
                     // Reload page
                     window.location.reload();
@@ -1884,8 +1911,23 @@ function renderCharterManageActions(piData, charterEntry, statusVariant) {
                     const textBox = document.querySelector('[data-element="manageBooking_declineCancelTextBox"]');
                     const textBoxValue = textBox ? textBox.value : '';
 
+                    console.log('[DECLINE] Updating charters...');
                     const updatedCharters = allCharters.map(c => {
-                        if (c.charterId == charterId && c.tripId == tripId) {
+                        // Get first date from this charter's dates
+                        const cDates = (c.dates || []).map(d => d.date).sort();
+                        const cFirstDate = cDates.length > 0 ? cDates[0] : null;
+
+                        console.log('[DECLINE] Checking charter:', {
+                            charterId: c.charterId,
+                            tripId: c.tripId,
+                            cFirstDate,
+                            targetFirstDate: firstDate,
+                            matches: c.charterId == charterId && c.tripId == tripId && cFirstDate === firstDate
+                        });
+
+                        // Match by charterId, tripId, AND firstDate
+                        if (c.charterId == charterId && c.tripId == tripId && cFirstDate === firstDate) {
+                            console.log('[DECLINE] Updating this charter');
                             return {
                                 ...c,
                                 reservation_notAvailable: true,
@@ -1901,6 +1943,8 @@ function renderCharterManageActions(piData, charterEntry, statusVariant) {
                     // Get the first date from the charter dates
                     const charterDatesDecline = charterEntry.dates.map(d => d.date).sort();
                     const firstDateDecline = charterDatesDecline.length > 0 ? charterDatesDecline[0] : null;
+
+                    console.log('[DECLINE] Sending POST with firstDate:', firstDateDecline);
 
                     await postHostEdits({
                         fishingCharter: true,
@@ -1951,8 +1995,23 @@ function renderCharterManageActions(piData, charterEntry, statusVariant) {
                     const textBox = document.querySelector('[data-element="manageBooking_declineCancelTextBox"]');
                     const textBoxValue = textBox ? textBox.value : '';
 
+                    console.log('[CANCEL] Updating charters...');
                     const updatedCharters = allCharters.map(c => {
-                        if (c.charterId == charterId && c.tripId == tripId) {
+                        // Get first date from this charter's dates
+                        const cDates = (c.dates || []).map(d => d.date).sort();
+                        const cFirstDate = cDates.length > 0 ? cDates[0] : null;
+
+                        console.log('[CANCEL] Checking charter:', {
+                            charterId: c.charterId,
+                            tripId: c.tripId,
+                            cFirstDate,
+                            targetFirstDate: firstDate,
+                            matches: c.charterId == charterId && c.tripId == tripId && cFirstDate === firstDate
+                        });
+
+                        // Match by charterId, tripId, AND firstDate
+                        if (c.charterId == charterId && c.tripId == tripId && cFirstDate === firstDate) {
+                            console.log('[CANCEL] Updating this charter');
                             return {
                                 ...c,
                                 reservation_active: false,
@@ -1969,6 +2028,8 @@ function renderCharterManageActions(piData, charterEntry, statusVariant) {
                     // Get the first date from the charter dates
                     const charterDatesCancel = charterEntry.dates.map(d => d.date).sort();
                     const firstDateCancel = charterDatesCancel.length > 0 ? charterDatesCancel[0] : null;
+
+                    console.log('[CANCEL] Sending POST with firstDate:', firstDateCancel);
 
                     await postHostEdits({
                         fishingCharter: true,
