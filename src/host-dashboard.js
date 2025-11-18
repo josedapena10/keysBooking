@@ -326,8 +326,9 @@ function displayReservations(reservations, isCurrent) {
         return;
     }
 
-    // Clear the container first, but preserve the template block
+    // Clear the container first, but preserve the template block and no reservations block
     const originalTemplateBlock = templateBlock ? templateBlock.cloneNode(true) : null;
+    const originalNoReservationsBlock = noReservationsBlock ? noReservationsBlock.cloneNode(true) : null;
     container.innerHTML = '';
 
     // Add the template block back to the container (but keep it hidden)
@@ -337,27 +338,37 @@ function displayReservations(reservations, isCurrent) {
     }
 
     // Add the no reservations block back to the container
-    if (noReservationsBlock) {
-        container.appendChild(noReservationsBlock);
+    if (originalNoReservationsBlock) {
+        container.appendChild(originalNoReservationsBlock);
         // Initially hide the no reservations block
-        noReservationsBlock.style.display = 'none';
+        originalNoReservationsBlock.style.display = 'none';
     }
 
     // Check if there are no reservations to display
     if (!reservations || reservations.length === 0) {
         // Show the no reservations block with appropriate message
-        if (noReservationsBlock && noReservationsText) {
-            noReservationsBlock.style.display = 'flex';
-            noReservationsText.style.fontFamily = 'TT Fors';
-            noReservationsText.style.fontSize = '15px';
-            noReservationsText.style.fontWeight = '500';
-            if (isCurrent) {
-                noReservationsText.textContent = "There are no active reservations right now.";
+        if (originalNoReservationsBlock) {
+            const textElement = originalNoReservationsBlock.querySelector('[data-element="hostDashboard_noReservations_text"]');
+            if (textElement) {
+                originalNoReservationsBlock.style.display = 'flex';
+                textElement.style.fontFamily = 'TT Fors';
+                textElement.style.fontSize = '15px';
+                textElement.style.fontWeight = '500';
+                if (isCurrent) {
+                    textElement.textContent = "There are no active reservations right now.";
+                } else {
+                    textElement.textContent = "There are no upcoming reservations right now.";
+                }
             } else {
-                noReservationsText.textContent = "There are no upcoming reservations right now.";
+                // Fallback if text element doesn't exist within the block
+                originalNoReservationsBlock.style.display = 'flex';
+                originalNoReservationsBlock.textContent = 'No reservations to display';
+                originalNoReservationsBlock.style.fontFamily = 'TT Fors';
+                originalNoReservationsBlock.style.fontSize = '15px';
+                originalNoReservationsBlock.style.fontWeight = '500';
             }
         } else {
-            // Fallback if the elements don't exist
+            // Fallback if the no reservations block doesn't exist
             const fallbackMessage = document.createElement('div');
             fallbackMessage.textContent = 'No reservations to display';
             fallbackMessage.style.fontFamily = 'TT Fors';
@@ -375,8 +386,8 @@ function displayReservations(reservations, isCurrent) {
     }
 
     // Hide the no reservations block when there are reservations
-    if (noReservationsBlock) {
-        noReservationsBlock.style.display = 'none';
+    if (originalNoReservationsBlock) {
+        originalNoReservationsBlock.style.display = 'none';
     }
 
     reservations.forEach(reservation => {
