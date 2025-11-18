@@ -336,8 +336,8 @@ function formatRangeFromDatesArray(dates) {
     return formatRangeYMD(ymd(first), ymd(last));
 }
 
-function formatRangeYMD(startYMD, endYMD) {
-    // Returns "Jan 5" or "Jan 5 - 12" or "Jan 27 - Feb 3"
+function formatRangeYMD(startYMD, endYMD, includeYear = false) {
+    // Returns "Jan 5" or "Jan 5 - 12" or "Jan 27 - Feb 3" or with year "Jan 5, 2025" or "Jan 5 - 12, 2025" or "Jan 27, 2024 - Feb 3, 2025"
     const [sY, sM, sD] = startYMD.split('-').map(Number);
     const [eY, eM, eD] = endYMD.split('-').map(Number);
     const s = new Date(Date.UTC(sY, sM - 1, sD));
@@ -346,9 +346,17 @@ function formatRangeYMD(startYMD, endYMD) {
     const em = e.toLocaleString('en-US', { month: 'short', timeZone: 'UTC' });
     const sd = s.getUTCDate();
     const ed = e.getUTCDate();
-    if (startYMD === endYMD) return `${sm} ${sd}`;
-    if (sY === eY && sM === eM) return `${sm} ${sd} - ${ed}`;
-    return `${sm} ${sd} - ${em} ${ed}`;
+
+    if (includeYear) {
+        if (startYMD === endYMD) return `${sm} ${sd}, ${sY}`;
+        if (sY === eY && sM === eM) return `${sm} ${sd} - ${ed}, ${sY}`;
+        if (sY === eY) return `${sm} ${sd} - ${em} ${ed}, ${sY}`;
+        return `${sm} ${sd}, ${sY} - ${em} ${ed}, ${eY}`;
+    } else {
+        if (startYMD === endYMD) return `${sm} ${sd}`;
+        if (sY === eY && sM === eM) return `${sm} ${sd} - ${ed}`;
+        return `${sm} ${sd} - ${em} ${ed}`;
+    }
 }
 
 function formatSingleDate(ymdStr) {
@@ -905,7 +913,9 @@ function renderBoatRequestDetails(piData, resCodeData, statusVariant) {
     }
 
     // Dates
-    const datesStr = formatRangeFromDatesArray(piData.boatDates.map(d => d.date));
+    const boatDates = piData.boatDates.map(d => d.date);
+    const sorted = [...boatDates].sort();
+    const datesStr = boatDates.length > 0 ? formatRangeYMD(sorted[0], sorted[sorted.length - 1], true) : '';
     setText('manageBooking_requestDetails_boat_dates', datesStr);
 
     // Dates label
@@ -936,7 +946,7 @@ function renderBoatRequestDetails(piData, resCodeData, statusVariant) {
 
     // Stay dates (from ReservationCode)
     if (resCodeData.check_in && resCodeData.check_out) {
-        const stayDatesStr = formatRangeYMD(resCodeData.check_in, resCodeData.check_out);
+        const stayDatesStr = formatRangeYMD(resCodeData.check_in, resCodeData.check_out, true);
         setText('manageBooking_requestDetails_boat_stayDates', stayDatesStr);
     }
 
@@ -1716,8 +1726,10 @@ function renderCharterRequestDetails(piData, resCodeData, charterEntry, statusVa
     }
 
     // Dates
-    const datesStr = formatRangeFromDatesArray(charterEntry.dates.map(d => d.date));
-    setText('manageBooking_requestDetails_charter_dates', datesStr);
+    const charterDates = charterEntry.dates.map(d => d.date);
+    const sortedCharterDates = [...charterDates].sort();
+    const charterDatesStr = charterDates.length > 0 ? formatRangeYMD(sortedCharterDates[0], sortedCharterDates[sortedCharterDates.length - 1], true) : '';
+    setText('manageBooking_requestDetails_charter_dates', charterDatesStr);
 
     // Time (find tripId in _fishingcharter.tripOptions)
     if (charterEntry._fishingcharter && charterEntry._fishingcharter.tripOptions) {
@@ -1736,8 +1748,8 @@ function renderCharterRequestDetails(piData, resCodeData, charterEntry, statusVa
 
     // Stay dates (from ReservationCode)
     if (resCodeData.check_in && resCodeData.check_out) {
-        const stayDatesStr = formatRangeYMD(resCodeData.check_in, resCodeData.check_out);
-        setText('manageBooking_requestDetails_charter_stayDates', stayDatesStr);
+        const charterStayDatesStr = formatRangeYMD(resCodeData.check_in, resCodeData.check_out, true);
+        setText('manageBooking_requestDetails_charter_stayDates', charterStayDatesStr);
     }
 
     // Private Dock Pickup
@@ -1843,6 +1855,10 @@ function renderCharterManageActions(piData, charterEntry, statusVariant) {
                     // Remove _fishingcharter object before sending (too large for URL)
                     const cleanedCharters = updatedCharters.map(({ _fishingcharter, ...rest }) => rest);
 
+                    // Get the first date from the charter dates
+                    const charterDates = charterEntry.dates.map(d => d.date).sort();
+                    const firstDate = charterDates.length > 0 ? charterDates[0] : null;
+
                     await postHostEdits({
                         fishingCharter: true,
                         extras_paymentIntentId: piData.id,
@@ -1851,6 +1867,7 @@ function renderCharterManageActions(piData, charterEntry, statusVariant) {
                         tripId: tripId,
                         reservationApproved: true,
                         reservation_active: true,
+                        firstDate: firstDate
                     });
                     // Reload page
                     window.location.reload();
@@ -1902,6 +1919,10 @@ function renderCharterManageActions(piData, charterEntry, statusVariant) {
                     // Remove _fishingcharter object before sending (too large for URL)
                     const cleanedCharters = updatedCharters.map(({ _fishingcharter, ...rest }) => rest);
 
+                    // Get the first date from the charter dates
+                    const charterDatesDecline = charterEntry.dates.map(d => d.date).sort();
+                    const firstDateDecline = charterDatesDecline.length > 0 ? charterDatesDecline[0] : null;
+
                     await postHostEdits({
                         fishingCharter: true,
                         extras_paymentIntentId: piData.id,
@@ -1909,6 +1930,7 @@ function renderCharterManageActions(piData, charterEntry, statusVariant) {
                         charterId: charterId,
                         tripId: tripId,
                         reservation_notAvailable: true,
+                        firstDate: firstDateDecline
                     });
                     // Reload page
                     window.location.reload();
@@ -1965,6 +1987,10 @@ function renderCharterManageActions(piData, charterEntry, statusVariant) {
                     // Remove _fishingcharter object before sending (too large for URL)
                     const cleanedCharters = updatedCharters.map(({ _fishingcharter, ...rest }) => rest);
 
+                    // Get the first date from the charter dates
+                    const charterDatesCancel = charterEntry.dates.map(d => d.date).sort();
+                    const firstDateCancel = charterDatesCancel.length > 0 ? charterDatesCancel[0] : null;
+
                     await postHostEdits({
                         fishingCharter: true,
                         extras_paymentIntentId: piData.id,
@@ -1972,7 +1998,8 @@ function renderCharterManageActions(piData, charterEntry, statusVariant) {
                         charterId: charterId,
                         tripId: tripId,
                         reservation_active: false,
-                        host_cancellation_date: todayUTC()
+                        host_cancellation_date: todayUTC(),
+                        firstDate: firstDateCancel
                     });
                     // Reload page
                     window.location.reload();
