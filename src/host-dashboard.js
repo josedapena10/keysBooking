@@ -348,6 +348,9 @@ function displayReservations(reservations, isCurrent) {
         // Show the no reservations block with appropriate message
         if (noReservationsBlock && noReservationsText) {
             noReservationsBlock.style.display = 'flex';
+            noReservationsText.style.fontFamily = 'TT Fors';
+            noReservationsText.style.fontSize = '15px';
+            noReservationsText.style.fontWeight = '500';
             if (isCurrent) {
                 noReservationsText.textContent = "There are no active reservations right now.";
             } else {
@@ -357,6 +360,9 @@ function displayReservations(reservations, isCurrent) {
             // Fallback if the elements don't exist
             const fallbackMessage = document.createElement('div');
             fallbackMessage.textContent = 'No reservations to display';
+            fallbackMessage.style.fontFamily = 'TT Fors';
+            fallbackMessage.style.fontSize = '15px';
+            fallbackMessage.style.fontWeight = '500';
             container.appendChild(fallbackMessage);
         }
         return;
