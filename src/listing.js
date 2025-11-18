@@ -7703,15 +7703,12 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       async handleButtonClick() {
-        console.log('[BOAT RENTAL] handleButtonClick called');
         if (!this.areDatesValid()) {
           const urlParams = new URLSearchParams(window.location.search);
           const checkin = urlParams.get('checkin');
           const checkout = urlParams.get('checkout');
-          console.log('[BOAT RENTAL] checkin:', checkin, 'checkout:', checkout);
           const hasDates = urlParams.has('checkin') && urlParams.has('checkout') &&
             checkin !== '' && checkout !== '';
-          console.log('[BOAT RENTAL] hasDates:', hasDates);
 
           const message = hasDates
             ? 'Valid dates must be selected to add boat rental'
@@ -7721,7 +7718,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
           // Flash check availability button if no dates are selected
           if (!hasDates) {
-            console.log('[BOAT RENTAL] Calling flashCheckAvailabilityButton');
             this.flashCheckAvailabilityButton();
           }
 
@@ -10684,47 +10680,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Flash check availability button with red border to get user's attention
       flashCheckAvailabilityButton() {
-        console.log('[BOAT RENTAL] flashCheckAvailabilityButton called');
         const checkAvailabilityButtons = document.querySelectorAll('[data-element="listing_checkAvailability_button"]');
-        console.log('[BOAT RENTAL] Found buttons:', checkAvailabilityButtons.length);
 
         if (!checkAvailabilityButtons.length) {
-          console.log('[BOAT RENTAL] No buttons found, returning');
           return;
         }
 
         checkAvailabilityButtons.forEach((button, index) => {
-          console.log(`[BOAT RENTAL] Button ${index}:`, button);
-          console.log(`[BOAT RENTAL] Button ${index} data-element:`, button.getAttribute('data-element'));
-
           // Store original border styles
           const originalBorderColor = button.style.borderColor;
           const originalBorderWidth = button.style.borderWidth;
           const originalBorderStyle = button.style.borderStyle;
-
-          console.log(`[BOAT RENTAL] Button ${index} original border:`, {
-            color: originalBorderColor,
-            width: originalBorderWidth,
-            style: originalBorderStyle
-          });
 
           // Set red border with individual properties for better CSS specificity
           button.style.borderColor = '#dc2626';
           button.style.borderWidth = '2px';
           button.style.borderStyle = 'solid';
 
-          console.log(`[BOAT RENTAL] Button ${index} after setting red border:`, {
-            color: button.style.borderColor,
-            width: button.style.borderWidth,
-            style: button.style.borderStyle
-          });
-
           // Remove red border after 2 seconds
           setTimeout(() => {
             button.style.borderColor = originalBorderColor;
             button.style.borderWidth = originalBorderWidth;
             button.style.borderStyle = originalBorderStyle;
-            console.log(`[BOAT RENTAL] Button ${index} border restored`);
           }, 2000);
         });
       }
@@ -12409,15 +12386,10 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       initialize() {
-        console.log('[MOBILE BOAT] Initializing MobileBoatButtonHandler');
-        console.log('[MOBILE BOAT] mobileBoatButton found:', !!this.mobileBoatButton);
 
         if (!this.mobileBoatButton) {
-          console.log('[MOBILE BOAT] No mobileBoatButton element found, aborting initialization');
           return;
         }
-
-        console.log('[MOBILE BOAT] Setting up click handler');
 
         // Set initial state
         this.updateMobileBoatButtonState();
@@ -12581,36 +12553,28 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       handleMobileBoatButtonClick() {
-        console.log('[MOBILE BOAT] handleMobileBoatButtonClick called');
         const urlParams = new URLSearchParams(window.location.search);
         const boatId = urlParams.get('boatId');
-        console.log('[MOBILE BOAT] boatId:', boatId);
 
         if (boatId) {
           // Boat is selected, edit it
-          console.log('[MOBILE BOAT] Editing boat:', boatId);
           this.editSelectedBoat(boatId);
         } else {
           // No boat selected, try to add one
-          console.log('[MOBILE BOAT] No boat selected, calling addBoat()');
           this.addBoat();
         }
       }
 
       addBoat() {
-        console.log('[MOBILE BOAT] addBoat called');
         // Check if dates are selected
         const urlParams = new URLSearchParams(window.location.search);
         const checkin = urlParams.get('checkin');
         const checkout = urlParams.get('checkout');
-        console.log('[MOBILE BOAT] checkin:', checkin, 'checkout:', checkout);
 
         if (!checkin || !checkout || checkin === '' || checkout === '') {
-          console.log('[MOBILE BOAT] No dates, showing message and flashing button');
           this.showMessage('Dates must be selected before adding a boat rental');
           // Flash check availability button if no dates are selected
           if (window.boatRentalService) {
-            console.log('[MOBILE BOAT] Calling flashCheckAvailabilityButton');
             window.boatRentalService.flashCheckAvailabilityButton();
           }
           return;
@@ -12762,23 +12726,15 @@ document.addEventListener('DOMContentLoaded', () => {
     document.head.appendChild(mobileBoatStyles);
 
     // Initialize mobile boat button handler only on mobile (990px or less)
-    console.log('[MOBILE BOAT] Window width:', window.innerWidth);
-    console.log('[MOBILE BOAT] Is mobile view (<=990px)?', window.innerWidth <= 990);
-
     if (window.innerWidth <= 990) {
-      console.log('[MOBILE BOAT] Creating MobileBoatButtonHandler');
       const mobileBoatButtonHandler = new MobileBoatButtonHandler();
       window.mobileBoatButtonHandler = mobileBoatButtonHandler;
-      console.log('[MOBILE BOAT] Handler created and assigned to window.mobileBoatButtonHandler');
     } else {
-      console.log('[MOBILE BOAT] Skipping initialization - not mobile view');
     }
 
     // Re-initialize on resize
     window.addEventListener('resize', () => {
-      console.log('[MOBILE BOAT] Resize event - Window width:', window.innerWidth);
       if (window.innerWidth <= 990 && !window.mobileBoatButtonHandler) {
-        console.log('[MOBILE BOAT] Creating MobileBoatButtonHandler on resize');
         window.mobileBoatButtonHandler = new MobileBoatButtonHandler();
       }
     });
@@ -14188,13 +14144,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
       async handleButtonClick() {
         try {
-          console.log('[FISHING CHARTER] handleButtonClick called');
           // Check if dates are valid (selected AND meet validation criteria)
           if (!this.areDatesValid()) {
             const urlParams = new URLSearchParams(window.location.search);
             const hasDates = urlParams.has('checkin') && urlParams.has('checkout') &&
               urlParams.get('checkin') !== '' && urlParams.get('checkout') !== '';
-            console.log('[FISHING CHARTER] hasDates:', hasDates);
 
             const message = hasDates
               ? 'Valid dates must be selected to add fishing charter'
@@ -14204,7 +14158,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Flash check availability button if no dates are selected
             if (!hasDates) {
-              console.log('[FISHING CHARTER] Calling flashCheckAvailabilityButton');
               this.flashCheckAvailabilityButton();
             }
 
@@ -17212,7 +17165,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Move popup to body to escape stacking context (mobile fix)
                 document.body.appendChild(this.detailsDatesPopup);
 
-                console.log('Dates popup moved to body (mobile view)');
+
               }
 
               this.detailsDatesPopup.style.display = 'flex';
@@ -17247,7 +17200,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Move popup to body to escape stacking context (mobile fix)
                 document.body.appendChild(this.detailsGuestsPopup);
 
-                console.log('Guests popup moved to body (mobile view)');
               }
 
               this.detailsGuestsPopup.style.display = 'flex';
@@ -17974,47 +17926,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Flash check availability button with red border to get user's attention
       flashCheckAvailabilityButton() {
-        console.log('[FISHING CHARTER] flashCheckAvailabilityButton called');
         const checkAvailabilityButtons = document.querySelectorAll('[data-element="listing_checkAvailability_button"]');
-        console.log('[FISHING CHARTER] Found buttons:', checkAvailabilityButtons.length);
 
         if (!checkAvailabilityButtons.length) {
-          console.log('[FISHING CHARTER] No buttons found, returning');
           return;
         }
 
         checkAvailabilityButtons.forEach((button, index) => {
-          console.log(`[FISHING CHARTER] Button ${index}:`, button);
-          console.log(`[FISHING CHARTER] Button ${index} data-element:`, button.getAttribute('data-element'));
-
           // Store original border styles
           const originalBorderColor = button.style.borderColor;
           const originalBorderWidth = button.style.borderWidth;
           const originalBorderStyle = button.style.borderStyle;
-
-          console.log(`[FISHING CHARTER] Button ${index} original border:`, {
-            color: originalBorderColor,
-            width: originalBorderWidth,
-            style: originalBorderStyle
-          });
 
           // Set red border with individual properties for better CSS specificity
           button.style.borderColor = '#dc2626';
           button.style.borderWidth = '2px';
           button.style.borderStyle = 'solid';
 
-          console.log(`[FISHING CHARTER] Button ${index} after setting red border:`, {
-            color: button.style.borderColor,
-            width: button.style.borderWidth,
-            style: button.style.borderStyle
-          });
-
           // Remove red border after 2 seconds
           setTimeout(() => {
             button.style.borderColor = originalBorderColor;
             button.style.borderWidth = originalBorderWidth;
             button.style.borderStyle = originalBorderStyle;
-            console.log(`[FISHING CHARTER] Button ${index} border restored`);
           }, 2000);
         });
       }
@@ -18305,15 +18238,10 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       initialize() {
-        console.log('[MOBILE FISHING CHARTER] Initializing MobileFishingCharterButtonHandler');
-        console.log('[MOBILE FISHING CHARTER] mobileFishingCharterButton found:', !!this.mobileFishingCharterButton);
 
         if (!this.mobileFishingCharterButton) {
-          console.log('[MOBILE FISHING CHARTER] No mobileFishingCharterButton element found, aborting initialization');
           return;
         }
-
-        console.log('[MOBILE FISHING CHARTER] Setting up click handler');
 
         // Set initial state
         this.updateMobileFishingCharterButtonState();
@@ -18508,39 +18436,30 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       handleMobileFishingCharterButtonClick() {
-        console.log('[MOBILE FISHING CHARTER] handleMobileFishingCharterButtonClick called');
         const charterCount = this.getFishingCharterCount();
-        console.log('[MOBILE FISHING CHARTER] charterCount:', charterCount);
 
         if (charterCount === 0) {
           // No charters selected, try to add one
-          console.log('[MOBILE FISHING CHARTER] No charters, calling addFishingCharter()');
           this.addFishingCharter();
         } else if (charterCount === 1) {
           // Single charter selected, edit it
-          console.log('[MOBILE FISHING CHARTER] 1 charter, calling editSingleCharter()');
           this.editSingleCharter();
         } else {
           // Multiple charters selected, show reservation container
-          console.log('[MOBILE FISHING CHARTER] Multiple charters, showing reservation container');
           this.showReservationContainer();
         }
       }
 
       addFishingCharter() {
-        console.log('[MOBILE FISHING CHARTER] addFishingCharter called');
         // Check if dates are selected
         const urlParams = new URLSearchParams(window.location.search);
         const checkin = urlParams.get('checkin');
         const checkout = urlParams.get('checkout');
-        console.log('[MOBILE FISHING CHARTER] checkin:', checkin, 'checkout:', checkout);
 
         if (!checkin || !checkout || checkin === '' || checkout === '') {
-          console.log('[MOBILE FISHING CHARTER] No dates, showing message and flashing button');
           this.showMessage('Dates must be selected before adding a fishing charter');
           // Flash check availability button if no dates are selected
           if (window.fishingCharterService) {
-            console.log('[MOBILE FISHING CHARTER] Calling flashCheckAvailabilityButton');
             window.fishingCharterService.flashCheckAvailabilityButton();
           }
           return;
@@ -18698,23 +18617,16 @@ document.addEventListener('DOMContentLoaded', () => {
     document.head.appendChild(mobileFishingCharterStyles);
 
     // Initialize mobile fishing charter button handler only on mobile (990px or less)
-    console.log('[MOBILE FISHING CHARTER] Window width:', window.innerWidth);
-    console.log('[MOBILE FISHING CHARTER] Is mobile view (<=990px)?', window.innerWidth <= 990);
 
     if (window.innerWidth <= 990) {
-      console.log('[MOBILE FISHING CHARTER] Creating MobileFishingCharterButtonHandler');
       const mobileFishingCharterButtonHandler = new MobileFishingCharterButtonHandler();
       window.mobileFishingCharterButtonHandler = mobileFishingCharterButtonHandler;
-      console.log('[MOBILE FISHING CHARTER] Handler created and assigned to window.mobileFishingCharterButtonHandler');
     } else {
-      console.log('[MOBILE FISHING CHARTER] Skipping initialization - not mobile view');
     }
 
     // Re-initialize on resize
     window.addEventListener('resize', () => {
-      console.log('[MOBILE FISHING CHARTER] Resize event - Window width:', window.innerWidth);
       if (window.innerWidth <= 990 && !window.mobileFishingCharterButtonHandler) {
-        console.log('[MOBILE FISHING CHARTER] Creating MobileFishingCharterButtonHandler on resize');
         window.mobileFishingCharterButtonHandler = new MobileFishingCharterButtonHandler();
       }
     });

@@ -35,11 +35,24 @@ function parseIdFromURL() {
             paymentIntentId
         };
     } else if (firstChar === 'C') {
-        // Charter: C<reservationCode>-<paymentIntentId>-<charterId>-<tripId>
+        // Charter: C<reservationCode>-<paymentIntentId>-<charterId>-<tripId>-<firstDate>
         const parts = rest.split('-');
-        if (parts.length !== 4) return null;
 
-        const [reservationCode, paymentIntentId, charterId, tripId] = parts;
+        // Support both old format (4 parts) and new format (8 parts with date YYYY-MM-DD)
+        // New format: parts[0-3] are the same, parts[4-7] are the date (YYYY-MM-DD becomes 4 parts when split by -)
+        let reservationCode, paymentIntentId, charterId, tripId, firstDate;
+
+        if (parts.length === 8) {
+            // New format with date: C<code>-<piId>-<charterId>-<tripId>-YYYY-MM-DD
+            [reservationCode, paymentIntentId, charterId, tripId] = parts.slice(0, 4);
+            firstDate = `${parts[4]}-${parts[5]}-${parts[6]}`;
+        } else if (parts.length === 4) {
+            // Old format without date (for backward compatibility)
+            [reservationCode, paymentIntentId, charterId, tripId] = parts;
+            firstDate = null;
+        } else {
+            return null;
+        }
 
         if (!reservationCode || !paymentIntentId || !charterId || !tripId) return null;
 
@@ -48,7 +61,8 @@ function parseIdFromURL() {
             reservationCode,
             paymentIntentId,
             charterId,
-            tripId
+            tripId,
+            firstDate
         };
     }
 
@@ -549,58 +563,29 @@ async function handleBoatRental(parsed) {
         let piData = null;
 
         if (resCodeData.boat_additionalinfo_paymentintent_id == paymentIntentId) {
-            console.log('✅ Boat rental linked to active paymentIntent');
             state = 'linked';
             piData = await fetchPaymentIntent(paymentIntentId, true);
         } else if (resCodeData.boat_inactive_paymentIntents && Array.isArray(resCodeData.boat_inactive_paymentIntents)) {
             const found = resCodeData.boat_inactive_paymentIntents.find(pi => pi.id == paymentIntentId);
             if (found) {
-                console.log('📋 Fetched inactive paymentIntent:', paymentIntentId);
                 piData = await fetchPaymentIntent(paymentIntentId, true);
 
                 // ALWAYS check for new_boat_paymentintent_id when in inactive list
                 if (piData.new_boat_paymentintent_id) {
-                    console.log('🔄 Found new_boat_paymentintent_id:', piData.new_boat_paymentintent_id);
                     const newPiId = piData.new_boat_paymentintent_id;
                     const newPiData = await fetchPaymentIntent(newPiId, true);
-
-                    console.log('📊 Old boat data (ID ' + piData.id + '):', {
-                        boats_id: piData.boats_id,
-                        boatGuests: piData.boatGuests,
-                        boatDates: piData.boatDates,
-                        reservationApproved: piData.reservationApproved,
-                        reservation_active: piData.reservation_active,
-                        reservation_notAvailable: piData.reservation_notAvailable,
-                        cancellation_date: piData.cancellation_date,
-                        host_cancellation_date: piData.host_cancellation_date
-                    });
-                    console.log('📊 New boat data (ID ' + newPiData.id + '):', {
-                        boats_id: newPiData.boats_id,
-                        boatGuests: newPiData.boatGuests,
-                        boatDates: newPiData.boatDates,
-                        reservationApproved: newPiData.reservationApproved,
-                        reservation_active: newPiData.reservation_active,
-                        reservation_notAvailable: newPiData.reservation_notAvailable,
-                        cancellation_date: newPiData.cancellation_date,
-                        host_cancellation_date: newPiData.host_cancellation_date
-                    });
 
                     // Compare boat id, guests, and dates
                     if (compareBoatData(piData, newPiData)) {
                         // Details match - migrate to new PI and show its status normally
-                        console.log('✅ Boat details match! Migrating to new paymentIntent:', newPiId);
-                        console.log('🔄 Switching from piData.id', piData.id, 'to newPiData.id', newPiData.id);
                         piData = newPiData;
                         state = 'linked';
-                        console.log('✅ Now using piData.id:', piData.id);
                     } else {
                         // Details changed - treat old booking as cancelled
-                        console.log('⚠️ Boat details changed! Old booking is treated as cancelled');
                         state = 'unlinked-cancelled';
                     }
                 } else {
                     // No new PI, standard unlinked
-                    console.log('✅ Found boat in inactive paymentIntent, state: unlinked (no new PI)');
                     state = 'unlinked';
                 }
             }
@@ -613,8 +598,6 @@ async function handleBoatRental(parsed) {
         }
 
         // Step 3: Render the page
-        console.log('🎨 Rendering boat rental with state:', state);
-        console.log('🎨 Using piData.id:', piData.id, 'boats_id:', piData.boats_id);
         renderBoatRental(piData, resCodeData, state);
 
         // Hide loader after rendering is complete
@@ -628,16 +611,6 @@ async function handleBoatRental(parsed) {
 
 function renderBoatRental(piData, resCodeData, linkState) {
 
-    console.log('🔍 renderBoatRental: Using piData.id:', piData.id);
-    console.log('✅ Boat data:', {
-        boats_id: piData.boats_id,
-        boatGuests: piData.boatGuests,
-        boatDates: piData.boatDates,
-        reservationApproved: piData.reservationApproved,
-        reservation_active: piData.reservation_active,
-        cancellation_date: piData.cancellation_date
-    });
-
     // CRITICAL: Hide charter sections to ensure only boat sections are visible
     hide('manageBooking_requestDetails_charter');
     hide('manageBooking_customerDetails_fishingCharter');
@@ -647,7 +620,6 @@ function renderBoatRental(piData, resCodeData, linkState) {
 
     // Force cancelled status if this is an old booking with changed details
     if (linkState === 'unlinked-cancelled') {
-        console.log('🔴 Forcing status to systemCancelled due to changed booking details');
         statusVariant = 'systemCancelled';
     }
 
@@ -1225,7 +1197,7 @@ function renderBoatManageActions(piData, statusVariant) {
 // =============================================================================
 
 async function handleFishingCharter(parsed) {
-    const { reservationCode, paymentIntentId, charterId, tripId } = parsed;
+    const { reservationCode, paymentIntentId, charterId, tripId, firstDate } = parsed;
 
     try {
         // Show loader while fetching data
@@ -1244,7 +1216,7 @@ async function handleFishingCharter(parsed) {
             piData = await fetchPaymentIntent(paymentIntentId, false);
 
             // Validate charter/trip exists in fishingCharters[]
-            const match = findMatchingCharter(piData, charterId, tripId);
+            const match = findMatchingCharter(piData, charterId, tripId, firstDate);
             if (match) {
                 state = 'linked';
             } else {
@@ -1255,86 +1227,47 @@ async function handleFishingCharter(parsed) {
             if (found) {
                 // Provisionally unlinked
                 piData = await fetchPaymentIntent(paymentIntentId, false);
-                console.log('📋 Fetched inactive paymentIntent:', paymentIntentId);
 
-                const match = findMatchingCharter(piData, charterId, tripId);
-                console.log('🔍 Looking for Charter', charterId, 'Trip', tripId, 'in inactive PI:', match ? 'Found' : 'Not found');
+                const match = findMatchingCharter(piData, charterId, tripId, firstDate);
 
                 // ALWAYS check for new_fishingcharters_paymentintent_id when in inactive list
                 if (piData.new_fishingcharters_paymentintent_id) {
-                    console.log('🔄 Found new_fishingcharters_paymentintent_id:', piData.new_fishingcharters_paymentintent_id);
                     const newPiId = piData.new_fishingcharters_paymentintent_id;
                     const newPiData = await fetchPaymentIntent(newPiId, false);
 
                     // Compare old vs new for same charter/trip
-                    const oldMatch = findMatchingCharter(piData, charterId, tripId);
-                    const newMatch = findMatchingCharter(newPiData, charterId, tripId);
-
-                    console.log('📊 Old charter entry (ID ' + piData.id + '):', {
-                        charterId: oldMatch?.charterId,
-                        tripId: oldMatch?.tripId,
-                        guests: oldMatch?.guests,
-                        dates: oldMatch?.dates,
-                        reservationApproved: oldMatch?.reservationApproved,
-                        reservation_active: oldMatch?.reservation_active,
-                        reservation_notAvailable: oldMatch?.reservation_notAvailable,
-                        cancellation_date: oldMatch?.cancellation_date,
-                        host_cancellation_date: oldMatch?.host_cancellation_date
-                    });
-                    console.log('📊 New charter entry (ID ' + newPiData.id + '):', {
-                        charterId: newMatch?.charterId,
-                        tripId: newMatch?.tripId,
-                        guests: newMatch?.guests,
-                        dates: newMatch?.dates,
-                        reservationApproved: newMatch?.reservationApproved,
-                        reservation_active: newMatch?.reservation_active,
-                        reservation_notAvailable: newMatch?.reservation_notAvailable,
-                        cancellation_date: newMatch?.cancellation_date,
-                        host_cancellation_date: newMatch?.host_cancellation_date
-                    });
+                    const oldMatch = findMatchingCharter(piData, charterId, tripId, firstDate);
+                    const newMatch = findMatchingCharter(newPiData, charterId, tripId, firstDate);
 
                     if (oldMatch && newMatch && compareCharterEntries(oldMatch, newMatch)) {
                         // Details match - migrate to new PI and show its status normally
-                        console.log('✅ Charter details match! Migrating to new paymentIntent:', newPiId);
-                        console.log('🔄 Switching from piData.id', piData.id, 'to newPiData.id', newPiData.id);
                         piData = newPiData;
                         workingPaymentIntentId = newPiId;
                         state = 'linked';
-                        console.log('✅ Now using piData.id:', piData.id);
                     } else if (oldMatch && newMatch) {
                         // Details changed - treat old booking as cancelled
-                        console.log('⚠️ Charter details changed! Old booking is treated as cancelled');
                         state = 'unlinked-cancelled';
                     } else if (!newMatch) {
                         // Charter/trip not found in new PI - old booking is cancelled
-                        console.log('⚠️ Charter/trip not found in new paymentIntent! Old booking is treated as cancelled');
                         state = 'unlinked-cancelled';
                     } else {
-                        console.log('❌ No matching charter in old paymentIntent');
                         state = 'error';
                     }
                 } else if (match) {
                     // No new PI, but match found in old PI - standard unlinked
-                    console.log('✅ Found matching charter in inactive paymentIntent, state: unlinked (no new PI)');
                     state = 'unlinked';
                 } else {
                     // No match and no new PI
-                    console.log('❌ No matching charter found and no new paymentIntent');
                     state = 'error';
                 }
             }
         }
-
         if (state === 'error' || !piData) {
             await hideLoader();
             showErrorState();
             return;
         }
-
-        // Step 3: Render the page
-        console.log('🎨 Rendering fishing charter with state:', state);
-        console.log('🎨 Using piData.id:', piData.id, 'Charter ID:', charterId, 'Trip ID:', tripId);
-        renderFishingCharter(piData, resCodeData, state, charterId, tripId);
+        renderFishingCharter(piData, resCodeData, state, charterId, tripId, firstDate);
 
         // Hide loader after rendering is complete
         await hideLoader();
@@ -1345,48 +1278,52 @@ async function handleFishingCharter(parsed) {
     }
 }
 
-function findMatchingCharter(piData, charterId, tripId) {
+function findMatchingCharter(piData, charterId, tripId, firstDate = null) {
     if (!piData.fishingCharters || !Array.isArray(piData.fishingCharters)) {
         return null;
     }
+
+    // If firstDate is provided, match all three: charterId, tripId, and firstDate
+    if (firstDate) {
+        return piData.fishingCharters.find(c => {
+            if (c.charterId != charterId || c.tripId != tripId) return false;
+
+            // Get the first date from this charter's dates
+            const charterDates = (c.dates || []).map(d => d.date).sort();
+            const charterFirstDate = charterDates.length > 0 ? charterDates[0] : null;
+
+            return charterFirstDate === firstDate;
+        });
+    }
+
+    // If no firstDate provided (old format), match just charterId and tripId
     return piData.fishingCharters.find(c => c.charterId == charterId && c.tripId == tripId);
 }
 
 function compareCharterEntries(a, b) {
-    console.log('🔍 Comparing charter entries:');
-    console.log('  Old:', { charterId: a.charterId, tripId: a.tripId, guests: a.guests, dates: a.dates });
-    console.log('  New:', { charterId: b.charterId, tripId: b.tripId, guests: b.guests, dates: b.dates });
-
     if (a.charterId != b.charterId) {
-        console.log('  ❌ Charter ID mismatch:', a.charterId, '!=', b.charterId);
         return false;
     }
     if (a.tripId != b.tripId) {
-        console.log('  ❌ Trip ID mismatch:', a.tripId, '!=', b.tripId);
         return false;
     }
     if (a.guests != b.guests) {
-        console.log('  ❌ Guests mismatch:', a.guests, '!=', b.guests);
         return false;
     }
 
     // Compare dates
     const aDates = (a.dates || []).map(d => d.date).sort();
     const bDates = (b.dates || []).map(d => d.date).sort();
-    console.log('  Comparing dates:', aDates, 'vs', bDates);
 
     if (aDates.length !== bDates.length) {
-        console.log('  ❌ Dates length mismatch:', aDates.length, '!=', bDates.length);
         return false;
     }
     for (let i = 0; i < aDates.length; i++) {
         if (aDates[i] !== bDates[i]) {
-            console.log('  ❌ Date mismatch at index', i, ':', aDates[i], '!=', bDates[i]);
             return false;
         }
     }
 
-    console.log('  ✅ All details match!');
     return true;
 }
 
@@ -1395,13 +1332,11 @@ function compareBoatData(oldPi, newPi) {
     const oldBoatId = oldPi.boats_id;
     const newBoatId = newPi.boats_id;
     if (oldBoatId != newBoatId) {
-        console.log('❌ Boat ID mismatch:', oldBoatId, '!=', newBoatId);
         return false;
     }
 
     // Compare guests
     if (oldPi.boatGuests != newPi.boatGuests) {
-        console.log('❌ Boat guests mismatch:', oldPi.boatGuests, '!=', newPi.boatGuests);
         return false;
     }
 
@@ -1409,40 +1344,25 @@ function compareBoatData(oldPi, newPi) {
     const oldDates = (oldPi.boatDates || []).map(d => d.date).sort();
     const newDates = (newPi.boatDates || []).map(d => d.date).sort();
     if (oldDates.length !== newDates.length) {
-        console.log('❌ Boat dates length mismatch:', oldDates.length, '!=', newDates.length);
         return false;
     }
     for (let i = 0; i < oldDates.length; i++) {
         if (oldDates[i] !== newDates[i]) {
-            console.log('❌ Boat date mismatch at index', i, ':', oldDates[i], '!=', newDates[i]);
             return false;
         }
     }
 
-    console.log('✅ All boat details match');
     return true;
 }
 
-function renderFishingCharter(piData, resCodeData, linkState, charterId, tripId) {
+function renderFishingCharter(piData, resCodeData, linkState, charterId, tripId, firstDate = null) {
 
     // Find the matching charter entry
-    console.log('🔍 renderFishingCharter: Looking for charter in piData.id:', piData.id);
-    const charterEntry = findMatchingCharter(piData, charterId, tripId);
+    const charterEntry = findMatchingCharter(piData, charterId, tripId, firstDate);
     if (!charterEntry) {
-        console.log('❌ Charter entry not found in piData.id:', piData.id);
         showErrorState();
         return;
     }
-
-    console.log('✅ Found charter entry:', {
-        charterId: charterEntry.charterId,
-        tripId: charterEntry.tripId,
-        guests: charterEntry.guests,
-        dates: charterEntry.dates,
-        reservationApproved: charterEntry.reservationApproved,
-        reservation_active: charterEntry.reservation_active,
-        cancellation_date: charterEntry.cancellation_date
-    });
 
     // Store for later use in actions
     window.currentPageData = {
@@ -1462,7 +1382,6 @@ function renderFishingCharter(piData, resCodeData, linkState, charterId, tripId)
 
     // Force cancelled status if this is an old booking with changed details
     if (linkState === 'unlinked-cancelled') {
-        console.log('🔴 Forcing status to systemCancelled due to changed booking details');
         statusVariant = 'systemCancelled';
     }
 
