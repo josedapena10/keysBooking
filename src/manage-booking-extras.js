@@ -38,23 +38,40 @@ function parseIdFromURL() {
         // Charter: C<reservationCode>-<paymentIntentId>-<charterId>-<tripId>-<firstDate>
         const parts = rest.split('-');
 
-        // Support both old format (4 parts) and new format (8 parts with date YYYY-MM-DD)
-        // New format: parts[0-3] are the same, parts[4-7] are the date (YYYY-MM-DD becomes 4 parts when split by -)
+        console.log('[PARSE URL] Charter URL parts:', parts);
+        console.log('[PARSE URL] Parts length:', parts.length);
+
+        // Support both old format (4 parts) and new format (7 parts with date YYYY-MM-DD)
+        // New format: parts[0-3] are the same, parts[4-6] are the date (YYYY-MM-DD becomes 3 parts when split by -)
         let reservationCode, paymentIntentId, charterId, tripId, firstDate;
 
-        if (parts.length === 8) {
+        if (parts.length === 7) {
             // New format with date: C<code>-<piId>-<charterId>-<tripId>-YYYY-MM-DD
             [reservationCode, paymentIntentId, charterId, tripId] = parts.slice(0, 4);
             firstDate = `${parts[4]}-${parts[5]}-${parts[6]}`;
+            console.log('[PARSE URL] New format - firstDate:', firstDate);
         } else if (parts.length === 4) {
             // Old format without date (for backward compatibility)
             [reservationCode, paymentIntentId, charterId, tripId] = parts;
             firstDate = null;
+            console.log('[PARSE URL] Old format - no firstDate');
         } else {
+            console.log('[PARSE URL] ERROR: Invalid parts length');
             return null;
         }
 
-        if (!reservationCode || !paymentIntentId || !charterId || !tripId) return null;
+        if (!reservationCode || !paymentIntentId || !charterId || !tripId) {
+            console.log('[PARSE URL] ERROR: Missing required parameters');
+            return null;
+        }
+
+        console.log('[PARSE URL] Parsed charter data:', {
+            reservationCode,
+            paymentIntentId,
+            charterId,
+            tripId,
+            firstDate
+        });
 
         return {
             type: 'charter',
@@ -1199,27 +1216,42 @@ function renderBoatManageActions(piData, statusVariant) {
 async function handleFishingCharter(parsed) {
     const { reservationCode, paymentIntentId, charterId, tripId, firstDate } = parsed;
 
+    console.log('[HANDLE FISHING CHARTER] Starting with:', {
+        reservationCode,
+        paymentIntentId,
+        charterId,
+        tripId,
+        firstDate
+    });
+
     try {
         // Show loader while fetching data
         showLoader();
 
         // Step 1: Fetch ReservationCode data
         const resCodeData = await fetchReservationCode(reservationCode, false);
+        console.log('[HANDLE FISHING CHARTER] ReservationCode data fetched');
 
         // Step 2: Determine linkage with new PI backfill
         let state = 'error';
         let piData = null;
         let workingPaymentIntentId = paymentIntentId;
 
+        console.log('[HANDLE FISHING CHARTER] Checking linkage...');
+        console.log('[HANDLE FISHING CHARTER] resCodeData.fishingcharters_paymentintent_id:', resCodeData.fishingcharters_paymentintent_id);
+
         if (resCodeData.fishingcharters_paymentintent_id == paymentIntentId) {
+            console.log('[HANDLE FISHING CHARTER] Payment intent is LINKED (active)');
             // Provisionally linked
             piData = await fetchPaymentIntent(paymentIntentId, false);
 
             // Validate charter/trip exists in fishingCharters[]
             const match = findMatchingCharter(piData, charterId, tripId, firstDate);
             if (match) {
+                console.log('[HANDLE FISHING CHARTER] Match found - state: linked');
                 state = 'linked';
             } else {
+                console.log('[HANDLE FISHING CHARTER] No match found - state: error');
                 state = 'error';
             }
         } else if (resCodeData.fishingCharter_inactive_paymentIntents && Array.isArray(resCodeData.fishingCharter_inactive_paymentIntents)) {
@@ -1279,25 +1311,53 @@ async function handleFishingCharter(parsed) {
 }
 
 function findMatchingCharter(piData, charterId, tripId, firstDate = null) {
+    console.log('[FIND MATCHING CHARTER] Looking for:', { charterId, tripId, firstDate });
+
     if (!piData.fishingCharters || !Array.isArray(piData.fishingCharters)) {
+        console.log('[FIND MATCHING CHARTER] No fishingCharters array found');
         return null;
     }
 
+    console.log('[FIND MATCHING CHARTER] Total charters in piData:', piData.fishingCharters.length);
+
     // If firstDate is provided, match all three: charterId, tripId, and firstDate
     if (firstDate) {
-        return piData.fishingCharters.find(c => {
-            if (c.charterId != charterId || c.tripId != tripId) return false;
+        console.log('[FIND MATCHING CHARTER] Using firstDate matching');
+
+        const match = piData.fishingCharters.find(c => {
+            console.log('[FIND MATCHING CHARTER] Checking charter:', {
+                charterId: c.charterId,
+                tripId: c.tripId,
+                dates: c.dates
+            });
+
+            if (c.charterId != charterId || c.tripId != tripId) {
+                console.log('[FIND MATCHING CHARTER] Charter/Trip ID mismatch');
+                return false;
+            }
 
             // Get the first date from this charter's dates
             const charterDates = (c.dates || []).map(d => d.date).sort();
             const charterFirstDate = charterDates.length > 0 ? charterDates[0] : null;
 
+            console.log('[FIND MATCHING CHARTER] Comparing dates:', {
+                charterFirstDate,
+                urlFirstDate: firstDate,
+                match: charterFirstDate === firstDate
+            });
+
             return charterFirstDate === firstDate;
         });
+
+        console.log('[FIND MATCHING CHARTER] Match found:', match ? 'YES' : 'NO');
+        return match;
     }
 
     // If no firstDate provided (old format), match just charterId and tripId
-    return piData.fishingCharters.find(c => c.charterId == charterId && c.tripId == tripId);
+    console.log('[FIND MATCHING CHARTER] Using legacy matching (no firstDate)');
+    const match = piData.fishingCharters.find(c => c.charterId == charterId && c.tripId == tripId);
+    console.log('[FIND MATCHING CHARTER] Match found:', match ? 'YES' : 'NO');
+    return match;
 }
 
 function compareCharterEntries(a, b) {
@@ -2053,10 +2113,16 @@ async function init() {
     showLoader();
     hideAllContent();
 
+    console.log('[INIT] Starting initialization...');
+    console.log('[INIT] Current URL:', window.location.href);
+
     // Parse URL
     const parsed = parseIdFromURL();
 
+    console.log('[INIT] Parsed result:', parsed);
+
     if (!parsed) {
+        console.log('[INIT] ERROR: Failed to parse URL');
         await hideLoader();
         showErrorState();
         return;
@@ -2069,10 +2135,13 @@ async function init() {
 
     // Route to appropriate handler
     if (parsed.type === 'boat') {
+        console.log('[INIT] Routing to handleBoatRental');
         await handleBoatRental(parsed);
     } else if (parsed.type === 'charter') {
+        console.log('[INIT] Routing to handleFishingCharter');
         await handleFishingCharter(parsed);
     } else {
+        console.log('[INIT] ERROR: Unknown type');
         await hideLoader();
         showErrorState();
     }
