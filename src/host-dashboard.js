@@ -1121,6 +1121,20 @@ async function initializeNotifications(hostId) {
             }
         }
 
+        // Show/hide entire notifications container based on whether any notifications are visible
+        const notificationsContainer = document.querySelector('[data-element="hostDashboardNotifications_Container"]');
+        if (notificationsContainer) {
+            // Check if any notification is currently visible
+            const hasVisibleEditListings = document.querySelector('[data-element="hostDashboardNotifications_editListing"]:not([style*="display: none"])');
+            const isAddHomeVisible = addHomeNotificationContainer && addHomeNotificationContainer.style.display !== 'none';
+            const isPayoutsVisible = payoutsNotificationContainer && payoutsNotificationContainer.style.display !== 'none';
+            const isTaxesVisible = taxesNotificationContainer && taxesNotificationContainer.style.display !== 'none';
+
+            // Show container only if at least one notification is visible
+            const hasAnyNotification = hasVisibleEditListings || isAddHomeVisible || isPayoutsVisible || isTaxesVisible;
+            notificationsContainer.style.display = hasAnyNotification ? 'flex' : 'none';
+        }
+
     } catch (error) {
         console.error('Error fetching notifications:', error);
     }
