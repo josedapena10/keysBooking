@@ -10681,15 +10681,21 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!checkAvailabilityButtons.length) return;
 
         checkAvailabilityButtons.forEach(button => {
-          // Store original border
-          const originalBorder = button.style.border;
+          // Store original border styles
+          const originalBorderColor = button.style.borderColor;
+          const originalBorderWidth = button.style.borderWidth;
+          const originalBorderStyle = button.style.borderStyle;
 
-          // Set red border
-          button.style.border = '2px solid #dc2626';
+          // Set red border with individual properties for better CSS specificity
+          button.style.borderColor = '#dc2626';
+          button.style.borderWidth = '2px';
+          button.style.borderStyle = 'solid';
 
           // Remove red border after 2 seconds
           setTimeout(() => {
-            button.style.border = originalBorder;
+            button.style.borderColor = originalBorderColor;
+            button.style.borderWidth = originalBorderWidth;
+            button.style.borderStyle = originalBorderStyle;
           }, 2000);
         });
       }
@@ -17911,15 +17917,21 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!checkAvailabilityButtons.length) return;
 
         checkAvailabilityButtons.forEach(button => {
-          // Store original border
-          const originalBorder = button.style.border;
+          // Store original border styles
+          const originalBorderColor = button.style.borderColor;
+          const originalBorderWidth = button.style.borderWidth;
+          const originalBorderStyle = button.style.borderStyle;
 
-          // Set red border
-          button.style.border = '2px solid #dc2626';
+          // Set red border with individual properties for better CSS specificity
+          button.style.borderColor = '#dc2626';
+          button.style.borderWidth = '2px';
+          button.style.borderStyle = 'solid';
 
           // Remove red border after 2 seconds
           setTimeout(() => {
-            button.style.border = originalBorder;
+            button.style.borderColor = originalBorderColor;
+            button.style.borderWidth = originalBorderWidth;
+            button.style.borderStyle = originalBorderStyle;
           }, 2000);
         });
       }
