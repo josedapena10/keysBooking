@@ -7703,9 +7703,11 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       async handleButtonClick() {
+        console.log('[BOAT RENTAL] handleButtonClick called');
         if (!this.areDatesValid()) {
           const urlParams = new URLSearchParams(window.location.search);
           const hasDates = urlParams.has('checkin') && urlParams.has('checkout');
+          console.log('[BOAT RENTAL] hasDates:', hasDates);
 
           const message = hasDates
             ? 'Valid dates must be selected to add boat rental'
@@ -7715,6 +7717,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
           // Flash check availability button if no dates are selected
           if (!hasDates) {
+            console.log('[BOAT RENTAL] Calling flashCheckAvailabilityButton');
             this.flashCheckAvailabilityButton();
           }
 
@@ -10677,25 +10680,47 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Flash check availability button with red border to get user's attention
       flashCheckAvailabilityButton() {
+        console.log('[BOAT RENTAL] flashCheckAvailabilityButton called');
         const checkAvailabilityButtons = document.querySelectorAll('[data-element="listing_checkAvailability_button"]');
-        if (!checkAvailabilityButtons.length) return;
+        console.log('[BOAT RENTAL] Found buttons:', checkAvailabilityButtons.length);
 
-        checkAvailabilityButtons.forEach(button => {
+        if (!checkAvailabilityButtons.length) {
+          console.log('[BOAT RENTAL] No buttons found, returning');
+          return;
+        }
+
+        checkAvailabilityButtons.forEach((button, index) => {
+          console.log(`[BOAT RENTAL] Button ${index}:`, button);
+          console.log(`[BOAT RENTAL] Button ${index} data-element:`, button.getAttribute('data-element'));
+
           // Store original border styles
           const originalBorderColor = button.style.borderColor;
           const originalBorderWidth = button.style.borderWidth;
           const originalBorderStyle = button.style.borderStyle;
+
+          console.log(`[BOAT RENTAL] Button ${index} original border:`, {
+            color: originalBorderColor,
+            width: originalBorderWidth,
+            style: originalBorderStyle
+          });
 
           // Set red border with individual properties for better CSS specificity
           button.style.borderColor = '#dc2626';
           button.style.borderWidth = '2px';
           button.style.borderStyle = 'solid';
 
+          console.log(`[BOAT RENTAL] Button ${index} after setting red border:`, {
+            color: button.style.borderColor,
+            width: button.style.borderWidth,
+            style: button.style.borderStyle
+          });
+
           // Remove red border after 2 seconds
           setTimeout(() => {
             button.style.borderColor = originalBorderColor;
             button.style.borderWidth = originalBorderWidth;
             button.style.borderStyle = originalBorderStyle;
+            console.log(`[BOAT RENTAL] Button ${index} border restored`);
           }, 2000);
         });
       }
@@ -14130,11 +14155,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
       async handleButtonClick() {
         try {
+          console.log('[FISHING CHARTER] handleButtonClick called');
           // Check if dates are valid (selected AND meet validation criteria)
           if (!this.areDatesValid()) {
             const urlParams = new URLSearchParams(window.location.search);
             const hasDates = urlParams.has('checkin') && urlParams.has('checkout') &&
               urlParams.get('checkin') !== '' && urlParams.get('checkout') !== '';
+            console.log('[FISHING CHARTER] hasDates:', hasDates);
 
             const message = hasDates
               ? 'Valid dates must be selected to add fishing charter'
@@ -14144,6 +14171,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Flash check availability button if no dates are selected
             if (!hasDates) {
+              console.log('[FISHING CHARTER] Calling flashCheckAvailabilityButton');
               this.flashCheckAvailabilityButton();
             }
 
@@ -17913,25 +17941,47 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Flash check availability button with red border to get user's attention
       flashCheckAvailabilityButton() {
+        console.log('[FISHING CHARTER] flashCheckAvailabilityButton called');
         const checkAvailabilityButtons = document.querySelectorAll('[data-element="listing_checkAvailability_button"]');
-        if (!checkAvailabilityButtons.length) return;
+        console.log('[FISHING CHARTER] Found buttons:', checkAvailabilityButtons.length);
 
-        checkAvailabilityButtons.forEach(button => {
+        if (!checkAvailabilityButtons.length) {
+          console.log('[FISHING CHARTER] No buttons found, returning');
+          return;
+        }
+
+        checkAvailabilityButtons.forEach((button, index) => {
+          console.log(`[FISHING CHARTER] Button ${index}:`, button);
+          console.log(`[FISHING CHARTER] Button ${index} data-element:`, button.getAttribute('data-element'));
+
           // Store original border styles
           const originalBorderColor = button.style.borderColor;
           const originalBorderWidth = button.style.borderWidth;
           const originalBorderStyle = button.style.borderStyle;
+
+          console.log(`[FISHING CHARTER] Button ${index} original border:`, {
+            color: originalBorderColor,
+            width: originalBorderWidth,
+            style: originalBorderStyle
+          });
 
           // Set red border with individual properties for better CSS specificity
           button.style.borderColor = '#dc2626';
           button.style.borderWidth = '2px';
           button.style.borderStyle = 'solid';
 
+          console.log(`[FISHING CHARTER] Button ${index} after setting red border:`, {
+            color: button.style.borderColor,
+            width: button.style.borderWidth,
+            style: button.style.borderStyle
+          });
+
           // Remove red border after 2 seconds
           setTimeout(() => {
             button.style.borderColor = originalBorderColor;
             button.style.borderWidth = originalBorderWidth;
             button.style.borderStyle = originalBorderStyle;
+            console.log(`[FISHING CHARTER] Button ${index} border restored`);
           }, 2000);
         });
       }
