@@ -7706,7 +7706,8 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('[BOAT RENTAL] handleButtonClick called');
         if (!this.areDatesValid()) {
           const urlParams = new URLSearchParams(window.location.search);
-          const hasDates = urlParams.has('checkin') && urlParams.has('checkout');
+          const hasDates = urlParams.has('checkin') && urlParams.has('checkout') &&
+            urlParams.get('checkin') !== '' && urlParams.get('checkout') !== '';
           console.log('[BOAT RENTAL] hasDates:', hasDates);
 
           const message = hasDates
