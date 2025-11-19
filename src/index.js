@@ -7,10 +7,11 @@ var script = document.createElement('script');
 script.src = 'https://cdn.jsdelivr.net/npm/@finsweet/attributes-mirrorclick@1/mirrorclick.js';
 document.body.appendChild(script);
 
-// Add a new script element to load your file
-var scriptToAdd = document.createElement('script');
-scriptToAdd.src = 'index-search.js'; // Update this path accordingly
-document.body.appendChild(scriptToAdd);
+// Note: index-search.js should be loaded separately in Webflow's custom code settings
+// Do not dynamically load it here as it causes 404 errors in production
+// var scriptToAdd = document.createElement('script');
+// scriptToAdd.src = 'index-search.js';
+// document.body.appendChild(scriptToAdd);
 
 // for no scroll background when modal is open
 // when DOM is ready
