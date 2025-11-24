@@ -63,5 +63,10 @@
   },
   "engines": {
     "pnpm": ">=8"
+  },
+  "pnpm": {
+    "overrides": {
+      "braces": ">=3.0.3"
+    }
   }
 }
