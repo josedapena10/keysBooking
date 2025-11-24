@@ -3520,11 +3520,14 @@ document.addEventListener('DOMContentLoaded', function () {
 
                                 // Add all dates in this range
                                 const currentDate = new Date(startDate);
+                                let isFirstDate = true;
                                 while (currentDate <= endDate) {
                                     blockedDates.push({
-                                        Date: formatDateYYYYMMDD(currentDate)
+                                        Date: formatDateYYYYMMDD(currentDate),
+                                        isAvailableForCheckout: isFirstDate
                                     });
                                     currentDate.setDate(currentDate.getDate() + 1);
+                                    isFirstDate = false;
                                 }
                             });
 
