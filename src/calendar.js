@@ -3571,6 +3571,24 @@ document.addEventListener('DOMContentLoaded', function () {
                                 });
                             }
 
+                            // Helper function to parse YYYY-MM-DD string to local Date (avoiding timezone issues)
+                            const parseLocalDate = (dateStr) => {
+                                const [year, month, day] = dateStr.split('-').map(Number);
+                                return new Date(year, month - 1, day);
+                            };
+
+                            // Helper function to add days to a YYYY-MM-DD string
+                            const addDaysToDateString = (dateStr, days) => {
+                                const date = parseLocalDate(dateStr);
+                                date.setDate(date.getDate() + days);
+                                return formatDateYYYYMMDD(date);
+                            };
+
+                            // Helper function to compare YYYY-MM-DD strings
+                            const isDateLessThanOrEqual = (date1Str, date2Str) => {
+                                return date1Str <= date2Str;
+                            };
+
                             // Process dates to be made available (unblocked)
                             if (window.checkedOpenRanges && window.checkedOpenRanges.length > 0) {
                                 // Convert ranges to individual dates for easier filtering
@@ -3579,28 +3597,28 @@ document.addEventListener('DOMContentLoaded', function () {
                                     const start = item.dateRange.startDate;
                                     const end = item.dateRange.endDate;
 
-                                    // Add all dates in the range to the set
-                                    const currentDate = new Date(start);
-                                    while (currentDate <= end) {
-                                        datesToRemove.add(formatDateYYYYMMDD(currentDate));
-                                        currentDate.setDate(currentDate.getDate() + 1);
+                                    // Add all dates in the range to the set using string manipulation
+                                    let currentDateStr = formatDateYYYYMMDD(start);
+                                    const endDateStr = formatDateYYYYMMDD(end);
+                                    while (isDateLessThanOrEqual(currentDateStr, endDateStr)) {
+                                        datesToRemove.add(currentDateStr);
+                                        currentDateStr = addDaysToDateString(currentDateStr, 1);
                                     }
                                 });
 
                                 // Remove these dates from existing blocked dates
                                 const remainingBlockedDates = [];
                                 blockedDateRanges.forEach(range => {
-                                    const start = new Date(range.range_start);
-                                    const end = new Date(range.range_end);
+                                    // Use string manipulation to avoid timezone issues
+                                    let currentDateStr = range.range_start;
+                                    const endDateStr = range.range_end;
 
                                     // Check all dates in the range
-                                    const currentDate = new Date(start);
-                                    while (currentDate <= end) {
-                                        const dateStr = formatDateYYYYMMDD(currentDate);
-                                        if (!datesToRemove.has(dateStr)) {
-                                            remainingBlockedDates.push(dateStr);
+                                    while (isDateLessThanOrEqual(currentDateStr, endDateStr)) {
+                                        if (!datesToRemove.has(currentDateStr)) {
+                                            remainingBlockedDates.push(currentDateStr);
                                         }
-                                        currentDate.setDate(currentDate.getDate() + 1);
+                                        currentDateStr = addDaysToDateString(currentDateStr, 1);
                                     }
                                 });
 
