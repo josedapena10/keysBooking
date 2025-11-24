@@ -3615,8 +3615,9 @@ document.addEventListener('DOMContentLoaded', function () {
                             // Merge adjacent ranges
                             blockedDateRanges = mergeAdjacentRanges(blockedDateRanges);
 
-                            // Only make the blocked dates request if there are dates to block
-                            if (blockedDateRanges.length > 0) {
+                            // Call blocked_dates API if we're opening dates (to update remaining ranges)
+                            // or if we're blocking new dates
+                            if (window.checkedOpenRanges.length > 0 || window.checkedBlockedRanges.length > 0) {
                                 // Second API call - update blocked dates
                                 const blockedResponse = await fetch('https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/blocked_dates', {
                                     method: 'POST',
@@ -3634,7 +3635,6 @@ document.addEventListener('DOMContentLoaded', function () {
                                 }
 
                                 const blockedResult = await blockedResponse.json();
-                            } else {
                             }
                         } else {
 
