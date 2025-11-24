@@ -982,6 +982,7 @@ document.addEventListener('DOMContentLoaded', function () {
     let selectedEndDate = null;
     let disabledDates = new Set();
     let checkoutOnlyDates = new Set(); // Dates only available for checkout
+    let unclickableCheckInDates = new Set(); // Available dates that can't be used as check-in
     let selectingCheckOut = false;
 
     // Convert disabled dates from API
@@ -1028,6 +1029,27 @@ document.addEventListener('DOMContentLoaded', function () {
     function markSmallGapsAsUnavailable() {
       const sortedDisabledDates = Array.from(disabledDates).sort();
 
+      // Check first blocked date - if it's checkout-only, verify there are enough days from minDate
+      if (sortedDisabledDates.length > 0) {
+        const firstBlockedDate = createDateFromString(sortedDisabledDates[0]);
+        const firstBlockedDateStr = sortedDisabledDates[0];
+
+        // Calculate available days from minDate to first blocked date
+        let availableDaysFromStart = 0;
+        let checkDate = new Date(minDate);
+        while (checkDate < firstBlockedDate) {
+          availableDaysFromStart++;
+          checkDate = addDays(checkDate, 1);
+        }
+
+        const availableNightsFromStart = availableDaysFromStart - 1;
+
+        // If first blocked date is checkout-only but there aren't enough nights before it, remove from checkoutOnlyDates
+        if (checkoutOnlyDates.has(firstBlockedDateStr) && availableNightsFromStart < minNights) {
+          checkoutOnlyDates.delete(firstBlockedDateStr);
+        }
+      }
+
       for (let i = 0; i < sortedDisabledDates.length - 1; i++) {
         const currentBlockedDate = createDateFromString(sortedDisabledDates[i]);
         const nextBlockedDate = createDateFromString(sortedDisabledDates[i + 1]);
@@ -1055,12 +1077,78 @@ document.addEventListener('DOMContentLoaded', function () {
             dateToBlock = addDays(dateToBlock, 1);
           }
         }
+
+        // If the next blocked date is checkout-only but the gap before it is too small,
+        // remove it from checkoutOnlyDates so it shows as fully disabled
+        const nextBlockedDateStr = formatDate(nextBlockedDate);
+        if (checkoutOnlyDates.has(nextBlockedDateStr) && availableNights < minNights) {
+          checkoutOnlyDates.delete(nextBlockedDateStr);
+        }
       }
 
     }
 
     // Mark small gaps as unavailable
     markSmallGapsAsUnavailable();
+
+    // Helper function to check if a date has valid checkout options
+    function hasValidCheckoutOptions(checkInDate) {
+      // Find first blocked date after this check-in
+      let checkDate = addDays(checkInDate, 1);
+      const firstBlockedDate = findFirstBlockedDateAfter(checkInDate);
+
+      // Check if there's at least one valid checkout date
+      for (let nightsCount = minNights; nightsCount <= maxNights; nightsCount++) {
+        const potentialCheckout = addDays(checkInDate, nightsCount);
+
+        // Check if this potential checkout is within maxDate
+        if (potentialCheckout > maxDate) break;
+
+        // Check if this checkout date is valid
+        const checkoutDateStr = formatDate(potentialCheckout);
+        const isPotentialCheckoutDisabled = isDateDisabled(potentialCheckout, false);
+
+        // If it's not disabled (or it's checkout-only and that's ok), check if it's before blocked dates
+        if (!isPotentialCheckoutDisabled) {
+          // If there's no blocked date after check-in, this checkout is valid
+          if (!firstBlockedDate) return true;
+
+          // If checkout is before or equal to first blocked date, check if valid
+          if (potentialCheckout <= firstBlockedDate) {
+            return true;
+          }
+        } else if (checkoutOnlyDates.has(checkoutDateStr)) {
+          // Checkout-only dates are valid as checkout
+          if (!firstBlockedDate || potentialCheckout <= firstBlockedDate) {
+            return true;
+          }
+        }
+      }
+
+      return false;
+    }
+
+    // Identify available dates that can't be used as check-in
+    function markUnclickableCheckInDates() {
+      let currentDate = new Date(minDate);
+
+      while (currentDate <= maxDate) {
+        const dateStr = formatDate(currentDate);
+
+        // Only check dates that are not already disabled and not checkout-only
+        if (!disabledDates.has(dateStr) && !checkoutOnlyDates.has(dateStr)) {
+          // Check if this date has valid checkout options
+          if (!hasValidCheckoutOptions(currentDate)) {
+            unclickableCheckInDates.add(dateStr);
+          }
+        }
+
+        currentDate = addDays(currentDate, 1);
+      }
+    }
+
+    // Mark unclickable check-in dates
+    markUnclickableCheckInDates();
 
     // Initialize from URL parameters - Fixed to avoid timezone issues
     const urlParams = new URLSearchParams(window.location.search);
@@ -1250,6 +1338,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Check if this is a checkout-only date
         const isCheckoutOnly = checkoutOnlyDates.has(dateString);
+        const isUnclickableCheckIn = unclickableCheckInDates.has(dateString);
 
         // Apply disabled state for past dates or API disabled dates
         if (isDateDisabled(currentDate)) {
@@ -1268,6 +1357,14 @@ document.addEventListener('DOMContentLoaded', function () {
               dayElement.style.cursor = 'default';
             }
           }
+        } else if (isUnclickableCheckIn && !selectedStartDate) {
+          // Available date but can't be used as check-in
+          dayElement.classList.add('unclickable-checkin');
+          dayElement.style.cursor = 'not-allowed';
+          dayElement.addEventListener('click', (e) => {
+            e.stopPropagation();
+            showMinNightsTooltip(dayElement, minNights);
+          });
         } else {
           dayElement.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -1305,15 +1402,13 @@ document.addEventListener('DOMContentLoaded', function () {
       if (isCheckoutOnly) {
         if (!selectedStartDate) {
           // No check-in selected: show semi-disabled state
-          dayElement.style.opacity = '0.5';
-          dayElement.style.color = '#999';
-          dayElement.style.textDecoration = 'line-through';
+          dayElement.style.opacity = '0.4';
+          dayElement.style.color = 'black';
           dayElement.style.cursor = 'not-allowed';
         } else {
           // Check-in is selected: show as available (remove checkout-only styling)
           dayElement.style.opacity = '';
           dayElement.style.color = '';
-          dayElement.style.textDecoration = '';
           dayElement.style.cursor = 'pointer';
         }
       }
@@ -1656,6 +1751,31 @@ document.addEventListener('DOMContentLoaded', function () {
       }
     }
 
+    function showMinNightsTooltip(dayElement, minNights) {
+      // Remove any existing tooltips
+      const existingTooltips = document.querySelectorAll('.min-nights-tooltip');
+      existingTooltips.forEach(tooltip => tooltip.remove());
+
+      // Create tooltip
+      const tooltip = document.createElement('div');
+      tooltip.className = 'min-nights-tooltip';
+      tooltip.textContent = `Minimum ${minNights} night${minNights > 1 ? 's' : ''} required`;
+
+      // Position tooltip above the day element
+      const rect = dayElement.getBoundingClientRect();
+      tooltip.style.position = 'fixed';
+      tooltip.style.left = `${rect.left + rect.width / 2}px`;
+      tooltip.style.top = `${rect.top - 35}px`;
+      tooltip.style.transform = 'translateX(-50%)';
+
+      document.body.appendChild(tooltip);
+
+      // Remove tooltip after 2 seconds
+      setTimeout(() => {
+        tooltip.remove();
+      }, 2000);
+    }
+
     // Expose calendar function globally for modal observer
     window.resetCalendarView = function () {
       createCalendar(true); // Pass true to reset view to selected date
@@ -1938,7 +2058,7 @@ document.addEventListener('DOMContentLoaded', function () {
         transition: all 0.2s ease;
       }
 
-      .calendar-day:hover:not(.disabled):not(.empty):not(.min-nights-blocked):not(.max-nights-blocked):not(.blocked-by-unavailable):not(.blocked-by-selection) {
+      .calendar-day:hover:not(.disabled):not(.empty):not(.min-nights-blocked):not(.max-nights-blocked):not(.blocked-by-unavailable):not(.blocked-by-selection):not(.unclickable-checkin) {
         background-color: #f5f5f5;
       }
 
@@ -1957,11 +2077,40 @@ document.addEventListener('DOMContentLoaded', function () {
         position: relative;
       }
 
+      .calendar-day.unclickable-checkin {
+        opacity: 1;
+        position: relative;
+      }
+
       .calendar-day.min-nights-blocked,
       .calendar-day.max-nights-blocked,
       .calendar-day.blocked-by-unavailable,
       .calendar-day.blocked-by-selection {
         cursor: not-allowed !important;
+      }
+
+      .min-nights-tooltip {
+        background-color: #323232;
+        color: white;
+        padding: 8px 12px;
+        border-radius: 6px;
+        font-size: 13px;
+        font-family: 'TT Fors', sans-serif;
+        white-space: nowrap;
+        z-index: 10000;
+        pointer-events: none;
+        animation: tooltipFadeIn 0.2s ease;
+      }
+
+      @keyframes tooltipFadeIn {
+        from {
+          opacity: 0;
+          transform: translateX(-50%) translateY(-5px);
+        }
+        to {
+          opacity: 1;
+          transform: translateX(-50%) translateY(0);
+        }
       }
 
       .calendar-navigation {
