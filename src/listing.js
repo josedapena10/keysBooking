@@ -13530,6 +13530,12 @@ document.addEventListener('DOMContentLoaded', () => {
         this.selectWrapper.style.display = 'none';
         this.detailsWrapper.style.display = 'flex';
 
+        // Scroll details filter container to the left
+        const detailsFilterContainer = document.querySelector('[data-element="fishingCharterDetailsModal_selectFishingCharter_container"]');
+        if (detailsFilterContainer) {
+          detailsFilterContainer.scrollLeft = 0;
+        }
+
         // Prevent body scroll when modal is open
         document.body.classList.add('no-scroll');
 
@@ -14500,6 +14506,12 @@ document.addEventListener('DOMContentLoaded', () => {
           this.selectWrapper.style.display = 'flex';
           this.detailsWrapper.style.display = 'none';
 
+          // Scroll filter container to the left
+          const selectFilterContainer = document.querySelector('[data-element="addFishingCharterModal_selectFishingCharter_container"]');
+          if (selectFilterContainer) {
+            selectFilterContainer.scrollLeft = 0;
+          }
+
           // Prevent body scroll when modal is open
           document.body.classList.add('no-scroll');
 
@@ -14557,7 +14569,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return result;
       }
 
-      closeModal() {
+      closeModal(skipStyleUpdates = false) {
         // Close all popups first
         this.closeAllPopups();
 
@@ -14602,50 +14614,54 @@ document.addEventListener('DOMContentLoaded', () => {
         this.isEditMode = false;
         this.originalEditParams = null;
 
-        // Clear all filters when modal is closed (for next time it's opened)
-        this.selectedGuests = 0;
-        this.selectedDates = [];
-        this.selectedPickupTime = '';
-        this.selectedPrivateDock = false;
-        this.selectedFishingTypes = [];
-        this.priceMin = 0;
-        this.priceMax = 5000;
+        // Skip filter clearing and style updates if closing after successful save
+        // (they will be handled separately after modal is closed)
+        if (!skipStyleUpdates) {
+          // Clear all filters when modal is closed (for next time it's opened)
+          this.selectedGuests = 0;
+          this.selectedDates = [];
+          this.selectedPickupTime = '';
+          this.selectedPrivateDock = false;
+          this.selectedFishingTypes = [];
+          this.priceMin = 0;
+          this.priceMax = 5000;
 
-        // Clear details section filters as well
-        this.detailsSelectedDates = [];
-        this.detailsSelectedGuests = 0;
-        this.detailsSelectedPrivateDock = false;
+          // Clear details section filters as well
+          this.detailsSelectedDates = [];
+          this.detailsSelectedGuests = 0;
+          this.detailsSelectedPrivateDock = false;
 
-        // Update UI elements to reflect cleared state
-        if (this.guestNumber) this.guestNumber.textContent = this.selectedGuests;
-        if (this.detailsGuestNumber) this.detailsGuestNumber.textContent = this.detailsSelectedGuests;
-        this.updateGuestsFilterText();
-        this.updateDatesFilterText();
-        this.updatePrivateDockFilterText();
-        this.updateFishingTypeFilterText();
-        this.updatePriceFilterText();
-        this.updateDetailsGuestsFilterText();
-        this.updateDetailsDateFilterText();
-        this.updateDetailsPrivateDockFilterText();
+          // Update UI elements to reflect cleared state
+          if (this.guestNumber) this.guestNumber.textContent = this.selectedGuests;
+          if (this.detailsGuestNumber) this.detailsGuestNumber.textContent = this.detailsSelectedGuests;
+          this.updateGuestsFilterText();
+          this.updateDatesFilterText();
+          this.updatePrivateDockFilterText();
+          this.updateFishingTypeFilterText();
+          this.updatePriceFilterText();
+          this.updateDetailsGuestsFilterText();
+          this.updateDetailsDateFilterText();
+          this.updateDetailsPrivateDockFilterText();
 
-        // Reset checkbox styles for fishing types
-        Object.values(this.fishingTypes).forEach(checkbox => {
-          if (checkbox) {
-            checkbox.style.backgroundColor = '';
+          // Reset checkbox styles for fishing types
+          Object.values(this.fishingTypes).forEach(checkbox => {
+            if (checkbox) {
+              checkbox.style.backgroundColor = '';
+            }
+          });
+
+          // Reset price slider UI if it exists
+          if (this.priceScrollBar) {
+            const sliderMin = this.priceScrollBar.querySelector('.price-slider-min');
+            const sliderMax = this.priceScrollBar.querySelector('.price-slider-max');
+            if (sliderMin) sliderMin.value = 0;
+            if (sliderMax) sliderMax.value = 5000;
           }
-        });
 
-        // Reset price slider UI if it exists
-        if (this.priceScrollBar) {
-          const sliderMin = this.priceScrollBar.querySelector('.price-slider-min');
-          const sliderMax = this.priceScrollBar.querySelector('.price-slider-max');
-          if (sliderMin) sliderMin.value = 0;
-          if (sliderMax) sliderMax.value = 5000;
+          // Update filter styles
+          this.updateFilterStyles();
+          this.updateDetailsFilterStyles();
         }
-
-        // Update filter styles
-        this.updateFilterStyles();
-        this.updateDetailsFilterStyles();
 
         // Re-enable body scroll
         document.body.classList.remove('no-scroll');
@@ -15381,6 +15397,12 @@ document.addEventListener('DOMContentLoaded', () => {
           this.detailsContentContainer.scrollTop = 0;
         }
 
+        // Scroll details filter container to the left
+        const detailsFilterContainer = document.querySelector('[data-element="fishingCharterDetailsModal_selectFishingCharter_container"]');
+        if (detailsFilterContainer) {
+          detailsFilterContainer.scrollLeft = 0;
+        }
+
         // Store current charter data
         this.currentCharterData = charter;
 
@@ -15687,6 +15709,12 @@ document.addEventListener('DOMContentLoaded', () => {
             // Show select wrapper
             this.detailsWrapper.style.display = 'none';
             this.selectWrapper.style.display = 'flex';
+
+            // Scroll select filter container to the left
+            const selectFilterContainer = document.querySelector('[data-element="addFishingCharterModal_selectFishingCharter_container"]');
+            if (selectFilterContainer) {
+              selectFilterContainer.scrollLeft = 0;
+            }
 
             // Fetch and render charters if not already loaded
             if (this.allFishingCharters.length === 0) {
@@ -17912,13 +17940,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Sync with main filter variable
         this.selectedDates = [...this.detailsSelectedDates];
+
+        // Clear error highlights first, before updating filter styles
+        this.clearFishingCharterErrorHighlights();
+
         this.updateDetailsDateFilterText();
         this.updateDetailsFilterStyles();
         this.updateDetailsDateButtonStyles();
         this.renderTripTypes(this.currentCharterData);
-
-        // Clear error highlights when user provides dates
-        this.clearFishingCharterErrorHighlights();
 
         // Call main updateURLParams method like main filters do
         // this.updateURLParams();
@@ -18322,8 +18351,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         [datesFilter, guestsFilter].forEach(element => {
           if (element) {
+            // Only clear error highlighting (red background), not the selected state (black background)
+            // Check if element has error state before clearing
+            if (element.style.backgroundColor === 'rgb(254, 226, 226)' || element.style.backgroundColor === '#fee2e2') {
+              element.style.backgroundColor = '';
+            }
             element.style.border = '';
-            element.style.backgroundColor = '';
           }
         });
       }
@@ -18397,14 +18430,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
           window.history.replaceState({}, '', url);
 
-          // Clear all filters since user will likely search for different charter next time
-          this.clearDatesFilter();
-          this.clearGuestsFilter();
-          this.clearPriceFilter();
-          this.clearFishingTypeFilter();
-          this.clearPrivateDockFilter();
-
-
           await this.populateSelectedFishingCharterBlock();
 
           // Update pricing display for extras
@@ -18425,7 +18450,15 @@ document.addEventListener('DOMContentLoaded', () => {
           this.editingCharterNumber = null;
           this.editingTripId = null;
 
-          this.closeModal();
+          // Close modal first without clearing filters (pass true to skip style updates)
+          this.closeModal(true);
+
+          // Clear all filters after modal is closed to avoid visual glitches
+          this.clearDatesFilter();
+          this.clearGuestsFilter();
+          this.clearPriceFilter();
+          this.clearFishingTypeFilter();
+          this.clearPrivateDockFilter();
         } finally {
           // Reset the flag after a short delay to prevent legitimate consecutive calls
           setTimeout(() => {
