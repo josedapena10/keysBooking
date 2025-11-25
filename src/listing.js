@@ -16172,15 +16172,15 @@ document.addEventListener('DOMContentLoaded', () => {
           position: fixed;
           top: 0;
           left: 0;
-          width: 100vw;
-          height: 100vh;
-          background: rgba(0, 0, 0, 0.9);
+          width: 100%;
+          height: 100%;
+          background: rgba(0, 0, 0, 0.95);
+          z-index: 10200;
           display: flex;
           align-items: center;
           justify-content: center;
-          z-index: 10200;
-          padding: 20px;
-          box-sizing: border-box;
+          opacity: 0;
+          transition: opacity 0.3s ease;
         `;
 
         // Create image container
@@ -16189,8 +16189,6 @@ document.addEventListener('DOMContentLoaded', () => {
           position: relative;
           max-width: 90vw;
           max-height: 90vh;
-          width: 90vw;
-          height: 90vh;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -16199,119 +16197,142 @@ document.addEventListener('DOMContentLoaded', () => {
         // Create image element
         const modalImage = document.createElement('img');
         modalImage.style.cssText = `
-          width: 100%;
-          height: 100%;
-          max-width: 90vw;
-          max-height: 90vh;
+          max-width: 100%;
+          max-height: 100%;
           object-fit: contain;
           border-radius: 5px;
-          display: block;
+          box-shadow: 0 4px 30px rgba(255, 255, 255, 0.1);
         `;
 
         let currentImageIndex = startIndex;
 
-        const updateImage = () => {
-          if (images[currentImageIndex] && images[currentImageIndex].image) {
-            modalImage.src = images[currentImageIndex].image.url;
-            modalImage.alt = `Fishing charter image ${currentImageIndex + 1}`;
-          }
-        };
-
-        updateImage();
-
         // Navigation buttons if more than one image
+        let prevButton, nextButton;
         if (images.length > 1) {
           const goToPrevious = () => {
-            currentImageIndex = currentImageIndex > 0 ? currentImageIndex - 1 : images.length - 1;
-            updateImage();
+            if (currentImageIndex > 0) {
+              currentImageIndex--;
+              updateImage();
+            }
           };
 
           const goToNext = () => {
-            currentImageIndex = currentImageIndex < images.length - 1 ? currentImageIndex + 1 : 0;
-            updateImage();
+            if (currentImageIndex < images.length - 1) {
+              currentImageIndex++;
+              updateImage();
+            }
           };
 
           // Previous button
           const prevButton = document.createElement('button');
           prevButton.innerHTML = `
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M15 18L9 12L15 6" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
           `;
           prevButton.style.cssText = `
-            position: absolute;
-            left: -60px;
+            position: fixed;
+            left: 20px;
             top: 50%;
             transform: translateY(-50%);
-            width: 50px;
-            height: 50px;
-            background: rgba(0, 0, 0, 0.6);
+            width: 56px;
+            height: 56px;
+            background: rgba(0, 0, 0, 0.7);
             border: none;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
-            transition: background-color 0.2s ease;
+            z-index: 10201;
+            transition: background-color 0.2s ease, opacity 0.2s ease;
           `;
 
           prevButton.addEventListener('click', goToPrevious);
-          prevButton.addEventListener('mouseenter', () => {
-            prevButton.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
-          });
-          prevButton.addEventListener('mouseleave', () => {
-            prevButton.style.backgroundColor = 'rgba(0, 0, 0, 0.6)';
-          });
 
           // Next button
           const nextButton = document.createElement('button');
           nextButton.innerHTML = `
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M9 18L15 12L9 6" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
           `;
           nextButton.style.cssText = `
-            position: absolute;
-            right: -60px;
+            position: fixed;
+            right: 20px;
             top: 50%;
             transform: translateY(-50%);
-            width: 50px;
-            height: 50px;
-            background: rgba(0, 0, 0, 0.6);
+            width: 56px;
+            height: 56px;
+            background: rgba(0, 0, 0, 0.7);
             border: none;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
-            transition: background-color 0.2s ease;
+            z-index: 10201;
+            transition: background-color 0.2s ease, opacity 0.2s ease;
           `;
 
           nextButton.addEventListener('click', goToNext);
+
+          // Hover effects
+          prevButton.addEventListener('mouseenter', () => {
+            if (currentImageIndex > 0) prevButton.style.backgroundColor = 'rgba(0, 0, 0, 0.9)';
+          });
+          prevButton.addEventListener('mouseleave', () => {
+            prevButton.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+          });
+
           nextButton.addEventListener('mouseenter', () => {
-            nextButton.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+            if (currentImageIndex < images.length - 1) nextButton.style.backgroundColor = 'rgba(0, 0, 0, 0.9)';
           });
           nextButton.addEventListener('mouseleave', () => {
-            nextButton.style.backgroundColor = 'rgba(0, 0, 0, 0.6)';
+            nextButton.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
           });
-
-          imageContainer.appendChild(prevButton);
-          imageContainer.appendChild(nextButton);
-
-          // Keyboard navigation
-          const handleKeydown = (e) => {
-            if (e.key === 'ArrowLeft') goToPrevious();
-            if (e.key === 'ArrowRight') goToNext();
-            if (e.key === 'Escape') closeModal();
-          };
-
-          document.addEventListener('keydown', handleKeydown);
-
-          // Store cleanup function
-          modal._cleanup = () => {
-            document.removeEventListener('keydown', handleKeydown);
-          };
         }
+
+        // Update image
+        const updateImage = () => {
+          const image = images[currentImageIndex];
+          modalImage.src = image.image.url;
+          modalImage.alt = `Fishing charter image ${currentImageIndex + 1}`;
+
+          // Update navigation button states
+          if (images.length > 1) {
+            prevButton.style.opacity = currentImageIndex === 0 ? '0.5' : '1';
+            prevButton.style.cursor = currentImageIndex === 0 ? 'not-allowed' : 'pointer';
+            nextButton.style.opacity = currentImageIndex === images.length - 1 ? '0.5' : '1';
+            nextButton.style.cursor = currentImageIndex === images.length - 1 ? 'not-allowed' : 'pointer';
+          }
+        };
+
+        // Keyboard navigation
+        const handleKeydown = (e) => {
+          switch (e.key) {
+            case 'Escape':
+              closeModal();
+              break;
+            case 'ArrowLeft':
+              e.preventDefault();
+              if (images.length > 1) goToPrevious();
+              break;
+            case 'ArrowRight':
+              e.preventDefault();
+              if (images.length > 1) goToNext();
+              break;
+          }
+        };
+
+        document.addEventListener('keydown', handleKeydown);
+
+        // Cleanup function when modal is closed
+        const originalRemove = modal.remove;
+        modal.remove = function () {
+          document.removeEventListener('keydown', handleKeydown);
+          originalRemove.call(this);
+        };
 
         // Close button
         const closeButton = document.createElement('button');
@@ -16321,44 +16342,67 @@ document.addEventListener('DOMContentLoaded', () => {
           </svg>
         `;
         closeButton.style.cssText = `
-          position: absolute;
+          position: fixed;
           top: 20px;
           right: 20px;
-          width: 40px;
-          height: 40px;
-          background: rgba(0, 0, 0, 0.6);
+          width: 48px;
+          height: 48px;
+          background: rgba(0, 0, 0, 0.7);
           border: none;
           border-radius: 50%;
           display: flex;
           align-items: center;
           justify-content: center;
           cursor: pointer;
+          z-index: 10201;
           transition: background-color 0.2s ease;
         `;
 
         const closeModal = () => {
-          if (modal._cleanup) modal._cleanup();
-          modal.remove();
+          modal.style.opacity = '0';
+          setTimeout(() => {
+            modal.remove();
+            document.body.style.overflow = '';
+          }, 300);
         };
 
-        closeButton.addEventListener('click', closeModal);
         closeButton.addEventListener('mouseenter', () => {
-          closeButton.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+          closeButton.style.backgroundColor = 'rgba(0, 0, 0, 0.9)';
         });
         closeButton.addEventListener('mouseleave', () => {
-          closeButton.style.backgroundColor = 'rgba(0, 0, 0, 0.6)';
+          closeButton.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
         });
 
-        // Close on overlay click
+        // Click outside to close
         modal.addEventListener('click', (e) => {
-          if (e.target === modal) closeModal();
+          if (e.target === modal) {
+            closeModal();
+          }
         });
 
+        closeButton.addEventListener('click', closeModal);
+
+        // Assemble modal
         imageContainer.appendChild(modalImage);
         modal.appendChild(imageContainer);
         modal.appendChild(closeButton);
 
+        if (images.length > 1) {
+          modal.appendChild(prevButton);
+          modal.appendChild(nextButton);
+        }
+
+        // Add to DOM and show
         document.body.appendChild(modal);
+        document.body.style.overflow = 'hidden'; // Prevent background scrolling
+
+        // Initialize
+        updateImage();
+
+        // Fade in
+        requestAnimationFrame(() => {
+          modal.style.opacity = '1';
+        });
       }
 
       populateFishingCharterReviews(charter) {
