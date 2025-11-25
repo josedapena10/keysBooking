@@ -16178,7 +16178,7 @@ document.addEventListener('DOMContentLoaded', () => {
           display: flex;
           align-items: center;
           justify-content: center;
-          z-index: 10000;
+          z-index: 10200;
           padding: 20px;
           box-sizing: border-box;
         `;
