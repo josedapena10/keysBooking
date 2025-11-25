@@ -16685,25 +16685,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let currentImageIndex = startIndex;
 
+        // Navigation functions
+        const goToPrevious = () => {
+          if (currentImageIndex > 0) {
+            currentImageIndex--;
+            updateImage();
+          }
+        };
+
+        const goToNext = () => {
+          if (currentImageIndex < images.length - 1) {
+            currentImageIndex++;
+            updateImage();
+          }
+        };
+
         // Navigation buttons if more than one image
         let prevButton, nextButton;
         if (images.length > 1) {
-          const goToPrevious = () => {
-            if (currentImageIndex > 0) {
-              currentImageIndex--;
-              updateImage();
-            }
-          };
-
-          const goToNext = () => {
-            if (currentImageIndex < images.length - 1) {
-              currentImageIndex++;
-              updateImage();
-            }
-          };
 
           // Previous button
-          const prevButton = document.createElement('button');
+          prevButton = document.createElement('button');
           prevButton.innerHTML = `
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M15 18L9 12L15 6" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -16730,7 +16732,7 @@ document.addEventListener('DOMContentLoaded', () => {
           prevButton.addEventListener('click', goToPrevious);
 
           // Next button
-          const nextButton = document.createElement('button');
+          nextButton = document.createElement('button');
           nextButton.innerHTML = `
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M9 18L15 12L9 6" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
