@@ -7747,15 +7747,10 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         }
 
-        // Populate card photo
-        const photoElement = card.querySelector('[data-element="addBoatModal_selectBoat_card_photo"]');
-        if (photoElement && boat.photos && boat.photos.length > 0) {
-          // Find photo with order = 1
-          const mainPhoto = boat.photos.find(photo => photo.order === 1);
-          if (mainPhoto && mainPhoto.image && mainPhoto.image.url) {
-            photoElement.src = mainPhoto.image.url;
-            photoElement.alt = boat.name || 'Boat Photo';
-          }
+        // Populate card photo carousel
+        const photosContainer = card.querySelector('[data-element="addBoatModal_selectBoat_card_photos"]');
+        if (photosContainer && boat.photos && boat.photos.length > 0) {
+          this.setupBoatCardImagesCarousel(photosContainer, boat, card);
         }
 
         // Populate review ratings
@@ -10663,6 +10658,249 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         imagesContainer.appendChild(carouselWrapper);
+      }
+
+      setupBoatCardImagesCarousel(photosContainer, boat, card) {
+        // Clear any existing content
+        photosContainer.innerHTML = '';
+
+        // Check if boat has photos
+        if (!boat.photos || boat.photos.length === 0) {
+          photosContainer.innerHTML = '<div style="text-align: center; color: #888; padding: 40px;">No images available</div>';
+          return;
+        }
+
+        // Sort photos by order
+        const sortedPhotos = [...boat.photos].sort((a, b) => (a.order || 0) - (b.order || 0));
+
+        // Card carousel always shows 1 image at a time
+        const carouselHeight = '280px';
+
+        // Create carousel structure
+        const carouselWrapper = document.createElement('div');
+        carouselWrapper.style.cssText = `
+          position: relative;
+          width: 100%;
+          height: ${carouselHeight};
+          overflow: hidden;
+          border-radius: 5px;
+        `;
+
+        const imagesTrack = document.createElement('div');
+        imagesTrack.style.cssText = `
+          display: flex;
+          transition: transform 0.3s ease;
+          height: 100%;
+        `;
+
+        // Add images to track
+        sortedPhotos.forEach((photo, index) => {
+          const imageContainer = document.createElement('div');
+          imageContainer.style.cssText = `
+            flex: 0 0 100%;
+            height: ${carouselHeight};
+            padding: 0 4px;
+            box-sizing: border-box;
+          `;
+
+          const imageWrapper = document.createElement('div');
+          imageWrapper.style.cssText = `
+            width: 100%;
+            height: 100%;
+            border-radius: 5px;
+            overflow: hidden;
+            background-color: #f0f0f0;
+            cursor: pointer;
+          `;
+
+          const img = document.createElement('img');
+          img.src = photo.image.url;
+          img.alt = `Boat image ${index + 1}`;
+          img.style.cssText = `
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: center;
+          `;
+
+          // Handle image load error
+          img.onerror = () => {
+            imageWrapper.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #888; font-size: 14px;">Image unavailable</div>';
+          };
+
+          // Add click handler to show boat details (not open modal)
+          imageWrapper.addEventListener('click', () => {
+            const currentBoat = card.boatData || boat;
+            this.showBoatDetails(currentBoat);
+          });
+
+          imageWrapper.appendChild(img);
+          imageContainer.appendChild(imageWrapper);
+          imagesTrack.appendChild(imageContainer);
+        });
+
+        carouselWrapper.appendChild(imagesTrack);
+
+        // Add navigation buttons only if there are multiple images
+        if (sortedPhotos.length > 1) {
+          let currentIndex = 0;
+          const maxIndex = sortedPhotos.length - 1;
+
+          // Left navigation button
+          const leftButton = document.createElement('button');
+          leftButton.innerHTML = `
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M15 18L9 12L15 6" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          `;
+          leftButton.style.cssText = `
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 40px;
+            height: 40px;
+            background: rgba(0, 0, 0, 0.6);
+            border: none;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 10;
+            transition: background-color 0.2s ease;
+          `;
+
+          // Right navigation button
+          const rightButton = document.createElement('button');
+          rightButton.innerHTML = `
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M9 18L15 12L9 6" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          `;
+          rightButton.style.cssText = `
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 40px;
+            height: 40px;
+            background: rgba(0, 0, 0, 0.6);
+            border: none;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 10;
+            transition: background-color 0.2s ease;
+          `;
+
+          // Update button states
+          const updateButtonStates = () => {
+            leftButton.style.opacity = currentIndex === 0 ? '0.5' : '1';
+            leftButton.style.cursor = currentIndex === 0 ? 'not-allowed' : 'pointer';
+            rightButton.style.opacity = currentIndex >= maxIndex ? '0.5' : '1';
+            rightButton.style.cursor = currentIndex >= maxIndex ? 'not-allowed' : 'pointer';
+          };
+
+          // Navigation functionality
+          const updateCarousel = () => {
+            const translateX = -(currentIndex * 100);
+            imagesTrack.style.transform = `translateX(${translateX}%)`;
+            updateButtonStates();
+          };
+
+          leftButton.addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevent card click
+            if (currentIndex > 0) {
+              currentIndex--;
+              updateCarousel();
+            }
+          });
+
+          rightButton.addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevent card click
+            if (currentIndex < maxIndex) {
+              currentIndex++;
+              updateCarousel();
+            }
+          });
+
+          // Hover effects
+          leftButton.addEventListener('mouseenter', () => {
+            if (currentIndex > 0) leftButton.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+          });
+          leftButton.addEventListener('mouseleave', () => {
+            leftButton.style.backgroundColor = 'rgba(0, 0, 0, 0.6)';
+          });
+
+          rightButton.addEventListener('mouseenter', () => {
+            if (currentIndex < maxIndex) rightButton.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+          });
+          rightButton.addEventListener('mouseleave', () => {
+            rightButton.style.backgroundColor = 'rgba(0, 0, 0, 0.6)';
+          });
+
+          // Initial states
+          updateButtonStates();
+
+          // Add swipe functionality for mobile
+          let touchStartX = 0;
+          let touchEndX = 0;
+          let isSwiping = false;
+          let touchStartY = 0;
+
+          carouselWrapper.addEventListener('touchstart', (e) => {
+            touchStartX = e.changedTouches[0].screenX;
+            touchStartY = e.changedTouches[0].screenY;
+            isSwiping = true;
+          }, { passive: false });
+
+          carouselWrapper.addEventListener('touchmove', (e) => {
+            if (!isSwiping) return;
+
+            const touchCurrentX = e.changedTouches[0].screenX;
+            const touchCurrentY = e.changedTouches[0].screenY;
+            const deltaX = Math.abs(touchCurrentX - touchStartX);
+            const deltaY = Math.abs(touchCurrentY - touchStartY);
+
+            // If horizontal swipe is dominant, prevent page scroll
+            if (deltaX > deltaY) {
+              e.preventDefault();
+            }
+
+            touchEndX = touchCurrentX;
+          }, { passive: false });
+
+          carouselWrapper.addEventListener('touchend', () => {
+            if (!isSwiping) return;
+            isSwiping = false;
+
+            const swipeThreshold = 50; // Minimum swipe distance in pixels
+            const swipeDistance = touchStartX - touchEndX;
+
+            if (Math.abs(swipeDistance) > swipeThreshold) {
+              if (swipeDistance > 0 && currentIndex < maxIndex) {
+                // Swiped left - go to next
+                currentIndex++;
+                updateCarousel();
+              } else if (swipeDistance < 0 && currentIndex > 0) {
+                // Swiped right - go to previous
+                currentIndex--;
+                updateCarousel();
+              }
+            }
+
+            touchStartX = 0;
+            touchEndX = 0;
+          });
+
+          carouselWrapper.appendChild(leftButton);
+          carouselWrapper.appendChild(rightButton);
+        }
+
+        photosContainer.appendChild(carouselWrapper);
       }
 
       openImageModal(photos, startIndex = 0) {
@@ -15215,11 +15453,10 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         }
 
-        // Populate card photo
-        const photoElement = card.querySelector('[data-element="addFishingCharterModal_selectFishingCharter_card_photo"]');
-        if (photoElement && charter.images && charter.images[0] && charter.images[0].image) {
-          photoElement.src = charter.images[0].image.url;
-          photoElement.alt = charter.name || '';
+        // Populate card photo carousel
+        const photosContainer = card.querySelector('[data-element="addFishingCharterModal_selectFishingCharter_card_photos"]');
+        if (photosContainer && charter.images && charter.images.length > 0) {
+          this.setupFishingCharterCardImagesCarousel(photosContainer, charter, card);
         }
 
         // Populate card price based on filtered trip options
@@ -16156,6 +16393,248 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         imagesContainer.appendChild(carouselWrapper);
+      }
+
+      setupFishingCharterCardImagesCarousel(photosContainer, charter, card) {
+        // Clear any existing content
+        photosContainer.innerHTML = '';
+
+        // Check if charter has images
+        if (!charter.images || charter.images.length === 0) {
+          photosContainer.innerHTML = '<div style="text-align: center; color: #888; padding: 40px;">No images available</div>';
+          return;
+        }
+
+        // Sort images by order if available, otherwise keep original order
+        const sortedImages = [...charter.images];
+
+        // Card carousel always shows 1 image at a time
+        const carouselHeight = '280px';
+
+        // Create carousel structure
+        const carouselWrapper = document.createElement('div');
+        carouselWrapper.style.cssText = `
+          position: relative;
+          width: 100%;
+          height: ${carouselHeight};
+          overflow: hidden;
+          border-radius: 5px;
+        `;
+
+        const imagesTrack = document.createElement('div');
+        imagesTrack.style.cssText = `
+          display: flex;
+          transition: transform 0.3s ease;
+          height: 100%;
+        `;
+
+        // Add images to track
+        sortedImages.forEach((image, index) => {
+          const imageContainer = document.createElement('div');
+          imageContainer.style.cssText = `
+            flex: 0 0 100%;
+            height: ${carouselHeight};
+            padding: 0 6px;
+            box-sizing: border-box;
+          `;
+
+          const imageWrapper = document.createElement('div');
+          imageWrapper.style.cssText = `
+            width: 100%;
+            height: 100%;
+            border-radius: 5px;
+            overflow: hidden;
+            background-color: #f0f0f0;
+            cursor: pointer;
+          `;
+
+          const img = document.createElement('img');
+          img.src = image.image?.url || '';
+          img.alt = `${charter.name} image ${index + 1}`;
+          img.style.cssText = `
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: center;
+          `;
+
+          // Handle image load error
+          img.onerror = () => {
+            imageWrapper.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #888; font-size: 14px;">Image unavailable</div>';
+          };
+
+          // Add click handler to show fishing charter details (not open modal)
+          imageWrapper.addEventListener('click', () => {
+            this.showFishingCharterDetails(charter);
+          });
+
+          imageWrapper.appendChild(img);
+          imageContainer.appendChild(imageWrapper);
+          imagesTrack.appendChild(imageContainer);
+        });
+
+        carouselWrapper.appendChild(imagesTrack);
+
+        // Add navigation buttons only if there are multiple images
+        if (sortedImages.length > 1) {
+          let currentIndex = 0;
+          const maxIndex = sortedImages.length - 1;
+
+          // Left navigation button
+          const leftButton = document.createElement('button');
+          leftButton.innerHTML = `
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M15 18L9 12L15 6" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          `;
+          leftButton.style.cssText = `
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 40px;
+            height: 40px;
+            background: rgba(0, 0, 0, 0.6);
+            border: none;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 10;
+            transition: background-color 0.2s ease;
+          `;
+
+          // Right navigation button
+          const rightButton = document.createElement('button');
+          rightButton.innerHTML = `
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M9 18L15 12L9 6" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          `;
+          rightButton.style.cssText = `
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 40px;
+            height: 40px;
+            background: rgba(0, 0, 0, 0.6);
+            border: none;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 10;
+            transition: background-color 0.2s ease;
+          `;
+
+          // Update button states
+          const updateButtonStates = () => {
+            leftButton.style.opacity = currentIndex === 0 ? '0.5' : '1';
+            leftButton.style.cursor = currentIndex === 0 ? 'not-allowed' : 'pointer';
+            rightButton.style.opacity = currentIndex >= maxIndex ? '0.5' : '1';
+            rightButton.style.cursor = currentIndex >= maxIndex ? 'not-allowed' : 'pointer';
+          };
+
+          // Navigation functionality
+          const updateCarousel = () => {
+            const translateX = -(currentIndex * 100);
+            imagesTrack.style.transform = `translateX(${translateX}%)`;
+            updateButtonStates();
+          };
+
+          leftButton.addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevent card click
+            if (currentIndex > 0) {
+              currentIndex--;
+              updateCarousel();
+            }
+          });
+
+          rightButton.addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevent card click
+            if (currentIndex < maxIndex) {
+              currentIndex++;
+              updateCarousel();
+            }
+          });
+
+          // Hover effects
+          leftButton.addEventListener('mouseenter', () => {
+            if (currentIndex > 0) leftButton.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+          });
+          leftButton.addEventListener('mouseleave', () => {
+            leftButton.style.backgroundColor = 'rgba(0, 0, 0, 0.6)';
+          });
+
+          rightButton.addEventListener('mouseenter', () => {
+            if (currentIndex < maxIndex) rightButton.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+          });
+          rightButton.addEventListener('mouseleave', () => {
+            rightButton.style.backgroundColor = 'rgba(0, 0, 0, 0.6)';
+          });
+
+          // Initial states
+          updateButtonStates();
+
+          // Add swipe functionality for mobile
+          let touchStartX = 0;
+          let touchEndX = 0;
+          let isSwiping = false;
+          let touchStartY = 0;
+
+          carouselWrapper.addEventListener('touchstart', (e) => {
+            touchStartX = e.changedTouches[0].screenX;
+            touchStartY = e.changedTouches[0].screenY;
+            isSwiping = true;
+          }, { passive: false });
+
+          carouselWrapper.addEventListener('touchmove', (e) => {
+            if (!isSwiping) return;
+
+            const touchCurrentX = e.changedTouches[0].screenX;
+            const touchCurrentY = e.changedTouches[0].screenY;
+            const deltaX = Math.abs(touchCurrentX - touchStartX);
+            const deltaY = Math.abs(touchCurrentY - touchStartY);
+
+            // If horizontal swipe is dominant, prevent page scroll
+            if (deltaX > deltaY) {
+              e.preventDefault();
+            }
+
+            touchEndX = touchCurrentX;
+          }, { passive: false });
+
+          carouselWrapper.addEventListener('touchend', () => {
+            if (!isSwiping) return;
+            isSwiping = false;
+
+            const swipeThreshold = 50; // Minimum swipe distance in pixels
+            const swipeDistance = touchStartX - touchEndX;
+
+            if (Math.abs(swipeDistance) > swipeThreshold) {
+              if (swipeDistance > 0 && currentIndex < maxIndex) {
+                // Swiped left - go to next
+                currentIndex++;
+                updateCarousel();
+              } else if (swipeDistance < 0 && currentIndex > 0) {
+                // Swiped right - go to previous
+                currentIndex--;
+                updateCarousel();
+              }
+            }
+
+            touchStartX = 0;
+            touchEndX = 0;
+          });
+
+          carouselWrapper.appendChild(leftButton);
+          carouselWrapper.appendChild(rightButton);
+        }
+
+        photosContainer.appendChild(carouselWrapper);
       }
 
       openFishingCharterImageModal(images, startIndex = 0) {
