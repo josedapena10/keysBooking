@@ -4564,9 +4564,10 @@ function updateStayCancellationPolicy() {
   const cutoffDay = cutoffDate.getDate();
   const cutoffDaySuffix = suffix(cutoffDay);
 
-  const isMoreThanOneYear = cutoffDate - today > 365 * 24 * 60 * 60 * 1000;
+  const currentYear = today.getFullYear();
+  const isDifferentYear = cutoffYear !== currentYear;
 
-  if (isMoreThanOneYear) {
+  if (isDifferentYear) {
     stayFreeCancellationElements.forEach(element => {
       if (element) {
         element.textContent = `Stay: Free cancellation until ${cutoffMonth} ${cutoffDay}${cutoffDaySuffix}, ${cutoffYear}`;
@@ -4652,7 +4653,7 @@ function updateBoatCancellationPolicy() {
     const dt = new Date(Date.UTC(Y, M - 1, D));
     dt.setUTCDate(dt.getUTCDate() - days);
 
-    // format "Month Dth"
+    // format "Month Dth" or "Month Dth, YYYY" if different year
     const monthNames = [
       "Jan", "Feb", "Mar", "Apr", "May", "Jun",
       "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
@@ -4663,7 +4664,13 @@ function updateBoatCancellationPolicy() {
           (n % 10 === 3 && n % 100 !== 13) ? "rd" : "th";
 
     const dayNum = dt.getUTCDate();
-    const pretty = `${monthNames[dt.getUTCMonth()]} ${dayNum}${suffix(dayNum)}`;
+    const cancelYear = dt.getUTCFullYear();
+    const currentYear = new Date().getUTCFullYear();
+
+    // Include year if cancellation date is in a different year
+    const pretty = cancelYear !== currentYear
+      ? `${monthNames[dt.getUTCMonth()]} ${dayNum}${suffix(dayNum)}, ${cancelYear}`
+      : `${monthNames[dt.getUTCMonth()]} ${dayNum}${suffix(dayNum)}`;
 
     const baseMsg = `Free cancellation until ${pretty}.`;
     boatCancellationTexts.forEach(element => {
@@ -4785,7 +4792,7 @@ function populateFishingCharterCancellationPolicyFromCache(block, tripData) {
     const dt = new Date(Date.UTC(Y, M - 1, D));
     dt.setUTCDate(dt.getUTCDate() - days);
 
-    // format "Month Dth"
+    // format "Month Dth" or "Month Dth, YYYY" if different year
     const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
       "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     const suffix = (n) =>
@@ -4794,7 +4801,13 @@ function populateFishingCharterCancellationPolicyFromCache(block, tripData) {
           (n % 10 === 3 && n % 100 !== 13) ? "rd" : "th";
 
     const dayNum = dt.getUTCDate();
-    const pretty = `${monthNames[dt.getUTCMonth()]} ${dayNum}${suffix(dayNum)}`;
+    const cancelYear = dt.getUTCFullYear();
+    const currentYear = new Date().getUTCFullYear();
+
+    // Include year if cancellation date is in a different year
+    const pretty = cancelYear !== currentYear
+      ? `${monthNames[dt.getUTCMonth()]} ${dayNum}${suffix(dayNum)}, ${cancelYear}`
+      : `${monthNames[dt.getUTCMonth()]} ${dayNum}${suffix(dayNum)}`;
 
     const baseMsg = `Free cancellation until ${pretty}.`;
     cancellationTextElement.textContent = isManual ? `${charter.name || 'Fishing Charter'}: ${baseMsg}` : `${charter.name || 'Fishing Charter'}: ${baseMsg}`;
