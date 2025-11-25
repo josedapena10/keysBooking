@@ -236,7 +236,7 @@ document.addEventListener('DOMContentLoaded', function () {
             if (listingData.cleaningFee) propertyData.cleaning_fee = parseFloat(listingData.cleaningFee);
             if (listingData.minNights) propertyData.min_nights = parseInt(listingData.minNights);
             if (listingData.minNights) propertyData.max_nights = 365;
-            if (listingData.minNights) propertyData.availabilityWindow_months = 24;
+            if (listingData.minNights) propertyData.availabilityWindow_months = 12;
             if (listingData.minNights) propertyData.advanceNotice = 1;
 
             // Only add basics if they've been modified from default 0

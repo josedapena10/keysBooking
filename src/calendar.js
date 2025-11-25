@@ -6317,8 +6317,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
             // Limit to values less than 100
             const numValue = parseInt(this.value) || 0;
-            if (numValue >= 25) {
-                this.value = '24';
+            if (numValue >= 13) {
+                this.value = '12';
             }
 
             // Update subText based on input value

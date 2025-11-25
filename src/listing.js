@@ -9789,8 +9789,45 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Boat description
         const boatDetailsDescription = document.querySelector('[data-element="boatDetails_description"]');
+        const boatDetailsDescriptionShowMore = document.querySelector('[data-element="boatDetails_description_showMore"]');
+
         if (boatDetailsDescription) {
-          boatDetailsDescription.textContent = boat.description || '';
+          const description = boat.description || '';
+          const maxLength = 400;
+
+          if (description.length > maxLength) {
+            // Show truncated description initially
+            boatDetailsDescription.textContent = description.substring(0, maxLength) + '...';
+
+            // Show the "Show More" button
+            if (boatDetailsDescriptionShowMore) {
+              boatDetailsDescriptionShowMore.style.display = 'flex';
+              boatDetailsDescriptionShowMore.textContent = 'Show More';
+
+              // Add click handler
+              boatDetailsDescriptionShowMore.onclick = () => {
+                const isExpanded = boatDetailsDescriptionShowMore.textContent === 'Show Less';
+
+                if (isExpanded) {
+                  // Collapse: show truncated
+                  boatDetailsDescription.textContent = description.substring(0, maxLength) + '...';
+                  boatDetailsDescriptionShowMore.textContent = 'Show More';
+                } else {
+                  // Expand: show full description
+                  boatDetailsDescription.textContent = description;
+                  boatDetailsDescriptionShowMore.textContent = 'Show Less';
+                }
+              };
+            }
+          } else {
+            // Description is short, show full text
+            boatDetailsDescription.textContent = description;
+
+            // Hide the "Show More" button
+            if (boatDetailsDescriptionShowMore) {
+              boatDetailsDescriptionShowMore.style.display = 'none';
+            }
+          }
         }
 
         // Detailed boat specifications
@@ -15720,8 +15757,45 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Description
         const descriptionElement = document.querySelector('[data-element="fishingCharterDetails_description"]');
+        const fishingCharterDescriptionShowMore = document.querySelector('[data-element="fishingCharterDetails_description_showMore"]');
+
         if (descriptionElement) {
-          descriptionElement.textContent = charter.description || '';
+          const description = charter.description || '';
+          const maxLength = 400;
+
+          if (description.length > maxLength) {
+            // Show truncated description initially
+            descriptionElement.textContent = description.substring(0, maxLength) + '...';
+
+            // Show the "Show More" button
+            if (fishingCharterDescriptionShowMore) {
+              fishingCharterDescriptionShowMore.style.display = 'flex';
+              fishingCharterDescriptionShowMore.textContent = 'Show More';
+
+              // Add click handler
+              fishingCharterDescriptionShowMore.onclick = () => {
+                const isExpanded = fishingCharterDescriptionShowMore.textContent === 'Show Less';
+
+                if (isExpanded) {
+                  // Collapse: show truncated
+                  descriptionElement.textContent = description.substring(0, maxLength) + '...';
+                  fishingCharterDescriptionShowMore.textContent = 'Show More';
+                } else {
+                  // Expand: show full description
+                  descriptionElement.textContent = description;
+                  fishingCharterDescriptionShowMore.textContent = 'Show Less';
+                }
+              };
+            }
+          } else {
+            // Description is short, show full text
+            descriptionElement.textContent = description;
+
+            // Hide the "Show More" button
+            if (fishingCharterDescriptionShowMore) {
+              fishingCharterDescriptionShowMore.style.display = 'none';
+            }
+          }
         }
 
         // Boat information
