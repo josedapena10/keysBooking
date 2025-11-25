@@ -5159,7 +5159,6 @@ document.addEventListener('DOMContentLoaded', () => {
   window.Wized.push((Wized) => {
 
 
-
     // Boat Rental Service Handler
     class BoatRentalService {
       constructor() {
@@ -5685,9 +5684,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
       async loadUserAge() {
         try {
+          const c = Wized.data.c;
           const r = Wized.data.r;
+
+          // Check if user is signed in by checking c.token
+          if (!c?.token) {
+            this.userAge = null;
+            return;
+          }
+
+          // User is signed in, wait for Load_user to complete
           await Wized.requests.waitFor('Load_user');
-          if (r?.Load_user?.status === 200 && r?.Load_user?.data.Birth_Date) {
+
+          if (r?.Load_user?.status === 200 && r?.Load_user?.data?.Birth_Date) {
             const birthDate = new Date(r.Load_user.data.Birth_Date);
             const today = new Date();
 
@@ -5701,8 +5710,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             this.userAge = age;
-
-
+          } else {
+            this.userAge = null;
           }
         } catch (error) {
           this.userAge = null;
@@ -7666,24 +7675,36 @@ document.addEventListener('DOMContentLoaded', () => {
         // Store boat data on the card for later updates
         card.boatData = boat;
 
-        // Add click handlers for card interactions
+        // Add click handlers for card interactions only if not already added
         const moreDetailsButton = card.querySelector('[data-element="addBoatModal_selectBoat_card_moreDetails"]');
 
         // Make entire card clickable (except for specific interactive elements)
         card.style.cursor = 'pointer';
-        card.addEventListener('click', (e) => {
-          // Prevent navigation if clicking on interactive elements
-          if (e.target.closest('[data-element="addBoatModal_selectBoat_card_moreDetails"]')) {
-            return;
-          }
-          this.showBoatDetails(boat);
-        });
+
+        // Remove old event listener if exists and add new one
+        if (!card.hasAttribute('data-click-initialized')) {
+          card.setAttribute('data-click-initialized', 'true');
+          card.addEventListener('click', (e) => {
+            // Prevent navigation if clicking on interactive elements
+            if (e.target.closest('[data-element="addBoatModal_selectBoat_card_moreDetails"]')) {
+              return;
+            }
+            // Get the current boat data from the card (in case it was updated)
+            const currentBoat = card.boatData || boat;
+            this.showBoatDetails(currentBoat);
+          });
+        } else {
+          // Update the boat data reference for the existing listener
+          card.boatData = boat;
+        }
 
         // Add click handler for more details button if it exists
-        if (moreDetailsButton) {
+        if (moreDetailsButton && !moreDetailsButton.hasAttribute('data-click-initialized')) {
+          moreDetailsButton.setAttribute('data-click-initialized', 'true');
           moreDetailsButton.addEventListener('click', (e) => {
             e.stopPropagation(); // Prevent card click
-            this.showBoatDetails(boat);
+            const currentBoat = card.boatData || boat;
+            this.showBoatDetails(currentBoat);
           });
         }
 
