@@ -10458,7 +10458,7 @@ document.addEventListener('DOMContentLoaded', () => {
           imageContainer.style.cssText = `
             flex: 0 0 ${flexBasis};
             height: ${carouselHeight};
-            padding: 0 0px;
+            padding: 0 4px;
             box-sizing: border-box;
           `;
 
@@ -16178,7 +16178,7 @@ document.addEventListener('DOMContentLoaded', () => {
           imageContainer.style.cssText = `
             flex: 0 0 ${flexBasis};
             height: ${carouselHeight};
-            padding: 0 0px;
+            padding: 0 4px;
             box-sizing: border-box;
           `;
 
