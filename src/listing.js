@@ -10029,6 +10029,8 @@ document.addEventListener('DOMContentLoaded', () => {
                   { "featureType": "poi", "elementType": "labels.text", "stylers": [{ "visibility": "off" }] },
                   { "featureType": "road", "elementType": "labels", "stylers": [{ "visibility": "off" }] },
                   { "featureType": "transit", "elementType": "labels", "stylers": [{ "visibility": "off" }] },
+                  { "featureType": "water", "elementType": "labels.text.stroke", "stylers": [{ "visibility": "off" }] },
+                  { "featureType": "water", "elementType": "labels.text.fill", "stylers": [{ "color": "#4a4a4a" }] },
                   { "featureType": "water", "elementType": "geometry", "stylers": [{ "color": "#9ecaff" }] },
                   { "featureType": "road", "elementType": "geometry", "stylers": [{ "color": "#f0f0f0" }, { "visibility": "on" }] },
                 ]
@@ -17349,12 +17351,14 @@ document.addEventListener('DOMContentLoaded', () => {
               scrollwheel: false,
               styles: [
                 { "featureType": "administrative", "elementType": "labels", "stylers": [{ "visibility": "off" }] },
-                { "featureType": "landscape", "stylers": [{ "color": "#f5f5f0" }] },
+                { "featureType": "landscape", "stylers": [{ "color": "#f5f5f5" }] },
                 { "featureType": "poi", "elementType": "labels.icon", "stylers": [{ "visibility": "off" }] },
                 { "featureType": "poi.park", "elementType": "geometry", "stylers": [{ "color": "#c2d2b1" }] },
                 { "featureType": "poi", "elementType": "labels.text", "stylers": [{ "visibility": "off" }] },
                 { "featureType": "road", "elementType": "labels", "stylers": [{ "visibility": "off" }] },
                 { "featureType": "transit", "elementType": "labels", "stylers": [{ "visibility": "off" }] },
+                { "featureType": "water", "elementType": "labels.text.stroke", "stylers": [{ "visibility": "off" }] },
+                { "featureType": "water", "elementType": "labels.text.fill", "stylers": [{ "color": "#4a4a4a" }] },
                 { "featureType": "water", "elementType": "geometry", "stylers": [{ "color": "#9ecaff" }] },
                 { "featureType": "road", "elementType": "geometry", "stylers": [{ "color": "#f0f0f0" }, { "visibility": "on" }] },
               ]
