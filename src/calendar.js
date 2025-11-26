@@ -2141,16 +2141,17 @@ document.addEventListener('DOMContentLoaded', function () {
                 const toolbar = document.querySelector('[data-element="toolbar"]');
                 const customDates = document.querySelector('[data-element="toolbarEdit_customDates"]');
 
-                if (selectedDates.length > 0) {
-                    // Close any open edit toolbars before showing custom dates
-                    // This ensures proper toolbar switching when dates are selected
-                    closeAllEditToolbars({ showMainToolbar: false });
+                // Always close all edit toolbars first to ensure we reset to a clean state
+                // This prevents showing edit sections when switching from calendar view
+                // We pass showMainToolbar: false because we'll manually control what to show next
+                closeAllEditToolbars({ showMainToolbar: false });
 
-                    // Show custom dates edit section
+                if (selectedDates.length > 0) {
+                    // Show custom dates edit section only if dates are selected
                     if (toolbar) toolbar.style.display = 'none';
                     if (customDates) customDates.style.display = 'flex';
                 } else {
-                    // Show default toolbar
+                    // No dates selected - show main toolbar
                     if (toolbar) toolbar.style.display = 'flex';
                     if (customDates) customDates.style.display = 'none';
                 }
@@ -2161,6 +2162,27 @@ document.addEventListener('DOMContentLoaded', function () {
             // Function to switch to calendar view (called from toolbar footer)
             window.switchToCalendarView = function () {
                 if (!isMobileView()) return;
+
+                // Check if any edit toolbar is currently visible
+                const editToolbarElements = [
+                    document.querySelector('[data-element="toolbarEdit_basePrice"]'),
+                    document.querySelector('[data-element="toolbarEdit_cleaningFee"]'),
+                    document.querySelector('[data-element="toolbarEdit_tripLength"]'),
+                    document.querySelector('[data-element="toolbarEdit_advanceNotice"]'),
+                    document.querySelector('[data-element="toolbarEdit_availabilityWindow"]'),
+                    document.querySelector('[data-element="toolbarEdit_connectCalendar"]')
+                    // Note: excluding toolbarEdit_customDates as it's handled separately
+                ];
+
+                // Check if any edit toolbar is visible
+                const isAnyEditToolbarVisible = editToolbarElements.some(toolbar => {
+                    return toolbar && getComputedStyle(toolbar).display === 'flex';
+                });
+
+                // If any edit toolbar is visible, close them all before switching to calendar view
+                if (isAnyEditToolbarVisible) {
+                    closeAllEditToolbars({ showMainToolbar: true });
+                }
 
                 if (toolbarContainer) toolbarContainer.style.display = 'none';
                 if (calendarContainer) calendarContainer.style.display = 'flex';
@@ -6485,6 +6507,15 @@ document.addEventListener('DOMContentLoaded', function () {
         editToolbars.forEach(editToolbar => {
             if (editToolbar) editToolbar.style.display = 'none';
         });
+
+        // Reset connect calendar edit container to show body and hide sub-views
+        const connectCalendarBody = document.querySelector('[data-element="toolbarEdit_connectCalender_body"]');
+        const connectCalendarAddSync = document.querySelector('[data-element="toolbarEdit_connectCalender_addSync"]');
+        const connectCalendarEditSync = document.querySelector('[data-element="toolbarEdit_connectCalender_editSync"]');
+
+        if (connectCalendarBody) connectCalendarBody.style.display = 'flex';
+        if (connectCalendarAddSync) connectCalendarAddSync.style.display = 'none';
+        if (connectCalendarEditSync) connectCalendarEditSync.style.display = 'none';
 
         // Only show the main toolbar if not explicitly prevented
         if (toolbar && options.showMainToolbar !== false) {
