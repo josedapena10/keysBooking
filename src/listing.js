@@ -8354,6 +8354,9 @@ document.addEventListener('DOMContentLoaded', () => {
         // Reset disabled states when dates are cleared
         this.updateDateButtonDisabledStates();
 
+        // Re-check private dock filter availability when dates are cleared
+        this.checkPrivateDockFilterAvailabilityForBoatDates();
+
         // Re-filter boats to show all boats again
         this.fetchAndRenderBoats();
       }
@@ -13451,6 +13454,103 @@ document.addEventListener('DOMContentLoaded', () => {
         if (this.detailsGuestsPopup) this.detailsGuestsPopup.style.display = 'none';
       }
 
+      // Helper: Get check-in and check-out dates from URL
+      getCheckInOutDates() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const checkin = urlParams.get('checkin');
+        const checkout = urlParams.get('checkout');
+        return { checkin, checkout };
+      }
+
+      // Helper: Check if user has selected check-in or check-out date
+      hasCheckInOrCheckOutSelected() {
+        if (this.selectedDates.length === 0) return false;
+
+        const { checkin, checkout } = this.getCheckInOutDates();
+        if (!checkin || !checkout) return false;
+
+        return this.selectedDates.includes(checkin) || this.selectedDates.includes(checkout);
+      }
+
+      // Helper: Check if any charter in results offers private dock pickup to property
+      anyCharterOffersPrivateDock(charters) {
+        if (!charters || charters.length === 0) return false;
+
+        const r = Wized.data.r;
+        if (!r || !r.Load_Property_Details || !r.Load_Property_Details.data || !r.Load_Property_Details.data.property) {
+          return false;
+        }
+
+        // First check if property has a private dock
+        const hasPrivateDock = r.Load_Property_Details.data.property.private_dock;
+        if (hasPrivateDock === false) {
+          return false;
+        }
+
+        const propertyNeighborhood = r.Load_Property_Details.data.property.listing_neighborhood;
+        if (!propertyNeighborhood) {
+          return false;
+        }
+
+        return charters.some(charter => {
+          if (!charter.privateDockPickup) return false;
+
+          if (!charter.privateDockPickupAreas || !Array.isArray(charter.privateDockPickupAreas)) {
+            return false;
+          }
+
+          return charter.privateDockPickupAreas.some(area =>
+            area.region && area.region.toLowerCase() === propertyNeighborhood.toLowerCase()
+          );
+        });
+      }
+
+      // Show tooltip message near an element
+      showTooltipMessage(element, message) {
+        // Remove any existing tooltip
+        this.hideTooltipMessage();
+
+        const tooltip = document.createElement('div');
+        tooltip.className = 'fishing-charter-tooltip';
+        tooltip.textContent = message;
+
+        // Get element position
+        const rect = element.getBoundingClientRect();
+
+        tooltip.style.cssText = `
+          position: fixed;
+          background: #323232;
+          color: white;
+          padding: 8px 12px;
+          border-radius: 5px;
+          font-size: 13px;
+          font-family: 'TT Fors', sans-serif;
+          z-index: 10999;
+          pointer-events: none;
+          white-space: nowrap;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+          top: ${rect.bottom + 8}px;
+          left: ${rect.left + (rect.width / 2)}px;
+          transform: translateX(-50%);
+        `;
+
+        document.body.appendChild(tooltip);
+
+        // Auto-hide after 3 seconds
+        setTimeout(() => {
+          this.hideTooltipMessage();
+        }, 3000);
+
+        return tooltip;
+      }
+
+      hideTooltipMessage() {
+        const existing = document.querySelector('.fishing-charter-tooltip');
+        if (existing) {
+          existing.remove();
+        }
+      }
+
       async getSelectedFishingCharterData() {
         const numbers = (this.getAllFishingCharterNumbers() || []).filter(Boolean);
         const base = 'https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/fishingcharters';
@@ -14099,6 +14199,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (this.detailsDatesPopup) this.detailsDatesPopup.style.display = 'none';
         if (this.detailsGuestsPopup) this.detailsGuestsPopup.style.display = 'none';
 
+        // Hide private dock filters initially (will show when appropriate)
+        if (this.privateDockFilter) this.privateDockFilter.style.display = 'none';
+        if (this.detailsPrivateDockFilter) this.detailsPrivateDockFilter.style.display = 'none';
+
         // Add click handlers for all buttons
         this.buttons.forEach(button => {
           if (button) {
@@ -14358,11 +14462,31 @@ document.addEventListener('DOMContentLoaded', () => {
         // Private dock filter
         if (this.privateDockFilter) {
           this.privateDockFilter.addEventListener('click', () => {
+            // Check if disabled
+            if (this.privateDockFilter.hasAttribute('data-disabled')) {
+              this.showTooltipMessage(this.privateDockFilter, 'Not available on check-in/departure dates');
+              return;
+            }
+
             this.selectedPrivateDock = !this.selectedPrivateDock;
             this.updatePrivateDockFilterText();
             this.updateFilterStyles();
+            this.renderDateSelection(); // Re-render dates to show disabled check-in/out if private dock selected
             // this.updateURLParams();
             this.refilterChartersIfModalOpen();
+          });
+
+          // Show tooltip on hover when disabled
+          this.privateDockFilter.addEventListener('mouseenter', () => {
+            if (this.privateDockFilter.hasAttribute('data-disabled')) {
+              this.showTooltipMessage(this.privateDockFilter, 'Not available on check-in/departure dates');
+            }
+          });
+
+          this.privateDockFilter.addEventListener('mouseleave', () => {
+            if (this.privateDockFilter.hasAttribute('data-disabled')) {
+              this.hideTooltipMessage();
+            }
           });
         }
       }
@@ -15128,6 +15252,9 @@ document.addEventListener('DOMContentLoaded', () => {
           // Filter charters based on current filters
           const filteredCharters = this.filterFishingCharters(allCharters);
 
+          // Update private dock filter visibility based on whether any charter offers it
+          this.updatePrivateDockFilterVisibility(filteredCharters);
+
           // Hide skeleton cards
           this.hideSkeletonCards();
 
@@ -15140,6 +15267,27 @@ document.addEventListener('DOMContentLoaded', () => {
           this.hideSkeletonCards();
           this.renderFishingCharterCards([]);
           return [];
+        }
+      }
+
+      // Update private dock filter visibility based on available charters
+      updatePrivateDockFilterVisibility(charters) {
+        if (!this.privateDockFilter) return;
+
+        const anyOffersPrivateDock = this.anyCharterOffersPrivateDock(charters);
+
+        if (anyOffersPrivateDock) {
+          this.privateDockFilter.style.display = 'flex';
+          // Also update availability based on selected dates
+          this.updatePrivateDockFilterAvailability();
+        } else {
+          this.privateDockFilter.style.display = 'none';
+          // If it was selected, deselect it
+          if (this.selectedPrivateDock) {
+            this.selectedPrivateDock = false;
+            this.updatePrivateDockFilterText();
+            this.updateFilterStyles();
+          }
         }
       }
 
@@ -15277,25 +15425,36 @@ document.addEventListener('DOMContentLoaded', () => {
             // First check if charter offers private dock pickup
             if (!charter.privateDockPickup) return false;
 
-            // Get property neighborhood from Wized data
+            // Get property data from Wized
             const r = Wized.data.r;
-            if (r && r.Load_Property_Details && r.Load_Property_Details.data && r.Load_Property_Details.data.property.listing_neighborhood) {
-              const propertyNeighborhood = r.Load_Property_Details.data.property.listing_neighborhood;
+            if (!r || !r.Load_Property_Details || !r.Load_Property_Details.data || !r.Load_Property_Details.data.property) {
+              return false;
+            }
 
-              // Check if charter delivers to the property's neighborhood
-              if (!charter.privateDockPickupAreas || !Array.isArray(charter.privateDockPickupAreas)) {
-                return false;
-              }
+            const property = r.Load_Property_Details.data.property;
 
-              const canDeliverToProperty = charter.privateDockPickupAreas.some(area =>
-                area.region && area.region.toLowerCase() === propertyNeighborhood.toLowerCase()
-              );
+            // Check if property has a private dock
+            const hasPrivateDock = property.private_dock;
+            if (hasPrivateDock === false) {
+              return false;
+            }
 
-              if (!canDeliverToProperty) {
-                return false;
-              }
-            } else {
-              // If we can't get property neighborhood, hide charters when private dock filter is active
+            // Check if charter delivers to the property's neighborhood
+            if (!property.listing_neighborhood) {
+              return false;
+            }
+
+            const propertyNeighborhood = property.listing_neighborhood;
+
+            if (!charter.privateDockPickupAreas || !Array.isArray(charter.privateDockPickupAreas)) {
+              return false;
+            }
+
+            const canDeliverToProperty = charter.privateDockPickupAreas.some(area =>
+              area.region && area.region.toLowerCase() === propertyNeighborhood.toLowerCase()
+            );
+
+            if (!canDeliverToProperty) {
               return false;
             }
           }
@@ -16008,33 +16167,49 @@ document.addEventListener('DOMContentLoaded', () => {
           return;
         }
 
-        // Get property neighborhood from Wized data
+        // Get property data from Wized
         const r = Wized.data.r;
-        if (r && r.Load_Property_Details && r.Load_Property_Details.data && r.Load_Property_Details.data.property.listing_neighborhood) {
-          const propertyNeighborhood = r.Load_Property_Details.data.property.listing_neighborhood;
-
-          // Check if charter delivers to the property's neighborhood
-          if (!charter.privateDockPickupAreas || !Array.isArray(charter.privateDockPickupAreas)) {
-            this.detailsPrivateDockFilter.style.display = 'none';
-            return;
-          }
-
-          const canDeliverToProperty = charter.privateDockPickupAreas.some(area =>
-            area.region && area.region.toLowerCase() === propertyNeighborhood.toLowerCase()
-          );
-
-          if (!canDeliverToProperty) {
-            this.detailsPrivateDockFilter.style.display = 'none';
-            return;
-          }
-        } else {
-          // If we can't get property neighborhood, hide private dock option
+        if (!r || !r.Load_Property_Details || !r.Load_Property_Details.data || !r.Load_Property_Details.data.property) {
           this.detailsPrivateDockFilter.style.display = 'none';
           return;
         }
 
-        // If we get here, private dock is available
+        const property = r.Load_Property_Details.data.property;
+
+        // First check if property has a private dock
+        const hasPrivateDock = property.private_dock;
+        if (hasPrivateDock === false) {
+          this.detailsPrivateDockFilter.style.display = 'none';
+          return;
+        }
+
+        // Check if charter delivers to the property's neighborhood
+        if (!property.listing_neighborhood) {
+          this.detailsPrivateDockFilter.style.display = 'none';
+          return;
+        }
+
+        const propertyNeighborhood = property.listing_neighborhood;
+
+        if (!charter.privateDockPickupAreas || !Array.isArray(charter.privateDockPickupAreas)) {
+          this.detailsPrivateDockFilter.style.display = 'none';
+          return;
+        }
+
+        const canDeliverToProperty = charter.privateDockPickupAreas.some(area =>
+          area.region && area.region.toLowerCase() === propertyNeighborhood.toLowerCase()
+        );
+
+        if (!canDeliverToProperty) {
+          this.detailsPrivateDockFilter.style.display = 'none';
+          return;
+        }
+
+        // If we get here, private dock is available for this charter
         this.detailsPrivateDockFilter.style.display = 'flex';
+
+        // Also update availability based on selected dates (check-in/out restriction)
+        this.updateDetailsPrivateDockFilterAvailability();
       }
 
       populateFishingCharterDetails(charter) {
@@ -17419,6 +17594,7 @@ document.addEventListener('DOMContentLoaded', () => {
         this.updateDatesFilterText();
         this.updateFilterStyles();
         this.updateDateButtonStyles();
+        this.updatePrivateDockFilterAvailability(); // Update private dock when dates cleared
         // this.updateURLParams();
         this.refilterChartersIfModalOpen();
       }
@@ -17492,8 +17668,44 @@ document.addEventListener('DOMContentLoaded', () => {
         this.selectedPrivateDock = false;
         this.updatePrivateDockFilterText();
         this.updateFilterStyles();
+        this.renderDateSelection(); // Re-render dates to remove disabled state from check-in/out
         // this.updateURLParams();
         this.refilterChartersIfModalOpen();
+      }
+
+      // Update private dock filter availability based on selected dates
+      updatePrivateDockFilterAvailability() {
+        if (!this.privateDockFilter) return;
+
+        const hasCheckInOut = this.hasCheckInOrCheckOutSelected();
+
+        if (hasCheckInOut) {
+          // Disable private dock filter
+          this.privateDockFilter.setAttribute('data-disabled', 'true');
+          this.privateDockFilter.style.backgroundColor = '#f5f5f5';
+          this.privateDockFilter.style.color = '#999';
+          this.privateDockFilter.style.cursor = 'default';
+          this.privateDockFilter.style.opacity = '0.5';
+
+          // If private dock was selected, deselect it
+          if (this.selectedPrivateDock) {
+            this.selectedPrivateDock = false;
+            this.updatePrivateDockFilterText();
+            this.updateFilterStyles();
+            this.refilterChartersIfModalOpen();
+          }
+        } else {
+          // Enable private dock filter
+          this.privateDockFilter.removeAttribute('data-disabled');
+          this.privateDockFilter.style.cursor = 'pointer';
+          this.privateDockFilter.style.opacity = '1';
+
+          // Only reset colors if not selected - let updateFilterStyles handle selected state
+          if (!this.selectedPrivateDock) {
+            this.privateDockFilter.style.backgroundColor = '';
+            this.privateDockFilter.style.color = '';
+          }
+        }
       }
 
       // Filter text update methods
@@ -17744,11 +17956,13 @@ document.addEventListener('DOMContentLoaded', () => {
             // Note: Button availability handled by centralized system
             this.updateDatesFilterText();
             this.updateFilterStyles();
+            this.updatePrivateDockFilterAvailability(); // Update private dock when dates change
 
             // Also update details section if it exists
             this.renderDetailsDateSelection();
             this.updateDetailsDateFilterText();
             this.updateDetailsFilterStyles();
+            this.updateDetailsPrivateDockFilterAvailability(); // Update details private dock
           }
         };
 
@@ -17800,9 +18014,7 @@ document.addEventListener('DOMContentLoaded', () => {
       renderDateSelection() {
         if (!this.datesPopupSelectDates) return;
 
-        const urlParams = new URLSearchParams(window.location.search);
-        const checkin = urlParams.get('checkin');
-        const checkout = urlParams.get('checkout');
+        const { checkin, checkout } = this.getCheckInOutDates();
 
         if (!checkin || !checkout) return;
 
@@ -17858,8 +18070,7 @@ document.addEventListener('DOMContentLoaded', () => {
           datesGrid.appendChild(emptyCell);
         }
 
-        // In the main "add fishing charter" section, dates should NEVER be disabled
-        // Users can select any dates to search for available charters
+        // Use check-in and check-out dates for disabling when private dock is selected
         dateArray.forEach(dateStr => {
           const [year, month, day] = dateStr.split('-').map(Number);
 
@@ -17872,27 +18083,56 @@ document.addEventListener('DOMContentLoaded', () => {
           dateBtn.style.borderRadius = '1000px';
 
           const isSelected = this.selectedDates.includes(dateStr);
+          const isCheckIn = dateStr === checkin;
+          const isCheckOut = dateStr === checkout;
+          const isCheckInOrOut = isCheckIn || isCheckOut;
 
-          // All dates are always available in the main section
-          if (isSelected) {
-            dateBtn.style.background = '#000000';
-            dateBtn.style.color = 'white';
+          // Disable check-in/out dates if private dock is selected
+          if (this.selectedPrivateDock && isCheckInOrOut) {
+            dateBtn.style.background = '#f5f5f5';
+            dateBtn.style.color = '#999';
+            dateBtn.style.cursor = 'not-allowed';
+            dateBtn.style.opacity = '0.5';
+            dateBtn.setAttribute('data-disabled', 'true');
+
+            // Show tooltip on hover or click
+            const message = isCheckIn ? 'Private dock pickup is not available on check-in date' : 'Private dock pickup is not available on departure date';
+
+            dateBtn.addEventListener('mouseenter', () => {
+              this.showTooltipMessage(dateBtn, message);
+            });
+
+            dateBtn.addEventListener('mouseleave', () => {
+              this.hideTooltipMessage();
+            });
+
+            dateBtn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              this.showTooltipMessage(dateBtn, message);
+            });
           } else {
-            dateBtn.style.background = 'white';
-            dateBtn.style.color = 'black';
+            // Normal date button
+            if (isSelected) {
+              dateBtn.style.background = '#000000';
+              dateBtn.style.color = 'white';
+            } else {
+              dateBtn.style.background = 'white';
+              dateBtn.style.color = 'black';
+            }
+
+            dateBtn.style.cursor = 'pointer';
+
+            dateBtn.addEventListener('click', () => {
+              this.handleDateSelection(dateStr);
+            });
           }
 
-          dateBtn.style.cursor = 'pointer';
           dateBtn.style.display = 'flex';
           dateBtn.style.alignItems = 'center';
           dateBtn.style.justifyContent = 'center';
           dateBtn.style.fontSize = '14px';
           dateBtn.style.fontFamily = 'TT Fors, sans-serif';
           dateBtn.style.fontWeight = '500';
-
-          dateBtn.addEventListener('click', () => {
-            this.handleDateSelection(dateStr);
-          });
 
           datesGrid.appendChild(dateBtn);
         });
@@ -17939,9 +18179,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         this.updateDateButtonStyles();
-
         this.updateDatesFilterText();
         this.updateFilterStyles();
+        this.updatePrivateDockFilterAvailability(); // Update private dock based on selected dates
         this.refilterChartersIfModalOpen();
       }
 
@@ -17999,6 +18239,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         dateButtons.forEach(btn => {
           const btnDateStr = btn.getAttribute('data-date');
+
+          // Skip buttons that are disabled (check-in/out when private dock selected)
+          if (btn.hasAttribute('data-disabled')) {
+            return;
+          }
+
           if (btnDateStr && this.selectedDates.includes(btnDateStr)) {
             btn.style.background = '#000000';
             btn.style.color = 'white';
@@ -18038,6 +18284,7 @@ document.addEventListener('DOMContentLoaded', () => {
         this.updateDetailsPrivateDockFilterText();
 
         this.updateDetailsFilterStyles();
+        this.updateDetailsPrivateDockFilterAvailability(); // Update availability based on dates
         this.renderDetailsDateSelection();
       }
 
@@ -18056,6 +18303,7 @@ document.addEventListener('DOMContentLoaded', () => {
         this.updatePrivateDockFilterText();
 
         this.updateFilterStyles();
+        this.updatePrivateDockFilterAvailability(); // Update availability based on dates
         this.updateDateButtonStyles();
         this.renderDateSelection();
       }
@@ -18139,11 +18387,19 @@ document.addEventListener('DOMContentLoaded', () => {
         if (this.detailsPrivateDockFilter) {
           this.detailsPrivateDockFilter.addEventListener('click', (e) => {
             e.stopPropagation();
+
+            // Check if disabled
+            if (this.detailsPrivateDockFilter.hasAttribute('data-disabled')) {
+              this.showTooltipMessage(this.detailsPrivateDockFilter, 'Not available on check-in/departure dates');
+              return;
+            }
+
             this.detailsSelectedPrivateDock = !this.detailsSelectedPrivateDock;
             // Sync with main filter variable
             this.selectedPrivateDock = this.detailsSelectedPrivateDock;
             this.updateDetailsPrivateDockFilterText();
             this.updateDetailsFilterStyles();
+            this.renderDetailsDateSelection(); // Re-render dates to show disabled check-in/out if private dock selected
             this.renderTripTypes(this.currentCharterData);
 
 
@@ -18151,6 +18407,19 @@ document.addEventListener('DOMContentLoaded', () => {
             this.applyPickupTimeGating(this.pickupTimePills, false);
             this.applyPickupTimeGating(this.boatDetailsPickupTimePills, true);
             this.updateBoatDetailsDateFilterText();
+          });
+
+          // Show tooltip on hover when disabled
+          this.detailsPrivateDockFilter.addEventListener('mouseenter', () => {
+            if (this.detailsPrivateDockFilter.hasAttribute('data-disabled')) {
+              this.showTooltipMessage(this.detailsPrivateDockFilter, 'Not available on check-in/departure dates');
+            }
+          });
+
+          this.detailsPrivateDockFilter.addEventListener('mouseleave', () => {
+            if (this.detailsPrivateDockFilter.hasAttribute('data-disabled')) {
+              this.hideTooltipMessage();
+            }
           });
         }
       }
@@ -18239,8 +18508,45 @@ document.addEventListener('DOMContentLoaded', () => {
         this.selectedDates = [];
         this.updateDetailsDateFilterText();
         this.updateDetailsFilterStyles();
+        this.updateDetailsPrivateDockFilterAvailability(); // Update private dock when dates cleared
         this.renderDetailsDateSelection();
         this.renderTripTypes(this.currentCharterData);
+      }
+
+      // Update details private dock filter availability based on selected dates
+      updateDetailsPrivateDockFilterAvailability() {
+        if (!this.detailsPrivateDockFilter) return;
+
+        const hasCheckInOut = this.hasCheckInOrCheckOutSelected();
+
+        if (hasCheckInOut) {
+          // Disable private dock filter
+          this.detailsPrivateDockFilter.setAttribute('data-disabled', 'true');
+          this.detailsPrivateDockFilter.style.backgroundColor = '#f5f5f5';
+          this.detailsPrivateDockFilter.style.color = '#999';
+          this.detailsPrivateDockFilter.style.cursor = 'default';
+          this.detailsPrivateDockFilter.style.opacity = '0.5';
+
+          // If private dock was selected, deselect it
+          if (this.detailsSelectedPrivateDock) {
+            this.detailsSelectedPrivateDock = false;
+            this.selectedPrivateDock = false;
+            this.updateDetailsPrivateDockFilterText();
+            this.updateDetailsFilterStyles();
+            this.renderTripTypes(this.currentCharterData);
+          }
+        } else {
+          // Enable private dock filter
+          this.detailsPrivateDockFilter.removeAttribute('data-disabled');
+          this.detailsPrivateDockFilter.style.cursor = 'pointer';
+          this.detailsPrivateDockFilter.style.opacity = '1';
+
+          // Only reset colors if not selected - let updateDetailsFilterStyles handle selected state
+          if (!this.detailsSelectedPrivateDock) {
+            this.detailsPrivateDockFilter.style.backgroundColor = '';
+            this.detailsPrivateDockFilter.style.color = '';
+          }
+        }
       }
 
       clearDetailsGuestsFilter() {
@@ -18265,6 +18571,7 @@ document.addEventListener('DOMContentLoaded', () => {
         this.selectedPrivateDock = false;
         this.updateDetailsPrivateDockFilterText();
         this.updateDetailsFilterStyles();
+        this.renderDetailsDateSelection(); // Re-render dates to remove disabled state from check-in/out
         this.renderTripTypes(this.currentCharterData);
       }
 
@@ -18373,9 +18680,7 @@ document.addEventListener('DOMContentLoaded', () => {
       renderDetailsDateSelection() {
         if (!this.detailsDatesPopupSelectDates) return;
 
-        const urlParams = new URLSearchParams(window.location.search);
-        const checkin = urlParams.get('checkin');
-        const checkout = urlParams.get('checkout');
+        const { checkin, checkout } = this.getCheckInOutDates();
 
         if (!checkin || !checkout) return;
 
@@ -18435,6 +18740,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // (not all other charters - users can book different charters on the same day)
         const reservedDatesForThisCharter = this.getReservedDatesForThisCharter();
 
+        // Use check-in and check-out dates for disabling when private dock is selected
         dateArray.forEach(dateStr => {
           const [year, month, day] = dateStr.split('-').map(Number);
 
@@ -18449,14 +18755,40 @@ document.addEventListener('DOMContentLoaded', () => {
           // Check if this date is already reserved for THIS specific charter
           const isReserved = reservedDatesForThisCharter.includes(dateStr);
           const isSelected = this.detailsSelectedDates.includes(dateStr);
+          const isCheckIn = dateStr === checkin;
+          const isCheckOut = dateStr === checkout;
+          const isCheckInOrOut = isCheckIn || isCheckOut;
 
           if (isReserved) {
-            // Date is reserved for THIS charter already - disable it
+            // Date is reserved for THIS charter already - disable it (takes priority over private dock logic)
             dateBtn.style.background = '#f5f5f5';
             dateBtn.style.color = '#999';
             dateBtn.style.cursor = 'not-allowed';
             dateBtn.style.opacity = '0.5';
             dateBtn.disabled = true;
+          } else if (this.detailsSelectedPrivateDock && isCheckInOrOut) {
+            // Disable check-in/out dates if private dock is selected
+            dateBtn.style.background = '#f5f5f5';
+            dateBtn.style.color = '#999';
+            dateBtn.style.cursor = 'not-allowed';
+            dateBtn.style.opacity = '0.5';
+            dateBtn.setAttribute('data-disabled', 'true');
+
+            // Show tooltip on hover or click
+            const message = isCheckIn ? 'Not available on check-in date' : 'Not available on departure date';
+
+            dateBtn.addEventListener('mouseenter', () => {
+              this.showTooltipMessage(dateBtn, message);
+            });
+
+            dateBtn.addEventListener('mouseleave', () => {
+              this.hideTooltipMessage();
+            });
+
+            dateBtn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              this.showTooltipMessage(dateBtn, message);
+            });
           } else {
             // Date is available or selected
             dateBtn.style.background = isSelected ? '#000000' : 'white';
@@ -18510,6 +18842,7 @@ document.addEventListener('DOMContentLoaded', () => {
         this.updateDetailsDateFilterText();
         this.updateDetailsFilterStyles();
         this.updateDetailsDateButtonStyles();
+        this.updateDetailsPrivateDockFilterAvailability(); // Update private dock based on selected dates
         this.renderTripTypes(this.currentCharterData);
 
         // Call main updateURLParams method like main filters do
@@ -18523,6 +18856,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         dateButtons.forEach(btn => {
           const btnDateStr = btn.getAttribute('data-date');
+
+          // Skip buttons that are disabled (check-in/out when private dock selected, or reserved dates)
+          if (btn.hasAttribute('data-disabled') || btn.disabled) {
+            return;
+          }
+
           if (btnDateStr && this.detailsSelectedDates.includes(btnDateStr)) {
             btn.style.background = '#000000';
             btn.style.color = 'white';
