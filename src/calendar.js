@@ -6214,19 +6214,67 @@ document.addEventListener('DOMContentLoaded', function () {
         // Handle exit button click
         if (newConnectCalendarExitButton) {
             newConnectCalendarExitButton.addEventListener('click', function () {
-                // Hide add sync container if it was open
+                // Check if we're in a sub-view (add sync or edit sync)
+                const isInAddSyncView = updatedConnectCalendarAddSyncContainer &&
+                    updatedConnectCalendarAddSyncContainer.style.display !== 'none' &&
+                    updatedConnectCalendarAddSyncContainer.style.display !== '';
+
+                const isInEditSyncView = editSyncContainer &&
+                    editSyncContainer.style.display !== 'none' &&
+                    editSyncContainer.style.display !== '';
+
+                if (isInAddSyncView || isInEditSyncView) {
+                    // We're in a sub-view, so return to the main body
+                    if (updatedConnectCalendarAddSyncContainer) {
+                        updatedConnectCalendarAddSyncContainer.style.display = 'none';
+                    }
+                    if (editSyncContainer) {
+                        editSyncContainer.style.display = 'none';
+                    }
+                    if (updatedConnectCalendarBody) {
+                        updatedConnectCalendarBody.style.display = 'flex';
+                    }
+                } else {
+                    // We're in the main body view, so exit to the toolbar
+                    connectCalendarEditContainer.style.display = 'none';
+                    toolbar.style.display = 'flex';
+                }
+
+                // Scroll to top on mobile
+                scrollToTopOnMobile();
+            });
+        }
+
+        // Handle exit button click for edit sync container (if it has its own exit button)
+        const editSyncExitButton = document.querySelector('[data-element="toolbarEdit_connectCalender_editSync_exit"]');
+        if (editSyncExitButton) {
+            const newEditSyncExitButton = editSyncExitButton.cloneNode(true);
+            editSyncExitButton.parentNode.replaceChild(newEditSyncExitButton, editSyncExitButton);
+
+            newEditSyncExitButton.addEventListener('click', function () {
+                // Hide edit sync container and show body container
+                if (editSyncContainer) editSyncContainer.style.display = 'none';
+                if (connectCalendarBody) connectCalendarBody.style.display = 'flex';
+
+                // Scroll to top on mobile
+                scrollToTopOnMobile();
+            });
+        }
+
+        // Handle exit button click for add sync container (if it has its own exit button)
+        const addSyncExitButton = document.querySelector('[data-element="toolbarEdit_connectCalender_addSync_exit"]');
+        if (addSyncExitButton) {
+            const newAddSyncExitButton = addSyncExitButton.cloneNode(true);
+            addSyncExitButton.parentNode.replaceChild(newAddSyncExitButton, addSyncExitButton);
+
+            newAddSyncExitButton.addEventListener('click', function () {
+                // Hide add sync container and show body container
                 if (updatedConnectCalendarAddSyncContainer) {
                     updatedConnectCalendarAddSyncContainer.style.display = 'none';
                 }
-
-                // Show the main body again if it was hidden
                 if (updatedConnectCalendarBody) {
                     updatedConnectCalendarBody.style.display = 'flex';
                 }
-
-                // Exit should still close the entire edit container and show the toolbar
-                connectCalendarEditContainer.style.display = 'none';
-                toolbar.style.display = 'flex';
 
                 // Scroll to top on mobile
                 scrollToTopOnMobile();
