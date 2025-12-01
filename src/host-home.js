@@ -235,40 +235,53 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (data && data.length > 0 && data[0].video && data[0].video.url) {
                 const videoUrl = data[0].video.url;
 
+                // Check if demoVideoElement is a video tag or a container
+                let videoTag;
+                if (demoVideoElement.tagName === 'VIDEO') {
+                    videoTag = demoVideoElement;
+                } else {
+                    // Create a video element and append to container
+                    videoTag = document.createElement('video');
+                    videoTag.style.width = '100%';
+                    videoTag.style.height = '100%';
+                    videoTag.style.objectFit = 'cover';
+                    demoVideoElement.appendChild(videoTag);
+                }
+
                 // Configure video element for autoplay and looping
-                demoVideoElement.setAttribute('autoplay', '');
-                demoVideoElement.setAttribute('muted', '');
-                demoVideoElement.setAttribute('loop', '');
-                demoVideoElement.setAttribute('playsinline', '');
+                videoTag.setAttribute('autoplay', '');
+                videoTag.setAttribute('muted', '');
+                videoTag.setAttribute('loop', '');
+                videoTag.setAttribute('playsinline', '');
 
                 // Wait for video to be ready to play
-                demoVideoElement.addEventListener('loadeddata', () => {
+                videoTag.addEventListener('loadeddata', () => {
                     loadingState.demoVideo = true;
                     checkAndHideLoader();
                 });
 
                 // Handle load error
-                demoVideoElement.addEventListener('error', () => {
+                videoTag.addEventListener('error', () => {
                     console.error('Error loading demo video');
                     loadingState.demoVideo = true;
                     checkAndHideLoader();
                 });
 
                 // Set the video source
-                demoVideoElement.src = videoUrl;
+                videoTag.src = videoUrl;
 
                 // Try to play
                 try {
-                    await demoVideoElement.play();
+                    await videoTag.play();
                 } catch (playError) {
                     console.warn('Autoplay was prevented:', playError);
                 }
 
                 // Add replay functionality (click to restart)
-                demoVideoElement.style.cursor = 'pointer';
-                demoVideoElement.addEventListener('click', () => {
-                    demoVideoElement.currentTime = 0;
-                    demoVideoElement.play();
+                videoTag.style.cursor = 'pointer';
+                videoTag.addEventListener('click', () => {
+                    videoTag.currentTime = 0;
+                    videoTag.play();
                 });
 
             } else {
