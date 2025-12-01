@@ -324,8 +324,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const playVideo = async () => {
                     try {
                         // Start at 30 seconds if at the beginning
-                        if (videoTag.currentTime < 30) {
-                            videoTag.currentTime = 30;
+                        if (videoTag.currentTime < 31) {
+                            videoTag.currentTime = 31;
                         }
                         await videoTag.play();
                         isPlaying = true;
@@ -341,7 +341,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 // Function to replay video
                 const replayVideo = () => {
-                    videoTag.currentTime = 30;
+                    videoTag.currentTime = 31;
                     playVideo();
                 };
 
@@ -360,7 +360,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     setTimeout(async () => {
                         try {
                             // Start at 30 seconds
-                            videoTag.currentTime = 30;
+                            videoTag.currentTime = 31;
                             await videoTag.play();
                             isPlaying = true;
                             playButton.style.opacity = '0';
