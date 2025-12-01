@@ -312,6 +312,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 videoTag.muted = true;
                 videoTag.playsInline = true;
                 videoTag.loop = true;
+                videoTag.playbackRate = 0.9; // Slow down to 90% speed
 
                 // Also set as attributes for HTML compliance
                 videoTag.setAttribute('muted', '');
@@ -323,9 +324,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 // Function to play video
                 const playVideo = async () => {
                     try {
-                        // Start at 30 seconds if at the beginning
-                        if (videoTag.currentTime < 31) {
-                            videoTag.currentTime = 31;
+                        // Start at 30.4 seconds if at the beginning
+                        if (videoTag.currentTime < 30.4) {
+                            videoTag.currentTime = 30.4;
                         }
                         await videoTag.play();
                         isPlaying = true;
@@ -341,7 +342,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 // Function to replay video
                 const replayVideo = () => {
-                    videoTag.currentTime = 31;
+                    videoTag.currentTime = 30.4;
                     playVideo();
                 };
 
@@ -351,31 +352,54 @@ document.addEventListener('DOMContentLoaded', async () => {
                 // Replay button click handler
                 replayButton.addEventListener('click', replayVideo);
 
+                // Track if video is loaded and ready
+                let videoLoaded = false;
+                let hasAutoPlayed = false;
+
                 // Wait for video to be ready to play
                 videoTag.addEventListener('loadeddata', async () => {
                     loadingState.demoVideo = true;
                     checkAndHideLoader();
-
-                    // Wait 2 seconds before attempting autoplay
-                    setTimeout(async () => {
-                        try {
-                            // Start at 30 seconds
-                            videoTag.currentTime = 31;
-                            await videoTag.play();
-                            isPlaying = true;
-                            playButton.style.opacity = '0';
-                            playButton.style.pointerEvents = 'none';
-                            replayButton.style.opacity = '1';
-                            replayButton.style.pointerEvents = 'auto';
-                            console.log('Video autoplay successful after delay');
-                        } catch (playError) {
-                            // Autoplay prevented - show play button
-                            console.log('Autoplay prevented - showing play button');
-                            playButton.style.opacity = '1';
-                            playButton.style.pointerEvents = 'auto';
-                        }
-                    }, 2000);
+                    videoLoaded = true;
                 });
+
+                // Use Intersection Observer to detect when video is in view
+                const observerOptions = {
+                    root: null, // Use viewport
+                    threshold: 0.75 // Trigger when 75% of video is visible
+                };
+
+                const videoObserver = new IntersectionObserver((entries) => {
+                    entries.forEach(entry => {
+                        // Video is in view and loaded, and hasn't auto-played yet
+                        if (entry.isIntersecting && videoLoaded && !hasAutoPlayed) {
+                            hasAutoPlayed = true;
+
+                            // Wait 2 seconds after video comes into view
+                            setTimeout(async () => {
+                                try {
+                                    // Start at 30.4 seconds
+                                    videoTag.currentTime = 30.4;
+                                    await videoTag.play();
+                                    isPlaying = true;
+                                    playButton.style.opacity = '0';
+                                    playButton.style.pointerEvents = 'none';
+                                    replayButton.style.opacity = '1';
+                                    replayButton.style.pointerEvents = 'auto';
+                                    console.log('Video autoplay successful when in view');
+                                } catch (playError) {
+                                    // Autoplay prevented - show play button
+                                    console.log('Autoplay prevented - showing play button');
+                                    playButton.style.opacity = '1';
+                                    playButton.style.pointerEvents = 'auto';
+                                }
+                            }, 2000);
+                        }
+                    });
+                }, observerOptions);
+
+                // Start observing the video container
+                videoObserver.observe(videoContainer);
 
                 // Handle load error
                 videoTag.addEventListener('error', () => {
