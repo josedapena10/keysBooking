@@ -5751,6 +5751,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (this.boatDetailsPickupTimePopup) this.boatDetailsPickupTimePopup.style.display = 'none';
         if (this.boatDetailsGuestsPopup) this.boatDetailsGuestsPopup.style.display = 'none';
 
+        // Initially hide private dock filter - will be shown only if conditions are met
+        if (this.privateDockFilter) this.privateDockFilter.style.display = 'none';
+
         // Add click handlers for all buttons
         this.buttons.forEach(button => {
           if (button) {
@@ -5812,6 +5815,9 @@ document.addEventListener('DOMContentLoaded', () => {
         // Check property private dock status and setup visibility
         this.checkPropertyPrivateDockStatus();
 
+        // Check private dock filter availability on load based on property stay dates
+        this.checkPrivateDockFilterAvailabilityForBoatDates();
+
         // Setup property details monitoring for pickup time gating
         this.setupPropertyDetailsMonitoring();
 
@@ -5837,6 +5843,10 @@ document.addEventListener('DOMContentLoaded', () => {
             // Property details with check-in time are now available, apply gating
             this.applyPickupTimeGating(this.pickupTimePills, false);
             this.applyPickupTimeGating(this.boatDetailsPickupTimePills, true);
+
+            // Also check private dock filter availability now that property details are loaded
+            this.checkPrivateDockFilterAvailabilityForBoatDates();
+
             return true; // Stop monitoring
           }
           return false; // Continue monitoring
@@ -6077,6 +6087,9 @@ document.addEventListener('DOMContentLoaded', () => {
             closeAllPopups();
             this.datesPopup.style.display = 'flex';
 
+            // Re-render date selection to ensure correct disabled states based on private dock selection
+            this.renderDateSelection();
+
             // Apply gating when dates popup opens
             requestAnimationFrame(() => {
               this.applyPickupTimeGating(this.pickupTimePills, false);
@@ -6094,6 +6107,10 @@ document.addEventListener('DOMContentLoaded', () => {
               this.applyPickupTimeGating(this.pickupTimePills, false);
               this.applyPickupTimeGating(this.boatDetailsPickupTimePills, true);
             });
+
+            // Now that user is exiting dates section, check private dock filter availability and fetch boats
+            this.checkPrivateDockFilterAvailabilityForBoatDates();
+            this.fetchAndRenderBoats();
           });
         }
 
@@ -6106,6 +6123,10 @@ document.addEventListener('DOMContentLoaded', () => {
               this.applyPickupTimeGating(this.pickupTimePills, false);
               this.applyPickupTimeGating(this.boatDetailsPickupTimePills, true);
             });
+
+            // Now that user is exiting dates section, check private dock filter availability and fetch boats
+            this.checkPrivateDockFilterAvailabilityForBoatDates();
+            this.fetchAndRenderBoats();
           });
         }
 
@@ -6255,10 +6276,47 @@ document.addEventListener('DOMContentLoaded', () => {
         // Private dock filter handlers
         if (this.privateDockFilter) {
           this.privateDockFilter.addEventListener('click', () => {
+            // Check if disabled
+            const disabledReason = this.privateDockFilter.getAttribute('data-disabled');
+            if (disabledReason) {
+              let tooltipMessage = '';
+
+              if (disabledReason === 'check-in') {
+                tooltipMessage = 'Private dock delivery not available on check-in date';
+              } else if (disabledReason === 'min-days') {
+                // Get minimum days required for tooltip
+                const boatsForCheck = this.initialBoats.length > 0 ? this.initialBoats : this.availableBoats;
+                let minPrivateDockDays = 3;
+
+                if (boatsForCheck && boatsForCheck.length > 0) {
+                  const minDaysArray = [];
+                  boatsForCheck.forEach(boat => {
+                    const privateDockDetails = this.getPrivateDockDeliveryDetails(boat);
+                    if (privateDockDetails && privateDockDetails.minDays) {
+                      minDaysArray.push(Number(privateDockDetails.minDays));
+                    }
+                  });
+                  if (minDaysArray.length > 0) {
+                    minPrivateDockDays = Math.min(...minDaysArray);
+                  }
+                }
+                tooltipMessage = `${minPrivateDockDays} days needed for private dock delivery`;
+              }
+
+              if (tooltipMessage) {
+                this.showTooltipMessage(this.privateDockFilter, tooltipMessage);
+              }
+              return;
+            }
+
             this.selectedPrivateDock = !this.selectedPrivateDock;
             this.updatePrivateDockFilterText();
             this.updateFilterStyles();
             this.updateURLParams();
+
+            // Re-render date calendars to update disabled states immediately
+            this.renderDateSelection();
+            this.renderBoatDetailsDateSelection();
 
             // Sync with delivery checkbox if boat details is open
             if (this.detailsWrapper && this.detailsWrapper.style.display !== 'none') {
@@ -6270,6 +6328,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Update pricing if boat details is open
                 if (this.currentBoatData) {
                   this.updateBoatDetailsPricing(this.currentBoatData);
+                  // Update min days text when private dock changes
+                  this.updateBoatDetailsMinDaysText(this.currentBoatData);
+                  // Re-check delivery checkbox availability
+                  this.setupDeliveryCheckbox(this.currentBoatData);
                 }
               }
             }
@@ -6288,6 +6350,45 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             this.refilterBoatsIfModalOpen();
+          });
+
+          // Show tooltip on hover when disabled
+          this.privateDockFilter.addEventListener('mouseenter', () => {
+            const disabledReason = this.privateDockFilter.getAttribute('data-disabled');
+            if (disabledReason) {
+              let tooltipMessage = '';
+
+              if (disabledReason === 'check-in') {
+                tooltipMessage = 'Private dock delivery not available on check-in date';
+              } else if (disabledReason === 'min-days') {
+                const boatsForCheck = this.initialBoats.length > 0 ? this.initialBoats : this.availableBoats;
+                let minPrivateDockDays = 3;
+
+                if (boatsForCheck && boatsForCheck.length > 0) {
+                  const minDaysArray = [];
+                  boatsForCheck.forEach(boat => {
+                    const privateDockDetails = this.getPrivateDockDeliveryDetails(boat);
+                    if (privateDockDetails && privateDockDetails.minDays) {
+                      minDaysArray.push(Number(privateDockDetails.minDays));
+                    }
+                  });
+                  if (minDaysArray.length > 0) {
+                    minPrivateDockDays = Math.min(...minDaysArray);
+                  }
+                }
+                tooltipMessage = `${minPrivateDockDays} days needed for private dock delivery`;
+              }
+
+              if (tooltipMessage) {
+                this.showTooltipMessage(this.privateDockFilter, tooltipMessage);
+              }
+            }
+          });
+
+          this.privateDockFilter.addEventListener('mouseleave', () => {
+            if (this.privateDockFilter.hasAttribute('data-disabled')) {
+              this.hideTooltipMessage();
+            }
           });
         }
       }
@@ -6488,8 +6589,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Check if we need to disable intermediate dates (when one date is selected and all boats require multiple days)
-        const shouldDisableIntermediateDates = allBoatsRequireMultipleDays && this.selectedDates.length === 1 && minDaysRequired > 1;
+        // Don't disable dates if private dock is selected - allow user to select freely
+        const shouldDisableIntermediateDates = !this.selectedPrivateDock && allBoatsRequireMultipleDays && this.selectedDates.length === 1 && minDaysRequired > 1;
         const selectedSingleDate = shouldDisableIntermediateDates ? this.selectedDates[0] : null;
+
+        // Get property checkin/checkout dates for private dock rules
+        const urlParamsForDates = new URLSearchParams(window.location.search);
+        const propertyCheckin = urlParamsForDates.get('checkin');
+        const propertyCheckout = urlParamsForDates.get('checkout');
 
         // Create date buttons
         dateArray.forEach(dateStr => {
@@ -6504,9 +6611,21 @@ document.addEventListener('DOMContentLoaded', () => {
           dateBtn.style.border = '1px solid #ddd';
           dateBtn.style.borderRadius = '1000px';
 
+          // Check if this is check-in or checkout date
+          const isCheckinDate = dateStr === propertyCheckin;
+          const isCheckoutDate = dateStr === propertyCheckout;
+
           // Determine if this date should be disabled
           let isDisabled = false;
-          if (shouldDisableIntermediateDates && dateStr !== selectedSingleDate) {
+          let disabledTooltip = null;
+
+          // Rule: If private dock is selected, disable check-in date (even before any dates are selected)
+          if (this.selectedPrivateDock && isCheckinDate) {
+            isDisabled = true;
+            disabledTooltip = 'Private dock delivery not available on check-in date';
+          }
+          // Check minimum days requirement only when private dock is NOT selected
+          else if (!this.selectedPrivateDock && shouldDisableIntermediateDates && dateStr !== selectedSingleDate) {
             // Calculate how many days would be in the range if this date was selected
             const range = this.generateDateRange(
               selectedSingleDate < dateStr ? selectedSingleDate : dateStr,
@@ -6520,6 +6639,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
           }
 
+          // Style the button
           dateBtn.style.background = this.selectedDates.includes(dateStr) ? '#000000' : 'white';
           dateBtn.style.color = this.selectedDates.includes(dateStr) ? 'white' : 'black';
           dateBtn.style.cursor = isDisabled ? 'not-allowed' : 'pointer';
@@ -6534,11 +6654,40 @@ document.addEventListener('DOMContentLoaded', () => {
             dateBtn.style.opacity = '0.3';
           }
 
-          dateBtn.addEventListener('click', () => {
-            if (!isDisabled) {
+          // Add event handlers
+          if (isDisabled && disabledTooltip) {
+            // Show tooltip for disabled dates
+            dateBtn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              this.showTooltipMessage(dateBtn, disabledTooltip);
+            });
+
+            dateBtn.addEventListener('mouseenter', () => {
+              this.showTooltipMessage(dateBtn, disabledTooltip);
+            });
+
+            dateBtn.addEventListener('mouseleave', () => {
+              this.hideTooltipMessage();
+            });
+          } else if (!isDisabled) {
+            // Normal clickable date
+            dateBtn.addEventListener('click', () => {
               this.handleDateSelection(dateStr);
+            });
+
+            // Add tooltip for checkout date if private dock is selected
+            if (this.selectedPrivateDock && isCheckoutDate) {
+              dateBtn.addEventListener('mouseenter', () => {
+                const r = window.Wized?.data?.r;
+                const checkoutTime = r?.Load_Property_Details?.data?.property?.check_out_time || '10 AM';
+                this.showTooltipMessage(dateBtn, `Boat must be picked up before ${checkoutTime}`);
+              });
+
+              dateBtn.addEventListener('mouseleave', () => {
+                this.hideTooltipMessage();
+              });
             }
-          });
+          }
 
           datesGrid.appendChild(dateBtn);
         });
@@ -6630,13 +6779,24 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         }
 
-        const shouldDisableIntermediateDates = allBoatsRequireMultipleDays && this.selectedDates.length === 1 && minDaysRequired > 1;
+        // Check if we need to disable intermediate dates (when one date is selected and all boats require multiple days)
+        // Don't disable dates if private dock is selected - allow user to select freely
+        const shouldDisableIntermediateDates = !this.selectedPrivateDock && allBoatsRequireMultipleDays && this.selectedDates.length === 1 && minDaysRequired > 1;
         const selectedSingleDate = shouldDisableIntermediateDates ? this.selectedDates[0] : null;
+
+        // Get property checkin/checkout for private dock rules
+        const urlParamsForDateButtons = new URLSearchParams(window.location.search);
+        const propertyCheckin = urlParamsForDateButtons.get('checkin');
+        const propertyCheckout = urlParamsForDateButtons.get('checkout');
 
         // Update each date button
         dateButtons.forEach(dateBtn => {
           const dateStr = dateBtn.getAttribute('data-date');
           if (!dateStr) return;
+
+          // Check if this is check-in or checkout date
+          const isCheckinDate = dateStr === propertyCheckin;
+          const isCheckoutDate = dateStr === propertyCheckout;
 
           // Update selection styling
           const isSelected = this.selectedDates.includes(dateStr);
@@ -6646,7 +6806,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
           // Determine if this date should be disabled
           let isDisabled = false;
-          if (shouldDisableIntermediateDates && dateStr !== selectedSingleDate) {
+
+          // Rule: If private dock is selected, disable check-in date
+          if (this.selectedPrivateDock && isCheckinDate) {
+            isDisabled = true;
+          }
+          // Check minimum days requirement
+          else if (shouldDisableIntermediateDates && dateStr !== selectedSingleDate) {
             const range = this.generateDateRange(
               selectedSingleDate < dateStr ? selectedSingleDate : dateStr,
               selectedSingleDate < dateStr ? dateStr : selectedSingleDate
@@ -6661,7 +6827,46 @@ document.addEventListener('DOMContentLoaded', () => {
           // Apply disabled styling
           dateBtn.style.cursor = isDisabled ? 'not-allowed' : 'pointer';
           dateBtn.style.opacity = isDisabled ? '0.3' : '1';
-          dateBtn.style.pointerEvents = isDisabled ? 'none' : 'auto';
+
+          // Remove old event listeners by cloning
+          const newDateBtn = dateBtn.cloneNode(true);
+          dateBtn.parentNode.replaceChild(newDateBtn, dateBtn);
+
+          if (isDisabled) {
+            // Add tooltip for disabled check-in date
+            if (this.selectedPrivateDock && isCheckinDate) {
+              newDateBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.showTooltipMessage(newDateBtn, 'Private dock delivery not available on check-in date');
+              });
+
+              newDateBtn.addEventListener('mouseenter', () => {
+                this.showTooltipMessage(newDateBtn, 'Private dock delivery not available on check-in date');
+              });
+
+              newDateBtn.addEventListener('mouseleave', () => {
+                this.hideTooltipMessage();
+              });
+            }
+          } else {
+            // Add normal click handler
+            newDateBtn.addEventListener('click', () => {
+              this.handleDateSelection(dateStr);
+            });
+
+            // Add tooltip for checkout date if private dock is selected
+            if (this.selectedPrivateDock && isCheckoutDate) {
+              newDateBtn.addEventListener('mouseenter', () => {
+                const r = window.Wized?.data?.r;
+                const checkoutTime = r?.Load_Property_Details?.data?.property?.check_out_time || '10 AM';
+                this.showTooltipMessage(newDateBtn, `Boat must be picked up before ${checkoutTime}`);
+              });
+
+              newDateBtn.addEventListener('mouseleave', () => {
+                this.hideTooltipMessage();
+              });
+            }
+          }
         });
       }
 
@@ -6742,15 +6947,17 @@ document.addEventListener('DOMContentLoaded', () => {
         this.updateDatesFilterText();
         this.updatePickupTimeFilterText();
         this.updateFilterStyles();
-        this.fetchAndRenderBoats();
+
+        // Don't fetch/render boats until user exits dates section
+        // this.fetchAndRenderBoats();
         this.updateURLParams();
 
         // Apply pickup time gating when dates change (first/last day affects gating)
         this.applyPickupTimeGating(this.pickupTimePills, false);
         this.applyPickupTimeGating(this.boatDetailsPickupTimePills, true);
 
-        // Re-check private dock filter availability when boat dates change
-        this.checkPrivateDockFilterAvailabilityForBoatDates();
+        // Don't check private dock filter availability until user exits dates section
+        // this.checkPrivateDockFilterAvailabilityForBoatDates();
 
         // Re-check delivery checkbox visibility if boat details is open
         if (this.currentBoatData && this.detailsWrapper && this.detailsWrapper.style.display !== 'none') {
@@ -6758,7 +6965,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
 
-      // Check if private dock filter should be shown based on selected boat dates
+      // Check if private dock filter should be shown based on property stay dates
       checkPrivateDockFilterAvailabilityForBoatDates() {
         const r = Wized.data.r;
         if (!r || !r.Load_Property_Details || !r.Load_Property_Details.data || !r.Load_Property_Details.data.property) {
@@ -6773,17 +6980,60 @@ document.addEventListener('DOMContentLoaded', () => {
           return;
         }
 
-        // If no dates selected in boat modal, show the filter
-        if (this.selectedDates.length === 0) {
+        // Get property stay dates from URL params (the overall property booking dates)
+        const urlParams = new URLSearchParams(window.location.search);
+        const checkin = urlParams.get('checkin');
+        const checkout = urlParams.get('checkout');
+
+        // If no property dates selected, show the filter
+        if (!checkin || !checkout) {
           this.privateDockFilter.style.display = '';
           return;
         }
 
-        // Check if selected boat dates are too short for private dock delivery
-        const selectedBoatDays = this.selectedDates.length;
+        // Calculate the number of days in the property stay
+        const propertyStayDates = this.generateDateRange(checkin, checkout);
+        const propertyStayDays = propertyStayDates.length;
 
-        // If very short stay (< 3 days), hide private dock filter
-        if (selectedBoatDays < 3) {
+        // Get minimum days required for private dock from available boats
+        const boatsForCheck = this.initialBoats.length > 0 ? this.initialBoats : this.availableBoats;
+
+        // If no boats are loaded yet, don't hide the filter (we'll check again after boats load)
+        if (!boatsForCheck || boatsForCheck.length === 0) {
+          return;
+        }
+
+        // Only consider boats that actually have private dock delivery to the property
+        const minDaysArray = [];
+
+        boatsForCheck.forEach(boat => {
+          const privateDockDetails = this.getPrivateDockDeliveryDetails(boat);
+          // Only include boats that actually offer private dock delivery
+          if (privateDockDetails && privateDockDetails.minDays) {
+            minDaysArray.push(Number(privateDockDetails.minDays));
+          }
+        });
+
+        // If no boats offer private dock delivery, hide the filter
+        if (minDaysArray.length === 0) {
+          this.privateDockFilter.style.display = 'none';
+          if (this.selectedPrivateDock) {
+            this.selectedPrivateDock = false;
+            this.updatePrivateDockFilterText();
+            this.updateFilterStyles();
+            this.updateURLParams();
+          }
+          return;
+        }
+
+        // Get the minimum days required across all boats that offer private dock
+        const minPrivateDockDays = Math.min(...minDaysArray);
+
+        // Rule: Can't do private dock delivery on check-in date, so subtract 1 from available days
+        const usablePropertyDays = propertyStayDays - 1;
+
+        // If usable property days are less than minimum, HIDE the filter completely for main listing section
+        if (usablePropertyDays < minPrivateDockDays) {
           this.privateDockFilter.style.display = 'none';
 
           // If private dock was selected, deselect it
@@ -6793,9 +7043,41 @@ document.addEventListener('DOMContentLoaded', () => {
             this.updateFilterStyles();
             this.updateURLParams();
           }
-        } else {
-          // Show filter - individual boats will determine if they meet minimum
+          return;
+        }
+
+        // Property stay meets minimum - now check user-selected boat dates
+        let disabledReason = null;
+
+        // Check if user selected the check-in date as first date
+        if (this.selectedDates.length > 0 && this.selectedDates[0] === checkin) {
+          disabledReason = 'check-in';
+        }
+        // Check if user selected dates don't meet minimum
+        else if (this.selectedDates.length > 0 && this.selectedDates.length < minPrivateDockDays) {
+          disabledReason = 'min-days';
+        }
+
+        if (disabledReason) {
+          // Show DISABLED state
           this.privateDockFilter.style.display = '';
+          this.privateDockFilter.setAttribute('data-disabled', disabledReason);
+          this.privateDockFilter.style.opacity = '0.5';
+          this.privateDockFilter.style.cursor = 'not-allowed';
+
+          // If private dock was selected, deselect it
+          if (this.selectedPrivateDock) {
+            this.selectedPrivateDock = false;
+            this.updatePrivateDockFilterText();
+            this.updateFilterStyles();
+            this.updateURLParams();
+          }
+        } else {
+          // Show the filter enabled - all requirements met
+          this.privateDockFilter.style.display = '';
+          this.privateDockFilter.removeAttribute('data-disabled');
+          this.privateDockFilter.style.opacity = '';
+          this.privateDockFilter.style.cursor = '';
         }
       }
 
@@ -6851,6 +7133,52 @@ document.addEventListener('DOMContentLoaded', () => {
 
       isLeapYear(year) {
         return (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0);
+      }
+
+      // Show tooltip message near an element
+      showTooltipMessage(element, message) {
+        // Remove any existing tooltip
+        this.hideTooltipMessage();
+
+        const tooltip = document.createElement('div');
+        tooltip.className = 'boat-rental-tooltip';
+        tooltip.textContent = message;
+
+        // Get element position
+        const rect = element.getBoundingClientRect();
+
+        tooltip.style.cssText = `
+          position: fixed;
+          background: #323232;
+          color: white;
+          padding: 8px 12px;
+          border-radius: 5px;
+          font-size: 13px;
+          font-family: 'TT Fors', sans-serif;
+          z-index: 10999;
+          pointer-events: none;
+          white-space: nowrap;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+          top: ${rect.bottom + 8}px;
+          left: ${rect.left + (rect.width / 2)}px;
+          transform: translateX(-50%);
+        `;
+
+        document.body.appendChild(tooltip);
+
+        // Auto-hide after 3 seconds
+        setTimeout(() => {
+          this.hideTooltipMessage();
+        }, 3000);
+
+        return tooltip;
+      }
+
+      hideTooltipMessage() {
+        const existing = document.querySelector('.boat-rental-tooltip');
+        if (existing) {
+          existing.remove();
+        }
       }
 
       updateDateButtonStyles() {
@@ -7462,12 +7790,19 @@ document.addEventListener('DOMContentLoaded', () => {
           // Render the sorted boats
           this.renderBoatCards(sortedBoats);
 
+          // Check private dock filter availability now that boats are loaded
+          this.checkPrivateDockFilterAvailabilityForBoatDates();
+
           return sortedBoats;
         } catch (error) {
           // Hide skeleton cards on error too
           this.hideSkeletonCards();
           this.renderBoatCards([]);
           this.availableBoats = [];
+
+          // Check private dock filter availability even on error
+          this.checkPrivateDockFilterAvailabilityForBoatDates();
+
           return [];
         }
       }
@@ -9605,6 +9940,48 @@ document.addEventListener('DOMContentLoaded', () => {
         this.updateReservationBlockVisibility();
       }
 
+      updateBoatDetailsMinDaysText(boat) {
+        if (!this.boatDetailsMinDaysText || !boat) return;
+
+        // Handle min days requirement (public dock, private dock if selected, or boat minimum)
+        const publicDockDetails = this.getPublicDockDeliveryDetails(boat);
+        const publicDockMinDays = publicDockDetails?.minDays ? Number(publicDockDetails.minDays) : 0;
+        const boatMinDays = boat.minReservationLength || 0;
+
+        // Only consider private dock minimum if private dock delivery is selected
+        let privateDockMinDays = 0;
+        if (this.selectedPrivateDock) {
+          const privateDockDetails = this.getPrivateDockDeliveryDetails(boat);
+          privateDockMinDays = privateDockDetails?.minDays ? Number(privateDockDetails.minDays) : 0;
+        }
+
+        const effectiveMinDays = Math.max(publicDockMinDays, privateDockMinDays, boatMinDays);
+
+        // Update min days text display - show if greater than 1 OR if equal to 1 but from private dock
+        if (effectiveMinDays > 1 || (effectiveMinDays >= 1 && privateDockMinDays > 0 && this.selectedPrivateDock)) {
+          const daysText = effectiveMinDays === 1 ? 'Day' : 'Days';
+          this.boatDetailsMinDaysText.textContent = `${effectiveMinDays} ${daysText} Minimum`;
+          this.boatDetailsMinDaysText.style.display = 'block';
+        } else {
+          this.boatDetailsMinDaysText.style.display = 'none';
+        }
+
+        // Hide half-day option if minimum days > 0.5
+        if (effectiveMinDays > 0.5 && this.boatDetailsFullHalfDaysContainer) {
+          this.boatDetailsFullHalfDaysContainer.style.display = 'none';
+          // Force full day type
+          this.selectedLengthType = 'full';
+          // Update URL to reflect full type
+          const urlParams = new URLSearchParams(window.location.search);
+          urlParams.set('type', 'full');
+          const newUrl = `${window.location.pathname}?${urlParams.toString()}`;
+          window.history.replaceState(null, '', newUrl);
+        } else if (this.boatDetailsFullHalfDaysContainer) {
+          // Show half-day option if allowed
+          this.boatDetailsFullHalfDaysContainer.style.display = 'flex';
+        }
+      }
+
       hideBoatDetails() {
         // Hide details wrapper and show select wrapper
         this.detailsWrapper.style.display = 'none';
@@ -11434,24 +11811,29 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       setupDeliveryCheckbox(boat) {
-        const deliveryCheckbox = document.querySelector('[data-element="boatDetails_reservation_deliveryCheckbox"]');
-        const deliveryText = document.querySelector('[data-element="boatDetails_reservation_deliveryText"]');
         const deliveryBlock = document.querySelector('[data-element="boatDetails_reservation_deliveryBlock"]');
 
-        if (!deliveryCheckbox || !deliveryText) return;
+        if (!deliveryBlock) return;
 
-        // Remove any existing event listeners to prevent duplicates
-        const newCheckbox = deliveryCheckbox.cloneNode(true);
-        deliveryCheckbox.parentNode.replaceChild(newCheckbox, deliveryCheckbox);
-        const checkbox = newCheckbox; // Use the new checkbox reference
+        // Clone delivery block to remove old event listeners (this also clones checkbox and text inside)
+        const newDeliveryBlock = deliveryBlock.cloneNode(true);
+        deliveryBlock.parentNode.replaceChild(newDeliveryBlock, deliveryBlock);
+        const blockElement = newDeliveryBlock;
+
+        // Now get references to the checkbox and text from the NEW cloned block
+        const checkbox = blockElement.querySelector('[data-element="boatDetails_reservation_deliveryCheckbox"]');
+        const deliveryText = blockElement.querySelector('[data-element="boatDetails_reservation_deliveryText"]');
+
+        if (!checkbox || !deliveryText) return;
 
         // Check if property has private dock AND if boat company can deliver to it
         const r = Wized.data.r;
         let canShowDelivery = false;
+        let hasPrivateDock = false;
 
         if (r && r.Load_Property_Details && r.Load_Property_Details.data && r.Load_Property_Details.data.property) {
           const property = r.Load_Property_Details.data.property;
-          const hasPrivateDock = property.private_dock === true;
+          hasPrivateDock = property.private_dock === true;
 
           if (hasPrivateDock) {
             // Property has private dock, now check if boat company can deliver to this property's city
@@ -11465,24 +11847,48 @@ document.addEventListener('DOMContentLoaded', () => {
 
               canShowDelivery = canDeliverToProperty;
 
-              // Additional check: Verify user has selected enough days for private dock delivery
-              if (canShowDelivery && this.selectedDates.length > 0) {
+              // Check if property stay dates meet minimum requirements for private dock delivery
+              if (canShowDelivery) {
                 const privateDockDetails = this.getPrivateDockDeliveryDetails(boat);
                 const privateDockMinDays = privateDockDetails?.minDays ? Number(privateDockDetails.minDays) : 0;
 
-                // If user hasn't selected enough days, hide delivery option
-                if (privateDockMinDays > 0 && this.selectedDates.length < privateDockMinDays) {
-                  canShowDelivery = false;
+                if (privateDockMinDays > 0) {
+                  // Get property stay dates from URL params
+                  const urlParams = new URLSearchParams(window.location.search);
+                  const checkin = urlParams.get('checkin');
+                  const checkout = urlParams.get('checkout');
+
+                  if (checkin && checkout) {
+                    // Calculate the number of days in the property stay
+                    const propertyStayDates = this.generateDateRange(checkin, checkout);
+                    const propertyStayDays = propertyStayDates.length;
+
+                    // Rule: Can't do private dock delivery on check-in date, so subtract 1 from available days
+                    const usablePropertyDays = propertyStayDays - 1;
+
+                    // If usable property days don't meet minimum, can't show delivery at all
+                    if (usablePropertyDays < privateDockMinDays) {
+                      canShowDelivery = false;
+                    }
+                  }
                 }
               }
             }
           }
         }
 
+        // If no private dock at all, hide the delivery block completely
+        if (!hasPrivateDock) {
+          if (blockElement) {
+            blockElement.style.display = 'none';
+          }
+          return;
+        }
+
+        // If property stay doesn't meet minimum, hide completely
         if (!canShowDelivery) {
-          // Hide delivery block if conditions are not met
-          if (deliveryBlock) {
-            deliveryBlock.style.display = 'none';
+          if (blockElement) {
+            blockElement.style.display = 'none';
           }
 
           // If delivery was previously selected, uncheck it and update everything
@@ -11499,15 +11905,16 @@ document.addEventListener('DOMContentLoaded', () => {
               this.updateBoatDetailsPricing(this.currentBoatData);
             }
           }
+
           return;
         }
 
-        // Show delivery block - all conditions are met
-        if (deliveryBlock) {
-          deliveryBlock.style.display = '';
+        // Show delivery block
+        if (blockElement) {
+          blockElement.style.display = '';
         }
 
-        // Initialize delivery state - prioritize actual delivery selection over private dock auto-selection
+        // Initialize delivery state first - prioritize actual delivery selection over private dock auto-selection
         const urlParams = new URLSearchParams(window.location.search);
         const isDeliverySelected = urlParams.get('boatDelivery') === 'true';
         const isPrivateDockSelected = urlParams.get('boatPrivateDock') === 'true';
@@ -11519,13 +11926,102 @@ document.addEventListener('DOMContentLoaded', () => {
           this.deliverySelected = isDeliverySelected;
         }
 
-        // Set initial checkbox state
+        // Property stay meets minimum - now check if user-selected boat dates meet minimum
+        const dockDetails = this.getPrivateDockDeliveryDetails(boat);
+        const dockMinDays = dockDetails?.minDays ? Number(dockDetails.minDays) : 0;
+
+        let boatDatesDisabled = false;
+        let disabledReason = null;
+
+        // Check if first selected date is check-in date
+        if (this.selectedDates.length > 0) {
+          const urlParams2 = new URLSearchParams(window.location.search);
+          const checkin = urlParams2.get('checkin');
+
+          if (this.selectedDates[0] === checkin) {
+            boatDatesDisabled = true;
+            disabledReason = 'check-in';
+          }
+          // Check if dates don't meet minimum
+          else if (dockMinDays > 0 && this.selectedDates.length < dockMinDays) {
+            boatDatesDisabled = true;
+            disabledReason = 'min-days';
+          }
+        }
+
+        // Handle disabled state based on user-selected boat dates
+        if (boatDatesDisabled) {
+          // Show disabled state
+          if (blockElement) {
+            blockElement.style.opacity = '0.5';
+            blockElement.style.cursor = 'not-allowed';
+            blockElement.setAttribute('data-disabled', 'true');
+          }
+
+          // Update text to show "Private dock delivery"
+          if (deliveryText) {
+            deliveryText.textContent = 'Private dock delivery';
+          }
+
+          // Uncheck the checkbox visually
+          this.updateCheckboxVisual(checkbox, false);
+
+          // If delivery was previously selected, uncheck it
+          if (this.deliverySelected) {
+            this.deliverySelected = false;
+            this.selectedPrivateDock = false;
+            this.updatePrivateDockFilterText();
+            this.updateFilterStyles();
+            this.updateURLParams();
+            this.updateDeliveryURLParam(false);
+
+            // Update pricing to reflect no delivery
+            if (this.currentBoatData) {
+              this.updateBoatDetailsPricing(this.currentBoatData);
+            }
+          }
+
+          // Add tooltip handlers - only when disabled
+          let tooltipMsg = '';
+          if (disabledReason === 'check-in') {
+            tooltipMsg = 'Private dock delivery not available on check-in date';
+          } else if (disabledReason === 'min-days') {
+            tooltipMsg = `${dockMinDays} days needed for private dock delivery`;
+          }
+
+          if (tooltipMsg) {
+            checkbox.addEventListener('click', (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              this.showTooltipMessage(blockElement, tooltipMsg);
+            });
+
+            blockElement.addEventListener('mouseenter', () => {
+              this.showTooltipMessage(blockElement, tooltipMsg);
+            });
+
+            blockElement.addEventListener('mouseleave', () => {
+              this.hideTooltipMessage();
+            });
+          }
+
+          return; // Exit early when disabled
+        }
+
+        // Enable delivery block - all conditions are met
+        if (blockElement) {
+          blockElement.style.opacity = '';
+          blockElement.style.cursor = '';
+          blockElement.removeAttribute('data-disabled');
+        }
+
+        // Set initial checkbox state (deliverySelected was already initialized above)
         this.updateCheckboxVisual(checkbox, this.deliverySelected);
 
         // Set delivery text based on delivery fee and minimum days
         const deliveryFee = boat.companyDeliveryFee || 0;
-        const privateDockDetails = this.getPrivateDockDeliveryDetails(boat);
-        const privateDockMinDays = privateDockDetails?.minDays ? Number(privateDockDetails.minDays) : 0;
+        const deliveryDockDetails = this.getPrivateDockDeliveryDetails(boat);
+        const deliveryMinDays = deliveryDockDetails?.minDays ? Number(deliveryDockDetails.minDays) : 0;
 
         let deliveryTextContent = '';
         if (deliveryFee === 0 || deliveryFee === null) {
@@ -11535,13 +12031,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Add minimum days requirement if applicable
-        if (privateDockMinDays > 1) {
-          deliveryTextContent += ` (${privateDockMinDays} Day Min)`;
+        if (deliveryMinDays > 1) {
+          deliveryTextContent += ` (${deliveryMinDays} Day Min)`;
         }
 
         deliveryText.textContent = deliveryTextContent;
 
-        // Add click handler to the new checkbox
+        // Add click handler to the new checkbox - only when NOT disabled
         checkbox.addEventListener('click', (e) => {
           e.preventDefault();
           this.deliverySelected = !this.deliverySelected;
@@ -12090,13 +12586,29 @@ document.addEventListener('DOMContentLoaded', () => {
           effectiveMinDays = Math.max(publicDockMinDays, privateDockMinDays, boatMinDays);
         }
 
+        // Get property checkin/checkout dates for private dock rules
+        const propertyCheckin = checkin;
+        const propertyCheckout = checkout;
+
         // Create date buttons
         dateArray.forEach(dateStr => {
           const [year, month, day] = dateStr.split('-').map(Number);
 
-          // Check if date should be disabled based on minDays requirement
+          // Check if this is check-in or checkout date
+          const isCheckinDate = dateStr === propertyCheckin;
+          const isCheckoutDate = dateStr === propertyCheckout;
+
+          // Check if date should be disabled based on minDays requirement or private dock rules
           let isDisabled = false;
-          if (this.selectedDates.length === 1 && effectiveMinDays > 0) {
+          let disabledTooltip = null;
+
+          // Rule: If private dock is selected, disable check-in date (even before any dates are selected)
+          if (this.selectedPrivateDock && isCheckinDate) {
+            isDisabled = true;
+            disabledTooltip = 'Private dock delivery not available on check-in date';
+          }
+          // Check minimum days requirement only when private dock is NOT selected
+          else if (!this.selectedPrivateDock && this.selectedDates.length === 1 && effectiveMinDays > 0) {
             const firstSelectedDate = new Date(this.selectedDates[0]);
             const currentDate = new Date(dateStr);
             const daysDiff = Math.round((currentDate - firstSelectedDate) / (1000 * 60 * 60 * 24)) + 1;
@@ -12136,10 +12648,39 @@ document.addEventListener('DOMContentLoaded', () => {
           dateBtn.style.fontFamily = 'TT Fors, sans-serif';
           dateBtn.style.fontWeight = '500';
 
-          if (!isDisabled) {
+          // Add event handlers
+          if (isDisabled && disabledTooltip) {
+            // Show tooltip for disabled dates (checkin date when private dock selected)
+            dateBtn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              this.showTooltipMessage(dateBtn, disabledTooltip);
+            });
+
+            dateBtn.addEventListener('mouseenter', () => {
+              this.showTooltipMessage(dateBtn, disabledTooltip);
+            });
+
+            dateBtn.addEventListener('mouseleave', () => {
+              this.hideTooltipMessage();
+            });
+          } else if (!isDisabled) {
+            // Normal clickable date
             dateBtn.addEventListener('click', () => {
               this.handleBoatDetailsDateSelection(dateStr);
             });
+
+            // Add tooltip for checkout date if private dock is selected
+            if (this.selectedPrivateDock && isCheckoutDate) {
+              dateBtn.addEventListener('mouseenter', () => {
+                const r = window.Wized?.data?.r;
+                const checkoutTime = r?.Load_Property_Details?.data?.property?.check_out_time || '10 AM';
+                this.showTooltipMessage(dateBtn, `Boat must be picked up before ${checkoutTime}`);
+              });
+
+              dateBtn.addEventListener('mouseleave', () => {
+                this.hideTooltipMessage();
+              });
+            }
           }
 
           datesGrid.appendChild(dateBtn);
@@ -12212,13 +12753,15 @@ document.addEventListener('DOMContentLoaded', () => {
         // Clear error highlights when user provides dates
         this.clearBoatDetailsErrorHighlights();
 
-        // Re-check private dock filter availability when dates change
-        this.checkPrivateDockFilterAvailabilityForBoatDates();
+        // Don't check private dock filter availability until user exits dates section
+        // this.checkPrivateDockFilterAvailabilityForBoatDates();
 
-        // Re-check delivery checkbox visibility when dates change
-        if (this.currentBoatData) {
-          this.setupDeliveryCheckbox(this.currentBoatData);
-        }
+        // Don't check delivery checkbox and private dock filter until user exits dates section
+        // This prevents auto-deselecting private dock while user is selecting dates
+        // if (this.currentBoatData) {
+        //   this.setupDeliveryCheckbox(this.currentBoatData);
+        // }
+        // this.checkPrivateDockFilterAvailabilityForBoatDates();
 
         // Clear error if conditions are now met
         this.clearErrorIfResolved(this.boatDetailsErrorElement);
@@ -12258,6 +12801,9 @@ document.addEventListener('DOMContentLoaded', () => {
             // Show boat details dates popup
             if (this.boatDetailsPopup) this.boatDetailsPopup.style.display = 'flex';
             if (this.boatDetailsGuestsPopup) this.boatDetailsGuestsPopup.style.display = 'none';
+
+            // Re-render date selection to ensure correct disabled states based on private dock selection
+            this.renderBoatDetailsDateSelection();
 
             // Update dates done button text
             this.updateDatesDoneButtonText();
@@ -12320,6 +12866,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.updateURLParams();
                 this.updateBoatDetailsPrice();
               }
+            }
+
+            // Now that user is exiting dates section, check private dock filter availability and fetch boats
+            this.checkPrivateDockFilterAvailabilityForBoatDates();
+            this.fetchAndRenderBoats();
+
+            // Re-check delivery checkbox now that user has finished selecting dates
+            if (this.currentBoatData) {
+              this.setupDeliveryCheckbox(this.currentBoatData);
             }
 
             // In mobile view, follow the flow: dates → pickup time → guests
@@ -12585,6 +13140,28 @@ document.addEventListener('DOMContentLoaded', () => {
       initializeFromURL() {
         const urlParams = new URLSearchParams(window.location.search);
 
+        // Read filter parameters from URL (regardless of boatId)
+        const boatGuests = urlParams.get('boatGuests');
+        const boatDates = urlParams.get('boatDates');
+        const boatPickupTime = urlParams.get('boatPickupTime');
+        const boatLengthType = urlParams.get('boatLengthType');
+        const boatPrivateDock = urlParams.get('boatPrivateDock');
+
+        // Set guests from URL or default to 0
+        this.selectedGuests = boatGuests ? parseInt(boatGuests) : 0;
+
+        // Set dates from URL or default to empty array
+        this.selectedDates = boatDates ? boatDates.split(',').filter(d => d) : [];
+
+        // Set length type from URL or default to 'full'
+        this.selectedLengthType = boatLengthType || 'full';
+
+        // Set pickup time from URL or default to empty
+        this.selectedPickupTime = boatPickupTime || '';
+
+        // Set private dock filter from URL or default to false
+        this.selectedPrivateDock = boatPrivateDock === 'true';
+
         // Check for boatId - if present, hide buttons and show selected boat block
         const boatId = urlParams.get('boatId');
         if (boatId) {
@@ -12594,6 +13171,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }
           });
           if (this.selectedBoatBlock) this.selectedBoatBlock.style.display = 'flex';
+
+          // Update URL params to ensure all defaults are written back to URL
+          this.updateURLParams();
         } else {
           this.buttons.forEach(button => {
             if (button) {
@@ -12601,41 +13181,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
           });
           if (this.selectedBoatBlock) this.selectedBoatBlock.style.display = 'none';
-
-          // If no boatId, clear all filter states to ensure clean state
-          this.selectedDates = [];
-          this.selectedGuests = 0;
-          this.selectedPickupTime = '';
-          this.selectedLengthType = 'full';
-          this.selectedPrivateDock = false;
-          this.deliverySelected = false;
-        }
-
-        // Initialize other parameters only if boatId exists
-        if (boatId) {
-          const boatGuests = urlParams.get('boatGuests');
-          const boatDates = urlParams.get('boatDates');
-          const boatPickupTime = urlParams.get('boatPickupTime');
-          const boatLengthType = urlParams.get('boatLengthType');
-          const boatPrivateDock = urlParams.get('boatPrivateDock');
-
-          // Set guests
-          this.selectedGuests = boatGuests ? parseInt(boatGuests) : 0;
-
-          // Set dates
-          this.selectedDates = boatDates ? boatDates.split(',') : [];
-
-          // Set length type
-          this.selectedLengthType = boatLengthType || 'full';
-
-          // Set pickup time
-          this.selectedPickupTime = boatPickupTime || '';
-
-          // Set private dock filter
-          this.selectedPrivateDock = boatPrivateDock === 'true';
-
-          // Update URL params to ensure all defaults are written back to URL
-          this.updateURLParams();
         }
 
         // Update UI elements
