@@ -1029,7 +1029,7 @@ document.addEventListener('DOMContentLoaded', function () {
     function markSmallGapsAsUnavailable() {
       const sortedDisabledDates = Array.from(disabledDates).sort();
 
-      // Check first blocked date - if it's checkout-only, verify there are enough days from minDate
+      // Check first blocked date - verify there are enough nights from minDate
       if (sortedDisabledDates.length > 0) {
         const firstBlockedDate = createDateFromString(sortedDisabledDates[0]);
         const firstBlockedDateStr = sortedDisabledDates[0];
@@ -1044,9 +1044,22 @@ document.addEventListener('DOMContentLoaded', function () {
 
         const availableNightsFromStart = availableDaysFromStart - 1;
 
-        // If first blocked date is checkout-only but there aren't enough nights before it, remove from checkoutOnlyDates
-        if (checkoutOnlyDates.has(firstBlockedDateStr) && availableNightsFromStart < minNights) {
-          checkoutOnlyDates.delete(firstBlockedDateStr);
+        // If there aren't enough nights before the first blocked date, mark all dates in between as unavailable
+        if (availableNightsFromStart < minNights) {
+          let dateToBlock = new Date(minDate);
+
+          while (dateToBlock < firstBlockedDate) {
+            const dateStr = formatDate(dateToBlock);
+            disabledDates.add(dateStr);
+            // Also remove from checkoutOnlyDates if it was there
+            checkoutOnlyDates.delete(dateStr);
+            dateToBlock = addDays(dateToBlock, 1);
+          }
+
+          // If first blocked date is checkout-only but there aren't enough nights before it, remove from checkoutOnlyDates
+          if (checkoutOnlyDates.has(firstBlockedDateStr)) {
+            checkoutOnlyDates.delete(firstBlockedDateStr);
+          }
         }
       }
 
@@ -8014,12 +8027,29 @@ document.addEventListener('DOMContentLoaded', () => {
           // Show the card
           card.style.display = 'flex';
 
-          // Populate card with boat data
-          this.populateBoatCard(card, boat);
+          // Store boat data
+          card.boatData = boat;
+
+          // Sequential loading: first 2 cards load immediately, rest load with small delays
+          if (index < 2) {
+            // Load first 2 immediately for instant feedback
+            this.populateBoatCard(card, boat, false);
+          } else {
+            // Load the rest sequentially with small delays
+            this.populateBoatCard(card, boat, true); // Defer carousel initially
+
+            // Load carousel after a small delay (50ms per card after the first 2)
+            setTimeout(() => {
+              const photosContainer = card.querySelector('[data-element="addBoatModal_selectBoat_card_photos"]');
+              if (photosContainer && boat.photos && boat.photos.length > 0) {
+                this.setupBoatCardImagesCarousel(photosContainer, boat, card);
+              }
+            }, (index - 2) * 50); // Stagger by 50ms each
+          }
         });
       }
 
-      populateBoatCard(card, boat) {
+      populateBoatCard(card, boat, deferCarousel = false) {
         // Store boat data on the card for later updates
         card.boatData = boat;
 
@@ -8082,10 +8112,18 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         }
 
-        // Populate card photo carousel
-        const photosContainer = card.querySelector('[data-element="addBoatModal_selectBoat_card_photos"]');
-        if (photosContainer && boat.photos && boat.photos.length > 0) {
-          this.setupBoatCardImagesCarousel(photosContainer, boat, card);
+        // Populate card photo carousel (defer if requested for progressive loading)
+        if (!deferCarousel) {
+          const photosContainer = card.querySelector('[data-element="addBoatModal_selectBoat_card_photos"]');
+          if (photosContainer && boat.photos && boat.photos.length > 0) {
+            this.setupBoatCardImagesCarousel(photosContainer, boat, card);
+          }
+        } else {
+          // Add placeholder for carousel to maintain layout
+          const photosContainer = card.querySelector('[data-element="addBoatModal_selectBoat_card_photos"]');
+          if (photosContainer) {
+            photosContainer.innerHTML = '<div style="width: 100%; height: 280px; background-color: #f0f0f0; border-radius: 5px; display: flex; align-items: center; justify-content: center; color: #ccc;"></div>';
+          }
         }
 
         // Populate review ratings
@@ -10855,6 +10893,18 @@ document.addEventListener('DOMContentLoaded', () => {
           const img = document.createElement('img');
           img.src = photo.image.url;
           img.alt = `Boat image ${index + 1}`;
+
+          // Optimize loading: first 2 images eager (visible on desktop), rest lazy
+          if (index === 0) {
+            img.loading = 'eager';
+            img.fetchPriority = 'high';
+          } else if (index === 1) {
+            img.loading = 'eager';
+          } else {
+            img.loading = 'lazy';
+          }
+          img.decoding = 'async';
+
           img.style.cssText = `
             width: 100%;
             height: 100%;
@@ -11098,6 +11148,15 @@ document.addEventListener('DOMContentLoaded', () => {
           const img = document.createElement('img');
           img.src = photo.image.url;
           img.alt = `Boat image ${index + 1}`;
+
+          // Optimize loading: first image eager, rest lazy
+          if (index === 0) {
+            img.loading = 'eager';
+          } else {
+            img.loading = 'lazy';
+          }
+          img.decoding = 'async';
+
           img.style.cssText = `
             width: 100%;
             height: 100%;
@@ -16099,12 +16158,29 @@ document.addEventListener('DOMContentLoaded', () => {
           // Show the card
           card.style.display = 'flex';
 
-          // Populate card with charter data
-          this.populateFishingCharterCard(card, charter);
+          // Store charter data
+          card.charterData = charter;
+
+          // Sequential loading: first 2 cards load immediately, rest load with small delays
+          if (index < 2) {
+            // Load first 2 immediately for instant feedback
+            this.populateFishingCharterCard(card, charter, false);
+          } else {
+            // Load the rest sequentially with small delays
+            this.populateFishingCharterCard(card, charter, true); // Defer carousel initially
+
+            // Load carousel after a small delay (50ms per card after the first 2)
+            setTimeout(() => {
+              const photosContainer = card.querySelector('[data-element="addFishingCharterModal_selectFishingCharter_card_photos"]');
+              if (photosContainer && charter.images && charter.images.length > 0) {
+                this.setupFishingCharterCardImagesCarousel(photosContainer, charter, card);
+              }
+            }, (index - 2) * 50); // Stagger by 50ms each
+          }
         });
       }
 
-      populateFishingCharterCard(card, charter) {
+      populateFishingCharterCard(card, charter, deferCarousel = false) {
         // Store charter data on the card
         card.charterData = charter;
 
@@ -16159,10 +16235,18 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         }
 
-        // Populate card photo carousel
-        const photosContainer = card.querySelector('[data-element="addFishingCharterModal_selectFishingCharter_card_photos"]');
-        if (photosContainer && charter.images && charter.images.length > 0) {
-          this.setupFishingCharterCardImagesCarousel(photosContainer, charter, card);
+        // Populate card photo carousel (defer if requested for progressive loading)
+        if (!deferCarousel) {
+          const photosContainer = card.querySelector('[data-element="addFishingCharterModal_selectFishingCharter_card_photos"]');
+          if (photosContainer && charter.images && charter.images.length > 0) {
+            this.setupFishingCharterCardImagesCarousel(photosContainer, charter, card);
+          }
+        } else {
+          // Add placeholder for carousel to maintain layout
+          const photosContainer = card.querySelector('[data-element="addFishingCharterModal_selectFishingCharter_card_photos"]');
+          if (photosContainer) {
+            photosContainer.innerHTML = '<div style="width: 100%; height: 280px; background-color: #f0f0f0; border-radius: 5px; display: flex; align-items: center; justify-content: center; color: #ccc;"></div>';
+          }
         }
 
         // Populate card price based on filtered trip options
@@ -16915,6 +16999,18 @@ document.addEventListener('DOMContentLoaded', () => {
           const img = document.createElement('img');
           img.src = image.image?.url || '';
           img.alt = `${charter.name} image ${index + 1}`;
+
+          // Optimize loading: first 2 images eager (visible on desktop), rest lazy
+          if (index === 0) {
+            img.loading = 'eager';
+            img.fetchPriority = 'high';
+          } else if (index === 1) {
+            img.loading = 'eager';
+          } else {
+            img.loading = 'lazy';
+          }
+          img.decoding = 'async';
+
           img.style.cssText = `
             width: 100%;
             height: 100%;
@@ -17173,6 +17269,15 @@ document.addEventListener('DOMContentLoaded', () => {
           const img = document.createElement('img');
           img.src = image.image?.url || '';
           img.alt = `${charter.name} image ${index + 1}`;
+
+          // Optimize loading: first image eager, rest lazy
+          if (index === 0) {
+            img.loading = 'eager';
+          } else {
+            img.loading = 'lazy';
+          }
+          img.decoding = 'async';
+
           img.style.cssText = `
             width: 100%;
             height: 100%;
