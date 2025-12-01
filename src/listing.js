@@ -3117,6 +3117,9 @@ document.addEventListener('DOMContentLoaded', () => {
           if (element) {
             if (window.selectedBoatData.photos && window.selectedBoatData.photos[0]) {
               element.src = window.selectedBoatData.photos[0].image.url;
+              // Optimize image loading
+              element.loading = 'eager';
+              element.fetchPriority = 'high';
               element.style.display = 'block';
             } else {
               element.style.display = 'none';
@@ -9869,7 +9872,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // BOAT DETAILS VIEW METHODS
       // ==========================================
 
-      showBoatDetails(boat) {
+      async showBoatDetails(boat) {
         // Close all popups when entering boat details view
         this.closeAllPopups();
 
@@ -9923,7 +9926,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         // Populate the boat details
-        this.populateBoatDetails(boat);
+        await this.populateBoatDetails(boat);
 
         // Handle min days requirement (public dock, private dock if selected, or boat minimum)
         const publicDockDetails = this.getPublicDockDeliveryDetails(boat);
@@ -10072,7 +10075,7 @@ document.addEventListener('DOMContentLoaded', () => {
         this.updateReservationBlockVisibility();
       }
 
-      populateBoatDetails(boat) {
+      async populateBoatDetails(boat) {
         // Basic boat information
         const boatDetailsTitle = document.querySelector('[data-element="boatDetails_title"]');
         if (boatDetailsTitle) {
@@ -10549,16 +10552,30 @@ document.addEventListener('DOMContentLoaded', () => {
         this.setupAddToReservationButton(boat);
 
         // Setup contact us form
-        this.setupContactUsForm(boat);
+        await this.setupContactUsForm(boat);
 
       }
 
       async setupContactUsForm(boat) {
+        // Prevent duplicate initialization for the same boat
+        if (this._contactFormInitializedForBoatId === boat.id) {
+          return;
+        }
+        this._contactFormInitializedForBoatId = boat.id;
 
-        // Wait for Load_user request to complete
-        try {
-          await Wized.requests.waitFor('Load_user');
-        } catch (error) {
+        // Check if user is signed in via c.token
+        const hasToken = window.Wized?.data?.c?.token;
+
+        // Only wait for Load_user if user has a token (is signed in)
+        if (hasToken) {
+          try {
+            const timeoutPromise = new Promise((_, reject) =>
+              setTimeout(() => reject(new Error('Load_user timeout')), 5000)
+            );
+            const loadUserPromise = Wized.requests.waitFor('Load_user');
+            await Promise.race([loadUserPromise, timeoutPromise]);
+          } catch (error) {
+          }
         }
 
         // Get all contact form elements
@@ -10580,17 +10597,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (buttonText) {
           buttonText.textContent = 'Submit';
           buttonText.style.display = 'block'; // Explicitly set display
-        }
-
-        // Inject CSS to override any conflicting styles
-        if (!document.getElementById('contact-form-override-styles')) {
-          const style = document.createElement('style');
-          style.id = 'contact-form-override-styles';
-          style.textContent = `
-            .hide-text { display: none !important; }
-            .show-loader { display: flex !important; }
-          `;
-          document.head.appendChild(style);
         }
 
         // Check if user is logged in
@@ -10615,7 +10621,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (firstNameWrapper) firstNameWrapper.style.display = 'flex';
             if (emailWrapper) emailWrapper.style.display = 'flex';
           }
-        } else {
         }
 
         // Remove any existing event listeners
@@ -10746,12 +10751,9 @@ document.addEventListener('DOMContentLoaded', () => {
         // Show loader, hide button text
         if (buttonText) {
           buttonText.style.setProperty('display', 'none', 'important');
-          buttonText.classList.add('hide-text');
         }
         if (buttonLoader) {
           buttonLoader.style.setProperty('display', 'flex', 'important');
-          buttonLoader.classList.add('show-loader');
-          buttonLoader.classList.remove('w-embed');
         }
 
         try {
@@ -10766,12 +10768,9 @@ document.addEventListener('DOMContentLoaded', () => {
           // Hide loader, show button text
           if (buttonLoader) {
             buttonLoader.style.setProperty('display', 'none', 'important');
-            buttonLoader.classList.remove('show-loader');
-            buttonLoader.classList.add('w-embed');
           }
           if (buttonText) {
             buttonText.style.setProperty('display', 'block', 'important');
-            buttonText.classList.remove('hide-text');
           }
 
           if (!response.ok) {
@@ -14419,6 +14418,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (imageElement) {
           if (trip.image) {
             imageElement.src = trip.image;
+            // Optimize image loading
+            imageElement.loading = 'eager';
+            imageElement.fetchPriority = 'high';
             imageElement.style.display = 'block';
           } else {
             imageElement.style.display = 'none';
@@ -16445,7 +16447,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return `From $${minPrice.toLocaleString()}`;
       }
 
-      showFishingCharterDetails(charter) {
+      async showFishingCharterDetails(charter) {
         // Close all popups when entering charter details view
         this.closeAllPopups();
 
@@ -16474,7 +16476,7 @@ document.addEventListener('DOMContentLoaded', () => {
         this.transferValuesToDetails();
 
         // Populate fishing charter details
-        this.populateFishingCharterDetails(charter);
+        await this.populateFishingCharterDetails(charter);
 
         // Setup back button
         this.setupFishingCharterDetailsBackButton();
@@ -16486,15 +16488,29 @@ document.addEventListener('DOMContentLoaded', () => {
         this.renderTripTypes(charter);
 
         // Setup contact us form
-        this.setupFishingCharterContactUsForm(charter);
+        await this.setupFishingCharterContactUsForm(charter);
       }
 
       async setupFishingCharterContactUsForm(charter) {
+        // Prevent duplicate initialization for the same charter
+        if (this._charterContactFormInitializedForCharterId === charter.id) {
+          return;
+        }
+        this._charterContactFormInitializedForCharterId = charter.id;
 
-        // Wait for Load_user request to complete
-        try {
-          await Wized.requests.waitFor('Load_user');
-        } catch (error) {
+        // Check if user is signed in via c.token
+        const hasToken = window.Wized?.data?.c?.token;
+
+        // Only wait for Load_user if user has a token (is signed in)
+        if (hasToken) {
+          try {
+            const timeoutPromise = new Promise((_, reject) =>
+              setTimeout(() => reject(new Error('Load_user timeout')), 5000)
+            );
+            const loadUserPromise = Wized.requests.waitFor('Load_user');
+            await Promise.race([loadUserPromise, timeoutPromise]);
+          } catch (error) {
+          }
         }
 
         // Get all contact form elements
@@ -16540,7 +16556,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (firstNameWrapper) firstNameWrapper.style.display = 'flex';
             if (emailWrapper) emailWrapper.style.display = 'flex';
           }
-        } else {
         }
 
         // Remove any existing event listeners
@@ -16686,7 +16701,6 @@ document.addEventListener('DOMContentLoaded', () => {
             body: JSON.stringify(requestData)
           });
 
-
           // Hide loader, show button text
           if (buttonLoader) {
             buttonLoader.style.setProperty('display', 'none', 'important');
@@ -16735,7 +16749,6 @@ document.addEventListener('DOMContentLoaded', () => {
           }, 3000);
 
         } catch (error) {
-
           // Hide loader, show button text
           if (buttonLoader) buttonLoader.style.display = 'none';
           if (buttonText) buttonText.style.display = 'block';
@@ -16841,7 +16854,7 @@ document.addEventListener('DOMContentLoaded', () => {
         this.updateDetailsPrivateDockFilterAvailability();
       }
 
-      populateFishingCharterDetails(charter) {
+      async populateFishingCharterDetails(charter) {
         // Images container
         this.setupFishingCharterImagesCarousel(charter);
 

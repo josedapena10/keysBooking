@@ -159,17 +159,34 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 
-// Hero Image Loader
+// Combined Hero Image & Demo Video Loader
 document.addEventListener('DOMContentLoaded', async () => {
     const heroImageElement = document.querySelector('[data-element="becomeAHostHeroImage"]');
+    const demoVideoElement = document.querySelector('[data-element="demoVideoElement"]');
     const loaderElement = document.querySelector('[data-element="loader"]');
 
-    if (heroImageElement) {
-        // Keep loader visible
-        if (loaderElement) {
-            loaderElement.style.display = 'flex';
-        }
+    // Track loading state
+    const loadingState = {
+        heroImage: heroImageElement ? false : true, // true if element doesn't exist (nothing to load)
+        demoVideo: demoVideoElement ? false : true
+    };
 
+    // Function to check if all resources are loaded
+    const checkAndHideLoader = () => {
+        if (loadingState.heroImage && loadingState.demoVideo) {
+            if (loaderElement) {
+                loaderElement.style.display = 'none';
+            }
+        }
+    };
+
+    // Keep loader visible initially
+    if (loaderElement) {
+        loaderElement.style.display = 'flex';
+    }
+
+    // Load Hero Image
+    if (heroImageElement) {
         try {
             const response = await fetch('https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/stockimages/1');
 
@@ -179,34 +196,90 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             const data = await response.json();
 
-            // Set the image URL
             if (data.image && data.image.url) {
-                // Wait for the image to actually load
                 heroImageElement.onload = () => {
-                    // Hide loader once image is loaded
-                    if (loaderElement) {
-                        loaderElement.style.display = 'none';
-                    }
+                    loadingState.heroImage = true;
+                    checkAndHideLoader();
                 };
 
-                // Handle load error
                 heroImageElement.onerror = () => {
                     console.error('Error loading hero image');
-                    // Hide loader even on error
-                    if (loaderElement) {
-                        loaderElement.style.display = 'none';
-                    }
+                    loadingState.heroImage = true;
+                    checkAndHideLoader();
                 };
 
                 heroImageElement.src = data.image.url;
                 heroImageElement.alt = data.image.name || 'Become a host hero image';
+            } else {
+                loadingState.heroImage = true;
+                checkAndHideLoader();
             }
         } catch (error) {
             console.error('Error fetching hero image:', error);
-            // Hide loader on fetch error
-            if (loaderElement) {
-                loaderElement.style.display = 'none';
+            loadingState.heroImage = true;
+            checkAndHideLoader();
+        }
+    }
+
+    // Load Demo Video
+    if (demoVideoElement) {
+        try {
+            const response = await fetch('https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/demovid');
+
+            if (!response.ok) {
+                throw new Error('Failed to fetch demo video');
             }
+
+            const data = await response.json();
+
+            if (data && data.length > 0 && data[0].video && data[0].video.url) {
+                const videoUrl = data[0].video.url;
+
+                // Configure video element for autoplay and looping
+                demoVideoElement.setAttribute('autoplay', '');
+                demoVideoElement.setAttribute('muted', '');
+                demoVideoElement.setAttribute('loop', '');
+                demoVideoElement.setAttribute('playsinline', '');
+
+                // Wait for video to be ready to play
+                demoVideoElement.addEventListener('loadeddata', () => {
+                    loadingState.demoVideo = true;
+                    checkAndHideLoader();
+                });
+
+                // Handle load error
+                demoVideoElement.addEventListener('error', () => {
+                    console.error('Error loading demo video');
+                    loadingState.demoVideo = true;
+                    checkAndHideLoader();
+                });
+
+                // Set the video source
+                demoVideoElement.src = videoUrl;
+
+                // Try to play
+                try {
+                    await demoVideoElement.play();
+                } catch (playError) {
+                    console.warn('Autoplay was prevented:', playError);
+                }
+
+                // Add replay functionality (click to restart)
+                demoVideoElement.style.cursor = 'pointer';
+                demoVideoElement.addEventListener('click', () => {
+                    demoVideoElement.currentTime = 0;
+                    demoVideoElement.play();
+                });
+
+            } else {
+                console.error('Invalid video data structure');
+                loadingState.demoVideo = true;
+                checkAndHideLoader();
+            }
+        } catch (error) {
+            console.error('Error fetching demo video:', error);
+            loadingState.demoVideo = true;
+            checkAndHideLoader();
         }
     }
 });
