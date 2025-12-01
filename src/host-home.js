@@ -248,16 +248,30 @@ document.addEventListener('DOMContentLoaded', async () => {
                     demoVideoElement.appendChild(videoTag);
                 }
 
-                // Configure video element for autoplay and looping
-                videoTag.setAttribute('autoplay', '');
+                // CRITICAL: Set muted as property BEFORE src for autoplay to work
+                videoTag.muted = true;
+                videoTag.playsInline = true;
+                videoTag.loop = true;
+                videoTag.autoplay = true;
+
+                // Also set as attributes for HTML compliance
                 videoTag.setAttribute('muted', '');
-                videoTag.setAttribute('loop', '');
                 videoTag.setAttribute('playsinline', '');
+                videoTag.setAttribute('loop', '');
+                videoTag.setAttribute('autoplay', '');
 
                 // Wait for video to be ready to play
-                videoTag.addEventListener('loadeddata', () => {
+                videoTag.addEventListener('loadeddata', async () => {
                     loadingState.demoVideo = true;
                     checkAndHideLoader();
+
+                    // Try to play once loaded
+                    try {
+                        await videoTag.play();
+                        console.log('Video autoplay successful');
+                    } catch (playError) {
+                        console.log('Autoplay prevented - click video to play');
+                    }
                 });
 
                 // Handle load error
@@ -267,15 +281,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                     checkAndHideLoader();
                 });
 
-                // Set the video source
+                // Set the video source (AFTER muted is set)
                 videoTag.src = videoUrl;
-
-                // Try to play
-                try {
-                    await videoTag.play();
-                } catch (playError) {
-                    console.warn('Autoplay was prevented:', playError);
-                }
+                videoTag.load();
 
                 // Add replay functionality (click to restart)
                 videoTag.style.cursor = 'pointer';
