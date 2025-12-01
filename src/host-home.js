@@ -236,42 +236,139 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const videoUrl = data[0].video.url;
 
                 // Check if demoVideoElement is a video tag or a container
-                let videoTag;
+                let videoTag, videoContainer;
                 if (demoVideoElement.tagName === 'VIDEO') {
                     videoTag = demoVideoElement;
+                    videoContainer = demoVideoElement.parentElement;
                 } else {
                     // Create a video element and append to container
                     videoTag = document.createElement('video');
                     videoTag.style.width = '100%';
                     videoTag.style.height = '100%';
                     videoTag.style.objectFit = 'cover';
-                    demoVideoElement.appendChild(videoTag);
+                    videoContainer = demoVideoElement;
+                    videoContainer.style.position = 'relative';
+                    videoContainer.appendChild(videoTag);
                 }
+
+                // Create play button overlay
+                const playButton = document.createElement('div');
+                playButton.innerHTML = `
+                    <svg width="80" height="80" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="40" cy="40" r="40" fill="rgba(0, 0, 0, 0.7)"/>
+                        <path d="M32 25L55 40L32 55V25Z" fill="white"/>
+                    </svg>
+                    <div style="margin-top: 12px; color: white; font-size: 16px; font-weight: 500; font-family: 'TT Fors', sans-serif;">Click to Play Demo</div>
+                `;
+                playButton.style.cssText = `
+                    position: absolute;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    cursor: pointer;
+                    z-index: 10;
+                    transition: all 0.3s ease;
+                    pointer-events: auto;
+                `;
+                playButton.addEventListener('mouseenter', () => {
+                    playButton.style.transform = 'translate(-50%, -50%) scale(1.1)';
+                });
+                playButton.addEventListener('mouseleave', () => {
+                    playButton.style.transform = 'translate(-50%, -50%) scale(1)';
+                });
+
+                // Create replay button (hidden initially)
+                const replayButton = document.createElement('div');
+                replayButton.innerHTML = `
+                    <svg width="50" height="50" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="25" cy="25" r="25" fill="rgba(0, 0, 0, 0.7)"/>
+                        <path d="M25 15V20L30 15L25 10V15ZM20 20C17.79 20 16 21.79 16 24V32C16 34.21 17.79 36 20 36H30C32.21 36 34 34.21 34 32V24C34 21.79 32.21 20 30 20H25V22H30C31.1 22 32 22.9 32 24V32C32 33.1 31.1 34 30 34H20C18.9 34 18 33.1 18 32V24C18 22.9 18.9 22 20 22H22V20H20Z" fill="white"/>
+                    </svg>
+                `;
+                replayButton.style.cssText = `
+                    position: absolute;
+                    bottom: 20px;
+                    right: 20px;
+                    cursor: pointer;
+                    z-index: 10;
+                    opacity: 0;
+                    transition: all 0.3s ease;
+                    pointer-events: none;
+                `;
+                replayButton.addEventListener('mouseenter', () => {
+                    replayButton.style.transform = 'scale(1.1)';
+                });
+                replayButton.addEventListener('mouseleave', () => {
+                    replayButton.style.transform = 'scale(1)';
+                });
+
+                videoContainer.appendChild(playButton);
+                videoContainer.appendChild(replayButton);
 
                 // CRITICAL: Set muted as property BEFORE src for autoplay to work
                 videoTag.muted = true;
                 videoTag.playsInline = true;
                 videoTag.loop = true;
-                videoTag.autoplay = true;
 
                 // Also set as attributes for HTML compliance
                 videoTag.setAttribute('muted', '');
                 videoTag.setAttribute('playsinline', '');
                 videoTag.setAttribute('loop', '');
-                videoTag.setAttribute('autoplay', '');
+
+                let isPlaying = false;
+
+                // Function to play video
+                const playVideo = async () => {
+                    try {
+                        await videoTag.play();
+                        isPlaying = true;
+                        playButton.style.opacity = '0';
+                        playButton.style.pointerEvents = 'none';
+                        replayButton.style.opacity = '1';
+                        replayButton.style.pointerEvents = 'auto';
+                        console.log('Video playing');
+                    } catch (error) {
+                        console.error('Error playing video:', error);
+                    }
+                };
+
+                // Function to replay video
+                const replayVideo = () => {
+                    videoTag.currentTime = 0;
+                    playVideo();
+                };
+
+                // Play button click handler
+                playButton.addEventListener('click', playVideo);
+
+                // Replay button click handler
+                replayButton.addEventListener('click', replayVideo);
 
                 // Wait for video to be ready to play
                 videoTag.addEventListener('loadeddata', async () => {
                     loadingState.demoVideo = true;
                     checkAndHideLoader();
 
-                    // Try to play once loaded
-                    try {
-                        await videoTag.play();
-                        console.log('Video autoplay successful');
-                    } catch (playError) {
-                        console.log('Autoplay prevented - click video to play');
-                    }
+                    // Wait 2 seconds before attempting autoplay
+                    setTimeout(async () => {
+                        try {
+                            await videoTag.play();
+                            isPlaying = true;
+                            playButton.style.opacity = '0';
+                            playButton.style.pointerEvents = 'none';
+                            replayButton.style.opacity = '1';
+                            replayButton.style.pointerEvents = 'auto';
+                            console.log('Video autoplay successful after delay');
+                        } catch (playError) {
+                            // Autoplay prevented - show play button
+                            console.log('Autoplay prevented - showing play button');
+                            playButton.style.opacity = '1';
+                            playButton.style.pointerEvents = 'auto';
+                        }
+                    }, 2000);
                 });
 
                 // Handle load error
@@ -284,13 +381,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 // Set the video source (AFTER muted is set)
                 videoTag.src = videoUrl;
                 videoTag.load();
-
-                // Add replay functionality (click to restart)
-                videoTag.style.cursor = 'pointer';
-                videoTag.addEventListener('click', () => {
-                    videoTag.currentTime = 0;
-                    videoTag.play();
-                });
 
             } else {
                 console.error('Invalid video data structure');
