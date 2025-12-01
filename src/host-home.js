@@ -433,8 +433,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                         if (entry.isIntersecting && videoLoaded && !hasAutoPlayed) {
                             hasAutoPlayed = true;
 
-                            // Wait 2 seconds after video comes into view
-                            setTimeout(async () => {
+                            // Play immediately when video comes into view
+                            (async () => {
                                 try {
                                     // Start at 30.4 seconds
                                     videoTag.currentTime = 30.6;
@@ -444,6 +444,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                                     playButton.style.pointerEvents = 'none';
                                     replayButton.style.opacity = '1';
                                     replayButton.style.pointerEvents = 'auto';
+                                    fullscreenButton.style.opacity = '1';
+                                    fullscreenButton.style.pointerEvents = 'auto';
                                     console.log('Video autoplay successful when in view');
                                 } catch (playError) {
                                     // Autoplay prevented - show play button
@@ -451,7 +453,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                                     playButton.style.opacity = '1';
                                     playButton.style.pointerEvents = 'auto';
                                 }
-                            }, 2000);
+                            })();
                         }
                     });
                 }, observerOptions);
