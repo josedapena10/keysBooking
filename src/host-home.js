@@ -305,8 +305,34 @@ document.addEventListener('DOMContentLoaded', async () => {
                     replayButton.style.transform = 'scale(1)';
                 });
 
+                // Create fullscreen button (hidden initially)
+                const fullscreenButton = document.createElement('div');
+                fullscreenButton.innerHTML = `
+                    <svg width="50" height="50" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="25" cy="25" r="25" fill="rgba(0, 0, 0, 0.7)"/>
+                        <path d="M16 21V16H21M34 16H29V16M29 34H34V29M16 29V34H21" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                    </svg>
+                `;
+                fullscreenButton.style.cssText = `
+                    position: absolute;
+                    bottom: 20px;
+                    left: 20px;
+                    cursor: pointer;
+                    z-index: 10;
+                    opacity: 0;
+                    transition: all 0.3s ease;
+                    pointer-events: none;
+                `;
+                fullscreenButton.addEventListener('mouseenter', () => {
+                    fullscreenButton.style.transform = 'scale(1.1)';
+                });
+                fullscreenButton.addEventListener('mouseleave', () => {
+                    fullscreenButton.style.transform = 'scale(1)';
+                });
+
                 videoContainer.appendChild(playButton);
                 videoContainer.appendChild(replayButton);
+                videoContainer.appendChild(fullscreenButton);
 
                 // CRITICAL: Set muted as property BEFORE src for autoplay to work
                 videoTag.muted = true;
@@ -334,6 +360,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                         playButton.style.pointerEvents = 'none';
                         replayButton.style.opacity = '1';
                         replayButton.style.pointerEvents = 'auto';
+                        fullscreenButton.style.opacity = '1';
+                        fullscreenButton.style.pointerEvents = 'auto';
                         console.log('Video playing');
                     } catch (error) {
                         console.error('Error playing video:', error);
@@ -346,11 +374,41 @@ document.addEventListener('DOMContentLoaded', async () => {
                     playVideo();
                 };
 
+                // Function to toggle fullscreen
+                const toggleFullscreen = () => {
+                    if (!document.fullscreenElement) {
+                        // Enter fullscreen
+                        if (videoContainer.requestFullscreen) {
+                            videoContainer.requestFullscreen();
+                        } else if (videoContainer.webkitRequestFullscreen) {
+                            videoContainer.webkitRequestFullscreen();
+                        } else if (videoContainer.mozRequestFullScreen) {
+                            videoContainer.mozRequestFullScreen();
+                        } else if (videoContainer.msRequestFullscreen) {
+                            videoContainer.msRequestFullscreen();
+                        }
+                    } else {
+                        // Exit fullscreen
+                        if (document.exitFullscreen) {
+                            document.exitFullscreen();
+                        } else if (document.webkitExitFullscreen) {
+                            document.webkitExitFullscreen();
+                        } else if (document.mozCancelFullScreen) {
+                            document.mozCancelFullScreen();
+                        } else if (document.msExitFullscreen) {
+                            document.msExitFullscreen();
+                        }
+                    }
+                };
+
                 // Play button click handler
                 playButton.addEventListener('click', playVideo);
 
                 // Replay button click handler
                 replayButton.addEventListener('click', replayVideo);
+
+                // Fullscreen button click handler
+                fullscreenButton.addEventListener('click', toggleFullscreen);
 
                 // Track if video is loaded and ready
                 let videoLoaded = false;
