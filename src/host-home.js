@@ -285,7 +285,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 replayButton.innerHTML = `
                     <svg width="50" height="50" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <circle cx="25" cy="25" r="25" fill="rgba(0, 0, 0, 0.7)"/>
-                        <path d="M25 15V20L30 15L25 10V15ZM20 20C17.79 20 16 21.79 16 24V32C16 34.21 17.79 36 20 36H30C32.21 36 34 34.21 34 32V24C34 21.79 32.21 20 30 20H25V22H30C31.1 22 32 22.9 32 24V32C32 33.1 31.1 34 30 34H20C18.9 34 18 33.1 18 32V24C18 22.9 18.9 22 20 22H22V20H20Z" fill="white"/>
+                        <path d="M25 14C18.92 14 14 18.92 14 25C14 31.08 18.92 36 25 36C29.18 36 32.84 33.66 34.74 30.18L32.26 28.74C30.92 31.26 28.16 33 25 33C20.58 33 17 29.42 17 25C17 20.58 20.58 17 25 17C27.24 17 29.26 17.92 30.74 19.4L27 23H36V14L32.76 17.24C30.68 15.16 27.96 14 25 14Z" fill="white"/>
                     </svg>
                 `;
                 replayButton.style.cssText = `
@@ -323,6 +323,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 // Function to play video
                 const playVideo = async () => {
                     try {
+                        // Start at 30 seconds if at the beginning
+                        if (videoTag.currentTime < 30) {
+                            videoTag.currentTime = 30;
+                        }
                         await videoTag.play();
                         isPlaying = true;
                         playButton.style.opacity = '0';
@@ -337,7 +341,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 // Function to replay video
                 const replayVideo = () => {
-                    videoTag.currentTime = 0;
+                    videoTag.currentTime = 30;
                     playVideo();
                 };
 
@@ -355,6 +359,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     // Wait 2 seconds before attempting autoplay
                     setTimeout(async () => {
                         try {
+                            // Start at 30 seconds
+                            videoTag.currentTime = 30;
                             await videoTag.play();
                             isPlaying = true;
                             playButton.style.opacity = '0';
