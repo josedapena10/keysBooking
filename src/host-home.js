@@ -338,7 +338,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 videoTag.muted = true;
                 videoTag.playsInline = true;
                 videoTag.loop = true;
-                videoTag.playbackRate = 0.9; // Slow down to 90% speed
+                videoTag.playbackRate = 0.8; // Slow down to 90% speed
 
                 // Also set as attributes for HTML compliance
                 videoTag.setAttribute('muted', '');
@@ -351,8 +351,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const playVideo = async () => {
                     try {
                         // Start at 30.4 seconds if at the beginning
-                        if (videoTag.currentTime < 30.4) {
-                            videoTag.currentTime = 30.4;
+                        if (videoTag.currentTime < 30.6) {
+                            videoTag.currentTime = 30.6;
                         }
                         await videoTag.play();
                         isPlaying = true;
@@ -370,7 +370,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 // Function to replay video
                 const replayVideo = () => {
-                    videoTag.currentTime = 30.4;
+                    videoTag.currentTime = 30.6;
                     playVideo();
                 };
 
@@ -437,7 +437,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             setTimeout(async () => {
                                 try {
                                     // Start at 30.4 seconds
-                                    videoTag.currentTime = 30.4;
+                                    videoTag.currentTime = 30.6;
                                     await videoTag.play();
                                     isPlaying = true;
                                     playButton.style.opacity = '0';
