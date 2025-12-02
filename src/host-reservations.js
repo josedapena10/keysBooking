@@ -535,13 +535,16 @@ function displayReservations(reservations, type) {
         }
 
         // Set payout amount if available
-        if (reservation.nights_amount && reservation.cleaning_amount && reservation.hostFee_amount) {
+        if (reservation.nights_amount != null && reservation.cleaning_amount != null) {
             // For cancelled reservations, check if there's a refund amount
             if (type === 'cancelled' && reservation.cancelled_refundAmount && reservation.cancelled_refundAmount !== 0) {
                 // If there's a refund, payout is $0
                 payout.textContent = '$0.00';
             } else {
-                const total = reservation.nights_amount + reservation.cleaning_amount - reservation.hostFee_amount;
+                const nightsAmount = reservation.nights_amount || 0;
+                const cleaningAmount = reservation.cleaning_amount || 0;
+                const hostFeeAmount = reservation.hostFee_amount || 0;
+                const total = nightsAmount + cleaningAmount - hostFeeAmount;
                 // Format to accounting format with thousands separator and 2 decimal places
                 const formattedTotal = total.toLocaleString('en-US', {
                     style: 'decimal',
