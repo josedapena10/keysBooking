@@ -563,13 +563,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                 // CRITICAL: Set muted as property BEFORE src for autoplay to work
                 videoTag.muted = true;
                 videoTag.playsInline = true;
-                videoTag.loop = true;
+                videoTag.loop = false; // Disable native loop - we'll handle it manually
                 videoTag.playbackRate = 0.8; // Slow down to 90% speed
 
                 // Also set as attributes for HTML compliance
                 videoTag.setAttribute('muted', '');
                 videoTag.setAttribute('playsinline', '');
-                videoTag.setAttribute('loop', '');
 
                 let isPlaying = false;
 
@@ -636,11 +635,18 @@ document.addEventListener('DOMContentLoaded', async () => {
                 `;
                 modalVideo.muted = true;
                 modalVideo.playsInline = true;
-                modalVideo.loop = true;
+                modalVideo.loop = false; // Disable native loop - we'll handle it manually
                 modalVideo.playbackRate = 0.9;
                 modalVideo.setAttribute('muted', '');
                 modalVideo.setAttribute('playsinline', '');
-                modalVideo.setAttribute('loop', '');
+
+                // Handle video loop - when video reaches the end, loop back to 30.6 seconds
+                modalVideo.addEventListener('timeupdate', () => {
+                    // When video reaches the end (within 0.5 seconds of duration), loop back to 30.6
+                    if (modalVideo.currentTime >= modalVideo.duration - 0.5) {
+                        modalVideo.currentTime = 30.6;
+                    }
+                });
 
                 // Create close button for modal
                 const modalCloseButton = document.createElement('div');
@@ -726,7 +732,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const openFullscreenModal = () => {
                     // Sync video time and playback state
                     modalVideo.src = videoTag.src;
-                    modalVideo.currentTime = videoTag.currentTime;
+                    let syncTime = videoTag.currentTime;
+                    // Ensure we never show the part before 30.6 seconds
+                    if (syncTime < 30.6) {
+                        syncTime = 30.6;
+                    }
+                    modalVideo.currentTime = syncTime;
 
                     fullscreenModal.style.display = 'flex';
                     modalVideo.play();
@@ -740,7 +751,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                     fullscreenModal.style.display = 'none';
 
                     // Sync back to original video
-                    videoTag.currentTime = modalVideo.currentTime;
+                    let syncTime = modalVideo.currentTime;
+                    // Ensure we never show the part before 30.6 seconds
+                    if (syncTime < 30.6) {
+                        syncTime = 30.6;
+                    }
+                    videoTag.currentTime = syncTime;
                     videoTag.play();
 
                     modalVideo.pause();
@@ -775,56 +791,24 @@ document.addEventListener('DOMContentLoaded', async () => {
                 // Fullscreen button click handler
                 fullscreenButton.addEventListener('click', openFullscreenModal);
 
-                // Track if video is loaded and ready
-                let videoLoaded = false;
-                let hasAutoPlayed = false;
-
                 // Wait for video to be ready to play
                 videoTag.addEventListener('loadeddata', async () => {
                     loadingState.demoVideo = true;
                     checkAndHideLoader();
-                    videoLoaded = true;
+                    // Set initial time to 30.6 seconds - never show earlier part
+                    videoTag.currentTime = 30.6;
+                    // Show play button by default - no autoplay
+                    playButton.style.opacity = '1';
+                    playButton.style.pointerEvents = 'auto';
                 });
 
-                // Use Intersection Observer to detect when video is in view
-                const observerOptions = {
-                    root: null, // Use viewport
-                    threshold: 0.75 // Trigger when 75% of video is visible
-                };
-
-                const videoObserver = new IntersectionObserver((entries) => {
-                    entries.forEach(entry => {
-                        // Video is in view and loaded, and hasn't auto-played yet
-                        if (entry.isIntersecting && videoLoaded && !hasAutoPlayed) {
-                            hasAutoPlayed = true;
-
-                            // Play immediately when video comes into view
-                            (async () => {
-                                try {
-                                    // Start at 30.4 seconds
-                                    videoTag.currentTime = 30.6;
-                                    await videoTag.play();
-                                    isPlaying = true;
-                                    playButton.style.opacity = '0';
-                                    playButton.style.pointerEvents = 'none';
-                                    replayButton.style.opacity = '1';
-                                    replayButton.style.pointerEvents = 'auto';
-                                    fullscreenButton.style.opacity = '1';
-                                    fullscreenButton.style.pointerEvents = 'auto';
-                                    console.log('Video autoplay successful when in view');
-                                } catch (playError) {
-                                    // Autoplay prevented - show play button
-                                    console.log('Autoplay prevented - showing play button');
-                                    playButton.style.opacity = '1';
-                                    playButton.style.pointerEvents = 'auto';
-                                }
-                            })();
-                        }
-                    });
-                }, observerOptions);
-
-                // Start observing the video container
-                videoObserver.observe(videoContainer);
+                // Handle video loop - when video reaches the end, loop back to 30.6 seconds
+                videoTag.addEventListener('timeupdate', () => {
+                    // When video reaches the end (within 0.5 seconds of duration), loop back to 30.6
+                    if (videoTag.currentTime >= videoTag.duration - 0.5) {
+                        videoTag.currentTime = 30.6;
+                    }
+                });
 
                 // Handle load error
                 videoTag.addEventListener('error', () => {
