@@ -92,7 +92,6 @@ document.addEventListener('DOMContentLoaded', () => {
 // Helper function to convert address line 1 to Title Case (proper capitalization for street names)
 function normalizeAddressLine1(address) {
     if (!address) return '';
-    console.log('normalizeAddressLine1 - Input:', address);
 
     const normalized = address.trim().split(' ').map(word => {
         // Keep numbers as-is
@@ -103,48 +102,40 @@ function normalizeAddressLine1(address) {
         return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
     }).join(' ');
 
-    console.log('normalizeAddressLine1 - Output:', normalized);
     return normalized;
 }
 
 // Helper function to convert city to Title Case (first letter of each word uppercase)
 function normalizeCityName(city) {
     if (!city) return '';
-    console.log('normalizeCityName - Input:', city);
 
     const normalized = city.trim().toLowerCase().split(' ').map(word =>
         word.charAt(0).toUpperCase() + word.slice(1)
     ).join(' ');
 
-    console.log('normalizeCityName - Output:', normalized);
     return normalized;
 }
 
 // Helper function to normalize state to FL if it's Florida
 function normalizeStateName(state) {
     if (!state) return '';
-    console.log('normalizeStateName - Input:', state);
 
     const trimmedState = state.trim().toLowerCase();
     if (trimmedState === 'florida') {
-        console.log('normalizeStateName - Output: FL (converted from Florida)');
         return 'FL';
     }
     const normalized = state.trim().toUpperCase();
-    console.log('normalizeStateName - Output:', normalized);
     return normalized; // Return uppercase for other states
 }
 
 // Helper function to normalize zipcode to first 5 digits only
 function normalizeZipcode(zipcode) {
     if (!zipcode) return '';
-    console.log('normalizeZipcode - Input:', zipcode);
 
     // Remove any non-digit characters and take first 5 digits
     const digitsOnly = zipcode.replace(/\D/g, '');
     const normalized = digitsOnly.substring(0, 5);
 
-    console.log('normalizeZipcode - Output:', normalized);
     return normalized;
 }
 
@@ -2685,13 +2676,6 @@ function validateLocation() {
                         const initialState = normalizeStateName(addressParts[2].split(' ')[0]);
                         const initialZipcode = normalizeZipcode(addressParts[2].split(' ')[1]);
 
-                        console.log('Initial Suggested Address Set (default) - Normalized values:', {
-                            addressLine1: initialAddressLine1,
-                            city: initialCity,
-                            state: initialState,
-                            zipcode: initialZipcode
-                        });
-
                         listingData.address = {
                             addressLine1: initialAddressLine1,
                             addressLine2: addressParts.slice(1).join(',').trim(),
@@ -2732,13 +2716,6 @@ function validateLocation() {
                         const suggestedState = normalizeStateName(addressParts[2].split(' ')[0]);
                         const suggestedZipcode = normalizeZipcode(addressParts[2].split(' ')[1]);
 
-                        console.log('Suggested Address Selected - Normalized values:', {
-                            addressLine1: normalizedAddressLine1,
-                            city: suggestedCity,
-                            state: suggestedState,
-                            zipcode: suggestedZipcode
-                        });
-
                         listingData.address = {
                             addressLine1: normalizedAddressLine1,
                             addressLine2: addressParts.slice(1).join(',').trim(),
@@ -2768,12 +2745,6 @@ function validateLocation() {
                         const enteredState = normalizeStateName(addressStateInput.value);
                         const enteredZipcode = normalizeZipcode(addressZipcodeInput.value);
 
-                        console.log('Entered Address Selected - Normalized values:', {
-                            addressLine1: normalizedEnteredAddressLine1,
-                            city: enteredCity,
-                            state: enteredState,
-                            zipcode: enteredZipcode
-                        });
 
                         // Revert to originally entered address but keep coordinates and neighborhood
                         listingData.address = {
