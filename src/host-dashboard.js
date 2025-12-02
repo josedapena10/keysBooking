@@ -872,14 +872,25 @@ function displayReservationModal(reservation) {
     }
 
     const hostPayoutHostFeeElement = modal.querySelector('[data-element="reservationInfoModal_hostPayout_hostServiceFeeTotal"]');
-    if (hostPayoutHostFeeElement && reservation.hostFee_amount) {
+    if (hostPayoutHostFeeElement) {
+        const hostFee = reservation.hostFee_amount || 0;
         // Format to 2 decimal places with thousands separator
-        const formattedHostFee = reservation.hostFee_amount.toLocaleString('en-US', {
+        const formattedHostFee = hostFee.toLocaleString('en-US', {
             style: 'decimal',
             minimumFractionDigits: 2,
             maximumFractionDigits: 2
         });
         hostPayoutHostFeeElement.textContent = `- $${formattedHostFee}`;
+    }
+
+    const hostPayoutHostFeeTextElement = modal.querySelector('[data-element="reservationInfoModal_hostPayout_hostServiceFeeText"]');
+    if (hostPayoutHostFeeTextElement) {
+        const hostFee = reservation.hostFee_amount || 0;
+        if (hostFee === 0) {
+            hostPayoutHostFeeTextElement.textContent = "Host service fee - 0%";
+        } else {
+            hostPayoutHostFeeTextElement.textContent = "Host service fee - 3%";
+        }
     }
 
     const hostPayoutTotalElement = modal.querySelector('[data-element="reservationInfoModal_hostPayout_payoutTotal"]');
