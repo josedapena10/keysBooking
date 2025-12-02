@@ -89,22 +89,50 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 })();
 
+// Helper function to convert address line 1 to Title Case (proper capitalization for street names)
+function normalizeAddressLine1(address) {
+    if (!address) return '';
+    console.log('normalizeAddressLine1 - Input:', address);
+
+    const normalized = address.trim().split(' ').map(word => {
+        // Keep numbers as-is
+        if (/^\d+$/.test(word)) {
+            return word;
+        }
+        // Capitalize first letter, lowercase the rest
+        return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    }).join(' ');
+
+    console.log('normalizeAddressLine1 - Output:', normalized);
+    return normalized;
+}
+
 // Helper function to convert city to Title Case (first letter of each word uppercase)
 function normalizeCityName(city) {
     if (!city) return '';
-    return city.trim().toLowerCase().split(' ').map(word =>
+    console.log('normalizeCityName - Input:', city);
+
+    const normalized = city.trim().toLowerCase().split(' ').map(word =>
         word.charAt(0).toUpperCase() + word.slice(1)
     ).join(' ');
+
+    console.log('normalizeCityName - Output:', normalized);
+    return normalized;
 }
 
 // Helper function to normalize state to FL if it's Florida
 function normalizeStateName(state) {
     if (!state) return '';
+    console.log('normalizeStateName - Input:', state);
+
     const trimmedState = state.trim().toLowerCase();
     if (trimmedState === 'florida') {
+        console.log('normalizeStateName - Output: FL (converted from Florida)');
         return 'FL';
     }
-    return state.trim().toUpperCase(); // Return uppercase for other states
+    const normalized = state.trim().toUpperCase();
+    console.log('normalizeStateName - Output:', normalized);
+    return normalized; // Return uppercase for other states
 }
 
 // Object to store listing data
@@ -2644,11 +2672,18 @@ function validateLocation() {
                         // Determine neighborhood from coordinates
                         const neighborhood = determineNeighborhood(result.latitude, result.longitude);
 
+                        const normalizedAddressLine1 = normalizeAddressLine1(addressLine1);
                         const suggestedCity = normalizeCityName(addressParts[1]);
                         const suggestedState = normalizeStateName(addressParts[2].split(' ')[0]);
 
+                        console.log('Suggested Address Selected - Normalized values:', {
+                            addressLine1: normalizedAddressLine1,
+                            city: suggestedCity,
+                            state: suggestedState
+                        });
+
                         listingData.address = {
-                            addressLine1: addressLine1,
+                            addressLine1: normalizedAddressLine1,
                             addressLine2: addressParts.slice(1).join(',').trim(),
                             cityState: `${suggestedCity}, ${suggestedState}`,
                             neighborhood: neighborhood,
@@ -2670,13 +2705,20 @@ function validateLocation() {
                         // Determine neighborhood from coordinates
                         const neighborhood = determineNeighborhood(result.latitude, result.longitude);
 
-                        // Normalize city and state
+                        // Normalize address line 1, city and state
+                        const normalizedEnteredAddressLine1 = normalizeAddressLine1(addressLine1Input.value);
                         const enteredCity = normalizeCityName(addressCityInput.value);
                         const enteredState = normalizeStateName(addressStateInput.value);
 
+                        console.log('Entered Address Selected - Normalized values:', {
+                            addressLine1: normalizedEnteredAddressLine1,
+                            city: enteredCity,
+                            state: enteredState
+                        });
+
                         // Revert to originally entered address but keep coordinates and neighborhood
                         listingData.address = {
-                            addressLine1: addressLine1Input.value.trim(),
+                            addressLine1: normalizedEnteredAddressLine1,
                             addressLine2: enteredCity + ', ' + enteredState + ' ' + addressZipcodeInput.value.trim(),
                             cityState: `${enteredCity}, ${enteredState}`,
                             neighborhood: neighborhood,
