@@ -89,6 +89,24 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 })();
 
+// Helper function to convert city to Title Case (first letter of each word uppercase)
+function normalizeCityName(city) {
+    if (!city) return '';
+    return city.trim().toLowerCase().split(' ').map(word =>
+        word.charAt(0).toUpperCase() + word.slice(1)
+    ).join(' ');
+}
+
+// Helper function to normalize state to FL if it's Florida
+function normalizeStateName(state) {
+    if (!state) return '';
+    const trimmedState = state.trim().toLowerCase();
+    if (trimmedState === 'florida') {
+        return 'FL';
+    }
+    return state.trim().toUpperCase(); // Return uppercase for other states
+}
+
 // Object to store listing data
 let listingData = {
     selectedAmenities: [], // Array to store selected amenity IDs
@@ -2626,14 +2644,17 @@ function validateLocation() {
                         // Determine neighborhood from coordinates
                         const neighborhood = determineNeighborhood(result.latitude, result.longitude);
 
+                        const suggestedCity = normalizeCityName(addressParts[1]);
+                        const suggestedState = normalizeStateName(addressParts[2].split(' ')[0]);
+
                         listingData.address = {
                             addressLine1: addressLine1,
                             addressLine2: addressParts.slice(1).join(',').trim(),
-                            cityState: `${addressParts[1]}, ${addressParts[2].split(' ')[0]}`,
+                            cityState: `${suggestedCity}, ${suggestedState}`,
                             neighborhood: neighborhood,
                             unit: unit,
-                            city: addressParts[1],
-                            state: addressParts[2].split(' ')[0],
+                            city: suggestedCity,
+                            state: suggestedState,
                             zipcode: addressParts[2].split(' ')[1],
                             longitude: result.longitude || '',
                             latitude: result.latitude || ''
@@ -2649,15 +2670,19 @@ function validateLocation() {
                         // Determine neighborhood from coordinates
                         const neighborhood = determineNeighborhood(result.latitude, result.longitude);
 
+                        // Normalize city and state
+                        const enteredCity = normalizeCityName(addressCityInput.value);
+                        const enteredState = normalizeStateName(addressStateInput.value);
+
                         // Revert to originally entered address but keep coordinates and neighborhood
                         listingData.address = {
                             addressLine1: addressLine1Input.value.trim(),
-                            addressLine2: addressCityInput.value.trim() + ', ' + addressStateInput.value.trim() + ' ' + addressZipcodeInput.value.trim(),
-                            cityState: `${addressCityInput.value.trim()}, ${addressStateInput.value.trim()}`,
+                            addressLine2: enteredCity + ', ' + enteredState + ' ' + addressZipcodeInput.value.trim(),
+                            cityState: `${enteredCity}, ${enteredState}`,
                             neighborhood: neighborhood,
                             unit: addressLine2Input.value.trim(),
-                            city: addressCityInput.value.trim(),
-                            state: addressStateInput.value.trim(),
+                            city: enteredCity,
+                            state: enteredState,
                             zipcode: addressZipcodeInput.value.trim(),
                             longitude: result.longitude || '',
                             latitude: result.latitude || ''
