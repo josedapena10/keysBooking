@@ -135,6 +135,19 @@ function normalizeStateName(state) {
     return normalized; // Return uppercase for other states
 }
 
+// Helper function to normalize zipcode to first 5 digits only
+function normalizeZipcode(zipcode) {
+    if (!zipcode) return '';
+    console.log('normalizeZipcode - Input:', zipcode);
+
+    // Remove any non-digit characters and take first 5 digits
+    const digitsOnly = zipcode.replace(/\D/g, '');
+    const normalized = digitsOnly.substring(0, 5);
+
+    console.log('normalizeZipcode - Output:', normalized);
+    return normalized;
+}
+
 // Object to store listing data
 let listingData = {
     selectedAmenities: [], // Array to store selected amenity IDs
@@ -2652,6 +2665,48 @@ function validateLocation() {
                 if (confirmSuggestedContainer && confirmEnteredContainer) {
                     updateAddressSelection();
 
+                    // Set initial address data with suggested values (default selection)
+                    // This ensures data is saved even if user clicks next without clicking an option
+                    if (selectedAddressType === 'suggested') {
+                        const addressParts = result.formattedAddress.split(',').map(part => part.trim());
+                        let addressLine1 = addressParts[0];
+                        let unit = '';
+                        const unitMatch = addressLine1.match(/(.*?)\s+(#.+)$/);
+                        if (unitMatch) {
+                            addressLine1 = unitMatch[1];
+                            unit = unitMatch[2];
+                        } else {
+                            unit = addressLine2Input.value.trim();
+                        }
+
+                        const neighborhood = determineNeighborhood(result.latitude, result.longitude);
+                        const initialAddressLine1 = normalizeAddressLine1(addressLine1);
+                        const initialCity = normalizeCityName(addressParts[1]);
+                        const initialState = normalizeStateName(addressParts[2].split(' ')[0]);
+                        const initialZipcode = normalizeZipcode(addressParts[2].split(' ')[1]);
+
+                        console.log('Initial Suggested Address Set (default) - Normalized values:', {
+                            addressLine1: initialAddressLine1,
+                            city: initialCity,
+                            state: initialState,
+                            zipcode: initialZipcode
+                        });
+
+                        listingData.address = {
+                            addressLine1: initialAddressLine1,
+                            addressLine2: addressParts.slice(1).join(',').trim(),
+                            cityState: `${initialCity}, ${initialState}`,
+                            neighborhood: neighborhood,
+                            unit: unit,
+                            city: initialCity,
+                            state: initialState,
+                            zipcode: initialZipcode,
+                            longitude: result.longitude || '',
+                            latitude: result.latitude || ''
+                        };
+                        listingData.addressNotSelected = enteredAddress;
+                    }
+
                     confirmSuggestedContainer.onclick = () => {
                         selectedAddressType = 'suggested';
                         listingData.addressChosen = 'suggested';
@@ -2675,11 +2730,13 @@ function validateLocation() {
                         const normalizedAddressLine1 = normalizeAddressLine1(addressLine1);
                         const suggestedCity = normalizeCityName(addressParts[1]);
                         const suggestedState = normalizeStateName(addressParts[2].split(' ')[0]);
+                        const suggestedZipcode = normalizeZipcode(addressParts[2].split(' ')[1]);
 
                         console.log('Suggested Address Selected - Normalized values:', {
                             addressLine1: normalizedAddressLine1,
                             city: suggestedCity,
-                            state: suggestedState
+                            state: suggestedState,
+                            zipcode: suggestedZipcode
                         });
 
                         listingData.address = {
@@ -2690,7 +2747,7 @@ function validateLocation() {
                             unit: unit,
                             city: suggestedCity,
                             state: suggestedState,
-                            zipcode: addressParts[2].split(' ')[1],
+                            zipcode: suggestedZipcode,
                             longitude: result.longitude || '',
                             latitude: result.latitude || ''
                         };
@@ -2705,27 +2762,29 @@ function validateLocation() {
                         // Determine neighborhood from coordinates
                         const neighborhood = determineNeighborhood(result.latitude, result.longitude);
 
-                        // Normalize address line 1, city and state
+                        // Normalize address line 1, city, state and zipcode
                         const normalizedEnteredAddressLine1 = normalizeAddressLine1(addressLine1Input.value);
                         const enteredCity = normalizeCityName(addressCityInput.value);
                         const enteredState = normalizeStateName(addressStateInput.value);
+                        const enteredZipcode = normalizeZipcode(addressZipcodeInput.value);
 
                         console.log('Entered Address Selected - Normalized values:', {
                             addressLine1: normalizedEnteredAddressLine1,
                             city: enteredCity,
-                            state: enteredState
+                            state: enteredState,
+                            zipcode: enteredZipcode
                         });
 
                         // Revert to originally entered address but keep coordinates and neighborhood
                         listingData.address = {
                             addressLine1: normalizedEnteredAddressLine1,
-                            addressLine2: enteredCity + ', ' + enteredState + ' ' + addressZipcodeInput.value.trim(),
+                            addressLine2: enteredCity + ', ' + enteredState + ' ' + enteredZipcode,
                             cityState: `${enteredCity}, ${enteredState}`,
                             neighborhood: neighborhood,
                             unit: addressLine2Input.value.trim(),
                             city: enteredCity,
                             state: enteredState,
-                            zipcode: addressZipcodeInput.value.trim(),
+                            zipcode: enteredZipcode,
                             longitude: result.longitude || '',
                             latitude: result.latitude || ''
                         };
