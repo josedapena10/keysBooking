@@ -374,32 +374,116 @@ document.addEventListener('DOMContentLoaded', async () => {
                     playVideo();
                 };
 
-                // Function to toggle fullscreen
-                const toggleFullscreen = () => {
-                    if (!document.fullscreenElement) {
-                        // Enter fullscreen
-                        if (videoContainer.requestFullscreen) {
-                            videoContainer.requestFullscreen();
-                        } else if (videoContainer.webkitRequestFullscreen) {
-                            videoContainer.webkitRequestFullscreen();
-                        } else if (videoContainer.mozRequestFullScreen) {
-                            videoContainer.mozRequestFullScreen();
-                        } else if (videoContainer.msRequestFullscreen) {
-                            videoContainer.msRequestFullscreen();
-                        }
-                    } else {
-                        // Exit fullscreen
-                        if (document.exitFullscreen) {
-                            document.exitFullscreen();
-                        } else if (document.webkitExitFullscreen) {
-                            document.webkitExitFullscreen();
-                        } else if (document.mozCancelFullScreen) {
-                            document.mozCancelFullScreen();
-                        } else if (document.msExitFullscreen) {
-                            document.msExitFullscreen();
-                        }
-                    }
+                // Create fullscreen modal
+                const fullscreenModal = document.createElement('div');
+                fullscreenModal.style.cssText = `
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background: rgba(0, 0, 0, 0.95);
+                    display: none;
+                    align-items: center;
+                    justify-content: center;
+                    z-index: 99999;
+                    padding: 20px;
+                    box-sizing: border-box;
+                `;
+
+                // Create video container for modal (15:8 aspect ratio)
+                const modalVideoContainer = document.createElement('div');
+                modalVideoContainer.style.cssText = `
+                    width: 100%;
+                    max-width: 100%;
+                    aspect-ratio: 15 / 8;
+                    position: relative;
+                    background: black;
+                `;
+
+                // Create modal video element
+                const modalVideo = document.createElement('video');
+                modalVideo.style.cssText = `
+                    width: 100%;
+                    height: 100%;
+                    object-fit: contain;
+                `;
+                modalVideo.muted = true;
+                modalVideo.playsInline = true;
+                modalVideo.loop = true;
+                modalVideo.playbackRate = 0.9;
+                modalVideo.setAttribute('muted', '');
+                modalVideo.setAttribute('playsinline', '');
+                modalVideo.setAttribute('loop', '');
+
+                // Create close button for modal
+                const modalCloseButton = document.createElement('div');
+                modalCloseButton.innerHTML = `
+                    <svg width="50" height="50" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="25" cy="25" r="25" fill="rgba(255, 255, 255, 0.9)"/>
+                        <path d="M18 18L32 32M32 18L18 32" stroke="black" stroke-width="3" stroke-linecap="round"/>
+                    </svg>
+                `;
+                modalCloseButton.style.cssText = `
+                    position: absolute;
+                    top: 20px;
+                    right: 20px;
+                    cursor: pointer;
+                    z-index: 100000;
+                    transition: all 0.3s ease;
+                `;
+                modalCloseButton.addEventListener('mouseenter', () => {
+                    modalCloseButton.style.transform = 'scale(1.1)';
+                });
+                modalCloseButton.addEventListener('mouseleave', () => {
+                    modalCloseButton.style.transform = 'scale(1)';
+                });
+
+                modalVideoContainer.appendChild(modalVideo);
+                fullscreenModal.appendChild(modalVideoContainer);
+                fullscreenModal.appendChild(modalCloseButton);
+                document.body.appendChild(fullscreenModal);
+
+                // Function to open fullscreen modal
+                const openFullscreenModal = () => {
+                    // Sync video time and playback state
+                    modalVideo.src = videoTag.src;
+                    modalVideo.currentTime = videoTag.currentTime;
+
+                    fullscreenModal.style.display = 'flex';
+                    modalVideo.play();
+
+                    // Pause the original video
+                    videoTag.pause();
                 };
+
+                // Function to close fullscreen modal
+                const closeFullscreenModal = () => {
+                    fullscreenModal.style.display = 'none';
+
+                    // Sync back to original video
+                    videoTag.currentTime = modalVideo.currentTime;
+                    videoTag.play();
+
+                    modalVideo.pause();
+                };
+
+                // Close button click handler
+                modalCloseButton.addEventListener('click', closeFullscreenModal);
+
+                // Close modal when clicking outside the video
+                fullscreenModal.addEventListener('click', (e) => {
+                    if (e.target === fullscreenModal) {
+                        closeFullscreenModal();
+                    }
+                });
+
+                // Close modal on Escape key
+                document.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape' && fullscreenModal.style.display === 'flex') {
+                        closeFullscreenModal();
+                    }
+                });
 
                 // Play button click handler
                 playButton.addEventListener('click', playVideo);
@@ -408,7 +492,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 replayButton.addEventListener('click', replayVideo);
 
                 // Fullscreen button click handler
-                fullscreenButton.addEventListener('click', toggleFullscreen);
+                fullscreenButton.addEventListener('click', openFullscreenModal);
 
                 // Track if video is loaded and ready
                 let videoLoaded = false;
