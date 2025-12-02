@@ -714,7 +714,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 modalExitFullscreenButton.addEventListener('mouseleave', () => {
                     modalExitFullscreenButton.style.transform = 'scale(1)';
                 });
-                modalExitFullscreenButton.addEventListener('click', closeFullscreenModal);
 
                 modalVideoContainer.appendChild(modalVideo);
                 modalVideoContainer.appendChild(modalReplayButton);
@@ -749,6 +748,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 // Close button click handler
                 modalCloseButton.addEventListener('click', closeFullscreenModal);
+
+                // Exit fullscreen button click handler
+                modalExitFullscreenButton.addEventListener('click', closeFullscreenModal);
 
                 // Close modal when clicking outside the video
                 fullscreenModal.addEventListener('click', (e) => {
