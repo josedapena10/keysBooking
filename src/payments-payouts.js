@@ -127,6 +127,15 @@ document.addEventListener('DOMContentLoaded', () => {
 window.Wized = window.Wized || [];
 window.Wized.push((async (Wized) => {
     try {
+        // Check if user is signed in via c.token
+        const hasToken = Wized.data?.c?.token;
+
+        if (!hasToken) {
+            // User is not signed in, can't load payment data
+            return;
+        }
+
+        // User is signed in, wait for Load_user
         await Wized.requests.waitFor('Load_user');
         const userId = Wized.data.r.Load_user.data.id;
         handlePayments(userId);
@@ -370,6 +379,14 @@ function handleUserPayouts(payouts) {
                 }
                 if (addPayoutMethodText) {
                     addPayoutMethodText.style.display = 'none';
+                }
+
+                // Check if user is signed in via c.token
+                const hasToken = window.Wized?.data?.c?.token;
+
+                if (!hasToken) {
+                    // User is not signed in, can't add payout method
+                    throw new Error('User must be signed in to add payout method');
                 }
 
                 // Get user ID from Wized

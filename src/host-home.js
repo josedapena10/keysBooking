@@ -74,6 +74,226 @@ document.addEventListener('DOMContentLoaded', () => {
 })();
 
 
+// Signup Form Validation
+window.Wized = window.Wized || [];
+window.Wized.push((Wized) => {
+
+
+    const passwordInput = Wized.elements.get('SignUp_Password');
+    const emailInput = Wized.elements.get('SignUp_Email');
+    const firstNameInput = Wized.elements.get('SignUp_FirstName');
+    const lastNameInput = Wized.elements.get('SignUp_LastName');
+    const phoneNumberInput = Wized.elements.get('SignUp_PhoneNumber');
+    //const birthdateInput = Wized.elements.get('SignUp_BirthDate');
+
+
+
+
+    // Function to capitalize the first letter of a string
+    function capitalizeFirstLetter(string) {
+        return string.charAt(0).toUpperCase() + string.slice(1).toLowerCase();
+    }
+
+    // Event listener for when the user leaves the first name input field
+    firstNameInput.node.addEventListener('blur', (event) => {
+        const inputElement = event.target;
+        inputElement.value = capitalizeFirstLetter(inputElement.value);
+    });
+
+    // Event listener for when the user leaves the last name input field
+    lastNameInput.node.addEventListener('blur', (event) => {
+        const inputElement = event.target;
+        inputElement.value = capitalizeFirstLetter(inputElement.value);
+    });
+
+
+
+
+    phoneNumberInput.node.addEventListener('focus', (event) => {
+        const inputElement = event.target;
+        if (inputElement.value === '') {
+            inputElement.value = '';  // Clear the field when focused if empty
+        }
+    });
+
+    phoneNumberInput.node.addEventListener('input', handlePhoneNumberInput);
+    phoneNumberInput.node.addEventListener('keydown', handlePhoneKeyDown);
+    phoneNumberInput.node.addEventListener('change', handlePhoneNumberInput);
+
+    function handlePhoneNumberInput(event) {
+        const inputElement = event.target;
+        let input = inputElement.value.replace(/[\D-]/g, ''); // Strip non-numeric characters and hyphens
+        if (input.length > 10) {
+            input = input.substr(0, 10); // Limit to 10 digits
+        }
+
+        // Formatting the phone number as the user types
+        let formattedNumber = formatPhoneNumber(input);
+        inputElement.value = formattedNumber; // Update the field with formatted input
+    }
+
+    function handlePhoneKeyDown(event) {
+        const key = event.key;
+        const inputElement = event.target;
+
+        // Allow control keys such as backspace, tab, enter, etc.
+        if (key.length === 1 && !/[0-9]/.test(key)) {
+            event.preventDefault(); // Prevent default action for non-numeric keys
+        }
+
+        // Prevent input if the current length of digits is 10 or more
+        const currentInput = inputElement.value.replace(/[\D-]/g, '');
+        if (currentInput.length >= 10 && /[0-9]/.test(key)) {
+            event.preventDefault();
+        }
+    }
+
+    function formatPhoneNumber(input) {
+        let formattedNumber = input;
+        if (input.length > 2) {
+            formattedNumber = input.substr(0, 3) + (input.length > 3 ? '-' : '') + input.substr(3);
+        }
+        if (input.length > 5) {
+            formattedNumber = input.substr(0, 3) + '-' + input.substr(3, 3) + (input.length > 6 ? '-' : '') + input.substr(6);
+        }
+        return formattedNumber;
+    }
+
+
+
+
+    // // Event listener for focusing on the input field
+    // birthdateInput.node.addEventListener('focus', (event) => {
+    //     const inputElement = event.target;
+    //     if (!inputElement.value.trim()) {
+    //         inputElement.value = 'mm/dd/yyyy'; // Set initial placeholder text
+    //         highlightText(inputElement, 0, 2); // Highlight 'mm' initially
+    //     }
+    // });
+
+    // // Function to highlight text within the input
+    // function highlightText(inputElement, start, end) {
+    //     setTimeout(() => {
+    //         inputElement.setSelectionRange(start, end);
+    //     }, 10);
+    // }
+
+
+
+
+    const charactersMin = document.querySelector('#charactersMin');
+    const containsSymbol = document.querySelector('#containsSymbol');
+    const cantContain = document.querySelector('#cantContain');
+
+    // Function to return the SVG with specified fill color and symbol type
+    function getSVG(fillColor, isValid = false) {
+        if (isValid) {
+            return `<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15">
+                        <circle cx="7.5" cy="7.5" r="7.5" fill="${fillColor}"/>
+                        <path d="M4.5 8L6.5 10L10.5 5" stroke="white" stroke-width="2" fill="none"/>
+                    </svg>`;
+        } else {
+            return `<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15">
+                        <circle cx="7.5" cy="7.5" r="7.5" fill="${fillColor}"/>
+                        <line x1="5" y1="5" x2="10" y2="10" stroke="white" stroke-width="2"/>
+                        <line x1="5" y2="5" x2="10" y1="10" stroke="white" stroke-width="2"/>
+                    </svg>`;
+        }
+    }
+
+    // Initialize SVGs with default grey color
+    function initializeSVGs() {
+        charactersMin.innerHTML = getSVG("#d4d4d4");
+        containsSymbol.innerHTML = getSVG("#d4d4d4");
+        cantContain.innerHTML = getSVG("#d4d4d4");
+    }
+
+    initializeSVGs(); // Set default SVGs on load
+
+    function normalizeString(str) {
+        return str.replace(/[\W_]+/g, '').toLowerCase();
+    }
+
+    function validatePassword() {
+        const password = passwordInput.node.value; // Remove normalizeString here
+        const firstName = normalizeString(firstNameInput.node.value);
+        const lastName = normalizeString(lastNameInput.node.value);
+        const emailLocalPart = normalizeString(emailInput.node.value.split('@')[0]);
+
+        // Minimum 8 characters check
+        charactersMin.innerHTML = password.length >= 8 ? getSVG("#00ff00", true) : getSVG("#ff0000");
+
+        // Check for symbol or number
+        const symbolRegex = /[0-9!@#$%^&*(),.?":{}|<>]/;
+        containsSymbol.innerHTML = symbolRegex.test(password) ? getSVG("#00ff00", true) : getSVG("#ff0000");
+
+        // Check for disallowed substrings (firstName, lastName, emailLocalPart)
+        let disallowed = [firstName, lastName, emailLocalPart].filter(Boolean);
+        const containsDisallowed = disallowed.length > 0 && disallowed.some(part => password.includes(part));
+        cantContain.innerHTML = !containsDisallowed && password.length > 0 ? getSVG("#00ff00", true) : getSVG("#ff0000");
+    }
+
+
+    // Handle password field events to set current validation state
+    passwordInput.node.addEventListener('focus', validatePassword);
+    passwordInput.node.addEventListener('input', validatePassword);
+
+
+
+
+    // Retrieve the WizedElement instance by its name
+    const signUpButton = Wized.elements.get('SignUp_AgreeSubmitButton');
+
+    // Ensure the element is present in the DOM
+    if (signUpButton && signUpButton.node) {
+        // Add click event listener to the button's DOM node
+        signUpButton.node.addEventListener('click', function () {
+            // Update the state in the Data Store to indicate the button was clicked
+            Wized.data.v.signup_buttonclicked = true;
+        });
+    } else {
+    }
+
+
+
+
+    //forgot password
+    //forgot password
+    // Handle input rules for ForgotPassword_Email
+    const forgotPasswordEmailInput = Wized.elements.get('ForgotPassword_Email');
+
+    // Add validation logic for ForgotPassword_Email
+    forgotPasswordEmailInput.node.addEventListener('focus', (event) => {
+        const inputElement = event.target;
+        if (inputElement.value === '') {
+            inputElement.value = '';  // Clear the field when focused if empty
+        }
+    });
+
+    forgotPasswordEmailInput.node.addEventListener('input', handleEmailInput);
+    forgotPasswordEmailInput.node.addEventListener('keydown', handleEmailKeyDown);
+    forgotPasswordEmailInput.node.addEventListener('change', handleEmailInput);
+
+    // Function to handle email input
+    function handleEmailInput(event) {
+        const inputElement = event.target;
+        let input = inputElement.value.replace(/[^a-zA-Z0-9@._-]/g, ''); // Strip invalid characters for email
+        inputElement.value = input; // Update the field with sanitized input
+    }
+
+    // Function to handle email key down events
+    function handleEmailKeyDown(event) {
+        const key = event.key;
+        const inputElement = event.target;
+
+        // Prevent any characters that are not alphanumeric or standard email characters
+        if (!/^[a-zA-Z0-9@._-]$/.test(key) && key.length === 1) {
+            event.preventDefault(); // Prevent invalid characters
+        }
+    }
+
+});
+
 
 document.addEventListener('DOMContentLoaded', () => {
     window.Wized = window.Wized || [];
@@ -290,7 +510,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const replayButton = document.createElement('div');
                 replayButton.innerHTML = `
                     <svg width="50" height="50" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <circle cx="25" cy="25" r="25" fill="rgba(0, 0, 0, 0.7)"/>
+                        <circle cx="25" cy="25" r="25" fill="rgba(128, 128, 128, 0.4)"/>
                         <path d="M25 14C18.92 14 14 18.92 14 25C14 31.08 18.92 36 25 36C29.18 36 32.84 33.66 34.74 30.18L32.26 28.74C30.92 31.26 28.16 33 25 33C20.58 33 17 29.42 17 25C17 20.58 20.58 17 25 17C27.24 17 29.26 17.92 30.74 19.4L27 23H36V14L32.76 17.24C30.68 15.16 27.96 14 25 14Z" fill="white"/>
                     </svg>
                 `;
@@ -315,7 +535,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const fullscreenButton = document.createElement('div');
                 fullscreenButton.innerHTML = `
                     <svg width="50" height="50" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <circle cx="25" cy="25" r="25" fill="rgba(0, 0, 0, 0.7)"/>
+                        <circle cx="25" cy="25" r="25" fill="rgba(128, 128, 128, 0.4)"/>
                         <path d="M16 21V16H21M34 16H29V16M29 34H34V29M16 29V34H21" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
                     </svg>
                 `;
@@ -445,7 +665,60 @@ document.addEventListener('DOMContentLoaded', async () => {
                     modalCloseButton.style.transform = 'scale(1)';
                 });
 
+                // Create replay button for modal
+                const modalReplayButton = document.createElement('div');
+                modalReplayButton.innerHTML = `
+                    <svg width="50" height="50" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="25" cy="25" r="25" fill="rgba(128, 128, 128, 0.4)"/>
+                        <path d="M25 14C18.92 14 14 18.92 14 25C14 31.08 18.92 36 25 36C29.18 36 32.84 33.66 34.74 30.18L32.26 28.74C30.92 31.26 28.16 33 25 33C20.58 33 17 29.42 17 25C17 20.58 20.58 17 25 17C27.24 17 29.26 17.92 30.74 19.4L27 23H36V14L32.76 17.24C30.68 15.16 27.96 14 25 14Z" fill="white"/>
+                    </svg>
+                `;
+                modalReplayButton.style.cssText = `
+                    position: absolute;
+                    bottom: 20px;
+                    right: 20px;
+                    cursor: pointer;
+                    z-index: 100000;
+                    transition: all 0.3s ease;
+                `;
+                modalReplayButton.addEventListener('mouseenter', () => {
+                    modalReplayButton.style.transform = 'scale(1.1)';
+                });
+                modalReplayButton.addEventListener('mouseleave', () => {
+                    modalReplayButton.style.transform = 'scale(1)';
+                });
+                modalReplayButton.addEventListener('click', () => {
+                    modalVideo.currentTime = 30.6;
+                    modalVideo.play();
+                });
+
+                // Create exit fullscreen button for modal
+                const modalExitFullscreenButton = document.createElement('div');
+                modalExitFullscreenButton.innerHTML = `
+                    <svg width="50" height="50" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="25" cy="25" r="25" fill="rgba(128, 128, 128, 0.4)"/>
+                        <path d="M21 16V21H16M29 21H34V16M34 29H29V34M16 34V29H21" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                    </svg>
+                `;
+                modalExitFullscreenButton.style.cssText = `
+                    position: absolute;
+                    bottom: 20px;
+                    left: 20px;
+                    cursor: pointer;
+                    z-index: 100000;
+                    transition: all 0.3s ease;
+                `;
+                modalExitFullscreenButton.addEventListener('mouseenter', () => {
+                    modalExitFullscreenButton.style.transform = 'scale(1.1)';
+                });
+                modalExitFullscreenButton.addEventListener('mouseleave', () => {
+                    modalExitFullscreenButton.style.transform = 'scale(1)';
+                });
+                modalExitFullscreenButton.addEventListener('click', closeFullscreenModal);
+
                 modalVideoContainer.appendChild(modalVideo);
+                modalVideoContainer.appendChild(modalReplayButton);
+                modalVideoContainer.appendChild(modalExitFullscreenButton);
                 fullscreenModal.appendChild(modalVideoContainer);
                 fullscreenModal.appendChild(modalCloseButton);
                 document.body.appendChild(fullscreenModal);

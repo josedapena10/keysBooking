@@ -560,7 +560,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     phoneNumberInput.node.addEventListener('input', handlePhoneNumberInput);
-    phoneNumberInput.node.addEventListener('keydown', handleKeyDown);
+    phoneNumberInput.node.addEventListener('keydown', handlePhoneKeyDown);
     phoneNumberInput.node.addEventListener('change', handlePhoneNumberInput);
 
     function handlePhoneNumberInput(event) {
@@ -575,7 +575,7 @@ document.addEventListener('DOMContentLoaded', () => {
       inputElement.value = formattedNumber; // Update the field with formatted input
     }
 
-    function handleKeyDown(event) {
+    function handlePhoneKeyDown(event) {
       const key = event.key;
       const inputElement = event.target;
 
@@ -758,7 +758,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     forgotPasswordEmailInput.node.addEventListener('input', handleEmailInput);
-    forgotPasswordEmailInput.node.addEventListener('keydown', handleKeyDown);
+    forgotPasswordEmailInput.node.addEventListener('keydown', handleEmailKeyDown);
     forgotPasswordEmailInput.node.addEventListener('change', handleEmailInput);
 
     // Function to handle email input
@@ -768,8 +768,8 @@ document.addEventListener('DOMContentLoaded', () => {
       inputElement.value = input; // Update the field with sanitized input
     }
 
-    // Function to handle key down events
-    function handleKeyDown(event) {
+    // Function to handle email key down events
+    function handleEmailKeyDown(event) {
       const key = event.key;
       const inputElement = event.target;
 
