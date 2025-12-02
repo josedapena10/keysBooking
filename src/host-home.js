@@ -79,18 +79,24 @@ document.addEventListener('DOMContentLoaded', () => {
     window.Wized = window.Wized || [];
     window.Wized.push(async (Wized) => {
 
-        await Wized.requests.waitFor('Load_user');
-        const userLoadStatus = Wized.data.r.Load_user.status
+        let userLoadStatus = null;
 
-        // Check if user should be redirected to add-home after sign-in
-        if (userLoadStatus === 200) {
-            const shouldRedirect = localStorage.getItem('redirectToAddHome');
-            if (shouldRedirect === 'true') {
-                // Clear the flag
-                localStorage.removeItem('redirectToAddHome');
-                // Redirect to add-home page
-                window.location.href = '/host/add-home';
-                return; // Exit early to prevent further execution
+        // Check if user has a token (is signed in)
+        if (Wized.data.c.token) {
+            // User has token, wait for Load_user request
+            await Wized.requests.waitFor('Load_user');
+            userLoadStatus = Wized.data.r.Load_user.status;
+
+            // Check if user should be redirected to add-home after sign-in
+            if (userLoadStatus === 200) {
+                const shouldRedirect = localStorage.getItem('redirectToAddHome');
+                if (shouldRedirect === 'true') {
+                    // Clear the flag
+                    localStorage.removeItem('redirectToAddHome');
+                    // Redirect to add-home page
+                    window.location.href = '/host/add-home';
+                    return; // Exit early to prevent further execution
+                }
             }
         }
 
