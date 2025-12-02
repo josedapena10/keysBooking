@@ -2678,7 +2678,7 @@ function validateLocation() {
 
                         listingData.address = {
                             addressLine1: initialAddressLine1,
-                            addressLine2: addressParts.slice(1).join(',').trim(),
+                            addressLine2: `${initialCity}, ${initialState} ${initialZipcode}`,
                             cityState: `${initialCity}, ${initialState}`,
                             neighborhood: neighborhood,
                             unit: unit,
@@ -2718,7 +2718,7 @@ function validateLocation() {
 
                         listingData.address = {
                             addressLine1: normalizedAddressLine1,
-                            addressLine2: addressParts.slice(1).join(',').trim(),
+                            addressLine2: `${suggestedCity}, ${suggestedState} ${suggestedZipcode}`,
                             cityState: `${suggestedCity}, ${suggestedState}`,
                             neighborhood: neighborhood,
                             unit: unit,
