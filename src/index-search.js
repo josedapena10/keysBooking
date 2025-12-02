@@ -31,6 +31,16 @@ document.addEventListener('DOMContentLoaded', function () {
     window.Wized = window.Wized || [];
     window.Wized.push(async (Wized) => {
         try {
+            // Check if user is signed in via c.token
+            const hasToken = Wized.data?.c?.token;
+
+            if (!hasToken) {
+                // User is not signed in, no need to wait for Load_user
+                userDataLoaded = true;
+                return;
+            }
+
+            // User is signed in, wait for Load_user
             const requestName = 'Load_user'; // Ensure this matches the actual request name
             await Wized.requests.waitFor(requestName);
 
