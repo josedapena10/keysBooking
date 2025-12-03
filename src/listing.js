@@ -190,6 +190,23 @@ document.addEventListener('DOMContentLoaded', () => {
       document.querySelectorAll('body').forEach(target => target.classList.remove('no-scroll'));
     });
   });
+
+  // Add no-scroll for calendarModal triggers on mobile (991px or less)
+  const calendarTriggers = document.querySelectorAll(
+    '[data-element="listing_checkAvailability_button"], ' +
+    '[data-element="listing_changeDates_button"], ' +
+    '[data-element="Listing_Reservaton_AddDates_Heading"], ' +
+    '[data-element="Input_CheckIn"], ' +
+    '[data-element="Input_CheckOut"]'
+  );
+
+  calendarTriggers.forEach(trigger => {
+    trigger.addEventListener('click', function () {
+      if (window.innerWidth <= 991) {
+        document.body.classList.add('no-scroll');
+      }
+    });
+  });
 });
 
 
@@ -1936,6 +1953,11 @@ document.addEventListener('DOMContentLoaded', function () {
           mobileCalendarModal.style.display = 'none';
         }
 
+        // Re-enable body scroll on mobile (991px or less)
+        if (window.innerWidth <= 991) {
+          document.body.classList.remove('no-scroll');
+        }
+
         // Trigger calendar query if both dates are selected
         if (selectedStartDate && selectedEndDate) {
           Wized.requests.execute('Load_Property_Calendar_Query').then(() => {
@@ -1963,6 +1985,11 @@ document.addEventListener('DOMContentLoaded', function () {
           }
 
           calendarModal.style.display = 'none';
+
+          // Re-enable body scroll on mobile (991px or less)
+          if (window.innerWidth <= 991) {
+            document.body.classList.remove('no-scroll');
+          }
 
           // Trigger calendar query if both dates are selected
           if (selectedStartDate && selectedEndDate) {
@@ -1992,6 +2019,11 @@ document.addEventListener('DOMContentLoaded', function () {
           }
 
           mobileCalendarModal.style.display = 'none';
+
+          // Re-enable body scroll on mobile (991px or less)
+          if (window.innerWidth <= 991) {
+            document.body.classList.remove('no-scroll');
+          }
 
           // Trigger calendar query if both dates are selected
           if (selectedStartDate && selectedEndDate) {
@@ -2469,9 +2501,9 @@ document.addEventListener('DOMContentLoaded', () => {
           // Add/remove no-scroll on body for mobile view (991px or less)
           if (window.innerWidth <= 991) {
             if (isVisible) {
-              document.body.style.overflow = 'hidden';
+              document.body.classList.add('no-scroll');
             } else {
-              document.body.style.overflow = '';
+              document.body.classList.remove('no-scroll');
             }
           }
 
@@ -2546,6 +2578,10 @@ document.addEventListener('DOMContentLoaded', () => {
         button.addEventListener('click', function (e) {
           // The desktop modal is already handled above, also show mobile modal if it exists
           mobileCalendarModal.style.display = 'flex';
+          // Prevent body scroll on mobile (991px or less)
+          if (window.innerWidth <= 991) {
+            document.body.classList.add('no-scroll');
+          }
         });
       }
     });
@@ -2557,6 +2593,10 @@ document.addEventListener('DOMContentLoaded', () => {
         button.addEventListener('click', function (e) {
           // The desktop modal is already handled above, also show mobile modal if it exists
           mobileCalendarModal.style.display = 'flex';
+          // Prevent body scroll on mobile (991px or less)
+          if (window.innerWidth <= 991) {
+            document.body.classList.add('no-scroll');
+          }
         });
       }
     });
