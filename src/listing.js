@@ -2465,6 +2465,16 @@ document.addEventListener('DOMContentLoaded', () => {
       mutations.forEach((mutation) => {
         if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
           const isVisible = window.getComputedStyle(calendarModal).display !== 'none';
+
+          // Add/remove no-scroll on body for mobile view (991px or less)
+          if (window.innerWidth <= 991) {
+            if (isVisible) {
+              document.body.style.overflow = 'hidden';
+            } else {
+              document.body.style.overflow = '';
+            }
+          }
+
           if (isVisible && window.resetCalendarView) {
             // Reset view to selected date when modal opens
             setTimeout(() => {
