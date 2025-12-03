@@ -1742,8 +1742,11 @@ function renderCharterRequestDetails(piData, resCodeData, charterEntry, statusVa
     if (charterEntry.pickup === false) {
         setText('manageBooking_requestDetails_charter_privateDockPickup', 'Business Location');
     } else if (charterEntry.pickup === true) {
-        const address = charterEntry._fishingcharter?.address || '';
-        setText('manageBooking_requestDetails_charter_privateDockPickup', `Private Dock - ${address}`);
+        // Private dock: use property address (house address) from reservationCode data
+        const addressLine1 = resCodeData._property_details?.address_line_1 || '';
+        const addressLine2 = resCodeData._property_details?.address_line_2 || '';
+        const fullAddress = [addressLine1, addressLine2].filter(Boolean).join(' ');
+        setText('manageBooking_requestDetails_charter_privateDockPickup', `Private Dock - ${fullAddress}`);
     }
 
     // Cancellation date (show for guest cancelled, host cancelled, or declined)
