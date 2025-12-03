@@ -1049,7 +1049,7 @@ function renderBoatCustomerDetails(piData, resCodeData, statusVariant, linkState
         showFlex('manageBooking_customerDetails_boat_boatingExperience');
         setText(
             'manageBooking_customerDetails_boat_boatingExperience',
-            `${boatingExperience} year${boatingExperience == 1 ? '' : 's'}`
+            `${boatingExperience}`
         );
     } else {
         hide('manageBooking_customerDetails_boat_boatingExperienceContainer');
