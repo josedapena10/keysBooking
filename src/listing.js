@@ -3193,12 +3193,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Update selectedBoatBlock_companyName
       const companyNameElements = document.querySelectorAll('[data-element="selectedBoatBlock_companyName"]');
-      if (companyNameElements.length > 0 && window.selectedBoatData._boat_company) {
-        companyNameElements.forEach(element => {
-          if (element) {
-            element.textContent = window.selectedBoatData._boat_company.name;
-          }
-        });
+      if (companyNameElements.length > 0) {
+        // Debug: log the boat data structure
+        console.log('selectedBoatData:', window.selectedBoatData);
+        console.log('_boat_company:', window.selectedBoatData?._boat_company);
+
+        // Try multiple data paths for company name
+        const companyName = window.selectedBoatData?._boat_company?.name
+          || window.selectedBoatData?.companyName
+          || '';
+
+        console.log('companyName found:', companyName);
+
+        if (companyName) {
+          companyNameElements.forEach(element => {
+            if (element) {
+              element.textContent = companyName;
+            }
+          });
+        }
       }
 
       // Update selectedBoatBlock_datesDelivery
