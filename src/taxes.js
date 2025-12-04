@@ -659,6 +659,21 @@ document.addEventListener('DOMContentLoaded', () => {
                     taxIDElement.textContent = maskedTaxID;
                 }
 
+                // Update the global W9 data with the new submitted data for future edits
+                window.userW9Data = {
+                    name: formData.name,
+                    disregardedEntityName: formData.disregardedEntityName,
+                    taxClassification: formData.taxClassification,
+                    taxID_type: formData.taxID_type,
+                    address_street: formData.address_street,
+                    address_unit: formData.address_unit,
+                    address_city: formData.address_city,
+                    address_state: formData.address_state,
+                    address_zipcode: formData.address_zipcode
+                };
+                window.userW9Last4TaxID = formData.taxID_number.slice(-4);
+
+
             } catch (error) {
                 console.error('Error submitting form:', error);
                 if (errorText) {

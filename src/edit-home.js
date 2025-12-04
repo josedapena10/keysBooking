@@ -700,9 +700,13 @@ document.addEventListener('DOMContentLoaded', function () {
             // Clear existing content
             gridContainer.innerHTML = '';
 
+            // Check if mobile view (479px or less)
+            const isMobile = window.innerWidth <= 479;
+            const photoSize = isMobile ? '140px' : '220px';
+
             // Add CSS styles to constrain photo sizes
             gridContainer.style.display = 'grid';
-            gridContainer.style.gridTemplateColumns = 'repeat(auto-fill, 220px)';
+            gridContainer.style.gridTemplateColumns = `repeat(auto-fill, ${photoSize})`;
             gridContainer.style.gap = '10px';
             gridContainer.style.padding = '10px';
 
@@ -713,11 +717,11 @@ document.addEventListener('DOMContentLoaded', function () {
             tempPhotos.forEach(photo => {
                 const imageWrapper = document.createElement('div');
                 imageWrapper.className = 'photo-item';
-                imageWrapper.style.width = '220px';
-                imageWrapper.style.height = '220px';
+                imageWrapper.style.width = photoSize;
+                imageWrapper.style.height = photoSize;
                 imageWrapper.style.aspectRatio = '1 / 1';
-                imageWrapper.style.maxWidth = '220px';
-                imageWrapper.style.maxHeight = '220px';
+                imageWrapper.style.maxWidth = photoSize;
+                imageWrapper.style.maxHeight = photoSize;
                 imageWrapper.style.borderRadius = '5px';
                 imageWrapper.style.cursor = 'move';
 
