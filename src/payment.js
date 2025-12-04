@@ -388,22 +388,62 @@ window.Wized.push(async (Wized) => {
         const els = document.querySelectorAll(selector);
 
         els.forEach(el => {
-            const full = (el.textContent || "").trim();
+            // Store or retrieve the original full text
+            if (!el.dataset.fullText) {
+                el.dataset.fullText = (el.textContent || "").trim();
+            }
+            const full = el.dataset.fullText;
+
+            // Get parent container's width to use as the constraint
+            const parent = el.parentElement;
+            if (!parent) return;
+
+            const parentWidth = parent.clientWidth;
+            if (parentWidth <= 0) return;
+
+            // Reset to full text first
             el.textContent = full;
 
-            // Required so scrollWidth is accurate
+            // Set styles to constrain within parent
             el.style.whiteSpace = "nowrap";
             el.style.overflow = "hidden";
+            el.style.display = "block";
+            el.style.maxWidth = "100%";
 
-            // If text is too wide, shrink it letter-by-letter
-            if (el.scrollWidth > el.clientWidth) {
+            // Create a temporary span to measure actual text width
+            const measureSpan = document.createElement('span');
+            measureSpan.style.visibility = 'hidden';
+            measureSpan.style.position = 'absolute';
+            measureSpan.style.whiteSpace = 'nowrap';
+            measureSpan.style.font = window.getComputedStyle(el).font;
+            document.body.appendChild(measureSpan);
+
+            // Measure full text width
+            measureSpan.textContent = full;
+            const textWidth = measureSpan.offsetWidth;
+
+            // If text is wider than parent, truncate character by character
+            if (textWidth > parentWidth) {
                 let truncated = full;
 
-                while (truncated.length > 0 && el.scrollWidth > el.clientWidth) {
+                while (truncated.length > 0) {
+                    measureSpan.textContent = truncated + "…";
+                    const currentWidth = measureSpan.offsetWidth;
+
+                    if (currentWidth <= parentWidth) {
+                        el.textContent = truncated + "…";
+                        break;
+                    }
                     truncated = truncated.slice(0, -1);
-                    el.textContent = truncated + "…";
+                }
+
+                if (truncated.length === 0) {
+                    el.textContent = "…";
                 }
             }
+
+            // Clean up measurement span
+            document.body.removeChild(measureSpan);
         });
     }
 
