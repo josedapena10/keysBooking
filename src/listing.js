@@ -3,6 +3,7 @@ var script = document.createElement('script');
 script.src = 'https://cdn.jsdelivr.net/npm/@finsweet/attributes-mirrorclick@1/mirrorclick.js';
 document.body.appendChild(script);
 
+console.log("hello")
 // Global utility function to truncate text to fit within parent container
 // Uses JavaScript-based character-by-character truncation
 // Used by both BoatRentalService and FishingCharterService across different code sections
