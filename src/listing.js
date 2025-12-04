@@ -3183,7 +3183,10 @@ document.addEventListener('DOMContentLoaded', () => {
       if (nameElements.length > 0) {
         nameElements.forEach(element => {
           if (element) {
+            // Clear any stored full text to use new name
+            delete element.dataset.fullText;
             element.textContent = window.selectedBoatData.name;
+            truncateToFit(element);
           }
         });
       }
@@ -5237,6 +5240,68 @@ document.addEventListener('DOMContentLoaded', () => {
   window.Wized = window.Wized || [];
   window.Wized.push((Wized) => {
 
+    // Utility function to truncate text to fit within parent container
+    // Used by both BoatRentalService and FishingCharterService
+    function truncateToFit(element) {
+      if (!element) return;
+
+      // Store or retrieve the original full text
+      if (!element.dataset.fullText) {
+        element.dataset.fullText = (element.textContent || "").trim();
+      }
+      const full = element.dataset.fullText;
+
+      // Get parent container's width to use as the constraint
+      const parent = element.parentElement;
+      if (!parent) return;
+
+      const parentWidth = parent.clientWidth;
+      if (parentWidth <= 0) return;
+
+      // Reset to full text first
+      element.textContent = full;
+
+      // Set styles to constrain within parent
+      element.style.whiteSpace = "nowrap";
+      element.style.overflow = "hidden";
+      element.style.display = "block";
+      element.style.maxWidth = "100%";
+
+      // Create a temporary span to measure actual text width
+      const measureSpan = document.createElement('span');
+      measureSpan.style.visibility = 'hidden';
+      measureSpan.style.position = 'absolute';
+      measureSpan.style.whiteSpace = 'nowrap';
+      measureSpan.style.font = window.getComputedStyle(element).font;
+      document.body.appendChild(measureSpan);
+
+      // Measure full text width
+      measureSpan.textContent = full;
+      const textWidth = measureSpan.offsetWidth;
+
+      // If text is wider than parent, truncate character by character
+      if (textWidth > parentWidth) {
+        let truncated = full;
+
+        while (truncated.length > 0) {
+          measureSpan.textContent = truncated + "…";
+          const currentWidth = measureSpan.offsetWidth;
+
+          if (currentWidth <= parentWidth) {
+            element.textContent = truncated + "…";
+            break;
+          }
+          truncated = truncated.slice(0, -1);
+        }
+
+        if (truncated.length === 0) {
+          element.textContent = "…";
+        }
+      }
+
+      // Clean up measurement span
+      document.body.removeChild(measureSpan);
+    }
 
     // Boat Rental Service Handler
     class BoatRentalService {
@@ -14492,7 +14557,10 @@ document.addEventListener('DOMContentLoaded', () => {
         // Update selectedFishingCharterBlock_tripName
         const tripNameElement = block.querySelector('[data-element="selectedFishingCharterBlock_tripName"]');
         if (tripNameElement) {
+          // Clear any stored full text to use new name
+          delete tripNameElement.dataset.fullText;
           tripNameElement.textContent = trip.tripName;
+          truncateToFit(tripNameElement);
         }
 
         // Update selectedFishingCharterBlock_companyName
