@@ -7,16 +7,78 @@ document.body.appendChild(script);
 // Uses CSS text-overflow: ellipsis for reliable truncation across desktop/mobile views
 // Used by both BoatRentalService and FishingCharterService across different code sections
 function truncateToFit(element) {
-  if (!element) return;
+  if (!element) {
+    console.log('[truncateToFit] No element provided');
+    return;
+  }
+
+  const text = element.textContent;
+  console.log('[truncateToFit] Processing element:', {
+    text: text,
+    element: element,
+    tagName: element.tagName,
+    className: element.className
+  });
 
   // Apply CSS-based truncation styles
-  // This works regardless of visibility and handles view switching automatically
   element.style.whiteSpace = "nowrap";
   element.style.overflow = "hidden";
   element.style.textOverflow = "ellipsis";
   element.style.display = "block";
-  element.style.width = "100%";  // Need explicit width for text-overflow to work
+  element.style.width = "100%";
   element.style.maxWidth = "100%";
+  element.style.minWidth = "0";
+
+  // Also set min-width: 0 on parent if it's a flex item
+  const parent = element.parentElement;
+  if (parent) {
+    const parentStyle = window.getComputedStyle(parent);
+    console.log('[truncateToFit] Parent info:', {
+      parent: parent,
+      parentDisplay: parentStyle.display,
+      parentWidth: parent.clientWidth,
+      parentClassName: parent.className
+    });
+
+    if (parentStyle.display === 'flex' || parentStyle.display === 'inline-flex') {
+      console.log('[truncateToFit] Parent is flex, setting min-width: 0');
+      parent.style.minWidth = "0";
+      parent.style.overflow = "hidden";
+    }
+
+    // Check grandparent too for nested flex
+    const grandparent = parent.parentElement;
+    if (grandparent) {
+      const grandparentStyle = window.getComputedStyle(grandparent);
+      console.log('[truncateToFit] Grandparent info:', {
+        grandparent: grandparent,
+        grandparentDisplay: grandparentStyle.display,
+        grandparentWidth: grandparent.clientWidth,
+        grandparentClassName: grandparent.className
+      });
+
+      if (grandparentStyle.display === 'flex' || grandparentStyle.display === 'inline-flex') {
+        console.log('[truncateToFit] Grandparent is flex, setting parent min-width: 0');
+        parent.style.minWidth = "0";
+      }
+    }
+  }
+
+  // Log final computed styles
+  setTimeout(() => {
+    const computed = window.getComputedStyle(element);
+    console.log('[truncateToFit] Final computed styles:', {
+      text: element.textContent,
+      width: computed.width,
+      maxWidth: computed.maxWidth,
+      overflow: computed.overflow,
+      textOverflow: computed.textOverflow,
+      whiteSpace: computed.whiteSpace,
+      elementScrollWidth: element.scrollWidth,
+      elementClientWidth: element.clientWidth,
+      isOverflowing: element.scrollWidth > element.clientWidth
+    });
+  }, 100);
 }
 
 // Page loader management - keep loader visible until all content is ready
