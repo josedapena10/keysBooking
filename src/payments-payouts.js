@@ -499,7 +499,7 @@ async function handlePayments(userId) {
 
 
 // Function to handle user payments display
-function handleUserPayments(payments) {
+function handleUserPayments(paymentsData) {
     const paymentsBlockTemplate = document.querySelector('[data-element="paymentsBlock"]');
     const paymentsContainer = document.querySelector('[data-element="paymentsBlock_container"]');
     const noPaymentsBlock = document.querySelector('[data-element="noPaymentsBlock"]');
@@ -511,7 +511,54 @@ function handleUserPayments(payments) {
         paymentsContainer.style.display = 'none';
     }
 
-    if (payments && payments.length > 0) {
+    // Collect all payment items to display
+    const allPaymentItems = [];
+
+    // Process stay reservation payments
+    if (paymentsData && Array.isArray(paymentsData)) {
+        paymentsData.forEach(payment => {
+            // Check if this stay payment should be displayed (paid or refunded)
+            const paymentStatus = getStayPaymentStatus(payment);
+            if (paymentStatus) {
+                allPaymentItems.push({
+                    type: 'stay',
+                    data: payment,
+                    status: paymentStatus
+                });
+            }
+
+            // Process fishing charter payments within this payment
+            if (payment._fishingcharters_paymentsmade && payment._fishingcharters_paymentsmade.fishingCharters) {
+                payment._fishingcharters_paymentsmade.fishingCharters.forEach(charter => {
+                    const charterStatus = getFishingCharterPaymentStatus(charter);
+                    if (charterStatus) {
+                        allPaymentItems.push({
+                            type: 'fishingCharter',
+                            data: charter,
+                            parentPayment: payment,
+                            status: charterStatus
+                        });
+                    }
+                });
+            }
+
+            // Process boat rental payments within this payment
+            if (payment._boat_paymentsmade) {
+                const boatPayment = payment._boat_paymentsmade;
+                const boatStatus = getBoatPaymentStatus(boatPayment);
+                if (boatStatus) {
+                    allPaymentItems.push({
+                        type: 'boat',
+                        data: boatPayment,
+                        parentPayment: payment,
+                        status: boatStatus
+                    });
+                }
+            }
+        });
+    }
+
+    if (allPaymentItems.length > 0) {
         // Hide no payments message and show header and container
         noPaymentsBlock.style.display = 'none';
         if (paymentBlockHeader) {
@@ -522,7 +569,7 @@ function handleUserPayments(payments) {
         }
 
         // Create and append payment blocks
-        payments.forEach((payment, index) => {
+        allPaymentItems.forEach((paymentItem, index) => {
             let currentBlock;
             if (index === 0) {
                 // Use the existing template for first item
@@ -538,7 +585,14 @@ function handleUserPayments(payments) {
                 }
             }
 
-            populatePaymentBlock(currentBlock, payment);
+            // Populate based on payment type
+            if (paymentItem.type === 'stay') {
+                populatePaymentBlock(currentBlock, paymentItem.data, paymentItem.status);
+            } else if (paymentItem.type === 'fishingCharter') {
+                populateFishingCharterPaymentBlock(currentBlock, paymentItem.data, paymentItem.parentPayment, paymentItem.status);
+            } else if (paymentItem.type === 'boat') {
+                populateBoatPaymentBlock(currentBlock, paymentItem.data, paymentItem.parentPayment, paymentItem.status);
+            }
         });
     } else {
         // If no payments, hide the template block, header, container and show no payments message
@@ -553,19 +607,150 @@ function handleUserPayments(payments) {
     }
 }
 
-// Function to populate individual payment block
-function populatePaymentBlock(block, payment) {
+// Function to determine stay payment status (Paid or Refunded)
+function getStayPaymentStatus(payment) {
+    if (!payment._reservation) {
+        return null;
+    }
+
+    const reservation = payment._reservation;
+    const isActive = reservation.reservation_active === true;
+    const cancelledRefundDate = reservation.cancelled_refundDate;
+    const fullCancellationDate = reservation.full_cancellation_date;
+
+    // Paid conditions:
+    // 1. reservation_active is true AND cancelled_refundDate is null
+    // 2. reservation_active is false AND cancelled_refundDate > full_cancellation_date
+    if (isActive && cancelledRefundDate === null) {
+        return 'Paid';
+    }
+    if (!isActive && cancelledRefundDate !== null && fullCancellationDate !== null) {
+        const refundDateTimestamp = new Date(cancelledRefundDate).getTime();
+        const fullCancellationTimestamp = new Date(fullCancellationDate).getTime();
+        if (refundDateTimestamp > fullCancellationTimestamp) {
+            return 'Paid';
+        }
+    }
+
+    // Refunded condition:
+    // reservation_active is false AND cancelled_refundDate <= full_cancellation_date
+    if (!isActive && cancelledRefundDate !== null && fullCancellationDate !== null) {
+        const refundDateTimestamp = new Date(cancelledRefundDate).getTime();
+        const fullCancellationTimestamp = new Date(fullCancellationDate).getTime();
+        if (refundDateTimestamp <= fullCancellationTimestamp) {
+            return 'Refunded';
+        }
+    }
+
+    return null;
+}
+
+// Function to determine fishing charter payment status
+function getFishingCharterPaymentStatus(charter) {
+    if (!charter.paymentConfirmed) {
+        return null;
+    }
+
+    const isActive = charter.reservation_active === true;
+    const cancellationDate = charter.cancellation_date;
+    const hostCancellationDate = charter.host_cancellation_date;
+    const cancellationPolicyDate = charter.cancellationPolicyDate;
+
+    // Payment Made (Active): paymentConfirmed is true AND reservation_active is true
+    if (isActive) {
+        return 'Paid';
+    }
+
+    // Payment Made (No Refund): paymentConfirmed is true, reservation_active is false,
+    // cancellation_date is not null, host_cancellation_date is null,
+    // and cancellation_date > cancellationPolicyDate
+    if (!isActive && cancellationDate !== null && hostCancellationDate === null && cancellationPolicyDate !== null) {
+        const cancellationTimestamp = new Date(cancellationDate).getTime();
+        const policyTimestamp = new Date(cancellationPolicyDate).getTime();
+        if (cancellationTimestamp > policyTimestamp) {
+            return 'Paid';
+        }
+    }
+
+    // Refunded (Normal Refund): paymentConfirmed is true, reservation_active is false,
+    // cancellation_date is not null, host_cancellation_date is null,
+    // and cancellation_date <= cancellationPolicyDate
+    if (!isActive && cancellationDate !== null && hostCancellationDate === null && cancellationPolicyDate !== null) {
+        const cancellationTimestamp = new Date(cancellationDate).getTime();
+        const policyTimestamp = new Date(cancellationPolicyDate).getTime();
+        if (cancellationTimestamp <= policyTimestamp) {
+            return 'Refunded';
+        }
+    }
+
+    // Refunded (Host Refund): paymentConfirmed is true, reservation_active is false,
+    // host_cancellation_date is not null
+    if (!isActive && hostCancellationDate !== null) {
+        return 'Refunded';
+    }
+
+    return null;
+}
+
+// Function to determine boat rental payment status
+function getBoatPaymentStatus(boatPayment) {
+    if (!boatPayment.paymentConfirmed) {
+        return null;
+    }
+
+    const isActive = boatPayment.reservation_active === true;
+    const cancellationDate = boatPayment.cancellation_date;
+    const hostCancellationDate = boatPayment.host_cancellation_date;
+    const cancellationPolicyDate = boatPayment.cancellationPolicyDate;
+
+    // Payment Made (Active): paymentConfirmed is true AND reservation_active is true
+    if (isActive) {
+        return 'Paid';
+    }
+
+    // Payment Made (No Refund): paymentConfirmed is true, reservation_active is false,
+    // cancellation_date is not null, host_cancellation_date is null,
+    // and cancellation_date > cancellationPolicyDate
+    if (!isActive && cancellationDate !== null && hostCancellationDate === null && cancellationPolicyDate !== null) {
+        const cancellationTimestamp = new Date(cancellationDate).getTime();
+        const policyTimestamp = new Date(cancellationPolicyDate).getTime();
+        if (cancellationTimestamp > policyTimestamp) {
+            return 'Paid';
+        }
+    }
+
+    // Refunded (Normal Refund): paymentConfirmed is true, reservation_active is false,
+    // cancellation_date is not null, host_cancellation_date is null,
+    // and cancellation_date <= cancellationPolicyDate
+    if (!isActive && cancellationDate !== null && hostCancellationDate === null && cancellationPolicyDate !== null) {
+        const cancellationTimestamp = new Date(cancellationDate).getTime();
+        const policyTimestamp = new Date(cancellationPolicyDate).getTime();
+        if (cancellationTimestamp <= policyTimestamp) {
+            return 'Refunded';
+        }
+    }
+
+    // Refunded (Host Refund): paymentConfirmed is true, reservation_active is false,
+    // host_cancellation_date is not null
+    if (!isActive && hostCancellationDate !== null) {
+        return 'Refunded';
+    }
+
+    return null;
+}
+
+// Function to populate individual payment block for stay reservations
+function populatePaymentBlock(block, payment, status) {
     // Set payment image
     const imageBlock = block.querySelector('[data-element="paymentsBlock_image"]');
     if (imageBlock) {
         imageBlock.src = payment._property_main_image.property_image.url;
     }
 
-    // Set payment status
+    // Set payment status based on the calculated status
     const statusBlock = block.querySelector('[data-element="paymentsBlock_paymentStatus"]');
     if (statusBlock) {
-        // Display "Paid" if payment status is succeeded
-        statusBlock.textContent = payment.payment_status === 'succeeded' ? 'Paid' : payment.payment_status;
+        statusBlock.textContent = status;
     }
 
     // Set payment date
@@ -593,6 +778,182 @@ function populatePaymentBlock(block, payment) {
     if (amountBlock) {
         amountBlock.textContent = `$${payment.amount_total.toFixed(2)}`;
     }
+}
+
+// Function to populate fishing charter payment block
+function populateFishingCharterPaymentBlock(block, charter, parentPayment, status) {
+    // Set payment image - find image with order = 1
+    const imageBlock = block.querySelector('[data-element="paymentsBlock_image"]');
+    if (imageBlock && charter._fishingcharter && charter._fishingcharter.images) {
+        const mainImage = charter._fishingcharter.images.find(img => img.order === 1);
+        if (mainImage && mainImage.image && mainImage.image.url) {
+            imageBlock.src = mainImage.image.url;
+        }
+    }
+
+    // Set payment status
+    const statusBlock = block.querySelector('[data-element="paymentsBlock_paymentStatus"]');
+    if (statusBlock) {
+        statusBlock.textContent = status;
+    }
+
+    // Set payment date from paymentConfirmed_date
+    const dateBlock = block.querySelector('[data-element="paymentsBlock_date"]');
+    if (dateBlock && charter.paymentConfirmed_date) {
+        const date = new Date(charter.paymentConfirmed_date);
+        dateBlock.textContent = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    // Set card info - use same card as parent payment
+    const cardBlock = block.querySelector('[data-element="paymentsBlock_card"]');
+    if (cardBlock && parentPayment) {
+        cardBlock.textContent = `${parentPayment.card_type} ****${parentPayment.card_last4}`;
+    }
+
+    // Set charter name and dates
+    const cityDateBlock = block.querySelector('[data-element="paymentsBlock_cityDate"]');
+    if (cityDateBlock) {
+        const charterName = charter.charterName || '';
+        const formattedDates = formatFishingCharterDates(charter.dates);
+        cityDateBlock.textContent = `${charterName} • ${formattedDates}`;
+    }
+
+    // Set amount from pricing.total
+    const amountBlock = block.querySelector('[data-element="paymentsBlock_amount"]');
+    if (amountBlock && charter.pricing && charter.pricing.total !== undefined) {
+        amountBlock.textContent = `$${charter.pricing.total.toFixed(2)}`;
+    }
+}
+
+// Function to populate boat rental payment block
+function populateBoatPaymentBlock(block, boatPayment, parentPayment, status) {
+    // Set payment image - find photo with order = 1
+    const imageBlock = block.querySelector('[data-element="paymentsBlock_image"]');
+    if (imageBlock && boatPayment._boat && boatPayment._boat.photos) {
+        const mainPhoto = boatPayment._boat.photos.find(photo => photo.order === 1);
+        if (mainPhoto && mainPhoto.image && mainPhoto.image.url) {
+            imageBlock.src = mainPhoto.image.url;
+        }
+    }
+
+    // Set payment status
+    const statusBlock = block.querySelector('[data-element="paymentsBlock_paymentStatus"]');
+    if (statusBlock) {
+        statusBlock.textContent = status;
+    }
+
+    // Set payment date from paymentConfirmed_date
+    const dateBlock = block.querySelector('[data-element="paymentsBlock_date"]');
+    if (dateBlock && boatPayment.paymentConfirmed_date) {
+        const date = new Date(boatPayment.paymentConfirmed_date);
+        dateBlock.textContent = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    // Set card info - use same card as parent payment
+    const cardBlock = block.querySelector('[data-element="paymentsBlock_card"]');
+    if (cardBlock && parentPayment) {
+        cardBlock.textContent = `${parentPayment.card_type} ****${parentPayment.card_last4}`;
+    }
+
+    // Set boat name and dates (as range like stay reservations)
+    const cityDateBlock = block.querySelector('[data-element="paymentsBlock_cityDate"]');
+    if (cityDateBlock && boatPayment._boat) {
+        const boatName = boatPayment._boat.name || '';
+        const formattedDates = formatBoatDates(boatPayment.boatDates);
+        cityDateBlock.textContent = `${boatName} • ${formattedDates}`;
+    }
+
+    // Set amount from pricing[].total (find the pricing object and get total)
+    const amountBlock = block.querySelector('[data-element="paymentsBlock_amount"]');
+    if (amountBlock && boatPayment.pricing) {
+        // pricing can be an array or object
+        let total = 0;
+        if (Array.isArray(boatPayment.pricing)) {
+            const pricingItem = boatPayment.pricing.find(p => p.total !== undefined);
+            if (pricingItem) {
+                total = pricingItem.total;
+            }
+        } else if (boatPayment.pricing.total !== undefined) {
+            total = boatPayment.pricing.total;
+        }
+        amountBlock.textContent = `$${total.toFixed(2)}`;
+    }
+}
+
+// Helper function to format fishing charter dates (non-range format: Jan 10, 11, 14 or Jan 30, Feb 2)
+function formatFishingCharterDates(dates) {
+    if (!dates || !Array.isArray(dates) || dates.length === 0) {
+        return '';
+    }
+
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+    // Parse and sort dates
+    const parsedDates = dates
+        .map(d => {
+            const dateStr = d.date || d;
+            const [year, month, day] = dateStr.split('-');
+            return {
+                year: parseInt(year),
+                month: parseInt(month),
+                day: parseInt(day),
+                monthName: months[parseInt(month) - 1]
+            };
+        })
+        .sort((a, b) => {
+            if (a.year !== b.year) return a.year - b.year;
+            if (a.month !== b.month) return a.month - b.month;
+            return a.day - b.day;
+        });
+
+    // Group dates by month
+    const result = [];
+    let currentMonth = null;
+    let currentDays = [];
+
+    parsedDates.forEach(date => {
+        if (currentMonth === null || currentMonth !== date.month) {
+            if (currentDays.length > 0) {
+                result.push(`${months[currentMonth - 1]} ${currentDays.join(', ')}`);
+            }
+            currentMonth = date.month;
+            currentDays = [date.day];
+        } else {
+            currentDays.push(date.day);
+        }
+    });
+
+    // Push the last group
+    if (currentDays.length > 0) {
+        result.push(`${months[currentMonth - 1]} ${currentDays.join(', ')}`);
+    }
+
+    return result.join(', ');
+}
+
+// Helper function to format boat dates (range format like stay reservations)
+function formatBoatDates(boatDates) {
+    if (!boatDates || !Array.isArray(boatDates) || boatDates.length === 0) {
+        return '';
+    }
+
+    // Get all dates and sort them
+    const sortedDates = boatDates
+        .map(d => d.date || d)
+        .sort();
+
+    if (sortedDates.length === 1) {
+        // Single date - format like "Jan 10"
+        const [, month, day] = sortedDates[0].split('-');
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        return `${months[parseInt(month) - 1]} ${parseInt(day)}`;
+    }
+
+    // Use first and last date for range
+    const firstDate = sortedDates[0];
+    const lastDate = sortedDates[sortedDates.length - 1];
+
+    return formatDateRange(firstDate, lastDate);
 }
 
 // Helper function to format date range
