@@ -4,85 +4,79 @@ script.src = 'https://cdn.jsdelivr.net/npm/@finsweet/attributes-mirrorclick@1/mi
 document.body.appendChild(script);
 
 // Global utility function to truncate text to fit within parent container
-// Uses JavaScript-based character-by-character truncation (same approach as payment.js)
+// Uses JavaScript-based character-by-character truncation
 // Used by both BoatRentalService and FishingCharterService across different code sections
 function truncateToFit(element) {
   if (!element) return;
 
-  // Store or retrieve the original full text
+  // Store the original full text before any processing
   if (!element.dataset.fullText) {
     element.dataset.fullText = (element.textContent || "").trim();
   }
   const full = element.dataset.fullText;
   if (!full) return;
 
-  // Get parent container's width to use as the constraint
+  // Get parent container
   const parent = element.parentElement;
   if (!parent) return;
 
-  // Temporarily clear text and constrain parent to get true available width
-  // This prevents the parent from expanding to fit the content
-  element.textContent = '';
+  // Apply width: 100% to element and min-width: 0 to parents for proper flex sizing
+  element.style.width = "100%";
+  element.style.minWidth = "0";
   element.style.whiteSpace = "nowrap";
   element.style.overflow = "hidden";
   element.style.display = "block";
-  element.style.maxWidth = "100%";
-
-  // Force parent to not expand with content
-  const originalParentOverflow = parent.style.overflow;
+  parent.style.minWidth = "0";
   parent.style.overflow = "hidden";
 
-  const parentWidth = parent.clientWidth;
+  // Wait for layout to settle, then measure and truncate
+  requestAnimationFrame(() => {
+    const parentWidth = parent.clientWidth;
 
-  // If parent width is 0, element might not be visible - retry after delay
-  if (parentWidth <= 0) {
+    // If parent width is 0, retry after delay
+    if (parentWidth <= 0) {
+      setTimeout(() => truncateToFit(element), 100);
+      return;
+    }
+
+    // Reset to full text
     element.textContent = full;
-    parent.style.overflow = originalParentOverflow;
-    setTimeout(() => truncateToFit(element), 100);
-    return;
-  }
 
-  // Create a temporary span to measure actual text width
-  const measureSpan = document.createElement('span');
-  measureSpan.style.visibility = 'hidden';
-  measureSpan.style.position = 'absolute';
-  measureSpan.style.whiteSpace = 'nowrap';
-  measureSpan.style.font = window.getComputedStyle(element).font;
-  document.body.appendChild(measureSpan);
+    // Create a temporary span to measure actual text width
+    const measureSpan = document.createElement('span');
+    measureSpan.style.visibility = 'hidden';
+    measureSpan.style.position = 'absolute';
+    measureSpan.style.whiteSpace = 'nowrap';
+    measureSpan.style.font = window.getComputedStyle(element).font;
+    document.body.appendChild(measureSpan);
 
-  // Measure full text width
-  measureSpan.textContent = full;
-  const textWidth = measureSpan.offsetWidth;
+    // Measure full text width
+    measureSpan.textContent = full;
+    const textWidth = measureSpan.offsetWidth;
 
-  console.log('[truncateToFit]', { text: full, textWidth, parentWidth, needsTruncation: textWidth > parentWidth });
+    // If text is wider than parent, truncate character by character
+    if (textWidth > parentWidth) {
+      let truncated = full;
 
-  // If text is wider than parent, truncate character by character
-  if (textWidth > parentWidth) {
-    let truncated = full;
+      while (truncated.length > 0) {
+        measureSpan.textContent = truncated + "…";
+        const currentWidth = measureSpan.offsetWidth;
 
-    while (truncated.length > 0) {
-      measureSpan.textContent = truncated + "…";
-      const currentWidth = measureSpan.offsetWidth;
-
-      if (currentWidth <= parentWidth) {
-        element.textContent = truncated + "…";
-        console.log('[truncateToFit] Truncated to:', truncated + "…");
-        break;
+        if (currentWidth <= parentWidth) {
+          element.textContent = truncated + "…";
+          break;
+        }
+        truncated = truncated.slice(0, -1);
       }
-      truncated = truncated.slice(0, -1);
+
+      if (truncated.length === 0) {
+        element.textContent = "…";
+      }
     }
 
-    if (truncated.length === 0) {
-      element.textContent = "…";
-    }
-  } else {
-    // No truncation needed, set full text
-    element.textContent = full;
-  }
-
-  // Restore parent overflow and clean up
-  parent.style.overflow = originalParentOverflow;
-  document.body.removeChild(measureSpan);
+    // Clean up measurement span
+    document.body.removeChild(measureSpan);
+  });
 }
 
 // Page loader management - keep loader visible until all content is ready
