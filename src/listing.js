@@ -3,6 +3,21 @@ var script = document.createElement('script');
 script.src = 'https://cdn.jsdelivr.net/npm/@finsweet/attributes-mirrorclick@1/mirrorclick.js';
 document.body.appendChild(script);
 
+// Global utility function to truncate text to fit within parent container
+// Uses CSS text-overflow: ellipsis for reliable truncation across desktop/mobile views
+// Used by both BoatRentalService and FishingCharterService across different code sections
+function truncateToFit(element) {
+  if (!element) return;
+
+  // Apply CSS-based truncation styles
+  // This works regardless of visibility and handles view switching automatically
+  element.style.whiteSpace = "nowrap";
+  element.style.overflow = "hidden";
+  element.style.textOverflow = "ellipsis";
+  element.style.display = "block";
+  element.style.maxWidth = "100%";
+}
+
 // Page loader management - keep loader visible until all content is ready
 (function initPageLoader() {
   const loadingTracker = {
@@ -3180,34 +3195,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Update selectedBoatBlock_name
       const nameElements = document.querySelectorAll('[data-element="selectedBoatBlock_name"]');
-      console.log('[Boat] Updating boat name, found elements:', nameElements.length, 'boatName:', window.selectedBoatData?.name);
       if (nameElements.length > 0) {
-        nameElements.forEach((element, index) => {
+        nameElements.forEach((element) => {
           if (element) {
             // Clear any stored full text to use new name
             delete element.dataset.fullText;
             element.textContent = window.selectedBoatData.name;
-            console.log('[Boat] Calling truncateToFit for boat name, element index:', index);
             truncateToFit(element);
           }
         });
-      } else {
-        console.log('[Boat] No selectedBoatBlock_name elements found!');
       }
 
       // Update selectedBoatBlock_companyName
       const companyNameElements = document.querySelectorAll('[data-element="selectedBoatBlock_companyName"]');
       if (companyNameElements.length > 0) {
-        // Debug: log the boat data structure
-        console.log('selectedBoatData:', window.selectedBoatData);
-        console.log('_boat_company:', window.selectedBoatData?._boat_company);
+        // Debug: Log the full boat data to see company name structure
+        console.log('[Boat CompanyName Debug] Full selectedBoatData:', window.selectedBoatData);
+        console.log('[Boat CompanyName Debug] _boat_company:', window.selectedBoatData?._boat_company);
+        console.log('[Boat CompanyName Debug] All keys:', Object.keys(window.selectedBoatData || {}));
 
         // Try multiple data paths for company name
         const companyName = window.selectedBoatData?._boat_company?.name
           || window.selectedBoatData?.companyName
+          || window.selectedBoatData?.company_name
+          || window.selectedBoatData?.boatCompanyName
           || '';
 
-        console.log('companyName found:', companyName);
+        console.log('[Boat CompanyName Debug] Resolved companyName:', companyName);
 
         if (companyName) {
           companyNameElements.forEach(element => {
@@ -5256,111 +5270,6 @@ document.addEventListener('DOMContentLoaded', () => {
   // Initialize Wized
   window.Wized = window.Wized || [];
   window.Wized.push((Wized) => {
-
-    // Utility function to truncate text to fit within parent container
-    // Used by both BoatRentalService and FishingCharterService
-    function truncateToFit(element, retryCount = 0) {
-      if (!element) {
-        console.log('[truncateToFit] No element provided');
-        return;
-      }
-
-      console.log('[truncateToFit] Called with:', {
-        element: element,
-        tagName: element.tagName,
-        currentText: element.textContent,
-        storedFullText: element.dataset.fullText,
-        retryCount: retryCount
-      });
-
-      // Store or retrieve the original full text
-      if (!element.dataset.fullText) {
-        element.dataset.fullText = (element.textContent || "").trim();
-        console.log('[truncateToFit] Stored new fullText:', element.dataset.fullText);
-      }
-      const full = element.dataset.fullText;
-      if (!full) {
-        console.log('[truncateToFit] No full text to work with');
-        return;
-      }
-
-      // Get parent container's width to use as the constraint
-      const parent = element.parentElement;
-      if (!parent) {
-        console.log('[truncateToFit] No parent element');
-        return;
-      }
-
-      const parentWidth = parent.clientWidth;
-      console.log('[truncateToFit] Parent width:', parentWidth, 'Parent:', parent);
-
-      // If parent width is 0, element might not be rendered yet - retry with delay
-      if (parentWidth <= 0) {
-        if (retryCount < 10) {
-          console.log('[truncateToFit] Parent width is 0, retrying... attempt', retryCount + 1);
-          // Use setTimeout for more reliable timing when elements are just becoming visible
-          setTimeout(() => truncateToFit(element, retryCount + 1), 50);
-        } else {
-          console.log('[truncateToFit] Max retries reached, parent still has 0 width');
-        }
-        return;
-      }
-
-      // Reset to full text first
-      element.textContent = full;
-
-      // Set styles to constrain within parent
-      element.style.whiteSpace = "nowrap";
-      element.style.overflow = "hidden";
-      element.style.display = "block";
-      element.style.maxWidth = "100%";
-
-      // Create a temporary span to measure actual text width
-      const measureSpan = document.createElement('span');
-      measureSpan.style.visibility = 'hidden';
-      measureSpan.style.position = 'absolute';
-      measureSpan.style.whiteSpace = 'nowrap';
-      measureSpan.style.font = window.getComputedStyle(element).font;
-      document.body.appendChild(measureSpan);
-
-      // Measure full text width
-      measureSpan.textContent = full;
-      const textWidth = measureSpan.offsetWidth;
-
-      console.log('[truncateToFit] Measuring:', {
-        fullText: full,
-        textWidth: textWidth,
-        parentWidth: parentWidth,
-        needsTruncation: textWidth > parentWidth
-      });
-
-      // If text is wider than parent, truncate character by character
-      if (textWidth > parentWidth) {
-        let truncated = full;
-
-        while (truncated.length > 0) {
-          measureSpan.textContent = truncated + "…";
-          const currentWidth = measureSpan.offsetWidth;
-
-          if (currentWidth <= parentWidth) {
-            element.textContent = truncated + "…";
-            console.log('[truncateToFit] Truncated to:', truncated + "…");
-            break;
-          }
-          truncated = truncated.slice(0, -1);
-        }
-
-        if (truncated.length === 0) {
-          element.textContent = "…";
-          console.log('[truncateToFit] Fully truncated to ellipsis');
-        }
-      } else {
-        console.log('[truncateToFit] No truncation needed, text fits');
-      }
-
-      // Clean up measurement span
-      document.body.removeChild(measureSpan);
-    }
 
     // Boat Rental Service Handler
     class BoatRentalService {
@@ -14571,20 +14480,16 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
           }
 
-          console.log('[FishingCharter] renderSelectedFishingCharterBlocks - trips to render:', selectedTrips.length);
-
           // Show and populate blocks for each selected trip
           selectedTrips.forEach((trip, index) => {
             let block;
             if (index === 0) {
               // Use the template block for the first trip
               block = templateBlock;
-              console.log('[FishingCharter] Using template block for trip index:', index, 'tripName:', trip.tripName);
             } else {
               // Clone the template for additional trips
               block = templateBlock.cloneNode(true);
               container.appendChild(block);
-              console.log('[FishingCharter] Cloned block for trip index:', index, 'tripName:', trip.tripName);
             }
 
             // Show the block
@@ -14619,19 +14524,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Update selectedFishingCharterBlock_tripName
         const tripNameElement = block.querySelector('[data-element="selectedFishingCharterBlock_tripName"]');
-        console.log('[FishingCharter] populateSingleFishingCharterBlock called:', {
-          tripName: trip.tripName,
-          tripNameElement: tripNameElement,
-          block: block
-        });
         if (tripNameElement) {
           // Clear any stored full text to use new name
           delete tripNameElement.dataset.fullText;
           tripNameElement.textContent = trip.tripName;
-          console.log('[FishingCharter] Calling truncateToFit for:', trip.tripName);
           truncateToFit(tripNameElement);
-        } else {
-          console.log('[FishingCharter] tripNameElement NOT FOUND in block');
         }
 
         // Update selectedFishingCharterBlock_companyName
