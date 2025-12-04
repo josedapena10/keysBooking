@@ -1215,7 +1215,15 @@ function initializePhotosStep() {
 
     // Hide error message initially
     if (photosError) photosError.style.display = 'none';
-    if (photosSubText) photosSubText.style.display = 'block';
+    if (photosSubText) {
+        photosSubText.style.display = 'block';
+        // Set subtext based on private dock selection
+        if (listingData.dock.hasPrivateDock === true) {
+            photosSubText.textContent = 'Add at least 5 home photos, plus 2 dock photos. You can add more and make changes later.';
+        } else {
+            photosSubText.textContent = 'Please add 5 or more photos. You can add more and make changes later.';
+        }
+    }
 
     // Add click handler to both add photos buttons
     const setupPhotoButton = (button) => {
@@ -3518,6 +3526,19 @@ function initializeDescriptionStep() {
 // Function to initialize pricing step
 function initializePricingStep() {
     const priceInput = document.querySelector('[data-element="setPriceInput"]');
+    const priceWithFeeText = document.querySelector('[data-element="setPrice_withFeeText"]');
+
+    // Helper function to update price with fee text
+    const updatePriceWithFee = (price) => {
+        if (priceWithFeeText) {
+            const numericPrice = parseFloat(price) || 0;
+            const priceWithFee = Math.round(numericPrice * 1.12 * 100) / 100;
+            // Format without decimals if it's a whole number
+            const formattedPrice = priceWithFee % 1 === 0 ? priceWithFee.toFixed(0) : priceWithFee.toFixed(2);
+            priceWithFeeText.textContent = `$${formattedPrice} with guest service fee`;
+        }
+    };
+
     if (priceInput) {
         // Remove default focus outline/border for all browsers
         priceInput.style.outline = 'none';
@@ -3530,6 +3551,9 @@ function initializePricingStep() {
         // Set initial value if exists in listingData
         if (listingData.price) {
             priceInput.value = `$${listingData.price}`;
+            updatePriceWithFee(listingData.price);
+        } else {
+            updatePriceWithFee(0);
         }
 
         priceInput.addEventListener('focus', () => {
@@ -3554,6 +3578,9 @@ function initializePricingStep() {
             // Store numeric value without $ in listingData
             listingData.price = value.substring(1);
 
+            // Update price with fee text in real-time
+            updatePriceWithFee(listingData.price);
+
             if (hasAttemptedToLeave.pricing) {
                 validatePricing();
             }
@@ -3568,12 +3595,28 @@ function initializePricingStep() {
                 }
             }
         });
+    } else {
+        // Initialize fee text even if input not found
+        updatePriceWithFee(0);
     }
 }
 
 // Function to initialize cleaning fee step
 function initializeCleaningFeeStep() {
     const cleaningFeeInput = document.querySelector('[data-element="setCleaningFeeInput"]');
+    const cleaningFeeWithFeeText = document.querySelector('[data-element="setCleaningFee_withFeeText"]');
+
+    // Helper function to update cleaning fee with service fee text
+    const updateCleaningFeeWithFee = (fee) => {
+        if (cleaningFeeWithFeeText) {
+            const numericFee = parseFloat(fee) || 0;
+            const feeWithServiceFee = Math.round(numericFee * 1.12 * 100) / 100;
+            // Format without decimals if it's a whole number
+            const formattedFee = feeWithServiceFee % 1 === 0 ? feeWithServiceFee.toFixed(0) : feeWithServiceFee.toFixed(2);
+            cleaningFeeWithFeeText.textContent = `$${formattedFee} with guest service fee`;
+        }
+    };
+
     if (cleaningFeeInput) {
         // Remove default focus outline/border for all browsers
         cleaningFeeInput.style.outline = 'none';
@@ -3586,6 +3629,9 @@ function initializeCleaningFeeStep() {
         // Set initial value if exists in listingData
         if (listingData.cleaningFee) {
             cleaningFeeInput.value = `$${listingData.cleaningFee}`;
+            updateCleaningFeeWithFee(listingData.cleaningFee);
+        } else {
+            updateCleaningFeeWithFee(0);
         }
 
         cleaningFeeInput.addEventListener('focus', () => {
@@ -3610,6 +3656,9 @@ function initializeCleaningFeeStep() {
             // Store numeric value without $ in listingData
             listingData.cleaningFee = value.substring(1);
 
+            // Update cleaning fee with service fee text in real-time
+            updateCleaningFeeWithFee(listingData.cleaningFee);
+
             if (hasAttemptedToLeave.cleaningFee) {
                 validateCleaningFee();
             }
@@ -3624,6 +3673,9 @@ function initializeCleaningFeeStep() {
                 }
             }
         });
+    } else {
+        // Initialize fee text even if input not found
+        updateCleaningFeeWithFee(0);
     }
 }
 
