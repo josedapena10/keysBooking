@@ -5419,6 +5419,9 @@ document.addEventListener('DOMContentLoaded', () => {
         this.initialBoats = []; // Store initial boat results (before filters) for disabled dates logic
         this.allowsHalfDay = false; // Track if any boat allows half day
 
+        // Track min days filtering info for no results message
+        this.lastMinDaysFilterInfo = null; // { requiredDays: number, availableDays: number }
+
         // Edit mode tracking - store original params to restore if user cancels
         this.isEditMode = false;
         this.originalEditParams = null;
@@ -7493,7 +7496,13 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       filterBoats(boats) {
-        return boats.filter(boat => {
+        // Reset min days filter tracking before filtering
+        this.lastMinDaysFilterInfo = null;
+        let minDaysFilteredCount = 0;
+        let maxRequiredDays = 0;
+        const availableDays = this.getAvailableDaysForMinCheck();
+
+        const filteredBoats = boats.filter(boat => {
           // Filter by guest count
           if (this.selectedGuests > 0 && boat.maxPassengers < this.selectedGuests) {
             return false;
@@ -7507,70 +7516,17 @@ document.addEventListener('DOMContentLoaded', () => {
             }
           }
 
-          // Filter by minimum days requirement (boat minimum + public dock minimum + private dock minimum if selected)
-          // Check stay dates first (checkin/checkout), then boat dates if selected
-          let daysToCheck = 0;
+          // Filter by minimum days requirement
+          if (availableDays > 0) {
+            const effectiveMinDays = this.getEffectiveMinDaysForBoat(boat);
 
-          // First, check property stay dates from URL (format: YYYY-MM-DD)
-          const urlParams = new URLSearchParams(window.location.search);
-          const checkin = urlParams.get('checkin');
-          const checkout = urlParams.get('checkout');
-
-          if (checkin && checkout && checkin.trim() !== '' && checkout.trim() !== '') {
-            // Simple calculation: YYYY-MM-DD format
-            // Split the dates and calculate difference manually
-            const checkinParts = checkin.split('-');
-            const checkoutParts = checkout.split('-');
-
-            if (checkinParts.length === 3 && checkoutParts.length === 3) {
-              // Create dates at noon UTC to avoid timezone issues
-              const checkinDate = new Date(Date.UTC(
-                parseInt(checkinParts[0]),
-                parseInt(checkinParts[1]) - 1,
-                parseInt(checkinParts[2]),
-                12, 0, 0
-              ));
-              const checkoutDate = new Date(Date.UTC(
-                parseInt(checkoutParts[0]),
-                parseInt(checkoutParts[1]) - 1,
-                parseInt(checkoutParts[2]),
-                12, 0, 0
-              ));
-
-              // Calculate days difference (nights between dates)
-              const timeDiff = checkoutDate.getTime() - checkinDate.getTime();
-              const nightsDiff = Math.floor(timeDiff / (1000 * 60 * 60 * 24));
-
-              // For boat rentals, we need total days including checkin and checkout
-              // 6 nights = 7 days (checkin day + 6 nights + checkout day = 7 days)
-              if (nightsDiff > 0) {
-                daysToCheck = nightsDiff + 1; // Add 1 to convert nights to total days
+            // If boat requires more days than available, filter it out
+            if (effectiveMinDays > 0 && availableDays < effectiveMinDays) {
+              // Track min days filtering info
+              minDaysFilteredCount++;
+              if (effectiveMinDays > maxRequiredDays) {
+                maxRequiredDays = effectiveMinDays;
               }
-            }
-          }
-
-          // Override with boat dates if selected (boat dates take precedence)
-          if (this.selectedDates.length > 0) {
-            daysToCheck = this.selectedDates.length;
-          }
-
-          // Always check minimum days requirement if we have days to check
-          if (daysToCheck > 0) {
-            const publicDockDetails = this.getPublicDockDeliveryDetails(boat);
-            const publicDockMinDays = publicDockDetails?.minDays ? Number(publicDockDetails.minDays) : 0;
-            const boatMinDays = boat.minReservationLength || 0;
-
-            // Only consider private dock minimum if private dock delivery is selected
-            let privateDockMinDays = 0;
-            if (this.selectedPrivateDock) {
-              const privateDockDetails = this.getPrivateDockDeliveryDetails(boat);
-              privateDockMinDays = privateDockDetails?.minDays ? Number(privateDockDetails.minDays) : 0;
-            }
-
-            const effectiveMinDays = Math.max(publicDockMinDays, privateDockMinDays, boatMinDays);
-
-            // If boat requires more days than available, filter it out from the beginning
-            if (effectiveMinDays > 0 && daysToCheck < effectiveMinDays) {
               return false;
             }
           }
@@ -7683,6 +7639,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
           return true;
         });
+
+        // Store min days filter info if boats were filtered due to min days
+        if (minDaysFilteredCount > 0 && filteredBoats.length === 0 && boats.length > 0) {
+          this.lastMinDaysFilterInfo = {
+            requiredDays: maxRequiredDays,
+            availableDays: availableDays,
+            filteredCount: minDaysFilteredCount,
+            totalBoats: boats.length
+          };
+        }
+
+        return filteredBoats;
       }
 
       showSkeletonCards() {
@@ -7697,6 +7665,12 @@ document.addEventListener('DOMContentLoaded', () => {
         // Remove any old skeleton cards
         const oldSkeletons = this.cardWrapper.querySelectorAll('[data-skeleton="true"]');
         oldSkeletons.forEach(skeleton => skeleton.remove());
+
+        // Remove any existing no results message to prevent overlap
+        const existingNoResultsMessage = this.cardWrapper.querySelector('.no-results-message');
+        if (existingNoResultsMessage) {
+          existingNoResultsMessage.remove();
+        }
 
         // Create 6 skeleton cards
         for (let i = 0; i < 6; i++) {
@@ -7968,6 +7942,13 @@ document.addEventListener('DOMContentLoaded', () => {
           return 'No boat rentals available for this stay.';
         }
 
+        // Priority 0: Check if boats were filtered due to minimum days requirement
+        // This is the most accurate since it was tracked during actual filtering
+        if (this.lastMinDaysFilterInfo) {
+          const { requiredDays, availableDays } = this.lastMinDaysFilterInfo;
+          return `Boat rentals require ${requiredDays} day${requiredDays > 1 ? 's' : ''}, but your stay is only ${availableDays} day${availableDays > 1 ? 's' : ''}. Extend your dates or select another property.`;
+        }
+
         // Priority 1: Check private dock delivery filter (most restrictive)
         if (this.selectedPrivateDock) {
           const hasPrivateDock = r?.Load_Property_Details?.data?.property?.private_dock;
@@ -7986,6 +7967,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Priority 2: Check date-related issues (minimum days requirement)
+        // Note: This is now mostly handled by lastMinDaysFilterInfo above
         if (this.selectedDates.length > 0 && this.selectedDates.length < 7) {
           return `You selected ${this.selectedDates.length} day${this.selectedDates.length > 1 ? 's' : ''}, but available boats require a longer minimum rental. Try selecting more days.`;
         }
@@ -8019,6 +8001,12 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       renderBoatCards(boats) {
+        if (!this.cardWrapper) return;
+
+        // First, remove any skeleton cards - this ensures clean state transition
+        const skeletons = this.cardWrapper.querySelectorAll('[data-skeleton="true"]');
+        skeletons.forEach(skeleton => skeleton.remove());
+
         // Clear any existing duplicated cards
         const existingCards = this.cardWrapper.querySelectorAll('[data-element="addBoatModal_selectBoat_card"]');
         existingCards.forEach((card, index) => {
@@ -9113,7 +9101,13 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       filterBoats(boats) {
-        return boats.filter(boat => {
+        // Reset min days filter tracking before filtering
+        this.lastMinDaysFilterInfo = null;
+        let minDaysFilteredCount = 0;
+        let maxRequiredDays = 0;
+        const availableDays = this.getAvailableDaysForMinCheck();
+
+        const filteredBoats = boats.filter(boat => {
           // Filter by guest count
           if (this.selectedGuests > 0 && boat.maxPassengers < this.selectedGuests) {
             return false;
@@ -9127,70 +9121,17 @@ document.addEventListener('DOMContentLoaded', () => {
             }
           }
 
-          // Filter by minimum days requirement (boat minimum + public dock minimum + private dock minimum if selected)
-          // Check stay dates first (checkin/checkout), then boat dates if selected
-          let daysToCheck = 0;
+          // Filter by minimum days requirement
+          if (availableDays > 0) {
+            const effectiveMinDays = this.getEffectiveMinDaysForBoat(boat);
 
-          // First, check property stay dates from URL (format: YYYY-MM-DD)
-          const urlParams = new URLSearchParams(window.location.search);
-          const checkin = urlParams.get('checkin');
-          const checkout = urlParams.get('checkout');
-
-          if (checkin && checkout && checkin.trim() !== '' && checkout.trim() !== '') {
-            // Simple calculation: YYYY-MM-DD format
-            // Split the dates and calculate difference manually
-            const checkinParts = checkin.split('-');
-            const checkoutParts = checkout.split('-');
-
-            if (checkinParts.length === 3 && checkoutParts.length === 3) {
-              // Create dates at noon UTC to avoid timezone issues
-              const checkinDate = new Date(Date.UTC(
-                parseInt(checkinParts[0]),
-                parseInt(checkinParts[1]) - 1,
-                parseInt(checkinParts[2]),
-                12, 0, 0
-              ));
-              const checkoutDate = new Date(Date.UTC(
-                parseInt(checkoutParts[0]),
-                parseInt(checkoutParts[1]) - 1,
-                parseInt(checkoutParts[2]),
-                12, 0, 0
-              ));
-
-              // Calculate days difference (nights between dates)
-              const timeDiff = checkoutDate.getTime() - checkinDate.getTime();
-              const nightsDiff = Math.floor(timeDiff / (1000 * 60 * 60 * 24));
-
-              // For boat rentals, we need total days including checkin and checkout
-              // 6 nights = 7 days (checkin day + 6 nights + checkout day = 7 days)
-              if (nightsDiff > 0) {
-                daysToCheck = nightsDiff + 1; // Add 1 to convert nights to total days
+            // If boat requires more days than available, filter it out
+            if (effectiveMinDays > 0 && availableDays < effectiveMinDays) {
+              // Track min days filtering info
+              minDaysFilteredCount++;
+              if (effectiveMinDays > maxRequiredDays) {
+                maxRequiredDays = effectiveMinDays;
               }
-            }
-          }
-
-          // Override with boat dates if selected (boat dates take precedence)
-          if (this.selectedDates.length > 0) {
-            daysToCheck = this.selectedDates.length;
-          }
-
-          // Always check minimum days requirement if we have days to check
-          if (daysToCheck > 0) {
-            const publicDockDetails = this.getPublicDockDeliveryDetails(boat);
-            const publicDockMinDays = publicDockDetails?.minDays ? Number(publicDockDetails.minDays) : 0;
-            const boatMinDays = boat.minReservationLength || 0;
-
-            // Only consider private dock minimum if private dock delivery is selected
-            let privateDockMinDays = 0;
-            if (this.selectedPrivateDock) {
-              const privateDockDetails = this.getPrivateDockDeliveryDetails(boat);
-              privateDockMinDays = privateDockDetails?.minDays ? Number(privateDockDetails.minDays) : 0;
-            }
-
-            const effectiveMinDays = Math.max(publicDockMinDays, privateDockMinDays, boatMinDays);
-
-            // If boat requires more days than available, filter it out from the beginning
-            if (effectiveMinDays > 0 && daysToCheck < effectiveMinDays) {
               return false;
             }
           }
@@ -9303,6 +9244,77 @@ document.addEventListener('DOMContentLoaded', () => {
 
           return true;
         });
+
+        // Store min days filter info if boats were filtered due to min days
+        if (minDaysFilteredCount > 0 && filteredBoats.length === 0 && boats.length > 0) {
+          this.lastMinDaysFilterInfo = {
+            requiredDays: maxRequiredDays,
+            availableDays: availableDays,
+            filteredCount: minDaysFilteredCount,
+            totalBoats: boats.length
+          };
+        }
+
+        return filteredBoats;
+      }
+
+      // Helper method to calculate available days for min days check
+      getAvailableDaysForMinCheck() {
+        let daysToCheck = 0;
+
+        // First, check property stay dates from URL (format: YYYY-MM-DD)
+        const urlParams = new URLSearchParams(window.location.search);
+        const checkin = urlParams.get('checkin');
+        const checkout = urlParams.get('checkout');
+
+        if (checkin && checkout && checkin.trim() !== '' && checkout.trim() !== '') {
+          const checkinParts = checkin.split('-');
+          const checkoutParts = checkout.split('-');
+
+          if (checkinParts.length === 3 && checkoutParts.length === 3) {
+            const checkinDate = new Date(Date.UTC(
+              parseInt(checkinParts[0]),
+              parseInt(checkinParts[1]) - 1,
+              parseInt(checkinParts[2]),
+              12, 0, 0
+            ));
+            const checkoutDate = new Date(Date.UTC(
+              parseInt(checkoutParts[0]),
+              parseInt(checkoutParts[1]) - 1,
+              parseInt(checkoutParts[2]),
+              12, 0, 0
+            ));
+
+            const timeDiff = checkoutDate.getTime() - checkinDate.getTime();
+            const nightsDiff = Math.floor(timeDiff / (1000 * 60 * 60 * 24));
+
+            if (nightsDiff > 0) {
+              daysToCheck = nightsDiff + 1;
+            }
+          }
+        }
+
+        // Override with boat dates if selected (boat dates take precedence)
+        if (this.selectedDates.length > 0) {
+          daysToCheck = this.selectedDates.length;
+        }
+
+        return daysToCheck;
+      }
+
+      // Helper method to calculate effective min days for a boat
+      getEffectiveMinDaysForBoat(boat) {
+        const publicDockDetails = this.getPublicDockDeliveryDetails(boat);
+        const publicDockMinDays = publicDockDetails?.minDays ? Number(publicDockDetails.minDays) : 0;
+        const boatMinDays = boat.minReservationLength || 0;
+
+        let privateDockMinDays = 0;
+        if (this.selectedPrivateDock) {
+          const privateDockDetails = this.getPrivateDockDeliveryDetails(boat);
+          privateDockMinDays = privateDockDetails?.minDays ? Number(privateDockDetails.minDays) : 0;
+        }
+
+        return Math.max(publicDockMinDays, privateDockMinDays, boatMinDays);
       }
 
       setupPriceFilter() {
