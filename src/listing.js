@@ -3,81 +3,74 @@ var script = document.createElement('script');
 script.src = 'https://cdn.jsdelivr.net/npm/@finsweet/attributes-mirrorclick@1/mirrorclick.js';
 document.body.appendChild(script);
 
-console.log("hello")
 // Global utility function to truncate text to fit within parent container
-// Uses JavaScript-based character-by-character truncation
+// Uses JavaScript-based character-by-character truncation (same approach as payment.js)
 // Used by both BoatRentalService and FishingCharterService across different code sections
 function truncateToFit(element) {
   if (!element) return;
 
-  // Store the original full text before any processing
+  // Store or retrieve the original full text
   if (!element.dataset.fullText) {
     element.dataset.fullText = (element.textContent || "").trim();
   }
   const full = element.dataset.fullText;
   if (!full) return;
 
-  // Get parent container
+  // Get parent container's width to use as the constraint
   const parent = element.parentElement;
   if (!parent) return;
 
-  // Apply width: 100% to element and min-width: 0 to parents for proper flex sizing
-  element.style.width = "100%";
-  element.style.minWidth = "0";
+  const parentWidth = parent.clientWidth;
+
+  // If parent width is 0, element might not be visible - retry after delay
+  if (parentWidth <= 0) {
+    setTimeout(() => truncateToFit(element), 100);
+    return;
+  }
+
+  // Reset to full text first
+  element.textContent = full;
+
+  // Set styles to constrain within parent
   element.style.whiteSpace = "nowrap";
   element.style.overflow = "hidden";
   element.style.display = "block";
-  parent.style.minWidth = "0";
-  parent.style.overflow = "hidden";
+  element.style.maxWidth = "100%";
 
-  // Wait for layout to settle, then measure and truncate
-  requestAnimationFrame(() => {
-    const parentWidth = parent.clientWidth;
+  // Create a temporary span to measure actual text width
+  const measureSpan = document.createElement('span');
+  measureSpan.style.visibility = 'hidden';
+  measureSpan.style.position = 'absolute';
+  measureSpan.style.whiteSpace = 'nowrap';
+  measureSpan.style.font = window.getComputedStyle(element).font;
+  document.body.appendChild(measureSpan);
 
-    // If parent width is 0, retry after delay
-    if (parentWidth <= 0) {
-      setTimeout(() => truncateToFit(element), 100);
-      return;
+  // Measure full text width
+  measureSpan.textContent = full;
+  const textWidth = measureSpan.offsetWidth;
+
+  // If text is wider than parent, truncate character by character
+  if (textWidth > parentWidth) {
+    let truncated = full;
+
+    while (truncated.length > 0) {
+      measureSpan.textContent = truncated + "…";
+      const currentWidth = measureSpan.offsetWidth;
+
+      if (currentWidth <= parentWidth) {
+        element.textContent = truncated + "…";
+        break;
+      }
+      truncated = truncated.slice(0, -1);
     }
 
-    // Reset to full text
-    element.textContent = full;
-
-    // Create a temporary span to measure actual text width
-    const measureSpan = document.createElement('span');
-    measureSpan.style.visibility = 'hidden';
-    measureSpan.style.position = 'absolute';
-    measureSpan.style.whiteSpace = 'nowrap';
-    measureSpan.style.font = window.getComputedStyle(element).font;
-    document.body.appendChild(measureSpan);
-
-    // Measure full text width
-    measureSpan.textContent = full;
-    const textWidth = measureSpan.offsetWidth;
-
-    // If text is wider than parent, truncate character by character
-    if (textWidth > parentWidth) {
-      let truncated = full;
-
-      while (truncated.length > 0) {
-        measureSpan.textContent = truncated + "…";
-        const currentWidth = measureSpan.offsetWidth;
-
-        if (currentWidth <= parentWidth) {
-          element.textContent = truncated + "…";
-          break;
-        }
-        truncated = truncated.slice(0, -1);
-      }
-
-      if (truncated.length === 0) {
-        element.textContent = "…";
-      }
+    if (truncated.length === 0) {
+      element.textContent = "…";
     }
+  }
 
-    // Clean up measurement span
-    document.body.removeChild(measureSpan);
-  });
+  // Clean up measurement span
+  document.body.removeChild(measureSpan);
 }
 
 // Page loader management - keep loader visible until all content is ready
