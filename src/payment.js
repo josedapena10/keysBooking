@@ -371,3 +371,54 @@ window.Wized.push((Wized) => {
 
 
 
+window.Wized = window.Wized || [];
+window.Wized.push(async (Wized) => {
+
+    const params = Wized.data.n?.parameter || {};
+
+    // Only run truncation if boat or charter pages are active
+    const shouldRunTruncate =
+        params.boatId != null ||
+        params.fishingCharterId1 != null;
+
+    if (!shouldRunTruncate) return;
+
+    // ----- Width-based truncation function -----
+    function truncateToFit(selector) {
+        const els = document.querySelectorAll(selector);
+
+        els.forEach(el => {
+            const full = (el.textContent || "").trim();
+            el.textContent = full;
+
+            // Required so scrollWidth is accurate
+            el.style.whiteSpace = "nowrap";
+            el.style.overflow = "hidden";
+
+            // If text is too wide, shrink it letter-by-letter
+            if (el.scrollWidth > el.clientWidth) {
+                let truncated = full;
+
+                while (truncated.length > 0 && el.scrollWidth > el.clientWidth) {
+                    truncated = truncated.slice(0, -1);
+                    el.textContent = truncated + "…";
+                }
+            }
+        });
+    }
+
+    // Run after every Wized request completes (correct timing)
+    Wized.events.on("requestend", () => {
+        truncateToFit('[w-el="ListingTitle"]');
+        truncateToFit('[w-el="ReservationExtrasCards_boatRental_name"]');
+        truncateToFit('[w-el="ReservationExtrasCards_fishingCharter_name"]');
+    });
+
+    // Re-run on viewport changes
+    window.addEventListener("resize", () => {
+        truncateToFit('[w-el="ListingTitle"]');
+        truncateToFit('[w-el="ReservationExtrasCards_boatRental_name"]');
+        truncateToFit('[w-el="ReservationExtrasCards_fishingCharter_name"]');
+    });
+});
+
