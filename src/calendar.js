@@ -5472,10 +5472,12 @@ document.addEventListener('DOMContentLoaded', function () {
             // Remove any non-numeric characters
             this.value = this.value.replace(/[^0-9]/g, '');
 
-            // Limit to values less than 100
+            // Limit to values between 1 and 99
             const numValue = parseInt(this.value) || 0;
             if (numValue >= 100) {
                 this.value = '99';
+            } else if (numValue < 1 && this.value !== '') {
+                this.value = '1';
             }
 
             // Update subText based on input value
@@ -5497,8 +5499,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Extract the numeric value
                 const newDays = parseInt(advanceNoticeInput.value.trim());
 
-                // Check if the input has a valid integer value and is less than 100
-                if (!isNaN(newDays) && Number.isFinite(newDays) && advanceNoticeInput.value.trim() !== '' && newDays < 100) {
+                // Check if the input has a valid integer value between 1 and 99
+                if (!isNaN(newDays) && Number.isFinite(newDays) && advanceNoticeInput.value.trim() !== '' && newDays >= 1 && newDays < 100) {
                     // Set saving flag to true
                     isSaving = true;
 
@@ -5547,7 +5549,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         isSaving = false;
                     }
                 } else {
-                    alert('Please enter a valid number of days (less than 100)');
+                    alert('Please enter a valid number of days (1-99)');
                 }
             });
         }
