@@ -479,6 +479,20 @@ document.addEventListener('DOMContentLoaded', function () {
                     });
                 }
 
+                // Ensure dock photos have valid in_dock_section_order values
+                let dockPhotoOrder = 1;
+                processedPhotos = processedPhotos.map(photo => {
+                    if (photo.isDockPhoto && (!photo.in_dock_section_order || photo.in_dock_section_order < 1)) {
+                        return {
+                            ...photo,
+                            in_dock_section_order: dockPhotoOrder++
+                        };
+                    } else if (photo.isDockPhoto) {
+                        dockPhotoOrder++;
+                    }
+                    return photo;
+                });
+
                 const photoData = {
                     property_id: propertyResult.id,
                     addedPhotos: processedPhotos.map(photo => ({
@@ -1318,7 +1332,8 @@ function handlePhotoSelection(event) {
                 fileExtension: fileExtension,
                 isCoverPhoto: false,
                 coverPhotoOrder: null,
-                isDockPhoto: false
+                isDockPhoto: false,
+                in_dock_section_order: null
             });
 
             filesProcessed++;
