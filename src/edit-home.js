@@ -725,6 +725,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 imageWrapper.style.maxHeight = photoSize;
                 imageWrapper.style.borderRadius = '5px';
                 imageWrapper.style.cursor = 'move';
+                imageWrapper.style.position = 'relative';
+                imageWrapper.style.touchAction = 'none'; // Prevent default touch behaviors
 
                 const img = document.createElement('img');
                 img.src = photo.url;
@@ -734,12 +736,148 @@ document.addEventListener('DOMContentLoaded', function () {
                 img.style.borderRadius = '5px';
                 img.style.objectFit = 'cover';
                 img.draggable = false;
+                img.style.pointerEvents = 'none'; // Prevent image from intercepting touch events
 
                 imageWrapper.appendChild(img);
                 gridContainer.appendChild(imageWrapper);
             });
 
-            // Initialize jQuery UI sortable
+            // Touch drag and drop implementation for mobile
+            let draggedElement = null;
+            let draggedClone = null;
+            let startX, startY;
+            let initialIndex = -1;
+            let placeholder = null;
+
+            const updateTempPhotosOrder = () => {
+                const items = gridContainer.getElementsByClassName('photo-item');
+                Array.from(items).forEach((item, i) => {
+                    if (item === placeholder) return; // Skip placeholder
+                    const imgSrc = item.querySelector('img')?.src;
+                    const photo = tempPhotos.find(p => p.url === imgSrc);
+                    if (photo) {
+                        photo.coverPhotoOrder = i + 1;
+                        photo.isCoverPhoto = i < 5;
+                    }
+                });
+            };
+
+            const getElementAtPoint = (x, y) => {
+                const items = Array.from(gridContainer.getElementsByClassName('photo-item'));
+                for (const item of items) {
+                    if (item === draggedElement || item === placeholder) continue;
+                    const rect = item.getBoundingClientRect();
+                    if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+                        return item;
+                    }
+                }
+                return null;
+            };
+
+            const handleTouchStart = (e) => {
+                if (e.touches.length !== 1) return;
+
+                const touch = e.touches[0];
+                draggedElement = e.currentTarget;
+                startX = touch.clientX;
+                startY = touch.clientY;
+
+                const items = Array.from(gridContainer.getElementsByClassName('photo-item'));
+                initialIndex = items.indexOf(draggedElement);
+
+                // Create clone for dragging
+                draggedClone = draggedElement.cloneNode(true);
+                const rect = draggedElement.getBoundingClientRect();
+                draggedClone.style.position = 'fixed';
+                draggedClone.style.left = rect.left + 'px';
+                draggedClone.style.top = rect.top + 'px';
+                draggedClone.style.width = rect.width + 'px';
+                draggedClone.style.height = rect.height + 'px';
+                draggedClone.style.zIndex = '10000';
+                draggedClone.style.opacity = '0.9';
+                draggedClone.style.boxShadow = '0 5px 15px rgba(0,0,0,0.3)';
+                draggedClone.style.pointerEvents = 'none';
+                draggedClone.style.transition = 'none';
+                document.body.appendChild(draggedClone);
+
+                // Create placeholder
+                placeholder = document.createElement('div');
+                placeholder.className = 'photo-item-placeholder';
+                placeholder.style.width = photoSize;
+                placeholder.style.height = photoSize;
+                placeholder.style.border = '2px dashed #ccc';
+                placeholder.style.borderRadius = '5px';
+                placeholder.style.backgroundColor = 'rgba(0,0,0,0.05)';
+
+                // Hide original and insert placeholder
+                draggedElement.style.visibility = 'hidden';
+                gridContainer.insertBefore(placeholder, draggedElement);
+
+                e.preventDefault();
+            };
+
+            const handleTouchMove = (e) => {
+                if (!draggedElement || !draggedClone) return;
+
+                const touch = e.touches[0];
+                const deltaX = touch.clientX - startX;
+                const deltaY = touch.clientY - startY;
+
+                const rect = draggedElement.getBoundingClientRect();
+                draggedClone.style.left = (rect.left + deltaX) + 'px';
+                draggedClone.style.top = (rect.top + deltaY) + 'px';
+
+                // Find element under touch point
+                const elementAtPoint = getElementAtPoint(touch.clientX, touch.clientY);
+                if (elementAtPoint && elementAtPoint !== placeholder) {
+                    const targetRect = elementAtPoint.getBoundingClientRect();
+                    const targetMiddle = targetRect.left + targetRect.width / 2;
+
+                    if (touch.clientX < targetMiddle) {
+                        gridContainer.insertBefore(placeholder, elementAtPoint);
+                    } else {
+                        gridContainer.insertBefore(placeholder, elementAtPoint.nextSibling);
+                    }
+                }
+
+                e.preventDefault();
+            };
+
+            const handleTouchEnd = (e) => {
+                if (!draggedElement) return;
+
+                // Remove clone
+                if (draggedClone) {
+                    draggedClone.remove();
+                    draggedClone = null;
+                }
+
+                // Move dragged element to placeholder position
+                if (placeholder) {
+                    gridContainer.insertBefore(draggedElement, placeholder);
+                    placeholder.remove();
+                    placeholder = null;
+                }
+
+                // Show original element
+                draggedElement.style.visibility = 'visible';
+
+                // Update photo order
+                updateTempPhotosOrder();
+
+                draggedElement = null;
+                initialIndex = -1;
+            };
+
+            // Add touch event listeners to each photo item
+            const photoItems = gridContainer.getElementsByClassName('photo-item');
+            Array.from(photoItems).forEach(item => {
+                item.addEventListener('touchstart', handleTouchStart, { passive: false });
+                item.addEventListener('touchmove', handleTouchMove, { passive: false });
+                item.addEventListener('touchend', handleTouchEnd);
+            });
+
+            // Initialize jQuery UI sortable for desktop (mouse) support
             $(gridContainer).sortable({
                 swapThreshold: 0.5,
                 animation: 150,
