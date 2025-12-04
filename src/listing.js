@@ -20,22 +20,27 @@ function truncateToFit(element) {
   const parent = element.parentElement;
   if (!parent) return;
 
-  const parentWidth = parent.clientWidth;
-
-  // If parent width is 0, element might not be visible - retry after delay
-  if (parentWidth <= 0) {
-    setTimeout(() => truncateToFit(element), 100);
-    return;
-  }
-
-  // Reset to full text first
-  element.textContent = full;
-
-  // Set styles to constrain within parent
+  // Temporarily clear text and constrain parent to get true available width
+  // This prevents the parent from expanding to fit the content
+  element.textContent = '';
   element.style.whiteSpace = "nowrap";
   element.style.overflow = "hidden";
   element.style.display = "block";
   element.style.maxWidth = "100%";
+
+  // Force parent to not expand with content
+  const originalParentOverflow = parent.style.overflow;
+  parent.style.overflow = "hidden";
+
+  const parentWidth = parent.clientWidth;
+
+  // If parent width is 0, element might not be visible - retry after delay
+  if (parentWidth <= 0) {
+    element.textContent = full;
+    parent.style.overflow = originalParentOverflow;
+    setTimeout(() => truncateToFit(element), 100);
+    return;
+  }
 
   // Create a temporary span to measure actual text width
   const measureSpan = document.createElement('span');
@@ -49,6 +54,8 @@ function truncateToFit(element) {
   measureSpan.textContent = full;
   const textWidth = measureSpan.offsetWidth;
 
+  console.log('[truncateToFit]', { text: full, textWidth, parentWidth, needsTruncation: textWidth > parentWidth });
+
   // If text is wider than parent, truncate character by character
   if (textWidth > parentWidth) {
     let truncated = full;
@@ -59,6 +66,7 @@ function truncateToFit(element) {
 
       if (currentWidth <= parentWidth) {
         element.textContent = truncated + "…";
+        console.log('[truncateToFit] Truncated to:', truncated + "…");
         break;
       }
       truncated = truncated.slice(0, -1);
@@ -67,9 +75,13 @@ function truncateToFit(element) {
     if (truncated.length === 0) {
       element.textContent = "…";
     }
+  } else {
+    // No truncation needed, set full text
+    element.textContent = full;
   }
 
-  // Clean up measurement span
+  // Restore parent overflow and clean up
+  parent.style.overflow = originalParentOverflow;
   document.body.removeChild(measureSpan);
 }
 
