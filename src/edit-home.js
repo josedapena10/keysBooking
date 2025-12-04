@@ -5042,9 +5042,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
                 enableAllRules();
 
-                // Set up cancel button click handler
+                // Set up cancel button click handler (using onclick to prevent duplicate handlers)
                 if (cancelButton) {
-                    const cancelHandler = () => {
+                    cancelButton.onclick = () => {
                         // Hide error and show subtext when canceling
                         if (rulesError) rulesError.style.display = 'none';
                         if (rulesSubText) rulesSubText.style.display = 'block';
@@ -5083,17 +5083,12 @@ document.addEventListener('DOMContentLoaded', function () {
                                 button.style.cursor = 'default';
                             }
                         });
-
-                        // Remove the cancel handler to prevent multiple bindings
-                        cancelButton.removeEventListener('click', cancelHandler);
                     };
-
-                    cancelButton.addEventListener('click', cancelHandler);
                 }
 
-                // Set up save button click handler
+                // Set up save button click handler (using onclick to prevent duplicate handlers)
                 if (saveButton) {
-                    const saveHandler = async () => {
+                    saveButton.onclick = async () => {
                         // Get guest max number from text content
                         const guestMaxButton = duringVisitRules.guestMax;
                         const guestMaxText = guestMaxButton?.textContent || '';
@@ -5162,9 +5157,6 @@ document.addEventListener('DOMContentLoaded', function () {
                                 }
                             });
 
-                            // Remove the save handler to prevent multiple bindings
-                            saveButton.removeEventListener('click', saveHandler);
-
                         } catch (error) {
                             console.error('Error saving rules:', error);
                             if (rulesError && rulesSubText) {
@@ -5181,8 +5173,6 @@ document.addEventListener('DOMContentLoaded', function () {
                             if (cancelSaveContainer) cancelSaveContainer.style.display = 'flex';
                         }
                     };
-
-                    saveButton.addEventListener('click', saveHandler);
                 }
             });
         }
@@ -5579,9 +5569,9 @@ document.addEventListener('DOMContentLoaded', function () {
                     };
                 }
 
-                // Add save handler
+                // Add save handler (using onclick to prevent duplicate handlers)
                 if (saveButton) {
-                    const saveHandler = async () => {
+                    saveButton.onclick = async () => {
                         try {
                             // Wait for user ID to be available
                             window.Wized = window.Wized || [];
@@ -5676,8 +5666,6 @@ document.addEventListener('DOMContentLoaded', function () {
                             if (policySubText) policySubText.style.display = 'none';
                         }
                     };
-
-                    saveButton.addEventListener('click', saveHandler);
                 }
             });
         }
