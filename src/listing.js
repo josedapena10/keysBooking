@@ -7946,7 +7946,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // This is the most accurate since it was tracked during actual filtering
         if (this.lastMinDaysFilterInfo) {
           const { requiredDays, availableDays } = this.lastMinDaysFilterInfo;
-          return `Boat rentals require ${requiredDays} day${requiredDays > 1 ? 's' : ''}, but your stay is only ${availableDays} day${availableDays > 1 ? 's' : ''}. Extend your dates or select another property.`;
+          return `Boat rentals for this listing's location require ${requiredDays} day${requiredDays > 1 ? 's' : ''}, but your stay is only ${availableDays} day${availableDays > 1 ? 's' : ''}. Extend your dates or select another property.`;
         }
 
         // Priority 1: Check private dock delivery filter (most restrictive)
