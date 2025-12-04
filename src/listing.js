@@ -3180,15 +3180,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Update selectedBoatBlock_name
       const nameElements = document.querySelectorAll('[data-element="selectedBoatBlock_name"]');
+      console.log('[Boat] Updating boat name, found elements:', nameElements.length, 'boatName:', window.selectedBoatData?.name);
       if (nameElements.length > 0) {
-        nameElements.forEach(element => {
+        nameElements.forEach((element, index) => {
           if (element) {
             // Clear any stored full text to use new name
             delete element.dataset.fullText;
             element.textContent = window.selectedBoatData.name;
+            console.log('[Boat] Calling truncateToFit for boat name, element index:', index);
             truncateToFit(element);
           }
         });
+      } else {
+        console.log('[Boat] No selectedBoatBlock_name elements found!');
       }
 
       // Update selectedBoatBlock_companyName
@@ -5256,26 +5260,48 @@ document.addEventListener('DOMContentLoaded', () => {
     // Utility function to truncate text to fit within parent container
     // Used by both BoatRentalService and FishingCharterService
     function truncateToFit(element, retryCount = 0) {
-      if (!element) return;
+      if (!element) {
+        console.log('[truncateToFit] No element provided');
+        return;
+      }
+
+      console.log('[truncateToFit] Called with:', {
+        element: element,
+        tagName: element.tagName,
+        currentText: element.textContent,
+        storedFullText: element.dataset.fullText,
+        retryCount: retryCount
+      });
 
       // Store or retrieve the original full text
       if (!element.dataset.fullText) {
         element.dataset.fullText = (element.textContent || "").trim();
+        console.log('[truncateToFit] Stored new fullText:', element.dataset.fullText);
       }
       const full = element.dataset.fullText;
-      if (!full) return;
+      if (!full) {
+        console.log('[truncateToFit] No full text to work with');
+        return;
+      }
 
       // Get parent container's width to use as the constraint
       const parent = element.parentElement;
-      if (!parent) return;
+      if (!parent) {
+        console.log('[truncateToFit] No parent element');
+        return;
+      }
 
       const parentWidth = parent.clientWidth;
+      console.log('[truncateToFit] Parent width:', parentWidth, 'Parent:', parent);
 
       // If parent width is 0, element might not be rendered yet - retry with delay
       if (parentWidth <= 0) {
         if (retryCount < 10) {
+          console.log('[truncateToFit] Parent width is 0, retrying... attempt', retryCount + 1);
           // Use setTimeout for more reliable timing when elements are just becoming visible
           setTimeout(() => truncateToFit(element, retryCount + 1), 50);
+        } else {
+          console.log('[truncateToFit] Max retries reached, parent still has 0 width');
         }
         return;
       }
@@ -5301,6 +5327,13 @@ document.addEventListener('DOMContentLoaded', () => {
       measureSpan.textContent = full;
       const textWidth = measureSpan.offsetWidth;
 
+      console.log('[truncateToFit] Measuring:', {
+        fullText: full,
+        textWidth: textWidth,
+        parentWidth: parentWidth,
+        needsTruncation: textWidth > parentWidth
+      });
+
       // If text is wider than parent, truncate character by character
       if (textWidth > parentWidth) {
         let truncated = full;
@@ -5311,6 +5344,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
           if (currentWidth <= parentWidth) {
             element.textContent = truncated + "…";
+            console.log('[truncateToFit] Truncated to:', truncated + "…");
             break;
           }
           truncated = truncated.slice(0, -1);
@@ -5318,7 +5352,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (truncated.length === 0) {
           element.textContent = "…";
+          console.log('[truncateToFit] Fully truncated to ellipsis');
         }
+      } else {
+        console.log('[truncateToFit] No truncation needed, text fits');
       }
 
       // Clean up measurement span
@@ -14534,16 +14571,20 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
           }
 
+          console.log('[FishingCharter] renderSelectedFishingCharterBlocks - trips to render:', selectedTrips.length);
+
           // Show and populate blocks for each selected trip
           selectedTrips.forEach((trip, index) => {
             let block;
             if (index === 0) {
               // Use the template block for the first trip
               block = templateBlock;
+              console.log('[FishingCharter] Using template block for trip index:', index, 'tripName:', trip.tripName);
             } else {
               // Clone the template for additional trips
               block = templateBlock.cloneNode(true);
               container.appendChild(block);
+              console.log('[FishingCharter] Cloned block for trip index:', index, 'tripName:', trip.tripName);
             }
 
             // Show the block
@@ -14578,11 +14619,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Update selectedFishingCharterBlock_tripName
         const tripNameElement = block.querySelector('[data-element="selectedFishingCharterBlock_tripName"]');
+        console.log('[FishingCharter] populateSingleFishingCharterBlock called:', {
+          tripName: trip.tripName,
+          tripNameElement: tripNameElement,
+          block: block
+        });
         if (tripNameElement) {
           // Clear any stored full text to use new name
           delete tripNameElement.dataset.fullText;
           tripNameElement.textContent = trip.tripName;
+          console.log('[FishingCharter] Calling truncateToFit for:', trip.tripName);
           truncateToFit(tripNameElement);
+        } else {
+          console.log('[FishingCharter] tripNameElement NOT FOUND in block');
         }
 
         // Update selectedFishingCharterBlock_companyName
