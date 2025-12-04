@@ -810,14 +810,24 @@ document.addEventListener('DOMContentLoaded', async function () {
                                         type: 'trash',
                                         text: rule.rules_custom
                                     };
-                                } else if (rule.rules_id === 10) {
+                                } else if (rule.rules_id === 14) {
                                     return {
                                         type: 'bedsheets',
                                         text: rule.rules_custom
                                     };
-                                } else if (rule.rules_id === 11) {
+                                } else if (rule.rules_id === 16) {
                                     return {
-                                        type: 'furniture',
+                                        type: 'lockUp',
+                                        text: rule.rules_custom
+                                    };
+                                } else if (rule.rules_id === 17) {
+                                    return {
+                                        type: 'dishwasher',
+                                        text: rule.rules_custom
+                                    };
+                                } else if (rule.rules_id === 18) {
+                                    return {
+                                        type: 'fridge',
                                         text: rule.rules_custom
                                     };
                                 }
@@ -3768,9 +3778,11 @@ function initializeRulesStep() {
     // Initialize before departure rules
     const beforeDepartureRules = {
         towels: document.querySelector('[data-element="beforeDeparture_towels"]'),
-        trash: document.querySelector('[data-element="beforeDeparture_trash"]'),
         bedsheets: document.querySelector('[data-element="beforeDeparture_bedsheets"]'),
-        furniture: document.querySelector('[data-element="beforeDeparture_furniture"]')
+        trash: document.querySelector('[data-element="beforeDeparture_trash"]'),
+        lockUp: document.querySelector('[data-element="beforeDeparture_lockUp"]'),
+        dishwasher: document.querySelector('[data-element="beforeDeparture_dishwasher"]'),
+        fridge: document.querySelector('[data-element="beforeDeparture_fridge"]')
     };
 
     // Hide error message initially
