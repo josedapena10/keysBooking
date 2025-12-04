@@ -4,81 +4,76 @@ script.src = 'https://cdn.jsdelivr.net/npm/@finsweet/attributes-mirrorclick@1/mi
 document.body.appendChild(script);
 
 // Global utility function to truncate text to fit within parent container
-// Uses CSS text-overflow: ellipsis for reliable truncation across desktop/mobile views
+// Uses JavaScript-based character-by-character truncation (same approach as payment.js)
 // Used by both BoatRentalService and FishingCharterService across different code sections
 function truncateToFit(element) {
-  if (!element) {
-    console.log('[truncateToFit] No element provided');
+  if (!element) return;
+
+  // Store or retrieve the original full text
+  if (!element.dataset.fullText) {
+    element.dataset.fullText = (element.textContent || "").trim();
+  }
+  const full = element.dataset.fullText;
+  if (!full) return;
+
+  // Get parent container's width to use as the constraint
+  const parent = element.parentElement;
+  if (!parent) return;
+
+  const parentWidth = parent.clientWidth;
+
+  // If parent width is 0, element might not be visible - retry after delay
+  if (parentWidth <= 0) {
+    setTimeout(() => truncateToFit(element), 100);
     return;
   }
 
-  const text = element.textContent;
-  console.log('[truncateToFit] Processing element:', {
-    text: text,
-    element: element,
-    tagName: element.tagName,
-    className: element.className
-  });
+  // Reset to full text first
+  element.textContent = full;
 
-  // Apply CSS-based truncation styles
+  // Set styles to constrain within parent
   element.style.whiteSpace = "nowrap";
   element.style.overflow = "hidden";
-  element.style.textOverflow = "ellipsis";
   element.style.display = "block";
-  element.style.width = "100%";
   element.style.maxWidth = "100%";
-  element.style.minWidth = "0";
 
-  // Also set min-width: 0 on parent if it's a flex item
-  const parent = element.parentElement;
-  if (parent) {
-    const parentStyle = window.getComputedStyle(parent);
-    console.log('[truncateToFit] Parent info:', {
-      parent: parent,
-      parentDisplay: parentStyle.display,
-      parentWidth: parent.clientWidth,
-      parentClassName: parent.className
-    });
+  // Create a temporary span to measure actual text width
+  const measureSpan = document.createElement('span');
+  measureSpan.style.visibility = 'hidden';
+  measureSpan.style.position = 'absolute';
+  measureSpan.style.whiteSpace = 'nowrap';
+  measureSpan.style.font = window.getComputedStyle(element).font;
+  document.body.appendChild(measureSpan);
 
-    if (parentStyle.display === 'flex' || parentStyle.display === 'inline-flex') {
-      console.log('[truncateToFit] Parent is flex, setting min-width: 0');
-      parent.style.minWidth = "0";
-      parent.style.overflow = "hidden";
+  // Measure full text width
+  measureSpan.textContent = full;
+  const textWidth = measureSpan.offsetWidth;
+
+  console.log('[truncateToFit]', { text: full, textWidth, parentWidth, needsTruncation: textWidth > parentWidth });
+
+  // If text is wider than parent, truncate character by character
+  if (textWidth > parentWidth) {
+    let truncated = full;
+
+    while (truncated.length > 0) {
+      measureSpan.textContent = truncated + "…";
+      const currentWidth = measureSpan.offsetWidth;
+
+      if (currentWidth <= parentWidth) {
+        element.textContent = truncated + "…";
+        console.log('[truncateToFit] Truncated to:', truncated + "…");
+        break;
+      }
+      truncated = truncated.slice(0, -1);
     }
 
-    // Check grandparent too for nested flex
-    const grandparent = parent.parentElement;
-    if (grandparent) {
-      const grandparentStyle = window.getComputedStyle(grandparent);
-      console.log('[truncateToFit] Grandparent info:', {
-        grandparent: grandparent,
-        grandparentDisplay: grandparentStyle.display,
-        grandparentWidth: grandparent.clientWidth,
-        grandparentClassName: grandparent.className
-      });
-
-      if (grandparentStyle.display === 'flex' || grandparentStyle.display === 'inline-flex') {
-        console.log('[truncateToFit] Grandparent is flex, setting parent min-width: 0');
-        parent.style.minWidth = "0";
-      }
+    if (truncated.length === 0) {
+      element.textContent = "…";
     }
   }
 
-  // Log final computed styles
-  setTimeout(() => {
-    const computed = window.getComputedStyle(element);
-    console.log('[truncateToFit] Final computed styles:', {
-      text: element.textContent,
-      width: computed.width,
-      maxWidth: computed.maxWidth,
-      overflow: computed.overflow,
-      textOverflow: computed.textOverflow,
-      whiteSpace: computed.whiteSpace,
-      elementScrollWidth: element.scrollWidth,
-      elementClientWidth: element.clientWidth,
-      isOverflowing: element.scrollWidth > element.clientWidth
-    });
-  }, 100);
+  // Clean up measurement span
+  document.body.removeChild(measureSpan);
 }
 
 // Page loader management - keep loader visible until all content is ready
