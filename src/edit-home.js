@@ -679,6 +679,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     const tempPhotos = localPhotos.map(photo => ({ ...photo }));
 
                     arrangePhotosModal.style.display = 'flex';
+                    document.body.classList.add('no-scroll');
                     initializeArrangePhotosModal(tempPhotos);
                 });
             }
@@ -766,6 +767,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
             const closeModal = () => {
                 arrangePhotosModal.style.display = 'none';
+                document.body.classList.remove('no-scroll');
             };
 
             // Close modal when clicking cancel button
@@ -1135,6 +1137,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     currentBedroomNumber = bedroomIndex;
                     if (bedroomPhotosModal) {
                         bedroomPhotosModal.style.display = 'flex';
+                        document.body.classList.add('no-scroll');
                         initializeBedroomPhotosModal(bedroomIndex);
 
                         // Update modal header text
@@ -1492,6 +1495,7 @@ document.addEventListener('DOMContentLoaded', function () {
             dockContainer.addEventListener('click', () => {
                 if (dockPhotosModal) {
                     dockPhotosModal.style.display = 'flex';
+                    document.body.classList.add('no-scroll');
                     initializeDockPhotosModal();
 
                     // Hide error and show subtext initially
@@ -1554,6 +1558,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     tempDockSelections = {};
 
                     dockPhotosModal.style.display = 'none';
+                    document.body.classList.remove('no-scroll');
                     if (dockPhotosError) dockPhotosError.style.display = 'none';
                     if (dockPhotosSubText) dockPhotosSubText.style.display = 'block';
 
@@ -1576,11 +1581,13 @@ document.addEventListener('DOMContentLoaded', function () {
         if (addRemovePhotosButton && addRemovePhotosModal) {
             addRemovePhotosButton.addEventListener('click', () => {
                 addRemovePhotosModal.style.display = 'flex';
+                document.body.classList.add('no-scroll');
             });
 
             addRemovePhotosModal.addEventListener('click', (e) => {
                 if (e.target === addRemovePhotosModal) {
                     addRemovePhotosModal.style.display = 'none';
+                    document.body.classList.remove('no-scroll');
                     // Revert any changes made in the modal
                     localPhotos = data._pictures.map(pic => ({
                         id: pic.id,
@@ -1604,6 +1611,7 @@ document.addEventListener('DOMContentLoaded', function () {
             bedroomPhotosModal.addEventListener('click', (e) => {
                 if (e.target === bedroomPhotosModal) {
                     bedroomPhotosModal.style.display = 'none';
+                    document.body.classList.remove('no-scroll');
                     // Clear temporary selections
                     tempBedroomSelections = {};
                     // Revert to initial state
@@ -1616,6 +1624,7 @@ document.addEventListener('DOMContentLoaded', function () {
             dockPhotosModal.addEventListener('click', (e) => {
                 if (e.target === dockPhotosModal) {
                     dockPhotosModal.style.display = 'none';
+                    document.body.classList.remove('no-scroll');
                     // Clear temporary selections
                     tempDockSelections = {};
                 }
@@ -1625,6 +1634,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (bedroomCancelButton) {
             bedroomCancelButton.addEventListener('click', () => {
                 bedroomPhotosModal.style.display = 'none';
+                document.body.classList.remove('no-scroll');
                 // Clear temporary selections
                 tempBedroomSelections = {};
                 // Revert to initial state
@@ -1635,6 +1645,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (dockCancelButton) {
             dockCancelButton.addEventListener('click', () => {
                 dockPhotosModal.style.display = 'none';
+                document.body.classList.remove('no-scroll');
                 // Clear temporary selections
                 tempDockSelections = {};
             });
@@ -1643,6 +1654,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (cancelButton) {
             cancelButton.addEventListener('click', () => {
                 addRemovePhotosModal.style.display = 'none';
+                document.body.classList.remove('no-scroll');
                 // Revert any changes made in the modal
                 localPhotos = data._pictures.map(pic => ({
                     id: pic.id,
@@ -1751,6 +1763,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     tempBedroomSelections = {};
 
                     bedroomPhotosModal.style.display = 'none';
+                    document.body.classList.remove('no-scroll');
                     if (bedroomPhotosError) bedroomPhotosError.style.display = 'none';
                     if (bedroomPhotosSubText) bedroomPhotosSubText.style.display = 'block';
 
@@ -1866,6 +1879,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     bedroomPhotosModal.style.display = 'none';
                     dockPhotosModal.style.display = 'none';
                     arrangePhotosModal.style.display = 'none';
+                    document.body.classList.remove('no-scroll');
 
                     // Hide error and show subtext
                     if (addRemovePhotosError) {
@@ -6416,6 +6430,53 @@ document.addEventListener('DOMContentLoaded', function () {
                 } else {
                     xButton.classList.remove('close_modal');
                 }
+            }
+        });
+
+        // Photo modal open buttons - these always get open_modal class (they always open modals)
+        const photoModalOpenElements = [
+            'edit_photos_addRemovePhotos',
+            'edit_photos_arrangePhotos',
+            'bedroomPhotos_container',
+            'dockPhotos_container'
+        ];
+
+        photoModalOpenElements.forEach(elementName => {
+            const elements = document.querySelectorAll(`[data-element="${elementName}"]`);
+            elements.forEach(element => {
+                if (element) {
+                    element.classList.add('open_modal');
+                }
+            });
+        });
+
+        // Photo modal close buttons (cancel buttons) - always get close_modal class
+        const photoModalCancelButtons = [
+            'editListing_cancelButton_addPhotos',
+            'editListing_cancelButton_arrangePhotos',
+            'editListing_cancelButton_bedroomPhotos',
+            'editListing_cancelButton_dockPhotos'
+        ];
+
+        photoModalCancelButtons.forEach(buttonId => {
+            const button = document.getElementById(buttonId);
+            if (button) {
+                button.classList.add('close_modal');
+            }
+        });
+
+        // Photo modal save buttons - also get close_modal class (they close modal on successful save)
+        const photoModalSaveButtons = [
+            'editListing_saveButton_addPhotos',
+            'editListing_saveButton_arrangePhotos',
+            'editListing_saveButton_bedroomPhotos',
+            'editListing_saveButton_dockPhotos'
+        ];
+
+        photoModalSaveButtons.forEach(buttonId => {
+            const button = document.getElementById(buttonId);
+            if (button) {
+                button.classList.add('close_modal');
             }
         });
     }
