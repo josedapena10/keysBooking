@@ -4882,9 +4882,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
         const beforeDepartureRules = {
             towels: document.querySelector('[data-element="beforeDeparture_towels"]'),
-            trash: document.querySelector('[data-element="beforeDeparture_trash"]'),
             bedsheets: document.querySelector('[data-element="beforeDeparture_bedsheets"]'),
-            furniture: document.querySelector('[data-element="beforeDeparture_furniture"]')
+            trash: document.querySelector('[data-element="beforeDeparture_trash"]'),
+            lockUp: document.querySelector('[data-element="beforeDeparture_lockUp"]'),
+            dishwasher: document.querySelector('[data-element="beforeDeparture_dishwasher"]'),
+            fridge: document.querySelector('[data-element="beforeDeparture_fridge"]')
         };
 
         // Map rules_custom text to button types
@@ -4896,10 +4898,12 @@ document.addEventListener('DOMContentLoaded', function () {
         };
 
         const beforeDepartureMap = {
-            'Gather used towels': 'towels',
-            'Throw trash away': 'trash',
-            'Gather used bedsheets': 'bedsheets',
-            'Organize moved furniture': 'furniture'
+            'Gather towels': 'towels',
+            'Gather bedsheets': 'bedsheets',
+            'Take out trash': 'trash',
+            'Lock up': 'lockUp',
+            'Run dishwasher': 'dishwasher',
+            'Empty fridge': 'fridge'
         };
 
         // Store initial state
