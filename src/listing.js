@@ -15,6 +15,7 @@ function truncateToFit(element) {
   element.style.overflow = "hidden";
   element.style.textOverflow = "ellipsis";
   element.style.display = "block";
+  element.style.width = "100%";  // Need explicit width for text-overflow to work
   element.style.maxWidth = "100%";
 }
 
@@ -3209,24 +3210,16 @@ document.addEventListener('DOMContentLoaded', () => {
       // Update selectedBoatBlock_companyName
       const companyNameElements = document.querySelectorAll('[data-element="selectedBoatBlock_companyName"]');
       if (companyNameElements.length > 0) {
-        // Debug: Log the full boat data to see company name structure
-        console.log('[Boat CompanyName Debug] Full selectedBoatData:', window.selectedBoatData);
-        console.log('[Boat CompanyName Debug] _boat_company:', window.selectedBoatData?._boat_company);
-        console.log('[Boat CompanyName Debug] All keys:', Object.keys(window.selectedBoatData || {}));
-
         // Try multiple data paths for company name
         const companyName = window.selectedBoatData?._boat_company?.name
           || window.selectedBoatData?.companyName
-          || window.selectedBoatData?.company_name
-          || window.selectedBoatData?.boatCompanyName
           || '';
-
-        console.log('[Boat CompanyName Debug] Resolved companyName:', companyName);
 
         if (companyName) {
           companyNameElements.forEach(element => {
             if (element) {
               element.textContent = companyName;
+              truncateToFit(element);
             }
           });
         }
