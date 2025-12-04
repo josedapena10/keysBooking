@@ -408,7 +408,7 @@ window.Wized.push(async (Wized) => {
     }
 
     // Run after every Wized request completes (correct timing)
-    Wized.events.on("requestend", () => {
+    Wized.on("requestend", () => {
         truncateToFit('[w-el="ListingTitle"]');
         truncateToFit('[w-el="ReservationExtrasCards_boatRental_name"]');
         truncateToFit('[w-el="ReservationExtrasCards_fishingCharter_name"]');
