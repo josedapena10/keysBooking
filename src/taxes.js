@@ -110,6 +110,9 @@ window.Wized.push((async (Wized) => {
 
     // Store the W9 record ID globally for later use in updates
     window.userW9RecordId = null;
+    // Store user's W9 data globally for pre-populating edit form
+    window.userW9Data = null;
+    window.userW9Last4TaxID = null;
 
     // Check if user has already submitted W9
     try {
@@ -124,6 +127,10 @@ window.Wized.push((async (Wized) => {
 
             // Display user's W9 information
             const userW9Data = data.result1[0]; // Get the first W9 record
+            // Store W9 data globally for edit functionality
+            window.userW9Data = userW9Data;
+            window.userW9Last4TaxID = data.last4taxID;
+
             const nameElement = document.querySelector('[data-element="taxes_userW9_name"]');
             const taxIDElement = document.querySelector('[data-element="taxes_userW9_taxID"]');
 
@@ -145,6 +152,106 @@ window.Wized.push((async (Wized) => {
                     if (taxModal) {
                         taxModal.style.display = 'flex';
                         document.body.classList.add('no-scroll');
+
+                        // Pre-populate form fields with existing data
+                        if (window.userW9Data) {
+                            const w9Data = window.userW9Data;
+
+                            // Populate name
+                            const nameInput = document.getElementById('w9_name');
+                            if (nameInput && w9Data.name) {
+                                nameInput.value = w9Data.name;
+                            }
+
+                            // Populate DBA (disregarded entity name)
+                            const dbaInput = document.getElementById('w9_dba');
+                            if (dbaInput && w9Data.disregardedEntityName) {
+                                dbaInput.value = w9Data.disregardedEntityName;
+                            }
+
+                            // Populate classification dropdown
+                            const classificationSelect = document.getElementById('w9_classification');
+                            if (classificationSelect && w9Data.taxClassification) {
+                                classificationSelect.value = w9Data.taxClassification;
+                                classificationSelect.classList.remove('placeholder');
+                            }
+
+                            // Set tax ID type toggle (SSN/EIN)
+                            const ssnToggle = document.getElementById('w9_ssn_toggle');
+                            const einToggle = document.getElementById('w9_ein_toggle');
+                            const taxIdInput = document.getElementById('w9_taxId');
+
+                            if (ssnToggle && einToggle && w9Data.taxID_type) {
+                                if (w9Data.taxID_type === 'SSN') {
+                                    ssnToggle.classList.add('clicked');
+                                    einToggle.classList.remove('clicked');
+                                    if (taxIdInput) taxIdInput.placeholder = 'SSN';
+                                } else if (w9Data.taxID_type === 'EIN') {
+                                    einToggle.classList.add('clicked');
+                                    ssnToggle.classList.remove('clicked');
+                                    if (taxIdInput) taxIdInput.placeholder = 'EIN';
+                                }
+                            }
+
+                            // Show masked tax ID - clears on click
+                            if (taxIdInput && window.userW9Last4TaxID) {
+                                taxIdInput.value = `*****${window.userW9Last4TaxID}`;
+                                taxIdInput.dataset.isMasked = 'true';
+
+                                // Clear the masked value on click/focus
+                                const clearMaskedTaxId = () => {
+                                    if (taxIdInput.dataset.isMasked === 'true') {
+                                        taxIdInput.value = '';
+                                        taxIdInput.dataset.isMasked = 'false';
+                                    }
+                                };
+                                taxIdInput.addEventListener('click', clearMaskedTaxId, { once: true });
+                                taxIdInput.addEventListener('focus', clearMaskedTaxId, { once: true });
+                            }
+
+                            // Populate address fields
+                            const addressStreet = document.getElementById('w9_address_street');
+                            if (addressStreet && w9Data.address_street) {
+                                addressStreet.value = w9Data.address_street;
+                            }
+
+                            const addressUnit = document.getElementById('w9_address_unit');
+                            if (addressUnit && w9Data.address_unit) {
+                                addressUnit.value = w9Data.address_unit;
+                            }
+
+                            const addressCity = document.getElementById('w9_address_city');
+                            if (addressCity && w9Data.address_city) {
+                                addressCity.value = w9Data.address_city;
+                            }
+
+                            const addressState = document.getElementById('w9_address_state');
+                            if (addressState && w9Data.address_state) {
+                                addressState.value = w9Data.address_state;
+                            }
+
+                            const addressZipcode = document.getElementById('w9_address_zipcode');
+                            if (addressZipcode && w9Data.address_zipcode) {
+                                addressZipcode.value = w9Data.address_zipcode;
+                            }
+
+                            // Keep date as today's date (already set by DOMContentLoaded)
+                            // Re-set it to ensure it's today's date
+                            const signedDate = document.getElementById('w9_signedDate');
+                            if (signedDate) {
+                                const today = new Date();
+                                const month = String(today.getMonth() + 1).padStart(2, '0');
+                                const day = String(today.getDate()).padStart(2, '0');
+                                const year = today.getFullYear();
+                                signedDate.value = `${month}-${day}-${year}`;
+                            }
+
+                            // Clear signature - user must re-sign
+                            const signedText = document.getElementById('w9_signedText');
+                            if (signedText) {
+                                signedText.value = '';
+                            }
+                        }
                     }
                 });
             }
