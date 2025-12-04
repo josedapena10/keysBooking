@@ -5242,7 +5242,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Utility function to truncate text to fit within parent container
     // Used by both BoatRentalService and FishingCharterService
-    function truncateToFit(element) {
+    function truncateToFit(element, retryCount = 0) {
       if (!element) return;
 
       // Store or retrieve the original full text
@@ -5250,13 +5250,22 @@ document.addEventListener('DOMContentLoaded', () => {
         element.dataset.fullText = (element.textContent || "").trim();
       }
       const full = element.dataset.fullText;
+      if (!full) return;
 
       // Get parent container's width to use as the constraint
       const parent = element.parentElement;
       if (!parent) return;
 
       const parentWidth = parent.clientWidth;
-      if (parentWidth <= 0) return;
+
+      // If parent width is 0, element might not be rendered yet - retry with delay
+      if (parentWidth <= 0) {
+        if (retryCount < 10) {
+          // Use setTimeout for more reliable timing when elements are just becoming visible
+          setTimeout(() => truncateToFit(element, retryCount + 1), 50);
+        }
+        return;
+      }
 
       // Reset to full text first
       element.textContent = full;
@@ -19194,12 +19203,6 @@ document.addEventListener('DOMContentLoaded', () => {
             this.updateDetailsFilterStyles();
             this.renderDetailsDateSelection(); // Re-render dates to show disabled check-in/out if private dock selected
             this.renderTripTypes(this.currentCharterData);
-
-
-            // Apply pickup time gating and update date/time text
-            this.applyPickupTimeGating(this.pickupTimePills, false);
-            this.applyPickupTimeGating(this.boatDetailsPickupTimePills, true);
-            this.updateBoatDetailsDateFilterText();
           });
 
           // Show tooltip on hover when disabled
