@@ -168,27 +168,39 @@ window.Wized.push((Wized) => {
         // Get the reservation code from the parameters
         const reservationCode = Wized.data.n.parameter.reservation_code;
 
-        // If the reservation code exists, load the receipt page in the background
+        // If the reservation code exists, set up print functionality
         if (reservationCode) {
-            const iframe = loadReceiptPage(reservationCode);
+            const receiptUrl = `/keys-booking-receipt?reservation_code=${reservationCode}`;
+
+            // Only preload iframe on desktop (mobile will open new window)
+            let iframe = null;
+            if (!isMobileDevice()) {
+                iframe = loadReceiptPage(receiptUrl);
+            }
 
             // Add event listeners to all buttons with the matching data-element
             const paymentButtons = document.querySelectorAll('[data-element="tripDetail_reservationDetails_payments_button"]');
             paymentButtons.forEach(paymentButton => {
                 paymentButton.addEventListener('click', () => {
-                    printReceiptFromIframe(iframe);
+                    printReceipt(receiptUrl, iframe);
                 });
             });
         }
     }
 });
 
-function loadReceiptPage(reservationCode) {
+// Detect if user is on a mobile device
+function isMobileDevice() {
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+        || window.innerWidth <= 768;
+}
+
+function loadReceiptPage(receiptUrl) {
     // Create an iframe element
     const iframe = document.createElement('iframe');
 
-    // Set the iframe's source to the receipt page with the reservation code parameter
-    iframe.src = `/keys-booking-receipt?reservation_code=${reservationCode}`;
+    // Set the iframe's source to the receipt page
+    iframe.src = receiptUrl;
 
     // Set the iframe to be hidden
     iframe.style.display = 'none';
@@ -200,10 +212,24 @@ function loadReceiptPage(reservationCode) {
     return iframe;
 }
 
-function printReceiptFromIframe(iframe) {
-    // Trigger the print dialog from the loaded iframe content
-    iframe.contentWindow.focus();
-    iframe.contentWindow.print();
+function printReceipt(receiptUrl, iframe) {
+    if (isMobileDevice()) {
+        // On mobile, open receipt in new tab and trigger print after delay
+        // Mobile browsers don't support iframe printing - they print the parent page
+        const printWindow = window.open(receiptUrl, '_blank');
+        if (printWindow) {
+            // Wait for page to fully load before printing
+            setTimeout(() => {
+                printWindow.print();
+            }, 1500);
+        }
+    } else {
+        // On desktop, use the preloaded iframe
+        if (iframe && iframe.contentWindow) {
+            iframe.contentWindow.focus();
+            iframe.contentWindow.print();
+        }
+    }
 }
 
 
