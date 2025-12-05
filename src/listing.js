@@ -54,8 +54,6 @@ function truncateToFit(element) {
   measureSpan.textContent = full;
   const textWidth = measureSpan.offsetWidth;
 
-  console.log('[truncateToFit]', { text: full, textWidth, parentWidth, needsTruncation: textWidth > parentWidth });
-
   // If text is wider than parent, truncate character by character
   if (textWidth > parentWidth) {
     let truncated = full;
@@ -66,7 +64,6 @@ function truncateToFit(element) {
 
       if (currentWidth <= parentWidth) {
         element.textContent = truncated + "…";
-        console.log('[truncateToFit] Truncated to:', truncated + "…");
         break;
       }
       truncated = truncated.slice(0, -1);
