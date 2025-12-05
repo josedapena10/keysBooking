@@ -163,13 +163,14 @@ function loadReceiptPage(receiptUrl) {
 
 function printReceipt(receiptUrl, iframe) {
     if (isMobileDevice()) {
-        // On mobile, open receipt in new window and print from there
-        // This works better than iframe printing on mobile browsers
+        // On mobile, open receipt in new tab and trigger print after delay
+        // Mobile browsers don't support iframe printing - they print the parent page
         const printWindow = window.open(receiptUrl, '_blank');
         if (printWindow) {
-            printWindow.addEventListener('load', () => {
+            // Wait for page to fully load before printing
+            setTimeout(() => {
                 printWindow.print();
-            });
+            }, 1500);
         }
     } else {
         // On desktop, use the preloaded iframe
