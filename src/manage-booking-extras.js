@@ -38,9 +38,6 @@ function parseIdFromURL() {
         // Charter: C<reservationCode>-<paymentIntentId>-<charterId>-<tripId>-<firstDate>
         const parts = rest.split('-');
 
-        console.log('[PARSE URL] Charter URL parts:', parts);
-        console.log('[PARSE URL] Parts length:', parts.length);
-
         // Support both old format (4 parts) and new format (7 parts with date YYYY-MM-DD)
         // New format: parts[0-3] are the same, parts[4-6] are the date (YYYY-MM-DD becomes 3 parts when split by -)
         let reservationCode, paymentIntentId, charterId, tripId, firstDate;
@@ -49,29 +46,17 @@ function parseIdFromURL() {
             // New format with date: C<code>-<piId>-<charterId>-<tripId>-YYYY-MM-DD
             [reservationCode, paymentIntentId, charterId, tripId] = parts.slice(0, 4);
             firstDate = `${parts[4]}-${parts[5]}-${parts[6]}`;
-            console.log('[PARSE URL] New format - firstDate:', firstDate);
         } else if (parts.length === 4) {
             // Old format without date (for backward compatibility)
             [reservationCode, paymentIntentId, charterId, tripId] = parts;
             firstDate = null;
-            console.log('[PARSE URL] Old format - no firstDate');
         } else {
-            console.log('[PARSE URL] ERROR: Invalid parts length');
             return null;
         }
 
         if (!reservationCode || !paymentIntentId || !charterId || !tripId) {
-            console.log('[PARSE URL] ERROR: Missing required parameters');
             return null;
         }
-
-        console.log('[PARSE URL] Parsed charter data:', {
-            reservationCode,
-            paymentIntentId,
-            charterId,
-            tripId,
-            firstDate
-        });
 
         return {
             type: 'charter',
@@ -1210,42 +1195,27 @@ function renderBoatManageActions(piData, statusVariant) {
 async function handleFishingCharter(parsed) {
     const { reservationCode, paymentIntentId, charterId, tripId, firstDate } = parsed;
 
-    console.log('[HANDLE FISHING CHARTER] Starting with:', {
-        reservationCode,
-        paymentIntentId,
-        charterId,
-        tripId,
-        firstDate
-    });
-
     try {
         // Show loader while fetching data
         showLoader();
 
         // Step 1: Fetch ReservationCode data
         const resCodeData = await fetchReservationCode(reservationCode, false);
-        console.log('[HANDLE FISHING CHARTER] ReservationCode data fetched');
 
         // Step 2: Determine linkage with new PI backfill
         let state = 'error';
         let piData = null;
         let workingPaymentIntentId = paymentIntentId;
 
-        console.log('[HANDLE FISHING CHARTER] Checking linkage...');
-        console.log('[HANDLE FISHING CHARTER] resCodeData.fishingcharters_paymentintent_id:', resCodeData.fishingcharters_paymentintent_id);
-
         if (resCodeData.fishingcharters_paymentintent_id == paymentIntentId) {
-            console.log('[HANDLE FISHING CHARTER] Payment intent is LINKED (active)');
             // Provisionally linked
             piData = await fetchPaymentIntent(paymentIntentId, false);
 
             // Validate charter/trip exists in fishingCharters[]
             const match = findMatchingCharter(piData, charterId, tripId, firstDate);
             if (match) {
-                console.log('[HANDLE FISHING CHARTER] Match found - state: linked');
                 state = 'linked';
             } else {
-                console.log('[HANDLE FISHING CHARTER] No match found - state: error');
                 state = 'error';
             }
         } else if (resCodeData.fishingCharter_inactive_paymentIntents && Array.isArray(resCodeData.fishingCharter_inactive_paymentIntents)) {
@@ -1305,28 +1275,15 @@ async function handleFishingCharter(parsed) {
 }
 
 function findMatchingCharter(piData, charterId, tripId, firstDate = null) {
-    console.log('[FIND MATCHING CHARTER] Looking for:', { charterId, tripId, firstDate });
 
     if (!piData.fishingCharters || !Array.isArray(piData.fishingCharters)) {
-        console.log('[FIND MATCHING CHARTER] No fishingCharters array found');
         return null;
     }
 
-    console.log('[FIND MATCHING CHARTER] Total charters in piData:', piData.fishingCharters.length);
-
     // If firstDate is provided, match all three: charterId, tripId, and firstDate
     if (firstDate) {
-        console.log('[FIND MATCHING CHARTER] Using firstDate matching');
-
         const match = piData.fishingCharters.find(c => {
-            console.log('[FIND MATCHING CHARTER] Checking charter:', {
-                charterId: c.charterId,
-                tripId: c.tripId,
-                dates: c.dates
-            });
-
             if (c.charterId != charterId || c.tripId != tripId) {
-                console.log('[FIND MATCHING CHARTER] Charter/Trip ID mismatch');
                 return false;
             }
 
@@ -1334,23 +1291,14 @@ function findMatchingCharter(piData, charterId, tripId, firstDate = null) {
             const charterDates = (c.dates || []).map(d => d.date).sort();
             const charterFirstDate = charterDates.length > 0 ? charterDates[0] : null;
 
-            console.log('[FIND MATCHING CHARTER] Comparing dates:', {
-                charterFirstDate,
-                urlFirstDate: firstDate,
-                match: charterFirstDate === firstDate
-            });
-
             return charterFirstDate === firstDate;
         });
 
-        console.log('[FIND MATCHING CHARTER] Match found:', match ? 'YES' : 'NO');
         return match;
     }
 
     // If no firstDate provided (old format), match just charterId and tripId
-    console.log('[FIND MATCHING CHARTER] Using legacy matching (no firstDate)');
     const match = piData.fishingCharters.find(c => c.charterId == charterId && c.tripId == tripId);
-    console.log('[FIND MATCHING CHARTER] Match found:', match ? 'YES' : 'NO');
     return match;
 }
 
@@ -1428,11 +1376,6 @@ function renderFishingCharter(piData, resCodeData, linkState, charterId, tripId,
         firstDate
     };
 
-    console.log('[RENDER FISHING CHARTER] Stored in window.currentPageData:', {
-        charterId,
-        tripId,
-        firstDate
-    });
 
     // CRITICAL: Hide boat sections to ensure only charter sections are visible
     hide('manageBooking_requestDetails_boat');
@@ -1817,8 +1760,6 @@ function renderCharterManageActions(piData, charterEntry, statusVariant) {
 
     const { allCharters, charterId, tripId, firstDate } = window.currentPageData || {};
 
-    console.log('[RENDER CHARTER ACTIONS] Current charter data:', { charterId, tripId, firstDate });
-
     if (statusVariant === 'request') {
         // Show Accept and Decline
         showFlex('manageBooking_acceptButton');
@@ -1831,23 +1772,13 @@ function renderCharterManageActions(piData, charterEntry, statusVariant) {
                 try {
                     showLoader('Accepting reservation...');
 
-                    console.log('[ACCEPT] Updating charters...');
                     const updatedCharters = allCharters.map(c => {
                         // Get first date from this charter's dates
                         const cDates = (c.dates || []).map(d => d.date).sort();
                         const cFirstDate = cDates.length > 0 ? cDates[0] : null;
 
-                        console.log('[ACCEPT] Checking charter:', {
-                            charterId: c.charterId,
-                            tripId: c.tripId,
-                            cFirstDate,
-                            targetFirstDate: firstDate,
-                            matches: c.charterId == charterId && c.tripId == tripId && cFirstDate === firstDate
-                        });
-
                         // Match by charterId, tripId, AND firstDate
                         if (c.charterId == charterId && c.tripId == tripId && cFirstDate === firstDate) {
-                            console.log('[ACCEPT] Updating this charter');
                             return { ...c, reservationApproved: true, reservation_active: true };
                         }
                         return c;
@@ -1859,8 +1790,6 @@ function renderCharterManageActions(piData, charterEntry, statusVariant) {
                     // Get the first date from the charter dates
                     const charterDates = charterEntry.dates.map(d => d.date).sort();
                     const charterFirstDate = charterDates.length > 0 ? charterDates[0] : null;
-
-                    console.log('[ACCEPT] Sending POST with firstDate:', charterFirstDate);
 
                     await postHostEdits({
                         fishingCharter: true,
@@ -1908,23 +1837,13 @@ function renderCharterManageActions(piData, charterEntry, statusVariant) {
                     const textBox = document.querySelector('[data-element="manageBooking_declineCancelTextBox"]');
                     const textBoxValue = textBox ? textBox.value : '';
 
-                    console.log('[DECLINE] Updating charters...');
                     const updatedCharters = allCharters.map(c => {
                         // Get first date from this charter's dates
                         const cDates = (c.dates || []).map(d => d.date).sort();
                         const cFirstDate = cDates.length > 0 ? cDates[0] : null;
 
-                        console.log('[DECLINE] Checking charter:', {
-                            charterId: c.charterId,
-                            tripId: c.tripId,
-                            cFirstDate,
-                            targetFirstDate: firstDate,
-                            matches: c.charterId == charterId && c.tripId == tripId && cFirstDate === firstDate
-                        });
-
                         // Match by charterId, tripId, AND firstDate
                         if (c.charterId == charterId && c.tripId == tripId && cFirstDate === firstDate) {
-                            console.log('[DECLINE] Updating this charter');
                             return {
                                 ...c,
                                 reservation_notAvailable: true,
@@ -1940,8 +1859,6 @@ function renderCharterManageActions(piData, charterEntry, statusVariant) {
                     // Get the first date from the charter dates
                     const charterDatesDecline = charterEntry.dates.map(d => d.date).sort();
                     const firstDateDecline = charterDatesDecline.length > 0 ? charterDatesDecline[0] : null;
-
-                    console.log('[DECLINE] Sending POST with firstDate:', firstDateDecline);
 
                     await postHostEdits({
                         fishingCharter: true,
@@ -1992,23 +1909,13 @@ function renderCharterManageActions(piData, charterEntry, statusVariant) {
                     const textBox = document.querySelector('[data-element="manageBooking_declineCancelTextBox"]');
                     const textBoxValue = textBox ? textBox.value : '';
 
-                    console.log('[CANCEL] Updating charters...');
                     const updatedCharters = allCharters.map(c => {
                         // Get first date from this charter's dates
                         const cDates = (c.dates || []).map(d => d.date).sort();
                         const cFirstDate = cDates.length > 0 ? cDates[0] : null;
 
-                        console.log('[CANCEL] Checking charter:', {
-                            charterId: c.charterId,
-                            tripId: c.tripId,
-                            cFirstDate,
-                            targetFirstDate: firstDate,
-                            matches: c.charterId == charterId && c.tripId == tripId && cFirstDate === firstDate
-                        });
-
                         // Match by charterId, tripId, AND firstDate
                         if (c.charterId == charterId && c.tripId == tripId && cFirstDate === firstDate) {
-                            console.log('[CANCEL] Updating this charter');
                             return {
                                 ...c,
                                 reservation_active: false,
@@ -2025,8 +1932,6 @@ function renderCharterManageActions(piData, charterEntry, statusVariant) {
                     // Get the first date from the charter dates
                     const charterDatesCancel = charterEntry.dates.map(d => d.date).sort();
                     const firstDateCancel = charterDatesCancel.length > 0 ? charterDatesCancel[0] : null;
-
-                    console.log('[CANCEL] Sending POST with firstDate:', firstDateCancel);
 
                     await postHostEdits({
                         fishingCharter: true,
@@ -2171,16 +2076,11 @@ async function init() {
     showLoader();
     hideAllContent();
 
-    console.log('[INIT] Starting initialization...');
-    console.log('[INIT] Current URL:', window.location.href);
 
     // Parse URL
     const parsed = parseIdFromURL();
 
-    console.log('[INIT] Parsed result:', parsed);
-
     if (!parsed) {
-        console.log('[INIT] ERROR: Failed to parse URL');
         await hideLoader();
         showErrorState();
         return;
@@ -2193,13 +2093,10 @@ async function init() {
 
     // Route to appropriate handler
     if (parsed.type === 'boat') {
-        console.log('[INIT] Routing to handleBoatRental');
         await handleBoatRental(parsed);
     } else if (parsed.type === 'charter') {
-        console.log('[INIT] Routing to handleFishingCharter');
         await handleFishingCharter(parsed);
     } else {
-        console.log('[INIT] ERROR: Unknown type');
         await hideLoader();
         showErrorState();
     }
