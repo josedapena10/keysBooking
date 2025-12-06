@@ -470,21 +470,15 @@ async function fetchPaymentIntent(paymentIntentId, isBoat) {
 }
 
 async function postHostEdits(params) {
-    const url = new URL(`${API_BASE}/boat_charter_manageTrip_hostEdits`);
+    const url = `${API_BASE}/boat_charter_manageTrip_hostEdits`;
 
-    // Add all params to query string
-    Object.keys(params).forEach(key => {
-        const value = params[key];
-        if (typeof value === 'object') {
-            url.searchParams.set(key, JSON.stringify(value));
-        } else {
-            url.searchParams.set(key, String(value));
-        }
-    });
-
-
-    const response = await fetch(url.toString(), {
-        method: 'POST'
+    // Send data in POST body instead of query params to avoid URL length limits
+    const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(params)
     });
 
     if (!response.ok) {
@@ -1260,7 +1254,8 @@ async function handleFishingCharter(parsed) {
                 // Provisionally unlinked
                 piData = await fetchPaymentIntent(paymentIntentId, false);
 
-                const match = findMatchingCharter(piData, charterId, tripId, firstDate);
+                // Find match once and reuse as oldMatch to avoid duplicate calls
+                const oldMatch = findMatchingCharter(piData, charterId, tripId, firstDate);
 
                 // ALWAYS check for new_fishingcharters_paymentintent_id when in inactive list
                 if (piData.new_fishingcharters_paymentintent_id) {
@@ -1268,7 +1263,6 @@ async function handleFishingCharter(parsed) {
                     const newPiData = await fetchPaymentIntent(newPiId, false);
 
                     // Compare old vs new for same charter/trip
-                    const oldMatch = findMatchingCharter(piData, charterId, tripId, firstDate);
                     const newMatch = findMatchingCharter(newPiData, charterId, tripId, firstDate);
 
                     if (oldMatch && newMatch && compareCharterEntries(oldMatch, newMatch)) {
@@ -1285,7 +1279,7 @@ async function handleFishingCharter(parsed) {
                     } else {
                         state = 'error';
                     }
-                } else if (match) {
+                } else if (oldMatch) {
                     // No new PI, but match found in old PI - standard unlinked
                     state = 'unlinked';
                 } else {
