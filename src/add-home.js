@@ -667,6 +667,9 @@ document.addEventListener('DOMContentLoaded', function () {
             // Wait for all requests to complete
             await Promise.all(pendingRequests);
 
+            // Remove beforeunload listener before redirect to prevent browser warning
+            window.removeEventListener('beforeunload', preventUnload);
+
             // Only redirect after all requests are successful
             window.location.href = '/host/dashboard';
 
