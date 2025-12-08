@@ -1243,7 +1243,7 @@ function initializePhotosStep() {
         photosSubText.style.display = 'block';
         // Set subtext based on private dock selection
         if (listingData.dock.hasPrivateDock === true) {
-            photosSubText.textContent = 'Add at least 5 home photos, plus 2 dock photos. You can add more and make changes later.';
+            photosSubText.textContent = 'Add at least 5 home photos & 2 dock photos, you can add more and make changes later.';
         } else {
             photosSubText.textContent = 'Please add 5 or more photos. You can add more and make changes later.';
         }
