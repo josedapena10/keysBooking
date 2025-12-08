@@ -86,7 +86,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // Hero Image Loader
 document.addEventListener('DOMContentLoaded', async () => {
     const heroImageElement = document.querySelector('[data-element="boat_becomeAHostHeroImage"]');
-    const loaderElement = document.querySelector('[data-element="boat_loader"]');
+    const loaderElement = document.querySelector('[data-element="loader"]');
 
     // Keep loader visible initially
     if (loaderElement) {
