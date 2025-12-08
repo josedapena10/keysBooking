@@ -489,7 +489,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (listingData.dock.selectedButtons.includes('Dock light')) propertyData.dock_light = true;
                 if (listingData.dock.selectedButtons.includes('Underwater light')) propertyData.dock_underwaterLight = true;
                 if (listingData.dock.selectedButtons.includes('Shore power')) propertyData.dock_shorePower = true;
-                if (listingData.dock.selectedButtons.includes('Ice maker')) propertyData.dock_iceMaker = true;
             }
 
             // Send POST request to property API
@@ -853,7 +852,6 @@ document.addEventListener('DOMContentLoaded', async function () {
                             if (listing.dock_light) dockFeatures.push('Dock light');
                             if (listing.dock_underwaterLight) dockFeatures.push('Underwater light');
                             if (listing.dock_shorePower) dockFeatures.push('Shore power');
-                            if (listing.dock_iceMaker) dockFeatures.push('Ice maker');
                             listingData.dock.selectedButtons = dockFeatures;
                         }
 
@@ -3359,8 +3357,7 @@ function initializeDockStep() {
         freshWater: document.querySelector('[data-element="dock_buttons_freshWater"]'),
         cleaningStation: document.querySelector('[data-element="dock_buttons_cleaningStation"]'),
         dockLight: document.querySelector('[data-element="dock_buttons_dockLight"]'),
-        underwaterLight: document.querySelector('[data-element="dock_buttons_underwaterLight"]'),
-        iceMaker: document.querySelector('[data-element="dock_buttons_iceMaker"]')
+        underwaterLight: document.querySelector('[data-element="dock_buttons_underwaterLight"]')
     };
 
     // Initialize selected buttons array if not exists
@@ -3460,8 +3457,7 @@ function initializeDockStep() {
         freshWater: "Fresh water hookup",
         cleaningStation: "Cleaning station",
         dockLight: "Dock light",
-        underwaterLight: "Underwater light",
-        iceMaker: "Ice maker"
+        underwaterLight: "Underwater light"
     };
 
     Object.entries(dockButtonOptions).forEach(([option, button]) => {

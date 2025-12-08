@@ -3472,8 +3472,7 @@ document.addEventListener('DOMContentLoaded', function () {
             freshWater: document.querySelector('[data-element="dock_buttons_freshWater"]'),
             cleaningStation: document.querySelector('[data-element="dock_buttons_cleaningStation"]'),
             dockLight: document.querySelector('[data-element="dock_buttons_dockLight"]'),
-            underwaterLight: document.querySelector('[data-element="dock_buttons_underwaterLight"]'),
-            iceMaker: document.querySelector('[data-element="dock_buttons_iceMaker"]')
+            underwaterLight: document.querySelector('[data-element="dock_buttons_underwaterLight"]')
         };
 
         // Get edit/cancel/save buttons and container
@@ -3579,8 +3578,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         freshWater: dockButtonOptions.freshWater?.classList.contains('selected') || false,
                         cleaningStation: dockButtonOptions.cleaningStation?.classList.contains('selected') || false,
                         dockLight: dockButtonOptions.dockLight?.classList.contains('selected') || false,
-                        underwaterLight: dockButtonOptions.underwaterLight?.classList.contains('selected') || false,
-                        iceMaker: dockButtonOptions.iceMaker?.classList.contains('selected') || false
+                        underwaterLight: dockButtonOptions.underwaterLight?.classList.contains('selected') || false
                     }
                 };
 
@@ -3678,8 +3676,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     dock_freshWater: hasDock && dockButtonOptions.freshWater?.classList.contains('selected'),
                     dock_cleaningStation: hasDock && dockButtonOptions.cleaningStation?.classList.contains('selected'),
                     dock_light: hasDock && dockButtonOptions.dockLight?.classList.contains('selected'),
-                    dock_underwaterLight: hasDock && dockButtonOptions.underwaterLight?.classList.contains('selected'),
-                    dock_iceMaker: hasDock && dockButtonOptions.iceMaker?.classList.contains('selected')
+                    dock_underwaterLight: hasDock && dockButtonOptions.underwaterLight?.classList.contains('selected')
                 };
 
                 try {
@@ -3780,8 +3777,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 freshWater: data.dock_freshWater,
                 cleaningStation: data.dock_cleaningStation,
                 dockLight: data.dock_light,
-                underwaterLight: data.dock_underwaterLight,
-                iceMaker: data.dock_iceMaker
+                underwaterLight: data.dock_underwaterLight
             };
 
             Object.entries(amenityMap).forEach(([key, value]) => {
