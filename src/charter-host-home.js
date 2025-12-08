@@ -256,7 +256,53 @@ document.addEventListener('DOMContentLoaded', () => {
         @media (max-width: 600px) {
             .charter-popup-row {
                 flex-direction: column;
-                gap: 20px;
+                gap: 12px;
+            }
+            
+            .charter-popup {
+                padding: 20px;
+                max-height: 85vh;
+            }
+            
+            .charter-popup h2 {
+                font-size: 20px;
+            }
+            
+            .charter-popup p {
+                font-size: 14px;
+                margin-bottom: 16px;
+            }
+            
+            .charter-popup-form {
+                gap: 12px;
+            }
+            
+            .charter-popup-section {
+                padding: 12px;
+            }
+            
+            .charter-popup-section-title {
+                margin-bottom: 12px;
+                font-size: 13px;
+            }
+            
+            .charter-popup-field label {
+                font-size: 14px;
+            }
+            
+            .charter-popup-field input,
+            .charter-popup-field textarea {
+                padding: 10px 12px;
+                font-size: 14px;
+            }
+            
+            .charter-popup-field textarea {
+                min-height: 60px;
+            }
+            
+            .charter-popup-submit {
+                padding: 12px 20px;
+                font-size: 14px;
             }
         }
         
