@@ -308,23 +308,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
         savingOverlay.classList.add('active');
         document.body.style.overflow = 'hidden';
-
-        // Add beforeunload warning
-        window.addEventListener('beforeunload', preventUnload);
     }
 
     // Function to hide loading overlay
     function hideSavingOverlay() {
         savingOverlay.classList.remove('active');
         document.body.style.overflow = '';
-        window.removeEventListener('beforeunload', preventUnload);
-    }
-
-    // Prevent page unload during save
-    function preventUnload(e) {
-        e.preventDefault();
-        e.returnValue = '';
-        return '';
     }
 
     // Immediately hide save and exit button to prevent flash on initial load
@@ -667,10 +656,7 @@ document.addEventListener('DOMContentLoaded', function () {
             // Wait for all requests to complete
             await Promise.all(pendingRequests);
 
-            // Remove beforeunload listener before redirect to prevent browser warning
-            window.removeEventListener('beforeunload', preventUnload);
-
-            // Only redirect after all requests are successful
+            // Redirect after all requests are successful
             window.location.href = '/host/dashboard';
 
         } catch (error) {
