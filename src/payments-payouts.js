@@ -474,6 +474,9 @@ async function handlePayments(userId) {
         const response = await fetch(`https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/payments_payouts?user_id=${userId}`);
         const data = await response.json();
 
+        console.log('[PAYMENTS] API response data:', data);
+        console.log('[PAYMENTS] user_payments array:', data.user_payments);
+
         // Handle user payments and payouts - await both operations
         await Promise.all([
             // Convert these functions to return promises
@@ -516,9 +519,19 @@ function handleUserPayments(paymentsData) {
 
     // Process stay reservation payments
     if (paymentsData && Array.isArray(paymentsData)) {
-        paymentsData.forEach(payment => {
+        console.log('[PAYMENTS] Processing', paymentsData.length, 'payment records');
+
+        paymentsData.forEach((payment, index) => {
+            console.log(`[PAYMENTS] Payment #${index}:`, {
+                id: payment.id,
+                has_reservation: !!payment._reservation,
+                has_fishingcharters_paymentsmade: !!payment._fishingcharters_paymentsmade,
+                has_boat_paymentsmade: !!payment._boat_paymentsmade
+            });
+
             // Check if this stay payment should be displayed (paid or refunded)
             const paymentStatus = getStayPaymentStatus(payment);
+            console.log(`[PAYMENTS] Payment #${index} - Stay status:`, paymentStatus);
             if (paymentStatus) {
                 allPaymentItems.push({
                     type: 'stay',
@@ -528,24 +541,52 @@ function handleUserPayments(paymentsData) {
             }
 
             // Process fishing charter payments within this payment
-            if (payment._fishingcharters_paymentsmade && payment._fishingcharters_paymentsmade.fishingCharters) {
-                payment._fishingcharters_paymentsmade.fishingCharters.forEach(charter => {
-                    const charterStatus = getFishingCharterPaymentStatus(charter);
-                    if (charterStatus) {
-                        allPaymentItems.push({
-                            type: 'fishingCharter',
-                            data: charter,
-                            parentPayment: payment,
-                            status: charterStatus
+            if (payment._fishingcharters_paymentsmade) {
+                console.log(`[PAYMENTS] Payment #${index} - Fishing charter data:`, payment._fishingcharters_paymentsmade);
+                console.log(`[PAYMENTS] Payment #${index} - Has fishingCharters array:`, !!payment._fishingcharters_paymentsmade.fishingCharters);
+
+                if (payment._fishingcharters_paymentsmade.fishingCharters) {
+                    console.log(`[PAYMENTS] Payment #${index} - fishingCharters count:`, payment._fishingcharters_paymentsmade.fishingCharters.length);
+
+                    payment._fishingcharters_paymentsmade.fishingCharters.forEach((charter, charterIndex) => {
+                        console.log(`[PAYMENTS] Payment #${index} - Charter #${charterIndex}:`, {
+                            charterName: charter.charterName,
+                            paymentConfirmed: charter.paymentConfirmed,
+                            reservation_active: charter.reservation_active,
+                            cancellation_date: charter.cancellation_date,
+                            host_cancellation_date: charter.host_cancellation_date,
+                            cancellationPolicyDate: charter.cancellationPolicyDate
                         });
-                    }
-                });
+
+                        const charterStatus = getFishingCharterPaymentStatus(charter);
+                        console.log(`[PAYMENTS] Payment #${index} - Charter #${charterIndex} status:`, charterStatus);
+
+                        if (charterStatus) {
+                            allPaymentItems.push({
+                                type: 'fishingCharter',
+                                data: charter,
+                                parentPayment: payment,
+                                status: charterStatus
+                            });
+                        }
+                    });
+                }
             }
 
             // Process boat rental payments within this payment
             if (payment._boat_paymentsmade) {
+                console.log(`[PAYMENTS] Payment #${index} - Boat payment data:`, {
+                    paymentConfirmed: payment._boat_paymentsmade.paymentConfirmed,
+                    reservation_active: payment._boat_paymentsmade.reservation_active,
+                    cancellation_date: payment._boat_paymentsmade.cancellation_date,
+                    host_cancellation_date: payment._boat_paymentsmade.host_cancellation_date,
+                    cancellationPolicyDate: payment._boat_paymentsmade.cancellationPolicyDate
+                });
+
                 const boatPayment = payment._boat_paymentsmade;
                 const boatStatus = getBoatPaymentStatus(boatPayment);
+                console.log(`[PAYMENTS] Payment #${index} - Boat status:`, boatStatus);
+
                 if (boatStatus) {
                     allPaymentItems.push({
                         type: 'boat',
@@ -556,7 +597,12 @@ function handleUserPayments(paymentsData) {
                 }
             }
         });
+    } else {
+        console.log('[PAYMENTS] paymentsData is not a valid array:', paymentsData);
     }
+
+    console.log('[PAYMENTS] Total collected payment items:', allPaymentItems.length);
+    console.log('[PAYMENTS] Payment items breakdown:', allPaymentItems.map(item => ({ type: item.type, status: item.status })));
 
     if (allPaymentItems.length > 0) {
         // Hide no payments message and show header and container
