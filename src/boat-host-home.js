@@ -59,8 +59,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Select the email and phone number buttons
-    const copyEmailButton = document.querySelector('[data-element="boat_help_copyEmail"]');
-    const copyPhoneButton = document.querySelector('[data-element="boat_help_copyPhone"]');
+    const copyEmailButton = document.querySelector('[data-element="help_copyEmail"]');
+    const copyPhoneButton = document.querySelector('[data-element="help_copyPhone"]');
 
     // Email and phone number to copy
     const email = 'support@keysbooking.com';
@@ -580,7 +580,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             // POST request to endpoint
-            const response = await fetch('ENDPOINT_URL_HERE', {
+            const response = await fetch('https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/addBoatRental_inquiry', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
