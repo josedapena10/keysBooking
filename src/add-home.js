@@ -208,6 +208,125 @@ document.addEventListener('DOMContentLoaded', function () {
     saveExitLoader.style.display = 'none';
     submitLoader.style.display = 'none';
 
+    // Create full-page loading overlay
+    const savingOverlay = document.createElement('div');
+    savingOverlay.id = 'saving-overlay';
+    savingOverlay.innerHTML = `
+        <div class="saving-overlay-content">
+            <div class="saving-spinner"></div>
+            <h3 class="saving-title">Saving your listing...</h3>
+            <p class="saving-message">Please wait while we save your progress.</p>
+            <p class="saving-warning">Please do not refresh or close this page.</p>
+        </div>
+    `;
+
+    // Add overlay styles
+    const overlayStyles = document.createElement('style');
+    overlayStyles.textContent = `
+        #saving-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 999999;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+        }
+        #saving-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+        .saving-overlay-content {
+            text-align: center;
+            padding: 40px;
+            max-width: 400px;
+        }
+        .saving-spinner {
+            width: 56px;
+            height: 56px;
+            border: 4px solid #e5e7eb;
+            border-top-color: #2563eb;
+            border-radius: 50%;
+            margin: 0 auto 24px;
+            animation: saving-spin 1s linear infinite;
+        }
+        @keyframes saving-spin {
+            to { transform: rotate(360deg); }
+        }
+        .saving-title {
+            font-size: 22px;
+            font-weight: 600;
+            color: #111827;
+            margin: 0 0 12px;
+            font-family: inherit;
+        }
+        .saving-message {
+            font-size: 16px;
+            color: #6b7280;
+            margin: 0 0 16px;
+            font-family: inherit;
+        }
+        .saving-warning {
+            font-size: 14px;
+            color: #dc2626;
+            margin: 0;
+            padding: 12px 16px;
+            background: #fef2f2;
+            border-radius: 8px;
+            font-family: inherit;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        .saving-warning::before {
+            content: "⚠️";
+        }
+    `;
+    document.head.appendChild(overlayStyles);
+    document.body.appendChild(savingOverlay);
+
+    // Function to show loading overlay
+    function showSavingOverlay(isFinalSubmit) {
+        const title = savingOverlay.querySelector('.saving-title');
+        const message = savingOverlay.querySelector('.saving-message');
+
+        if (isFinalSubmit) {
+            title.textContent = 'Submitting your listing...';
+            message.textContent = 'We\'re finalizing your listing. This may take a moment.';
+        } else {
+            title.textContent = 'Saving your progress...';
+            message.textContent = 'We\'re saving your listing draft.';
+        }
+
+        savingOverlay.classList.add('active');
+        document.body.style.overflow = 'hidden';
+
+        // Add beforeunload warning
+        window.addEventListener('beforeunload', preventUnload);
+    }
+
+    // Function to hide loading overlay
+    function hideSavingOverlay() {
+        savingOverlay.classList.remove('active');
+        document.body.style.overflow = '';
+        window.removeEventListener('beforeunload', preventUnload);
+    }
+
+    // Prevent page unload during save
+    function preventUnload(e) {
+        e.preventDefault();
+        e.returnValue = '';
+        return '';
+    }
+
     // Immediately hide save and exit button to prevent flash on initial load
     if (saveAndExitButton) {
         saveAndExitButton.style.display = 'none';
@@ -240,6 +359,9 @@ document.addEventListener('DOMContentLoaded', function () {
     // Function to handle saving property data
     async function handlePropertySave(isFinalSubmit = false) {
         try {
+            // Show full-page loading overlay
+            showSavingOverlay(isFinalSubmit);
+
             // Show appropriate loader and hide text based on which button was clicked
             if (isFinalSubmit) {
                 if (submitLoader) submitLoader.style.display = 'flex';
@@ -254,6 +376,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
             // Check if userId is set before proceeding
             if (!listingData.userId) {
+                hideSavingOverlay();
                 return;
             }
 
@@ -548,6 +671,9 @@ document.addEventListener('DOMContentLoaded', function () {
             window.location.href = '/host/dashboard';
 
         } catch (error) {
+            // Hide loading overlay on error
+            hideSavingOverlay();
+
             // Hide loader and show text on error
             if (isFinalSubmit) {
                 if (submitLoader) submitLoader.style.display = 'none';
@@ -560,14 +686,29 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
+    // Track if save is in progress to prevent double clicks
+    let isSaveInProgress = false;
+
     // Add click handler for save and exit button
     if (saveAndExitButton) {
-        saveAndExitButton.addEventListener('click', () => handlePropertySave(false));
+        saveAndExitButton.addEventListener('click', () => {
+            if (isSaveInProgress) return;
+            isSaveInProgress = true;
+            handlePropertySave(false).finally(() => {
+                isSaveInProgress = false;
+            });
+        });
     }
 
     // Add click handler for submit button
     if (submitButton) {
-        submitButton.addEventListener('click', () => handlePropertySave(true));
+        submitButton.addEventListener('click', () => {
+            if (isSaveInProgress) return;
+            isSaveInProgress = true;
+            handlePropertySave(true).finally(() => {
+                isSaveInProgress = false;
+            });
+        });
     }
 
     // Add mutation observer to watch for display changes
