@@ -524,7 +524,9 @@ function handleUserPayments(paymentsData) {
         paymentsData.forEach((payment, index) => {
             console.log(`[PAYMENTS] Payment #${index}:`, {
                 id: payment.id,
-                has_reservation: !!payment._reservation,
+                reservation_active: payment.reservation_active,
+                cancelled_refundDate: payment.cancelled_refundDate,
+                full_cancellation_date: payment.full_cancellation_date,
                 has_fishingcharters_paymentsmade: !!payment._fishingcharters_paymentsmade,
                 has_boat_paymentsmade: !!payment._boat_paymentsmade
             });
@@ -654,15 +656,12 @@ function handleUserPayments(paymentsData) {
 }
 
 // Function to determine stay payment status (Paid or Refunded)
+// Note: reservation data is now directly on the payment object (not nested under _reservation)
 function getStayPaymentStatus(payment) {
-    if (!payment._reservation) {
-        return null;
-    }
-
-    const reservation = payment._reservation;
-    const isActive = reservation.reservation_active === true;
-    const cancelledRefundDate = reservation.cancelled_refundDate;
-    const fullCancellationDate = reservation.full_cancellation_date;
+    // Data is now directly on payment object from reservations table
+    const isActive = payment.reservation_active === true;
+    const cancelledRefundDate = payment.cancelled_refundDate;
+    const fullCancellationDate = payment.full_cancellation_date;
 
     // Paid conditions:
     // 1. reservation_active is true AND cancelled_refundDate is null
@@ -828,12 +827,17 @@ function populatePaymentBlock(block, payment, status) {
 
 // Function to populate fishing charter payment block
 function populateFishingCharterPaymentBlock(block, charter, parentPayment, status) {
-    // Set payment image - find image with order = 1
+    // Set payment image - use charter image if available, otherwise use property image as fallback
     const imageBlock = block.querySelector('[data-element="paymentsBlock_image"]');
-    if (imageBlock && charter._fishingcharter && charter._fishingcharter.images) {
-        const mainImage = charter._fishingcharter.images.find(img => img.order === 1);
-        if (mainImage && mainImage.image && mainImage.image.url) {
-            imageBlock.src = mainImage.image.url;
+    if (imageBlock) {
+        if (charter._fishingcharter && charter._fishingcharter.images) {
+            const mainImage = charter._fishingcharter.images.find(img => img.order === 1);
+            if (mainImage && mainImage.image && mainImage.image.url) {
+                imageBlock.src = mainImage.image.url;
+            }
+        } else if (parentPayment && parentPayment._property_main_image && parentPayment._property_main_image.property_image) {
+            // Fallback to property image if charter image not available
+            imageBlock.src = parentPayment._property_main_image.property_image.url;
         }
     }
 
@@ -850,10 +854,14 @@ function populateFishingCharterPaymentBlock(block, charter, parentPayment, statu
         dateBlock.textContent = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     }
 
-    // Set card info - use same card as parent payment
+    // Set card info - use charter card info if available, otherwise use parent payment
     const cardBlock = block.querySelector('[data-element="paymentsBlock_card"]');
-    if (cardBlock && parentPayment) {
-        cardBlock.textContent = `${parentPayment.card_type} ****${parentPayment.card_last4}`;
+    if (cardBlock) {
+        const cardType = charter.card_type || (parentPayment && parentPayment.card_type) || '';
+        const cardLast4 = charter.card_last4 || (parentPayment && parentPayment.card_last4) || '';
+        if (cardType && cardLast4) {
+            cardBlock.textContent = `${cardType} ****${cardLast4}`;
+        }
     }
 
     // Set charter name and dates
@@ -873,12 +881,17 @@ function populateFishingCharterPaymentBlock(block, charter, parentPayment, statu
 
 // Function to populate boat rental payment block
 function populateBoatPaymentBlock(block, boatPayment, parentPayment, status) {
-    // Set payment image - find photo with order = 1
+    // Set payment image - use boat image if available, otherwise use property image as fallback
     const imageBlock = block.querySelector('[data-element="paymentsBlock_image"]');
-    if (imageBlock && boatPayment._boat && boatPayment._boat.photos) {
-        const mainPhoto = boatPayment._boat.photos.find(photo => photo.order === 1);
-        if (mainPhoto && mainPhoto.image && mainPhoto.image.url) {
-            imageBlock.src = mainPhoto.image.url;
+    if (imageBlock) {
+        if (boatPayment._boat && boatPayment._boat.photos) {
+            const mainPhoto = boatPayment._boat.photos.find(photo => photo.order === 1);
+            if (mainPhoto && mainPhoto.image && mainPhoto.image.url) {
+                imageBlock.src = mainPhoto.image.url;
+            }
+        } else if (parentPayment && parentPayment._property_main_image && parentPayment._property_main_image.property_image) {
+            // Fallback to property image if boat image not available
+            imageBlock.src = parentPayment._property_main_image.property_image.url;
         }
     }
 
@@ -895,16 +908,21 @@ function populateBoatPaymentBlock(block, boatPayment, parentPayment, status) {
         dateBlock.textContent = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     }
 
-    // Set card info - use same card as parent payment
+    // Set card info - use boat payment card info if available, otherwise use parent payment
     const cardBlock = block.querySelector('[data-element="paymentsBlock_card"]');
-    if (cardBlock && parentPayment) {
-        cardBlock.textContent = `${parentPayment.card_type} ****${parentPayment.card_last4}`;
+    if (cardBlock) {
+        const cardType = boatPayment.card_type || (parentPayment && parentPayment.card_type) || '';
+        const cardLast4 = boatPayment.card_last4 || (parentPayment && parentPayment.card_last4) || '';
+        if (cardType && cardLast4) {
+            cardBlock.textContent = `${cardType} ****${cardLast4}`;
+        }
     }
 
     // Set boat name and dates (as range like stay reservations)
     const cityDateBlock = block.querySelector('[data-element="paymentsBlock_cityDate"]');
-    if (cityDateBlock && boatPayment._boat) {
-        const boatName = boatPayment._boat.name || '';
+    if (cityDateBlock) {
+        // Use boat name if available, otherwise use "Boat Rental" as fallback
+        const boatName = (boatPayment._boat && boatPayment._boat.name) || 'Boat Rental';
         const formattedDates = formatBoatDates(boatPayment.boatDates);
         cityDateBlock.textContent = `${boatName} • ${formattedDates}`;
     }
