@@ -3518,7 +3518,7 @@ function initializeTitleStep() {
     const characterCount = document.getElementById('titleInputField_characterCount');
     const titleError = document.getElementById('title-error');
     const titleSubText = document.getElementById('title-subText');
-    const maxChars = 35;
+    const maxChars = 70;
 
     // Always show subtext if error is not visible
     if (titleError && titleSubText) {
