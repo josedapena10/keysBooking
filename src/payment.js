@@ -709,7 +709,12 @@ window.Wized.push(async (Wized) => {
     let selectionBlocksInitialized = false;
 
     function setupSelectionBlocks() {
-        if (selectionBlocksInitialized) return;
+        console.log('[SelectionBlocks] setupSelectionBlocks called, initialized:', selectionBlocksInitialized);
+
+        if (selectionBlocksInitialized) {
+            console.log('[SelectionBlocks] Already initialized, skipping');
+            return;
+        }
 
         const ownYes = document.querySelector(
             '[w-el="boatRentalAdditionalInfo_ownABoat_yesBlock"]'
@@ -725,25 +730,41 @@ window.Wized.push(async (Wized) => {
             '[w-el="boatRentalAdditionalInfo_operatedInKeys_noBlock"]'
         );
 
+        console.log('[SelectionBlocks] Elements found:', {
+            ownYes: !!ownYes,
+            ownNo: !!ownNo,
+            opYes: !!opYes,
+            opNo: !!opNo
+        });
+
         const selectOption = (clicked, other, valueToSet, field) => {
-            if (!clicked || !other) return;
+            console.log('[SelectionBlocks] selectOption called:', { field, valueToSet });
+            if (!clicked || !other) {
+                console.log('[SelectionBlocks] Missing clicked or other element');
+                return;
+            }
             clicked.classList.add("selected");
             other.classList.remove("selected");
 
             if (field === "ownABoat") {
                 ownABoatValue = valueToSet;
+                console.log('[SelectionBlocks] ownABoatValue set to:', ownABoatValue);
             } else if (field === "operatedInKeys") {
                 operatedInKeysValue = valueToSet;
+                console.log('[SelectionBlocks] operatedInKeysValue set to:', operatedInKeysValue);
             }
             validateAndRender();
         };
 
         // own a boat
         if (ownYes && ownNo) {
+            console.log('[SelectionBlocks] Adding click listeners for ownABoat');
             ownYes.addEventListener("click", () => {
+                console.log('[SelectionBlocks] ownYes clicked');
                 selectOption(ownYes, ownNo, "yes", "ownABoat");
             });
             ownNo.addEventListener("click", () => {
+                console.log('[SelectionBlocks] ownNo clicked');
                 selectOption(ownNo, ownYes, "no", "ownABoat");
             });
             selectionBlocksInitialized = true;
@@ -751,14 +772,19 @@ window.Wized.push(async (Wized) => {
 
         // operated in keys
         if (opYes && opNo) {
+            console.log('[SelectionBlocks] Adding click listeners for operatedInKeys');
             opYes.addEventListener("click", () => {
+                console.log('[SelectionBlocks] opYes clicked');
                 selectOption(opYes, opNo, "yes", "operatedInKeys");
             });
             opNo.addEventListener("click", () => {
+                console.log('[SelectionBlocks] opNo clicked');
                 selectOption(opNo, opYes, "no", "operatedInKeys");
             });
             selectionBlocksInitialized = true;
         }
+
+        console.log('[SelectionBlocks] Setup complete, initialized:', selectionBlocksInitialized);
     }
 
     // Use MutationObserver to detect when elements are added to the DOM
@@ -767,14 +793,17 @@ window.Wized.push(async (Wized) => {
             setupSelectionBlocks();
         }
         if (selectionBlocksInitialized) {
+            console.log('[SelectionBlocks] Observer disconnecting - setup complete');
             observer.disconnect();
         }
     });
 
     // Start observing the document for DOM changes
+    console.log('[SelectionBlocks] Starting MutationObserver');
     observer.observe(document.body, { childList: true, subtree: true });
 
     // Also try immediately in case elements already exist
+    console.log('[SelectionBlocks] Initial setup attempt');
     setupSelectionBlocks();
 
     // ---------------- SUBMIT HANDLER ----------------
