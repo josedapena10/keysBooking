@@ -462,3 +462,384 @@ window.Wized.push(async (Wized) => {
     });
 });
 
+
+
+
+window.Wized = window.Wized || [];
+window.Wized.push(async (Wized) => {
+    await Wized.ready(); // DOM + Wized variables fully available
+
+    // --- setup: hide errors before any click ---
+    const errEl = document.querySelector(
+        '[w-el="boatRentalAdditionalInfo_operatorInfoError"]'
+    );
+    if (errEl) {
+        errEl.textContent = "";
+        errEl.style.display = "none";
+    }
+
+    const btn = document.querySelector(
+        '[w-el="boatRentalAdditionalInfo_submitButton"]'
+    );
+
+    // --- submit button pieces ---
+    const submitTextEl = document.querySelector(
+        '[w-el="boatRentalAdditionalInfo_submitButtonText"]'
+    );
+    const submitLoaderEl = document.querySelector(
+        '[w-el="boatRentalAdditionalInfo_submitButtonLoader"]'
+    );
+    if (submitLoaderEl) submitLoaderEl.style.display = "none";
+
+    // -------------------- YES / NO STATE --------------------
+    let ownABoatValue = ""; // "yes" or "no"
+    let operatedInKeysValue = ""; // "yes" or "no"
+
+    // ----------------------- HELPERS -----------------------
+    const getVal = (el) => {
+        const node = document.querySelector(`[w-el="${el}"]`);
+        if (!node) return "";
+
+        if ("value" in node && node.value != null) return String(node.value).trim();
+        const attr = node.getAttribute?.("value");
+        if (attr) return attr.trim();
+        const dv = node.dataset?.value;
+        if (dv) return String(dv).trim();
+        if (node.isContentEditable) return node.innerText.trim();
+        return node.textContent?.trim() || "";
+    };
+
+    const setBorder = (el, isError, isValid) => {
+        const node = document.querySelector(`[w-el="${el}"]`);
+        if (!node) return;
+        if (isError) node.style.borderColor = "red";
+        else if (isValid) node.style.borderColor = "green";
+        else node.style.borderColor = "yellow";
+    };
+
+    // Date helpers, ISO conversion, etc. — unchanged (KEEP your previous logic here)
+
+    const isLeap = (y) =>
+        (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+    const daysInMonth = (m, y) =>
+        [31, isLeap(y) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][
+        m - 1
+        ] || 31;
+
+    function parseDobMMDDYYYY(str) {
+        const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(str);
+        if (!m) return { valid: false, iso: "" };
+        const mm = parseInt(m[1], 10),
+            dd = parseInt(m[2], 10),
+            yyyy = parseInt(m[3], 10);
+        if (mm < 1 || mm > 12) return { valid: false, iso: "" };
+        const dim = daysInMonth(mm, yyyy);
+        if (dd < 1 || dd > dim) return { valid: false, iso: "" };
+        return {
+            valid: true,
+            iso: `${yyyy}-${String(mm).padStart(2, "0")}-${String(
+                dd
+            ).padStart(2, "0")}`,
+        };
+    }
+
+    const __monthMap = {
+        jan: 1,
+        january: 1,
+        feb: 2,
+        february: 2,
+        mar: 3,
+        march: 3,
+        apr: 4,
+        april: 4,
+        may: 5,
+        jun: 6,
+        june: 6,
+        jul: 7,
+        july: 7,
+        aug: 8,
+        august: 8,
+        sep: 9,
+        sept: 9,
+        september: 9,
+        oct: 10,
+        october: 10,
+        nov: 11,
+        november: 11,
+        dec: 12,
+        december: 12,
+    };
+
+    const toISO = (raw) => {
+        const s0 = (raw || "").trim();
+        if (!s0) return "";
+        const s = s0.replace(/,/g, "").replace(/(\d{1,2})(st|nd|rd|th)/gi, "$1");
+
+        let m;
+
+        if ((m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(s)))
+            return `${m[1]}-${String(parseInt(m[2], 10)).padStart(
+                2,
+                "0"
+            )}-${String(parseInt(m[3], 10)).padStart(2, "0")}`;
+
+        if ((m = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/.exec(s)))
+            return `${m[3]}-${String(parseInt(m[1], 10)).padStart(
+                2,
+                "0"
+            )}-${String(parseInt(m[2], 10)).padStart(2, "0")}`;
+
+        if ((m = /^([A-Za-z]+)\s+(\d{1,2})\s+(\d{4})$/.exec(s))) {
+            const mm = __monthMap[m[1].toLowerCase()];
+            if (mm)
+                return `${m[3]}-${String(mm).padStart(2, "0")}-${String(
+                    parseInt(m[2], 10)
+                ).padStart(2, "0")}`;
+        }
+
+        const p = parseDobMMDDYYYY(s);
+        return p.valid ? p.iso : "";
+    };
+
+    // ----------------------- VALIDATION -----------------------
+    function validateAndRender() {
+        const company =
+            Wized.data.r.Load_BoatRental_Details?.data?._boat_company || {};
+        const missing = [];
+
+        const fullName = getVal("boatRentalAdditionalInfo_fullName");
+        const birthDateISO = toISO(
+            getVal("boatRentalAdditionalInfo_birthDate")
+        );
+
+        if (!fullName) missing.push("Full Name");
+        if (!birthDateISO) missing.push("Birth Date");
+
+        setBorder("boatRentalAdditionalInfo_fullName", !fullName, !!fullName);
+        setBorder(
+            "boatRentalAdditionalInfo_birthDate",
+            !birthDateISO,
+            !!birthDateISO
+        );
+
+        // Address required?
+        if (company.requirements_homeAddress) {
+            const addressFields = [
+                ["boatRentalAdditionalInfo_streetAddress", "Street Address"],
+                ["boatRentalAdditionalInfo_cityAddress", "City"],
+                ["boatRentalAdditionalInfo_stateAddress", "State"],
+                ["boatRentalAdditionalInfo_zipcodeAddress", "Zip Code"],
+            ];
+
+            addressFields.forEach(([id, label]) => {
+                const miss = !getVal(id);
+                if (miss) missing.push(label);
+                setBorder(id, miss, !miss);
+            });
+        }
+
+        // Experience
+        if (company.requirements_experience) {
+            const v = getVal("boatRentalAdditionalInfo_experience");
+            if (!v) missing.push("Boating Experience");
+            setBorder("boatRentalAdditionalInfo_experience", !v, !!v);
+        }
+
+        // DLN
+        if (company.requirements_driversLicense) {
+            const v = getVal("boatRentalAdditionalInfo_dln");
+            if (!v) missing.push("Driver’s License Number");
+            setBorder("boatRentalAdditionalInfo_dln", !v, !!v);
+        }
+
+        // Safety ID
+        if (company.requirements_boaterSafetyId) {
+            const isExempt =
+                birthDateISO && birthDateISO < "1988-01-01";
+            const v = getVal("boatRentalAdditionalInfo_safetyID");
+
+            if (!isExempt && !v) missing.push("Boater Safety Education ID");
+            setBorder(
+                "boatRentalAdditionalInfo_safetyID",
+                !v && !isExempt,
+                !!v || isExempt
+            );
+        }
+
+        // YES/NO required
+        if (company.requirements_ownABoat && !ownABoatValue)
+            missing.push("Own a Boat");
+        if (company.requirements_operatedInKeys && !operatedInKeysValue)
+            missing.push("Operated in the Keys");
+
+        if (missing.length) {
+            errEl.textContent = "Please complete: " + missing.join(", ");
+            errEl.style.display = "flex";
+        } else {
+            errEl.textContent = "";
+            errEl.style.display = "none";
+        }
+
+        return missing.length > 0;
+    }
+
+    // -------- INIT LIVE VALIDATION ----------
+    function attachLiveValidationOnce() {
+        if (window.__kbOpInfoLive) return;
+        window.__kbOpInfoLive = true;
+
+        const ids = [
+            "boatRentalAdditionalInfo_fullName",
+            "boatRentalAdditionalInfo_birthDate",
+            "boatRentalAdditionalInfo_streetAddress",
+            "boatRentalAdditionalInfo_cityAddress",
+            "boatRentalAdditionalInfo_stateAddress",
+            "boatRentalAdditionalInfo_zipcodeAddress",
+            "boatRentalAdditionalInfo_experience",
+            "boatRentalAdditionalInfo_dln",
+            "boatRentalAdditionalInfo_safetyID",
+        ];
+
+        ids.forEach((id) => {
+            const node = document.querySelector(`[w-el="${id}"]`);
+            node?.addEventListener("input", validateAndRender);
+            node?.addEventListener("change", validateAndRender);
+        });
+    }
+
+    // ---------------- CLICKABLE YES/NO BLOCKS ----------------
+    function setupSelectionBlocks() {
+        const ownYes = document.querySelector(
+            '[w-el="boatRentalAdditionalInfo_ownABoat_yesBlock"]'
+        );
+        const ownNo = document.querySelector(
+            '[w-el="boatRentalAdditionalInfo_ownABoat_noBlock"]'
+        );
+
+        const opYes = document.querySelector(
+            '[w-el="boatRentalAdditionalInfo_operatedInKeys_yesBlock"]'
+        );
+        const opNo = document.querySelector(
+            '[w-el="boatRentalAdditionalInfo_operatedInKeys_noBlock"]'
+        );
+
+        const selectOption = (clicked, other, setter, val) => {
+            clicked.classList.add("selected");
+            other.classList.remove("selected");
+            setter(val);
+            validateAndRender();
+        };
+
+        // own a boat
+        ownYes?.addEventListener("click", () =>
+            selectOption(ownYes, ownNo, (v) => (ownABoatValue = "yes"), "yes")
+        );
+        ownNo?.addEventListener("click", () =>
+            selectOption(ownNo, ownYes, (v) => (ownABoatValue = "no"), "no")
+        );
+
+        // operated in keys
+        opYes?.addEventListener("click", () =>
+            selectOption(opYes, opNo, (v) => (operatedInKeysValue = "yes"), "yes")
+        );
+        opNo?.addEventListener("click", () =>
+            selectOption(opNo, opYes, (v) => (operatedInKeysValue = "no"), "no")
+        );
+    }
+
+    setupSelectionBlocks();
+
+    // ---------------- SUBMIT HANDLER ----------------
+    btn?.addEventListener("click", () => {
+        const company =
+            Wized.data.r.Load_BoatRental_Details?.data?._boat_company || {};
+        const minAge = company.minAge;
+
+        const birthDateISO = toISO(
+            getVal("boatRentalAdditionalInfo_birthDate")
+        );
+
+        if (minAge && birthDateISO) {
+            const today = new Date();
+            const bd = new Date(birthDateISO);
+            let age = today.getFullYear() - bd.getFullYear();
+            const m = today.getMonth() - bd.getMonth();
+            if (m < 0 || (m === 0 && today.getDate() < bd.getDate())) age--;
+
+            if (age < minAge) {
+                errEl.textContent = `Unable to add to reservation: minimum age is ${minAge}.`;
+                errEl.style.display = "flex";
+                setBorder("boatRentalAdditionalInfo_birthDate", true, false);
+                attachLiveValidationOnce();
+                return;
+            }
+        }
+
+        const hasError = validateAndRender();
+        attachLiveValidationOnce();
+        if (hasError) return;
+
+        submitTextEl.style.display = "none";
+        submitLoaderEl.style.display = "flex";
+        btn.disabled = true;
+
+        const fmtAddress = () => {
+            const parts = [
+                getVal("boatRentalAdditionalInfo_streetAddress"),
+                getVal("boatRentalAdditionalInfo_aptAddress"),
+                getVal("boatRentalAdditionalInfo_cityAddress"),
+                getVal("boatRentalAdditionalInfo_stateAddress"),
+                getVal("boatRentalAdditionalInfo_zipcodeAddress"),
+            ].filter(Boolean);
+            return parts.join(", ");
+        };
+
+        const payload = {
+            user_id: Wized.data.r.Load_user?.data?.id ?? 0,
+            name: getVal("boatRentalAdditionalInfo_fullName"),
+            dateOfBirth: birthDateISO,
+            address: fmtAddress(),
+            boatingExperience: getVal("boatRentalAdditionalInfo_experience"),
+            dln: getVal("boatRentalAdditionalInfo_dln"),
+            boaterSafetyId: getVal("boatRentalAdditionalInfo_safetyID"),
+
+            // YES/NO STRINGS
+            ownABoat: ownABoatValue,
+            operatedInKeys: operatedInKeysValue,
+        };
+
+        fetch(
+            "https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/boat_additionalInfo",
+            {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+            }
+        )
+            .then(async (res) => {
+                if (!res.ok) {
+                    const msg = await res.text().catch(() => "");
+                    throw new Error(msg || `Request failed with ${res.status}`);
+                }
+                return res.json();
+            })
+            .then((data) => {
+                const id = data?.id;
+                if (!id) throw new Error("No id returned");
+
+                const url = new URL(window.location.href);
+                url.searchParams.set("boatAdditionalInfo", id);
+                window.location.assign(url.toString());
+            })
+            .catch((err) => {
+                errEl.textContent =
+                    "We couldn't save your info right now. Please try again. " +
+                    (err?.message ? `(${err.message})` : "");
+                errEl.style.display = "flex";
+
+                submitTextEl.style.display = "flex";
+                submitLoaderEl.style.display = "none";
+                btn.disabled = false;
+            });
+    });
+});
