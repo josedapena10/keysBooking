@@ -706,7 +706,11 @@ window.Wized.push(async (Wized) => {
     }
 
     // ---------------- CLICKABLE YES/NO BLOCKS ----------------
+    let selectionBlocksInitialized = false;
+
     function setupSelectionBlocks() {
+        if (selectionBlocksInitialized) return;
+
         const ownYes = document.querySelector(
             '[w-el="boatRentalAdditionalInfo_ownABoat_yesBlock"]'
         );
@@ -721,30 +725,56 @@ window.Wized.push(async (Wized) => {
             '[w-el="boatRentalAdditionalInfo_operatedInKeys_noBlock"]'
         );
 
-        const selectOption = (clicked, other, setter, val) => {
+        const selectOption = (clicked, other, valueToSet, field) => {
+            if (!clicked || !other) return;
             clicked.classList.add("selected");
             other.classList.remove("selected");
-            setter(val);
+
+            if (field === "ownABoat") {
+                ownABoatValue = valueToSet;
+            } else if (field === "operatedInKeys") {
+                operatedInKeysValue = valueToSet;
+            }
             validateAndRender();
         };
 
         // own a boat
-        ownYes?.addEventListener("click", () =>
-            selectOption(ownYes, ownNo, (v) => (ownABoatValue = "yes"), "yes")
-        );
-        ownNo?.addEventListener("click", () =>
-            selectOption(ownNo, ownYes, (v) => (ownABoatValue = "no"), "no")
-        );
+        if (ownYes && ownNo) {
+            ownYes.addEventListener("click", () => {
+                selectOption(ownYes, ownNo, "yes", "ownABoat");
+            });
+            ownNo.addEventListener("click", () => {
+                selectOption(ownNo, ownYes, "no", "ownABoat");
+            });
+            selectionBlocksInitialized = true;
+        }
 
         // operated in keys
-        opYes?.addEventListener("click", () =>
-            selectOption(opYes, opNo, (v) => (operatedInKeysValue = "yes"), "yes")
-        );
-        opNo?.addEventListener("click", () =>
-            selectOption(opNo, opYes, (v) => (operatedInKeysValue = "no"), "no")
-        );
+        if (opYes && opNo) {
+            opYes.addEventListener("click", () => {
+                selectOption(opYes, opNo, "yes", "operatedInKeys");
+            });
+            opNo.addEventListener("click", () => {
+                selectOption(opNo, opYes, "no", "operatedInKeys");
+            });
+            selectionBlocksInitialized = true;
+        }
     }
 
+    // Use MutationObserver to detect when elements are added to the DOM
+    const observer = new MutationObserver(() => {
+        if (!selectionBlocksInitialized) {
+            setupSelectionBlocks();
+        }
+        if (selectionBlocksInitialized) {
+            observer.disconnect();
+        }
+    });
+
+    // Start observing the document for DOM changes
+    observer.observe(document.body, { childList: true, subtree: true });
+
+    // Also try immediately in case elements already exist
     setupSelectionBlocks();
 
     // ---------------- SUBMIT HANDLER ----------------
