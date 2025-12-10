@@ -17131,8 +17131,8 @@ document.addEventListener('DOMContentLoaded', () => {
           return;
         }
 
-        // Sort images by order if available, otherwise keep original order
-        const sortedImages = [...charter.images];
+        // Sort images by order
+        const sortedImages = [...charter.images].sort((a, b) => (a.order || 0) - (b.order || 0));
 
         // Check screen width for responsive behavior
         const isMobile = window.innerWidth <= 767;
@@ -17404,8 +17404,8 @@ document.addEventListener('DOMContentLoaded', () => {
           return;
         }
 
-        // Sort images by order if available, otherwise keep original order
-        const sortedImages = [...charter.images];
+        // Sort images by order
+        const sortedImages = [...charter.images].sort((a, b) => (a.order || 0) - (b.order || 0));
 
         // Card carousel always shows 1 image at a time
         const carouselHeight = '280px';
