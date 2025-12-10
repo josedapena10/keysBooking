@@ -8219,7 +8219,10 @@ document.addEventListener('DOMContentLoaded', () => {
         // Populate card title
         const titleElement = card.querySelector('[data-element="addBoatModal_selectBoat_card_title"]');
         if (titleElement) {
+          // Clear any stored full text to use new name
+          delete titleElement.dataset.fullText;
           titleElement.textContent = boat.name || '';
+          truncateToFit(titleElement);
         }
 
         // Populate card subtitle (reservation type or selected dates)
@@ -10392,13 +10395,24 @@ document.addEventListener('DOMContentLoaded', () => {
         const boatDetailsDescription = document.querySelector('[data-element="boatDetails_description"]');
         const boatDetailsDescriptionShowMore = document.querySelector('[data-element="boatDetails_description_showMore"]');
 
+        // Helper function to convert newlines to <br> tags while escaping HTML
+        const formatDescriptionText = (text) => {
+          if (!text) return '';
+          // Escape HTML entities first, then convert newlines to <br>
+          return text
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/\n/g, '<br>');
+        };
+
         if (boatDetailsDescription) {
           const description = boat.description || '';
           const maxLength = 400;
 
           if (description.length > maxLength) {
             // Show truncated description initially
-            boatDetailsDescription.textContent = description.substring(0, maxLength) + '...';
+            boatDetailsDescription.innerHTML = formatDescriptionText(description.substring(0, maxLength) + '...');
 
             // Show the "Show More" button
             if (boatDetailsDescriptionShowMore) {
@@ -10411,18 +10425,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (isExpanded) {
                   // Collapse: show truncated
-                  boatDetailsDescription.textContent = description.substring(0, maxLength) + '...';
+                  boatDetailsDescription.innerHTML = formatDescriptionText(description.substring(0, maxLength) + '...');
                   boatDetailsDescriptionShowMore.textContent = 'Show More';
                 } else {
                   // Expand: show full description
-                  boatDetailsDescription.textContent = description;
+                  boatDetailsDescription.innerHTML = formatDescriptionText(description);
                   boatDetailsDescriptionShowMore.textContent = 'Show Less';
                 }
               };
             }
           } else {
             // Description is short, show full text
-            boatDetailsDescription.textContent = description;
+            boatDetailsDescription.innerHTML = formatDescriptionText(description);
 
             // Hide the "Show More" button
             if (boatDetailsDescriptionShowMore) {
@@ -10482,7 +10496,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const boatDetailsCompanyDescription = document.querySelector('[data-element="boatDetails_companyDescription"]');
         if (boatDetailsCompanyDescription) {
-          boatDetailsCompanyDescription.textContent = boat.companyDescription || '';
+          const companyDesc = boat.companyDescription || '';
+          // Preserve line breaks in company description
+          boatDetailsCompanyDescription.innerHTML = companyDesc
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/\n/g, '<br>');
         }
 
         const boatDetailsCompanyProfileImage = document.querySelector('[data-element="boatDetails_companyImage"]');
@@ -16362,7 +16382,10 @@ document.addEventListener('DOMContentLoaded', () => {
         // Populate card title
         const titleElement = card.querySelector('[data-element="addFishingCharterModal_selectFishingCharter_card_title"]');
         if (titleElement) {
+          // Clear any stored full text to use new name
+          delete titleElement.dataset.fullText;
           titleElement.textContent = charter.name || '';
+          truncateToFit(titleElement);
         }
 
         const subtitleCityElement = card.querySelector('[data-element="addFishingCharterModal_selectFishingCharter_card_subTitleCity"]');
@@ -17031,13 +17054,23 @@ document.addEventListener('DOMContentLoaded', () => {
         const descriptionElement = document.querySelector('[data-element="fishingCharterDetails_description"]');
         const fishingCharterDescriptionShowMore = document.querySelector('[data-element="fishingCharterDetails_description_showMore"]');
 
+        // Helper function to convert newlines to <br> tags while escaping HTML
+        const formatCharterDescription = (text) => {
+          if (!text) return '';
+          return text
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/\n/g, '<br>');
+        };
+
         if (descriptionElement) {
           const description = charter.description || '';
           const maxLength = 400;
 
           if (description.length > maxLength) {
             // Show truncated description initially
-            descriptionElement.textContent = description.substring(0, maxLength) + '...';
+            descriptionElement.innerHTML = formatCharterDescription(description.substring(0, maxLength) + '...');
 
             // Show the "Show More" button
             if (fishingCharterDescriptionShowMore) {
@@ -17050,18 +17083,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (isExpanded) {
                   // Collapse: show truncated
-                  descriptionElement.textContent = description.substring(0, maxLength) + '...';
+                  descriptionElement.innerHTML = formatCharterDescription(description.substring(0, maxLength) + '...');
                   fishingCharterDescriptionShowMore.textContent = 'Show More';
                 } else {
                   // Expand: show full description
-                  descriptionElement.textContent = description;
+                  descriptionElement.innerHTML = formatCharterDescription(description);
                   fishingCharterDescriptionShowMore.textContent = 'Show Less';
                 }
               };
             }
           } else {
             // Description is short, show full text
-            descriptionElement.textContent = description;
+            descriptionElement.innerHTML = formatCharterDescription(description);
 
             // Hide the "Show More" button
             if (fishingCharterDescriptionShowMore) {
@@ -17961,10 +17994,15 @@ document.addEventListener('DOMContentLoaded', () => {
           captainNameElement.textContent = captainInfo.name || '';
         }
 
-        // Captain description
+        // Captain description (preserve line breaks)
         const captainDescriptionElement = document.querySelector('[data-element="fishingCharterDetails_captainDescription"]');
         if (captainDescriptionElement) {
-          captainDescriptionElement.textContent = captainInfo.description || '';
+          const captainDesc = captainInfo.description || '';
+          captainDescriptionElement.innerHTML = captainDesc
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/\n/g, '<br>');
         }
       }
 
@@ -19878,9 +19916,15 @@ document.addEventListener('DOMContentLoaded', () => {
             }
           });
 
-          // Populate description
+          // Populate description (preserve line breaks)
           if (descriptionElement && hasDescription) {
-            descriptionElement.textContent = trip.description || '';
+            const tripDesc = trip.description || '';
+            // Escape HTML and convert newlines to <br>
+            descriptionElement.innerHTML = tripDesc
+              .replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;')
+              .replace(/\n/g, '<br>');
           }
         }
 
