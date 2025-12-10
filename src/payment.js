@@ -467,8 +467,6 @@ window.Wized.push(async (Wized) => {
 
 window.Wized = window.Wized || [];
 window.Wized.push(async (Wized) => {
-    await Wized.ready(); // DOM + Wized variables fully available
-
     // --- setup: hide errors before any click ---
     const errEl = document.querySelector(
         '[w-el="boatRentalAdditionalInfo_operatorInfoError"]'
