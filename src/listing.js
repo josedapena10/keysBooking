@@ -10395,24 +10395,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const boatDetailsDescription = document.querySelector('[data-element="boatDetails_description"]');
         const boatDetailsDescriptionShowMore = document.querySelector('[data-element="boatDetails_description_showMore"]');
 
-        // Helper function to convert newlines to <br> tags while escaping HTML
-        const formatDescriptionText = (text) => {
-          if (!text) return '';
-          // Escape HTML entities first, then convert newlines to <br>
-          return text
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/\n/g, '<br>');
-        };
-
         if (boatDetailsDescription) {
           const description = boat.description || '';
           const maxLength = 400;
 
+          // Use CSS to preserve line breaks naturally
+          boatDetailsDescription.style.whiteSpace = 'pre-line';
+
           if (description.length > maxLength) {
             // Show truncated description initially
-            boatDetailsDescription.innerHTML = formatDescriptionText(description.substring(0, maxLength) + '...');
+            boatDetailsDescription.textContent = description.substring(0, maxLength) + '...';
 
             // Show the "Show More" button
             if (boatDetailsDescriptionShowMore) {
@@ -10425,18 +10417,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (isExpanded) {
                   // Collapse: show truncated
-                  boatDetailsDescription.innerHTML = formatDescriptionText(description.substring(0, maxLength) + '...');
+                  boatDetailsDescription.textContent = description.substring(0, maxLength) + '...';
                   boatDetailsDescriptionShowMore.textContent = 'Show More';
                 } else {
                   // Expand: show full description
-                  boatDetailsDescription.innerHTML = formatDescriptionText(description);
+                  boatDetailsDescription.textContent = description;
                   boatDetailsDescriptionShowMore.textContent = 'Show Less';
                 }
               };
             }
           } else {
             // Description is short, show full text
-            boatDetailsDescription.innerHTML = formatDescriptionText(description);
+            boatDetailsDescription.textContent = description;
 
             // Hide the "Show More" button
             if (boatDetailsDescriptionShowMore) {
@@ -10496,13 +10488,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const boatDetailsCompanyDescription = document.querySelector('[data-element="boatDetails_companyDescription"]');
         if (boatDetailsCompanyDescription) {
-          const companyDesc = boat.companyDescription || '';
           // Preserve line breaks in company description
-          boatDetailsCompanyDescription.innerHTML = companyDesc
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/\n/g, '<br>');
+          boatDetailsCompanyDescription.style.whiteSpace = 'pre-line';
+          boatDetailsCompanyDescription.textContent = boat.companyDescription || '';
         }
 
         const boatDetailsCompanyProfileImage = document.querySelector('[data-element="boatDetails_companyImage"]');
@@ -17054,23 +17042,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const descriptionElement = document.querySelector('[data-element="fishingCharterDetails_description"]');
         const fishingCharterDescriptionShowMore = document.querySelector('[data-element="fishingCharterDetails_description_showMore"]');
 
-        // Helper function to convert newlines to <br> tags while escaping HTML
-        const formatCharterDescription = (text) => {
-          if (!text) return '';
-          return text
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/\n/g, '<br>');
-        };
-
         if (descriptionElement) {
           const description = charter.description || '';
           const maxLength = 400;
 
+          // Use CSS to preserve line breaks naturally
+          descriptionElement.style.whiteSpace = 'pre-line';
+
           if (description.length > maxLength) {
             // Show truncated description initially
-            descriptionElement.innerHTML = formatCharterDescription(description.substring(0, maxLength) + '...');
+            descriptionElement.textContent = description.substring(0, maxLength) + '...';
 
             // Show the "Show More" button
             if (fishingCharterDescriptionShowMore) {
@@ -17083,18 +17064,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (isExpanded) {
                   // Collapse: show truncated
-                  descriptionElement.innerHTML = formatCharterDescription(description.substring(0, maxLength) + '...');
+                  descriptionElement.textContent = description.substring(0, maxLength) + '...';
                   fishingCharterDescriptionShowMore.textContent = 'Show More';
                 } else {
                   // Expand: show full description
-                  descriptionElement.innerHTML = formatCharterDescription(description);
+                  descriptionElement.textContent = description;
                   fishingCharterDescriptionShowMore.textContent = 'Show Less';
                 }
               };
             }
           } else {
             // Description is short, show full text
-            descriptionElement.innerHTML = formatCharterDescription(description);
+            descriptionElement.textContent = description;
 
             // Hide the "Show More" button
             if (fishingCharterDescriptionShowMore) {
@@ -17997,12 +17978,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // Captain description (preserve line breaks)
         const captainDescriptionElement = document.querySelector('[data-element="fishingCharterDetails_captainDescription"]');
         if (captainDescriptionElement) {
-          const captainDesc = captainInfo.description || '';
-          captainDescriptionElement.innerHTML = captainDesc
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/\n/g, '<br>');
+          captainDescriptionElement.style.whiteSpace = 'pre-line';
+          captainDescriptionElement.textContent = captainInfo.description || '';
         }
       }
 
@@ -19918,13 +19895,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
           // Populate description (preserve line breaks)
           if (descriptionElement && hasDescription) {
-            const tripDesc = trip.description || '';
-            // Escape HTML and convert newlines to <br>
-            descriptionElement.innerHTML = tripDesc
-              .replace(/&/g, '&amp;')
-              .replace(/</g, '&lt;')
-              .replace(/>/g, '&gt;')
-              .replace(/\n/g, '<br>');
+            descriptionElement.style.whiteSpace = 'pre-line';
+            descriptionElement.textContent = trip.description || '';
           }
         }
 
