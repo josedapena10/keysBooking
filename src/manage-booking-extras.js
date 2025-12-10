@@ -1058,6 +1058,36 @@ function renderBoatCustomerDetails(piData, resCodeData, statusVariant, linkState
         hide('manageBooking_customerDetails_boat_boaterSafetyIdContainer');
         hide('manageBooking_customerDetails_boat_boaterSafetyId');
     }
+
+    // Helper to capitalize first letter (e.g., "yes" -> "Yes")
+    const capitalizeFirstLetter = (str) => {
+        if (!str) return '';
+        return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+    };
+
+    // Owns A Boat
+    const ownsABoat = piData._boat_additionalinfo && piData._boat_additionalinfo.ownABoat;
+    const requireOwnsABoat = piData._boat && piData._boat.__boatcompany && piData._boat.__boatcompany.requirements_ownABoat;
+    if (showConditionals && requireOwnsABoat === true && ownsABoat) {
+        showFlex('manageBooking_customerDetails_boat_ownsABoatContainer');
+        showFlex('manageBooking_customerDetails_boat_ownsABoat');
+        setText('manageBooking_customerDetails_boat_ownsABoat', capitalizeFirstLetter(ownsABoat));
+    } else {
+        hide('manageBooking_customerDetails_boat_ownsABoatContainer');
+        hide('manageBooking_customerDetails_boat_ownsABoat');
+    }
+
+    // Operated In Keys
+    const operatedInKeys = piData._boat_additionalinfo && piData._boat_additionalinfo.operatedInKeys;
+    const requireOperatedInKeys = piData._boat && piData._boat.__boatcompany && piData._boat.__boatcompany.requirements_operatedInKeys;
+    if (showConditionals && requireOperatedInKeys === true && operatedInKeys) {
+        showFlex('manageBooking_customerDetails_boat_operatedInKeysContainer');
+        showFlex('manageBooking_customerDetails_boat_operatedInKeys');
+        setText('manageBooking_customerDetails_boat_operatedInKeys', capitalizeFirstLetter(operatedInKeys));
+    } else {
+        hide('manageBooking_customerDetails_boat_operatedInKeysContainer');
+        hide('manageBooking_customerDetails_boat_operatedInKeys');
+    }
 }
 
 function renderBoatManageActions(piData, statusVariant) {
