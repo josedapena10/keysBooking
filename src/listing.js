@@ -16605,11 +16605,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // If no guests selected, show "From" pricing
         if (this.selectedGuests === 0) {
-          return `From $${minPrice.toLocaleString()}`;
+          return `From $${Math.round(minPrice).toLocaleString()}`;
         }
 
         // If guests selected, show calculated price for that number of guests
-        return `From $${minPrice.toLocaleString()}`;
+        return `From $${Math.round(minPrice).toLocaleString()}`;
       }
 
       async showFishingCharterDetails(charter) {
@@ -19813,7 +19813,7 @@ document.addEventListener('DOMContentLoaded', () => {
           const peopleCount = this.calculatePeopleCount(trip);
 
           if (priceElement) {
-            priceElement.textContent = `$${calculatedPrice.toLocaleString()}`;
+            priceElement.textContent = `$${Math.round(calculatedPrice).toLocaleString()}`;
           }
 
           if (pricePeopleElement) {
@@ -19839,7 +19839,7 @@ document.addEventListener('DOMContentLoaded', () => {
           }
 
           if (priceElement) {
-            priceElement.textContent = `$${displayPrice.toLocaleString()}`;
+            priceElement.textContent = `$${Math.round(displayPrice).toLocaleString()}`;
           }
 
           if (pricePeopleElement) {
