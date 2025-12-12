@@ -575,10 +575,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 // Function to play video
                 const playVideo = async () => {
                     try {
-                        // Start at 30.4 seconds if at the beginning
-                        if (videoTag.currentTime < 30.6) {
-                            videoTag.currentTime = 30.6;
-                        }
                         await videoTag.play();
                         isPlaying = true;
                         playButton.style.opacity = '0';
@@ -595,7 +591,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 // Function to replay video
                 const replayVideo = () => {
-                    videoTag.currentTime = 30.6;
+                    videoTag.currentTime = 0;
                     playVideo();
                 };
 
@@ -640,11 +636,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 modalVideo.setAttribute('muted', '');
                 modalVideo.setAttribute('playsinline', '');
 
-                // Handle video loop - when video reaches the end, loop back to 30.6 seconds
+                // Handle video loop - when video reaches the end, loop back to start
                 modalVideo.addEventListener('timeupdate', () => {
-                    // When video reaches the end (within 0.5 seconds of duration), loop back to 30.6
+                    // When video reaches the end (within 0.5 seconds of duration), loop back to start
                     if (modalVideo.currentTime >= modalVideo.duration - 0.5) {
-                        modalVideo.currentTime = 30.6;
+                        modalVideo.currentTime = 0;
                     }
                 });
 
@@ -694,7 +690,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     modalReplayButton.style.transform = 'scale(1)';
                 });
                 modalReplayButton.addEventListener('click', () => {
-                    modalVideo.currentTime = 30.6;
+                    modalVideo.currentTime = 0;
                     modalVideo.play();
                 });
 
@@ -733,10 +729,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                     // Sync video time and playback state
                     modalVideo.src = videoTag.src;
                     let syncTime = videoTag.currentTime;
-                    // Ensure we never show the part before 30.6 seconds
-                    if (syncTime < 30.6) {
-                        syncTime = 30.6;
-                    }
                     modalVideo.currentTime = syncTime;
 
                     fullscreenModal.style.display = 'flex';
@@ -752,10 +744,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                     // Sync back to original video
                     let syncTime = modalVideo.currentTime;
-                    // Ensure we never show the part before 30.6 seconds
-                    if (syncTime < 30.6) {
-                        syncTime = 30.6;
-                    }
                     videoTag.currentTime = syncTime;
                     videoTag.play();
 
@@ -795,18 +783,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                 videoTag.addEventListener('loadeddata', async () => {
                     loadingState.demoVideo = true;
                     checkAndHideLoader();
-                    // Set initial time to 30.6 seconds - never show earlier part
-                    videoTag.currentTime = 30.6;
                     // Show play button by default - no autoplay
                     playButton.style.opacity = '1';
                     playButton.style.pointerEvents = 'auto';
                 });
 
-                // Handle video loop - when video reaches the end, loop back to 30.6 seconds
+                // Handle video loop - when video reaches the end, loop back to start
                 videoTag.addEventListener('timeupdate', () => {
-                    // When video reaches the end (within 0.5 seconds of duration), loop back to 30.6
+                    // When video reaches the end (within 0.5 seconds of duration), loop back to start
                     if (videoTag.currentTime >= videoTag.duration - 0.5) {
-                        videoTag.currentTime = 30.6;
+                        videoTag.currentTime = 0;
                     }
                 });
 
