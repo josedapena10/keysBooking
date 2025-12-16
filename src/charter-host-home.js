@@ -301,10 +301,26 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 
-// Hero Image Loader
+// Combined Hero Image & Demo Video Loader
 document.addEventListener('DOMContentLoaded', async () => {
     const heroImageElement = document.querySelector('[data-element="charter_becomeAHostHeroImage"]');
+    const demoVideoElement = document.querySelector('[data-element="charter_demoVideoElement"]');
     const loaderElement = document.querySelector('[data-element="loader"]');
+
+    // Track loading state
+    const loadingState = {
+        heroImage: heroImageElement ? false : true, // true if element doesn't exist (nothing to load)
+        demoVideo: demoVideoElement ? false : true
+    };
+
+    // Function to check if all resources are loaded
+    const checkAndHideLoader = () => {
+        if (loadingState.heroImage && loadingState.demoVideo) {
+            if (loaderElement) {
+                loaderElement.style.display = 'none';
+            }
+        }
+    };
 
     // Keep loader visible initially
     if (loaderElement) {
@@ -324,34 +340,398 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             if (data.image && data.image.url) {
                 heroImageElement.onload = () => {
-                    if (loaderElement) {
-                        loaderElement.style.display = 'none';
-                    }
+                    loadingState.heroImage = true;
+                    checkAndHideLoader();
                 };
 
                 heroImageElement.onerror = () => {
                     console.error('Error loading hero image');
-                    if (loaderElement) {
-                        loaderElement.style.display = 'none';
-                    }
+                    loadingState.heroImage = true;
+                    checkAndHideLoader();
                 };
 
                 heroImageElement.src = data.image.url;
                 heroImageElement.alt = data.image.name || 'Fishing charter hero image';
             } else {
-                if (loaderElement) {
-                    loaderElement.style.display = 'none';
-                }
+                loadingState.heroImage = true;
+                checkAndHideLoader();
             }
         } catch (error) {
             console.error('Error fetching hero image:', error);
-            if (loaderElement) {
-                loaderElement.style.display = 'none';
-            }
+            loadingState.heroImage = true;
+            checkAndHideLoader();
         }
-    } else {
-        if (loaderElement) {
-            loaderElement.style.display = 'none';
+    }
+
+    // Load Demo Video
+    if (demoVideoElement) {
+        try {
+            const response = await fetch('https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/demovid');
+
+            if (!response.ok) {
+                throw new Error('Failed to fetch demo video');
+            }
+
+            const data = await response.json();
+
+            if (data && data.length > 0 && data[0].video && data[0].video.url) {
+                const videoUrl = data[0].video.url;
+
+                // Check if demoVideoElement is a video tag or a container
+                let videoTag, videoContainer;
+                if (demoVideoElement.tagName === 'VIDEO') {
+                    videoTag = demoVideoElement;
+                    videoContainer = demoVideoElement.parentElement;
+                } else {
+                    // Create a video element and append to container
+                    videoTag = document.createElement('video');
+                    videoTag.style.width = '100%';
+                    videoTag.style.height = '100%';
+                    videoTag.style.objectFit = 'cover';
+                    videoContainer = demoVideoElement;
+                    videoContainer.style.position = 'relative';
+                    videoContainer.appendChild(videoTag);
+                }
+
+                // Create play button overlay
+                const playButton = document.createElement('div');
+                playButton.innerHTML = `
+                    <svg width="80" height="80" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="40" cy="40" r="40" fill="rgba(0, 0, 0, 0.7)"/>
+                        <path d="M32 25L55 40L32 55V25Z" fill="white"/>
+                    </svg>
+                    <div style="margin-top: 12px; color: white; font-size: 16px; font-weight: 500; font-family: 'TT Fors', sans-serif;">Click to Play Demo</div>
+                `;
+                playButton.style.cssText = `
+                    position: absolute;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    cursor: pointer;
+                    z-index: 10;
+                    transition: all 0.3s ease;
+                    pointer-events: auto;
+                `;
+                playButton.addEventListener('mouseenter', () => {
+                    playButton.style.transform = 'translate(-50%, -50%) scale(1.1)';
+                });
+                playButton.addEventListener('mouseleave', () => {
+                    playButton.style.transform = 'translate(-50%, -50%) scale(1)';
+                });
+
+                // Create replay button (hidden initially)
+                const replayButton = document.createElement('div');
+                replayButton.innerHTML = `
+                    <svg width="50" height="50" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="25" cy="25" r="25" fill="rgba(128, 128, 128, 0.4)"/>
+                        <path d="M25 14C18.92 14 14 18.92 14 25C14 31.08 18.92 36 25 36C29.18 36 32.84 33.66 34.74 30.18L32.26 28.74C30.92 31.26 28.16 33 25 33C20.58 33 17 29.42 17 25C17 20.58 20.58 17 25 17C27.24 17 29.26 17.92 30.74 19.4L27 23H36V14L32.76 17.24C30.68 15.16 27.96 14 25 14Z" fill="white"/>
+                    </svg>
+                `;
+                replayButton.style.cssText = `
+                    position: absolute;
+                    bottom: 20px;
+                    right: 20px;
+                    cursor: pointer;
+                    z-index: 10;
+                    opacity: 0;
+                    transition: all 0.3s ease;
+                    pointer-events: none;
+                `;
+                replayButton.addEventListener('mouseenter', () => {
+                    replayButton.style.transform = 'scale(1.1)';
+                });
+                replayButton.addEventListener('mouseleave', () => {
+                    replayButton.style.transform = 'scale(1)';
+                });
+
+                // Create fullscreen button (hidden initially)
+                const fullscreenButton = document.createElement('div');
+                fullscreenButton.innerHTML = `
+                    <svg width="50" height="50" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="25" cy="25" r="25" fill="rgba(128, 128, 128, 0.4)"/>
+                        <path d="M16 21V16H21M34 16H29V16M29 34H34V29M16 29V34H21" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                    </svg>
+                `;
+                fullscreenButton.style.cssText = `
+                    position: absolute;
+                    bottom: 20px;
+                    left: 20px;
+                    cursor: pointer;
+                    z-index: 10;
+                    opacity: 0;
+                    transition: all 0.3s ease;
+                    pointer-events: none;
+                `;
+                fullscreenButton.addEventListener('mouseenter', () => {
+                    fullscreenButton.style.transform = 'scale(1.1)';
+                });
+                fullscreenButton.addEventListener('mouseleave', () => {
+                    fullscreenButton.style.transform = 'scale(1)';
+                });
+
+                videoContainer.appendChild(playButton);
+                videoContainer.appendChild(replayButton);
+                videoContainer.appendChild(fullscreenButton);
+
+                // CRITICAL: Set muted as property BEFORE src for autoplay to work
+                videoTag.muted = true;
+                videoTag.playsInline = true;
+                videoTag.loop = false; // Disable native loop - we'll handle it manually
+                videoTag.playbackRate = 0.8; // Slow down to 80% speed
+
+                // Also set as attributes for HTML compliance
+                videoTag.setAttribute('muted', '');
+                videoTag.setAttribute('playsinline', '');
+
+                let isPlaying = false;
+
+                // Function to play video
+                const playVideo = async () => {
+                    try {
+                        await videoTag.play();
+                        isPlaying = true;
+                        playButton.style.opacity = '0';
+                        playButton.style.pointerEvents = 'none';
+                        replayButton.style.opacity = '1';
+                        replayButton.style.pointerEvents = 'auto';
+                        fullscreenButton.style.opacity = '1';
+                        fullscreenButton.style.pointerEvents = 'auto';
+                        console.log('Video playing');
+                    } catch (error) {
+                        console.error('Error playing video:', error);
+                    }
+                };
+
+                // Function to replay video
+                const replayVideo = () => {
+                    videoTag.currentTime = 0;
+                    playVideo();
+                };
+
+                // Create fullscreen modal
+                const fullscreenModal = document.createElement('div');
+                fullscreenModal.style.cssText = `
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background: rgba(0, 0, 0, 0.95);
+                    display: none;
+                    align-items: center;
+                    justify-content: center;
+                    z-index: 99999;
+                    padding: 20px;
+                    box-sizing: border-box;
+                `;
+
+                // Create video container for modal (15:8 aspect ratio)
+                const modalVideoContainer = document.createElement('div');
+                modalVideoContainer.style.cssText = `
+                    width: 100%;
+                    max-width: 100%;
+                    aspect-ratio: 15 / 8;
+                    position: relative;
+                    background: black;
+                `;
+
+                // Create modal video element
+                const modalVideo = document.createElement('video');
+                modalVideo.style.cssText = `
+                    width: 100%;
+                    height: 100%;
+                    object-fit: contain;
+                `;
+                modalVideo.muted = true;
+                modalVideo.playsInline = true;
+                modalVideo.loop = false; // Disable native loop - we'll handle it manually
+                modalVideo.playbackRate = 0.9;
+                modalVideo.setAttribute('muted', '');
+                modalVideo.setAttribute('playsinline', '');
+
+                // Handle video loop - when video reaches the end, loop back to start
+                modalVideo.addEventListener('timeupdate', () => {
+                    // When video reaches the end (within 0.5 seconds of duration), loop back to start
+                    if (modalVideo.currentTime >= modalVideo.duration - 0.5) {
+                        modalVideo.currentTime = 0;
+                    }
+                });
+
+                // Create close button for modal
+                const modalCloseButton = document.createElement('div');
+                modalCloseButton.innerHTML = `
+                    <svg width="50" height="50" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="25" cy="25" r="25" fill="rgba(255, 255, 255, 0.9)"/>
+                        <path d="M18 18L32 32M32 18L18 32" stroke="black" stroke-width="3" stroke-linecap="round"/>
+                    </svg>
+                `;
+                modalCloseButton.style.cssText = `
+                    position: absolute;
+                    top: 20px;
+                    right: 20px;
+                    cursor: pointer;
+                    z-index: 100000;
+                    transition: all 0.3s ease;
+                `;
+                modalCloseButton.addEventListener('mouseenter', () => {
+                    modalCloseButton.style.transform = 'scale(1.1)';
+                });
+                modalCloseButton.addEventListener('mouseleave', () => {
+                    modalCloseButton.style.transform = 'scale(1)';
+                });
+
+                // Create replay button for modal
+                const modalReplayButton = document.createElement('div');
+                modalReplayButton.innerHTML = `
+                    <svg width="50" height="50" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="25" cy="25" r="25" fill="rgba(128, 128, 128, 0.4)"/>
+                        <path d="M25 14C18.92 14 14 18.92 14 25C14 31.08 18.92 36 25 36C29.18 36 32.84 33.66 34.74 30.18L32.26 28.74C30.92 31.26 28.16 33 25 33C20.58 33 17 29.42 17 25C17 20.58 20.58 17 25 17C27.24 17 29.26 17.92 30.74 19.4L27 23H36V14L32.76 17.24C30.68 15.16 27.96 14 25 14Z" fill="white"/>
+                    </svg>
+                `;
+                modalReplayButton.style.cssText = `
+                    position: absolute;
+                    bottom: 20px;
+                    right: 20px;
+                    cursor: pointer;
+                    z-index: 100000;
+                    transition: all 0.3s ease;
+                `;
+                modalReplayButton.addEventListener('mouseenter', () => {
+                    modalReplayButton.style.transform = 'scale(1.1)';
+                });
+                modalReplayButton.addEventListener('mouseleave', () => {
+                    modalReplayButton.style.transform = 'scale(1)';
+                });
+                modalReplayButton.addEventListener('click', () => {
+                    modalVideo.currentTime = 0;
+                    modalVideo.play();
+                });
+
+                // Create exit fullscreen button for modal
+                const modalExitFullscreenButton = document.createElement('div');
+                modalExitFullscreenButton.innerHTML = `
+                    <svg width="50" height="50" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="25" cy="25" r="25" fill="rgba(128, 128, 128, 0.4)"/>
+                        <path d="M21 16V21H16M29 21H34V16M34 29H29V34M16 34V29H21" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                    </svg>
+                `;
+                modalExitFullscreenButton.style.cssText = `
+                    position: absolute;
+                    bottom: 20px;
+                    left: 20px;
+                    cursor: pointer;
+                    z-index: 100000;
+                    transition: all 0.3s ease;
+                `;
+                modalExitFullscreenButton.addEventListener('mouseenter', () => {
+                    modalExitFullscreenButton.style.transform = 'scale(1.1)';
+                });
+                modalExitFullscreenButton.addEventListener('mouseleave', () => {
+                    modalExitFullscreenButton.style.transform = 'scale(1)';
+                });
+
+                modalVideoContainer.appendChild(modalVideo);
+                modalVideoContainer.appendChild(modalReplayButton);
+                modalVideoContainer.appendChild(modalExitFullscreenButton);
+                fullscreenModal.appendChild(modalVideoContainer);
+                fullscreenModal.appendChild(modalCloseButton);
+                document.body.appendChild(fullscreenModal);
+
+                // Function to open fullscreen modal
+                const openFullscreenModal = () => {
+                    // Sync video time and playback state
+                    modalVideo.src = videoTag.src;
+                    let syncTime = videoTag.currentTime;
+                    modalVideo.currentTime = syncTime;
+
+                    fullscreenModal.style.display = 'flex';
+                    modalVideo.play();
+
+                    // Pause the original video
+                    videoTag.pause();
+                };
+
+                // Function to close fullscreen modal
+                const closeFullscreenModal = () => {
+                    fullscreenModal.style.display = 'none';
+
+                    // Sync back to original video
+                    let syncTime = modalVideo.currentTime;
+                    videoTag.currentTime = syncTime;
+                    videoTag.play();
+
+                    modalVideo.pause();
+                };
+
+                // Close button click handler
+                modalCloseButton.addEventListener('click', closeFullscreenModal);
+
+                // Exit fullscreen button click handler
+                modalExitFullscreenButton.addEventListener('click', closeFullscreenModal);
+
+                // Close modal when clicking outside the video
+                fullscreenModal.addEventListener('click', (e) => {
+                    if (e.target === fullscreenModal) {
+                        closeFullscreenModal();
+                    }
+                });
+
+                // Close modal on Escape key
+                document.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape' && fullscreenModal.style.display === 'flex') {
+                        closeFullscreenModal();
+                    }
+                });
+
+                // Play button click handler
+                playButton.addEventListener('click', playVideo);
+
+                // Replay button click handler
+                replayButton.addEventListener('click', replayVideo);
+
+                // Fullscreen button click handler
+                fullscreenButton.addEventListener('click', openFullscreenModal);
+
+                // Wait for video to be ready to play
+                videoTag.addEventListener('loadeddata', async () => {
+                    loadingState.demoVideo = true;
+                    checkAndHideLoader();
+                    // Show play button by default - no autoplay
+                    playButton.style.opacity = '1';
+                    playButton.style.pointerEvents = 'auto';
+                });
+
+                // Handle video loop - when video reaches the end, loop back to start
+                videoTag.addEventListener('timeupdate', () => {
+                    // When video reaches the end (within 0.5 seconds of duration), loop back to start
+                    if (videoTag.currentTime >= videoTag.duration - 0.5) {
+                        videoTag.currentTime = 0;
+                    }
+                });
+
+                // Handle load error
+                videoTag.addEventListener('error', () => {
+                    console.error('Error loading demo video');
+                    loadingState.demoVideo = true;
+                    checkAndHideLoader();
+                });
+
+                // Set the video source (AFTER muted is set)
+                videoTag.src = videoUrl;
+                videoTag.load();
+
+            } else {
+                console.error('Invalid video data structure');
+                loadingState.demoVideo = true;
+                checkAndHideLoader();
+            }
+        } catch (error) {
+            console.error('Error fetching demo video:', error);
+            loadingState.demoVideo = true;
+            checkAndHideLoader();
         }
     }
 });
