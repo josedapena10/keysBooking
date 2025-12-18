@@ -286,6 +286,71 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   });
+
+  // Add click handler for check availability button when extras need dates
+  const checkAvailabilityButtons = document.querySelectorAll('[data-element="listing_checkAvailability_button"]');
+  checkAvailabilityButtons.forEach(button => {
+    button.addEventListener('click', function (e) {
+      const urlParams = new URLSearchParams(window.location.search);
+      const checkin = urlParams.get('checkin');
+      const checkout = urlParams.get('checkout');
+      const hasStayDates = !!(checkin && checkout && checkin.trim() !== '' && checkout.trim() !== '');
+
+      // If no stay dates, let the normal calendar open
+      if (!hasStayDates) return;
+
+      if (window.getExtrasNeedingDates) {
+        const extrasInfo = window.getExtrasNeedingDates();
+
+        if (extrasInfo.hasAnyExtrasNeedingDates) {
+          // Prevent default calendar modal from opening
+          e.preventDefault();
+          e.stopPropagation();
+
+          // Try to route the user directly to the missing dates flow
+          const tryOpenBoatDates = () => {
+            const editButton = document.querySelector('[data-element="editSelectedBoat"]');
+            if (editButton) {
+              editButton.click();
+              return true;
+            }
+
+            const boatId = urlParams.get('boatId');
+            if (boatId && window.boatRentalService && typeof window.boatRentalService.handleEditBoat === 'function') {
+              window.boatRentalService.handleEditBoat(boatId);
+              return true;
+            }
+            return false;
+          };
+
+          const tryOpenCharterDates = () => {
+            const firstNeedingNumber = extrasInfo.fishingChartersNeedingDates && extrasInfo.fishingChartersNeedingDates[0];
+            if (!firstNeedingNumber) return false;
+
+            // Look for a rendered block and reuse its edit button (matches user "Edit" click behavior)
+            const charterBlocks = document.querySelectorAll('[data-element="selectedFishingCharterBlock"]');
+            for (const block of charterBlocks) {
+              const num = block?.tripData?.number;
+              if (num && String(num) === String(firstNeedingNumber)) {
+                const editBtn = block.querySelector('[data-element="editSelectedFishingCharter"]');
+                if (editBtn) {
+                  editBtn.click();
+                  return true;
+                }
+              }
+            }
+            return false;
+          };
+
+          if (extrasInfo.boatNeedsDates) {
+            tryOpenBoatDates();
+          } else {
+            tryOpenCharterDates();
+          }
+        }
+      }
+    }, true); // Use capture phase to intercept before Webflow handlers
+  });
 });
 
 
@@ -2558,6 +2623,50 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Add this line to get the addDatesHeading elements
   const addDatesHeadings = document.querySelectorAll('[data-element="Listing_Reservaton_AddDates_Heading"]');
+  const priceDetailsElements = document.querySelectorAll('[data-element="Listing_Query_Price_Details"]');
+  const totalContainers = document.querySelectorAll('[data-element="Listing_Reservation_Amount_Total_Container"]');
+  const wontBeChargedElements = document.querySelectorAll('[data-element="ListingReservation_WontBeCharged_Text"]');
+
+  // Default: hide pricing/total until validation explicitly shows them
+  priceDetailsElements.forEach(el => { if (el) el.style.display = 'none'; });
+  totalContainers.forEach(el => { if (el) el.style.display = 'none'; });
+  addDatesHeadings.forEach(el => { if (el) el.style.display = 'flex'; });
+  // Default: hide "Won't be charged" until validation explicitly shows it
+  wontBeChargedElements.forEach(el => { if (el) el.style.display = 'none'; });
+
+  // Quick guard: immediately hide price/total and show add-dates heading if extras need dates on load
+  (function quickHideForExtrasNeedingDates() {
+    const urlParams = new URLSearchParams(window.location.search);
+    let extrasNeedDates = false;
+
+    // Boat: needs dates if boatId exists and boatDates is missing/empty
+    const boatId = urlParams.get('boatId');
+    const boatDates = urlParams.get('boatDates');
+    if (boatId && (!boatDates || boatDates.trim() === '')) {
+      extrasNeedDates = true;
+    }
+
+    // Fishing charters: any charter with missing dates
+    for (const [key, value] of urlParams.entries()) {
+      const match = key.match(/^fishingCharterId(\d+)$/);
+      if (match) {
+        const num = match[1];
+        const charterId = value;
+        const charterDates = urlParams.get(`fishingCharterDates${num}`);
+        if (charterId && (!charterDates || charterDates.trim() === '')) {
+          extrasNeedDates = true;
+          break;
+        }
+      }
+    }
+
+    if (extrasNeedDates) {
+      priceDetailsElements.forEach(el => { if (el) el.style.display = 'none'; });
+      totalContainers.forEach(el => { if (el) el.style.display = 'none'; });
+      addDatesHeadings.forEach(el => { if (el) el.style.display = 'flex'; });
+      wontBeChargedElements.forEach(el => { if (el) el.style.display = 'none'; });
+    }
+  })();
 
   // Add error elements
   const errorContainer = document.querySelector('[data-element="Dates_Error_Container"]');
@@ -3088,12 +3197,12 @@ document.addEventListener('DOMContentLoaded', () => {
           // If dates are valid but guests are wrong, show "Change Guests"
           if (datesValid && hasGuestError) {
             shouldBeVisible = true;
-            headingText = "Change Guests";
+            headingText = "Change guests";
           }
           // If dates are invalid, show "Change Dates"
           else if (!datesValid) {
             shouldBeVisible = true;
-            headingText = "Change Dates";
+            headingText = "Change dates";
           }
           // Both dates and guests are valid - hide heading
           else {
@@ -3108,7 +3217,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Calendar query failed
         else if (r.Load_Property_Calendar_Query.hasRequested && r.Load_Property_Calendar_Query.status != 200) {
           shouldBeVisible = true;
-          headingText = "Change Dates";
+          headingText = "Change dates";
         }
       }
       // No dates selected - show "Add dates for pricing"
@@ -3301,49 +3410,69 @@ document.addEventListener('DOMContentLoaded', () => {
         const boatDates = decodedDates.split(",").filter(Boolean);
 
         if (boatDates.length === 0) {
+          // No dates selected - leave text empty (warning styling handled elsewhere)
           datesDeliveryElements.forEach(element => {
             if (element) {
-              element.textContent = "";
+              element.textContent = '';
+              element.style.color = '';
+              element.style.fontStyle = '';
             }
           });
-          return;
-        }
-
-        const start = boatDates[0];
-        const end = boatDates[boatDates.length - 1];
-
-        // Helper to get month abbreviation from MM
-        const getMonthAbbr = (dateStr) => {
-          const month = parseInt(dateStr.split("-")[1], 10);
-          const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-          return months[month - 1];
-        };
-
-        // Extract month and day
-        const startMonth = getMonthAbbr(start);
-        const startDay = parseInt(start.split("-")[2], 10);
-        const endMonth = getMonthAbbr(end);
-        const endDay = parseInt(end.split("-")[2], 10);
-
-        let formatted = "";
-        if (boatDates.length === 1) {
-          formatted = `${startMonth} ${startDay}`;
-        } else if (startMonth === endMonth) {
-          formatted = `${startMonth} ${startDay} - ${endDay}`;
+          // Don't return - continue to update other elements and let updateExtrasNeedingDatesState handle styling
         } else {
-          formatted = `${startMonth} ${startDay} - ${endMonth} ${endDay}`;
-        }
+          const start = boatDates[0];
+          const end = boatDates[boatDates.length - 1];
 
-        if (boatDelivery) {
-          formatted += " - Delivered to dock";
-        }
+          // Helper to get month abbreviation from MM
+          const getMonthAbbr = (dateStr) => {
+            const month = parseInt(dateStr.split("-")[1], 10);
+            const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+            return months[month - 1];
+          };
 
-        datesDeliveryElements.forEach(element => {
-          if (element) {
-            element.textContent = formatted;
+          // Extract month and day
+          const startMonth = getMonthAbbr(start);
+          const startDay = parseInt(start.split("-")[2], 10);
+          const endMonth = getMonthAbbr(end);
+          const endDay = parseInt(end.split("-")[2], 10);
+
+          let formatted = "";
+          if (boatDates.length === 1) {
+            formatted = `${startMonth} ${startDay}`;
+          } else if (startMonth === endMonth) {
+            formatted = `${startMonth} ${startDay} - ${endDay}`;
+          } else {
+            formatted = `${startMonth} ${startDay} - ${endMonth} ${endDay}`;
+          }
+
+          if (boatDelivery) {
+            formatted += " - Delivered to dock";
+          }
+
+          datesDeliveryElements.forEach(element => {
+            if (element) {
+              element.textContent = formatted;
+              // Reset any warning styling when dates are present
+              element.style.color = '';
+              element.style.fontStyle = '';
+            }
+          });
+        }
+      } else {
+      }
+
+      // Update edit button text when boat dates are missing but stay dates exist
+      const editButtons = document.querySelectorAll('[data-element="editSelectedBoat"]');
+      if (editButtons.length > 0) {
+        const urlParams = new URLSearchParams(window.location.search);
+        const hasStayDates = !!(urlParams.get('checkin') && urlParams.get('checkout'));
+        const boatDatesMissing = (boatDates && boatDates.length === 0);
+
+        editButtons.forEach(btn => {
+          if (btn) {
+            btn.textContent = (boatDatesMissing && hasStayDates) ? 'Add dates' : 'Edit';
           }
         });
-      } else {
       }
     }
 
@@ -3361,6 +3490,8 @@ document.addEventListener('DOMContentLoaded', () => {
           editButton.addEventListener('click', () => {
             const urlParams = new URLSearchParams(window.location.search);
             const boatId = urlParams.get('boatId');
+            const boatDates = urlParams.get('boatDates');
+            const needsDates = !boatDates || boatDates.trim() === '';
 
             if (boatId) {
               // Open boat modal in details view for the selected boat
@@ -3381,6 +3512,25 @@ document.addEventListener('DOMContentLoaded', () => {
                   if (window.boatRentalService && window.boatRentalService.handleEditBoat) {
                     // Use the new edit method that fetches boat data and opens to details view
                     window.boatRentalService.handleEditBoat(boatId);
+
+                    // If boat needs dates, automatically open the dates popup immediately (no delay)
+                    if (needsDates) {
+                      const hasStayDates = !!(urlParams.get('checkin') && urlParams.get('checkout'));
+                      if (needsDates && hasStayDates) {
+                        const datesPopup = document.querySelector('[data-element="addBoatModal_boatDetails_datesPopup"]');
+                        if (datesPopup) {
+                          // Remember this popup was auto-opened for missing dates so we can auto-save on exit
+                          window.boatRentalService.autoOpenedFromMissingDates = true;
+                          // Ensure reservation block is visible on mobile while selecting dates
+                          const reservationBlock = document.querySelector('[data-element="boatRental_listingPage_reservationBlock"]');
+                          if (reservationBlock) {
+                            reservationBlock.style.display = 'flex';
+                          }
+                          datesPopup.style.display = 'flex';
+                          datesPopup.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }
+                      }
+                    }
                   } else {
                     // If service not ready, wait a bit and try again
                     setTimeout(waitForService, 100);
@@ -3454,6 +3604,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // If no dates are selected, hide the container
       if (!datesSelected) {
+        containerElements.forEach(containerElement => {
+          if (containerElement) {
+            containerElement.style.display = 'none';
+          }
+        });
+        return;
+      }
+
+      // If extras need dates, hide the container as well
+      const extrasInfo = window.getExtrasNeedingDates ? window.getExtrasNeedingDates() : { hasAnyExtrasNeedingDates: false };
+      if (extrasInfo.hasAnyExtrasNeedingDates) {
         containerElements.forEach(containerElement => {
           if (containerElement) {
             containerElement.style.display = 'none';
@@ -3649,10 +3810,17 @@ document.addEventListener('DOMContentLoaded', () => {
         meetsMinNights = false;
       }
 
-      // The final return statement checks both conditions including guests validation
+      // Include extras needing dates to avoid flashing pricing when extras are incomplete
+      const extrasInfo = window.getExtrasNeedingDates ? window.getExtrasNeedingDates() : { hasAnyExtrasNeedingDates: false };
+
+      // The final return statement checks conditions including guests and extras validation
       const currentGuests = n && n.parameter ? n.parameter.guests : 0;
       const maxGuests = r.Load_Property_Details.data.property.num_guests;
-      const shouldShow = allAvailable && meetsMinNights && (currentGuests <= maxGuests) && (currentGuests != 0);
+      const shouldShow = allAvailable
+        && meetsMinNights
+        && (currentGuests <= maxGuests)
+        && (currentGuests != 0)
+        && !extrasInfo.hasAnyExtrasNeedingDates;
 
       priceDetailsElement.style.display = shouldShow ? 'block' : 'none';
     }
@@ -3945,9 +4113,10 @@ document.addEventListener('DOMContentLoaded', () => {
       const hasCheckin = urlParams.has('checkin') && urlParams.get('checkin') !== "";
       const hasCheckout = urlParams.has('checkout') && urlParams.get('checkout') !== "";
       const datesSelected = hasCheckin && hasCheckout;
+      const extrasInfo = window.getExtrasNeedingDates ? window.getExtrasNeedingDates() : { hasAnyExtrasNeedingDates: false };
 
       // Show/hide footer based on date selection
-      if (!datesSelected) {
+      if (!datesSelected || extrasInfo.hasAnyExtrasNeedingDates) {
         phoneFooterContainer.style.display = 'none';
         return;
       }
@@ -6269,6 +6438,17 @@ document.addEventListener('DOMContentLoaded', () => {
             // Now that user is exiting dates section, check private dock filter availability and fetch boats
             this.checkPrivateDockFilterAvailabilityForBoatDates();
             this.fetchAndRenderBoats();
+
+            // If popup was auto-opened due to missing dates, auto-save and close modal
+            if (this.autoOpenedFromMissingDates) {
+              const addButton = document.querySelector('[data-element="boatDetails_reservation_addToReservationButton"]');
+              if (addButton) addButton.click();
+              this.skipRestoreOnClose = true;
+              this.autoOpenedFromMissingDates = false;
+              const reservationBlock = document.querySelector('[data-element="boatRental_listingPage_reservationBlock"]');
+              if (reservationBlock) reservationBlock.style.display = 'none';
+              this.closeModal();
+            }
           });
         }
 
@@ -8386,7 +8566,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.body.classList.remove('no-scroll');
 
         // If we were in edit mode and user cancelled, restore original URL params
-        if (this.isEditMode && this.originalEditParams) {
+        if (!this.skipRestoreOnClose && this.isEditMode && this.originalEditParams) {
           const url = new URL(window.location);
 
           // Restore all original parameters
@@ -8418,6 +8598,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // Reset editing state
         this.isEditMode = false;
         this.originalEditParams = null;
+        this.skipRestoreOnClose = false;
+        this.autoOpenedFromMissingDates = false;
 
         // Update reservation block visibility (should show in desktop view)
         this.updateReservationBlockVisibility();
@@ -11767,6 +11949,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const newButton = addToReservationButton.cloneNode(true);
         addToReservationButton.parentNode.replaceChild(newButton, addToReservationButton);
 
+        // Update button text based on edit mode
+        const buttonTextElement = newButton.querySelector('[data-element="boatDetails_reservation_addToReservationButtonText"]');
+        if (buttonTextElement) {
+          buttonTextElement.textContent = this.isEditMode ? 'Confirm Selection' : 'Add to reservation';
+        } else {
+          // If no text element, update button text directly if it contains text
+          if (newButton.childNodes.length === 1 && newButton.childNodes[0].nodeType === Node.TEXT_NODE) {
+            newButton.textContent = this.isEditMode ? 'Confirm Selection' : 'Add to reservation';
+          }
+        }
+
         // Add click handler to the main button
         newButton.addEventListener('click', () => {
           this.handleAddToReservation(boat, this.boatDetailsErrorElement);
@@ -11776,6 +11969,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (addToReservationButtonFooter) {
           const newFooterButton = addToReservationButtonFooter.cloneNode(true);
           addToReservationButtonFooter.parentNode.replaceChild(newFooterButton, addToReservationButtonFooter);
+
+          // Update footer button text based on edit mode
+          const footerButtonTextElement = newFooterButton.querySelector('[data-element="boatDetails_reservation_addToReservationButtonText"]');
+          if (footerButtonTextElement) {
+            footerButtonTextElement.textContent = this.isEditMode ? 'Confirm Selection' : 'Add to reservation';
+          }
 
           // Add click handler to the footer button
           newFooterButton.addEventListener('click', () => {
@@ -12726,7 +12925,95 @@ document.addEventListener('DOMContentLoaded', () => {
         const checkin = urlParams.get('checkin');
         const checkout = urlParams.get('checkout');
 
-        if (!checkin || !checkout) return;
+        // If no stay dates, show a message instead of the calendar
+        if (!checkin || !checkout || checkin.trim() === '' || checkout.trim() === '') {
+          this.boatDetailsSelectDatesSection.innerHTML = '';
+
+          // Create a message container
+          const messageContainer = document.createElement('div');
+          messageContainer.style.display = 'flex';
+          messageContainer.style.flexDirection = 'column';
+          messageContainer.style.alignItems = 'center';
+          messageContainer.style.justifyContent = 'center';
+          messageContainer.style.padding = '32px 20px';
+          messageContainer.style.backgroundColor = '#fffbeb';
+          messageContainer.style.borderRadius = '8px';
+          messageContainer.style.border = '1px solid #f59e0b';
+          messageContainer.style.gap = '12px';
+
+          // Create icon or emoji
+          const iconElement = document.createElement('div');
+          iconElement.textContent = '📅';
+          iconElement.style.fontSize = '32px';
+          messageContainer.appendChild(iconElement);
+
+          // Create message text
+          const messageText = document.createElement('div');
+          messageText.textContent = 'Select stay dates first';
+          messageText.style.fontSize = '16px';
+          messageText.style.fontFamily = 'TT Fors, sans-serif';
+          messageText.style.fontWeight = '500';
+          messageText.style.color = '#92400e';
+          messageText.style.textAlign = 'center';
+          messageContainer.appendChild(messageText);
+
+          // Create helper text
+          const helperText = document.createElement('div');
+          helperText.textContent = 'Boat dates must be within your stay period';
+          helperText.style.fontSize = '14px';
+          helperText.style.fontFamily = 'TT Fors, sans-serif';
+          helperText.style.color = '#b45309';
+          helperText.style.textAlign = 'center';
+          messageContainer.appendChild(helperText);
+
+          // Create button to select dates
+          const selectDatesButton = document.createElement('button');
+          selectDatesButton.textContent = 'Add Stay Dates';
+          selectDatesButton.style.marginTop = '8px';
+          selectDatesButton.style.padding = '10px 20px';
+          selectDatesButton.style.backgroundColor = '#000000';
+          selectDatesButton.style.color = '#ffffff';
+          selectDatesButton.style.border = 'none';
+          selectDatesButton.style.borderRadius = '8px';
+          selectDatesButton.style.fontSize = '14px';
+          selectDatesButton.style.fontFamily = 'TT Fors, sans-serif';
+          selectDatesButton.style.fontWeight = '500';
+          selectDatesButton.style.cursor = 'pointer';
+          selectDatesButton.addEventListener('click', () => {
+            // Close this modal
+            this.closeModal();
+            // Ensure mobile reservation block is visible
+            const reservationContainer = document.querySelector('[data-element="reservationBlock_phoneContainer"]');
+            if (reservationContainer) {
+              reservationContainer.style.display = 'flex';
+            }
+            // Open the stay calendar (desktop or mobile)
+            const calendarTrigger = document.querySelector('[data-element="listing_checkAvailability_button"]');
+            const mobileCalendarModal = document.querySelector('[data-element="mobileCalendarModal"]');
+            const desktopCalendarModal = document.querySelector('[data-element="calendarModal"]');
+
+            // Try trigger click first
+            if (calendarTrigger) calendarTrigger.click();
+
+            // Fallback: manually open mobile/desktop calendar
+            if (window.innerWidth <= 991 && mobileCalendarModal) {
+              mobileCalendarModal.style.display = 'flex';
+              document.body.classList.add('no-scroll');
+            } else if (desktopCalendarModal) {
+              desktopCalendarModal.style.display = 'flex';
+            }
+          });
+          selectDatesButton.addEventListener('mouseover', () => {
+            selectDatesButton.style.backgroundColor = '#333333';
+          });
+          selectDatesButton.addEventListener('mouseout', () => {
+            selectDatesButton.style.backgroundColor = '#000000';
+          });
+          messageContainer.appendChild(selectDatesButton);
+
+          this.boatDetailsSelectDatesSection.appendChild(messageContainer);
+          return;
+        }
 
         this.boatDetailsSelectDatesSection.innerHTML = '';
 
@@ -13055,6 +13342,17 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             if (this.boatDetailsPopup) this.boatDetailsPopup.style.display = 'none';
+
+            // If popup was auto-opened due to missing dates, auto-save and close modal
+            if (this.autoOpenedFromMissingDates) {
+              const addButton = document.querySelector('[data-element="boatDetails_reservation_addToReservationButton"]');
+              if (addButton) addButton.click();
+              this.skipRestoreOnClose = true;
+              this.autoOpenedFromMissingDates = false;
+              const reservationBlock = document.querySelector('[data-element="boatRental_listingPage_reservationBlock"]');
+              if (reservationBlock) reservationBlock.style.display = 'none';
+              this.closeModal();
+            }
           });
         }
 
@@ -13788,15 +14086,21 @@ document.addEventListener('DOMContentLoaded', () => {
           this.mobileBoatButtonXButton.style.display = 'flex';
         }
 
+        // Check if boat needs dates
+        const extrasInfo = window.getExtrasNeedingDates ? window.getExtrasNeedingDates() : { boatNeedsDates: false };
+        const needsDates = extrasInfo.boatNeedsDates;
+        const urlParams = new URLSearchParams(window.location.search);
+        const hasStayDates = urlParams.get('checkin') && urlParams.get('checkout');
+
         // Reset any disabled styling and apply selected state
         this.mobileBoatButton.style.opacity = '1';
         this.mobileBoatButton.style.cursor = 'pointer';
-        this.mobileBoatButton.style.borderColor = '#0074ff';
-        this.mobileBoatButton.style.backgroundColor = '#e5f2ff';
 
-        // Force background color update with additional methods
-        this.mobileBoatButton.style.setProperty('background-color', '#e5f2ff', 'important');
-        this.mobileBoatButton.style.setProperty('border-color', '#0074ff', 'important');
+        // Keep neutral styling; rely on text for prompts
+        this.mobileBoatButton.style.borderColor = '';
+        this.mobileBoatButton.style.backgroundColor = '';
+        this.mobileBoatButton.style.removeProperty('background-color');
+        this.mobileBoatButton.style.removeProperty('border-color');
 
         // Reset opacity for child elements
         if (this.mobileBoatButtonText) {
@@ -13810,11 +14114,15 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
           const boatName = await this.getBoatName(boatId);
           if (this.mobileBoatButtonText) {
-            this.mobileBoatButtonText.textContent = boatName ? `🛥️ ${boatName}` : 'Boat Rental Selected';
+            if (needsDates && hasStayDates) {
+              this.mobileBoatButtonText.textContent = boatName ? `🛥️ ${boatName} - Add dates` : 'Boat Rental - Add dates';
+            } else {
+              this.mobileBoatButtonText.textContent = boatName ? `🛥️ ${boatName}` : 'Boat Rental Selected';
+            }
           }
         } catch (error) {
           if (this.mobileBoatButtonText) {
-            this.mobileBoatButtonText.textContent = 'Boat Rental Selected';
+            this.mobileBoatButtonText.textContent = (needsDates && hasStayDates) ? 'Boat Rental - Add dates' : 'Boat Rental Selected';
           }
         }
       }
@@ -13924,6 +14232,11 @@ document.addEventListener('DOMContentLoaded', () => {
       async editSelectedBoat(boatId) {
         // Use the existing boat service to edit the selected boat
         if (window.boatRentalService) {
+          // Check if boat needs dates
+          const urlParams = new URLSearchParams(window.location.search);
+          const boatDates = urlParams.get('boatDates');
+          const needsDates = !boatDates || boatDates.trim() === '';
+
           // FIRST: Set wrapper visibility BEFORE showing modal to prevent flash
           const selectWrapper = document.querySelector('[data-element="addBoatModal_selectBoatWrapper"]');
           const detailsWrapper = document.querySelector('[data-element="addBoatModal_boatDetailsWrapper"]');
@@ -14144,13 +14457,13 @@ document.addEventListener('DOMContentLoaded', () => {
         this.detailsDatesX = document.querySelector('[data-element="fishingCharterDetailsModal_selectFishingCharter_datesX"]');
         this.detailsDatesPopup = document.querySelector('[data-element="fishingCharterDetailsModal_selectFishingCharter_datesPopup"]');
         this.detailsDatesPopupSelectDates = document.querySelector('[data-element="fishingCharterDetailsModal_selectFishingCharter_datesPopup_selectDates"]');
-        this.detailsDatesPopupExit = document.querySelector('[data-element="fishingCharterDetailsModal_selectFishingCharter_datesPopup_exit"]');
+        this.detailsDatesPopupExit = document.querySelectorAll('[data-element="fishingCharterDetailsModal_selectFishingCharter_datesPopup_exit"]');
 
         this.detailsGuestsFilter = document.querySelector('[data-element="fishingCharterDetailsModal_selectFishingCharter_guests"]');
         this.detailsGuestsText = document.querySelector('[data-element="fishingCharterDetailsModal_selectFishingCharter_guestsText"]');
         this.detailsGuestsX = document.querySelector('[data-element="fishingCharterDetailsModal_selectFishingCharter_guestsX"]');
         this.detailsGuestsPopup = document.querySelector('[data-element="fishingCharterDetailsModal_selectFishingCharter_guestsPopup"]');
-        this.detailsGuestsPopupExit = document.querySelector('[data-element="fishingCharterDetailsModal_selectFishingCharter_guestsPopup_exit"]');
+        this.detailsGuestsPopupExit = document.querySelectorAll('[data-element="fishingCharterDetailsModal_selectFishingCharter_guestsPopup_exit"]');
         this.detailsGuestMinus = document.querySelector('[data-element="FishingCharterDetails_Guest_Minus"]');
         this.detailsGuestNumber = document.querySelector('[data-element="fishingCharterDetailsGuest_number"]');
         this.detailsGuestPlus = document.querySelector('[data-element="FishingCharterDetails_Guest_Plus"]');
@@ -14348,7 +14661,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (selectedTrip) {
               // Format dates for display
               const datesList = dates ? dates.split(',').filter(Boolean) : [];
-              let formattedDates = this.formatDatesForDisplay(datesList);
+              let needsDates = datesList.length === 0;
+              let formattedDates = needsDates ? '' : this.formatDatesForDisplay(datesList);
 
               // Add private dock pickup text if applicable
               if (pickup === 'true' && formattedDates) {
@@ -14363,7 +14677,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 image: mainImage?.image?.url || '',
                 tripName: selectedTrip.name || '',
                 companyName: charter.name || '',
-                dates: formattedDates,
+                dates: needsDates ? '' : formattedDates,
+                needsDates: needsDates,
               };
 
               selectedTrips.push(tripData);
@@ -14496,6 +14811,11 @@ document.addEventListener('DOMContentLoaded', () => {
       async populateSelectedFishingCharterBlock() {
         const selectedTrips = await this.getSelectedFishingCharterData();
         this.renderSelectedFishingCharterBlocks(selectedTrips);
+
+        // Update visual state for extras that need dates (after blocks are rendered)
+        if (window.updateExtrasNeedingDatesState) {
+          window.updateExtrasNeedingDatesState();
+        }
       }
 
       // Render multiple selected fishing charter blocks
@@ -14572,6 +14892,20 @@ document.addEventListener('DOMContentLoaded', () => {
         // Store trip data on the block for removal functionality
         block.tripData = trip;
 
+        // Apply warning styling to block if dates need to be selected
+        if (trip.needsDates) {
+          block.style.backgroundColor = '#fffbeb'; // Light amber
+          block.style.borderColor = '#f59e0b'; // Amber border
+          block.style.borderWidth = '1px';
+          block.style.borderStyle = 'solid';
+        } else {
+          // Clear warning styling
+          block.style.backgroundColor = '';
+          block.style.borderColor = '';
+          block.style.borderWidth = '';
+          block.style.borderStyle = '';
+        }
+
         // Update selectedFishingCharterBlock_image
         const imageElement = block.querySelector('[data-element="selectedFishingCharterBlock_image"]');
         if (imageElement) {
@@ -14605,6 +14939,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const datesDeliveryElement = block.querySelector('[data-element="selectedFishingCharterBlock_datesDelivery"]');
         if (datesDeliveryElement) {
           datesDeliveryElement.textContent = trip.dates;
+
+          // Apply warning styling if dates need to be selected
+          if (trip.needsDates) {
+            datesDeliveryElement.style.color = '#b45309'; // Amber text
+            datesDeliveryElement.style.fontStyle = 'italic';
+          } else {
+            datesDeliveryElement.style.color = '';
+            datesDeliveryElement.style.fontStyle = '';
+          }
         }
 
         // Setup edit button for this specific block
@@ -14613,6 +14956,11 @@ document.addEventListener('DOMContentLoaded', () => {
           // Remove any existing event listeners
           const newEditButton = editButton.cloneNode(true);
           editButton.parentNode.replaceChild(newEditButton, editButton);
+
+          // Update edit button text based on whether dates need to be selected
+          const { checkin, checkout } = this.getCheckInOutDates();
+          const hasStayDates = !!(checkin && checkout && checkin.trim() !== '' && checkout.trim() !== '');
+          newEditButton.textContent = (trip.needsDates && hasStayDates) ? 'Add dates' : 'Edit';
 
           newEditButton.addEventListener('click', () => {
             this.handleEditSpecificFishingCharter(trip);
@@ -14644,6 +14992,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const originalPickup = urlParams.get(`fishingCharterPickup${trip.number}`);
         const originalCharterId = urlParams.get(`fishingCharterId${trip.number}`);
         const originalTripId = urlParams.get(`fishingCharterTripId${trip.number}`);
+
+        // Determine if charter needs dates
+        const needsDates = !originalDates || originalDates.trim() === '';
 
         // Enter edit mode and store original parameters to restore if user cancels
         this.isEditMode = true;
@@ -14683,6 +15034,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Fetch and show the charter details for editing
         this.fetchAndShowCharterForEdit(trip.charterId, trip.tripId);
+
+        // If charter needs dates, automatically open the dates popup after a short delay
+        if (needsDates) {
+          setTimeout(() => {
+            const { checkin, checkout } = this.getCheckInOutDates();
+            const hasStayDates = !!(checkin && checkout && checkin.trim() !== '' && checkout.trim() !== '');
+            if (!hasStayDates) return;
+
+            const datesPopup = document.querySelector('[data-element="fishingCharterDetailsModal_selectFishingCharter_datesPopup"]');
+            if (datesPopup) {
+              this.autoOpenedFromMissingDates = true;
+              datesPopup.style.display = 'flex';
+              datesPopup.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+          }, 500);
+        }
       }
 
       // Fetch charter data and show details for editing
@@ -18545,7 +18912,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!this.datesText) return;
 
         if (this.selectedDates.length === 0) {
-          this.datesText.textContent = 'Add Dates';
+          this.datesText.textContent = 'Add dates';
         } else if (this.selectedDates.length === 1) {
           this.datesText.textContent = this.formatDateForDisplay(this.selectedDates[0]);
         } else if (this.selectedDates.length === 2) {
@@ -19174,10 +19541,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
         }
 
-        if (this.detailsDatesPopupExit) {
-          this.detailsDatesPopupExit.addEventListener('click', (e) => {
-            e.stopPropagation();
-            if (this.detailsDatesPopup) this.detailsDatesPopup.style.display = 'none';
+        if (this.detailsDatesPopupExit && this.detailsDatesPopupExit.length) {
+          this.detailsDatesPopupExit.forEach(exitBtn => {
+            if (!exitBtn) return;
+            exitBtn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              if (this.detailsDatesPopup) this.detailsDatesPopup.style.display = 'none';
+
+              // If popup was auto-opened due to missing dates, auto-save and close modal
+              if (this.autoOpenedFromMissingDates) {
+                const addButton = document.querySelector('[data-element="fishingCharterDetails_tripType_addToReservationButton"]');
+                if (addButton) addButton.click();
+                this.autoOpenedFromMissingDates = false;
+                this.closeModal(true);
+              }
+            });
           });
         }
 
@@ -19208,10 +19586,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         }
 
-        if (this.detailsGuestsPopupExit) {
-          this.detailsGuestsPopupExit.addEventListener('click', (e) => {
-            e.stopPropagation();
-            if (this.detailsGuestsPopup) this.detailsGuestsPopup.style.display = 'none';
+        if (this.detailsGuestsPopupExit && this.detailsGuestsPopupExit.length) {
+          this.detailsGuestsPopupExit.forEach(exitBtn => {
+            if (!exitBtn) return;
+            exitBtn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              if (this.detailsGuestsPopup) this.detailsGuestsPopup.style.display = 'none';
+            });
           });
         }
 
@@ -19508,7 +19889,95 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const { checkin, checkout } = this.getCheckInOutDates();
 
-        if (!checkin || !checkout) return;
+        // If no stay dates, show a message instead of the calendar
+        if (!checkin || !checkout || checkin.trim() === '' || checkout.trim() === '') {
+          this.detailsDatesPopupSelectDates.innerHTML = '';
+
+          // Create a message container
+          const messageContainer = document.createElement('div');
+          messageContainer.style.display = 'flex';
+          messageContainer.style.flexDirection = 'column';
+          messageContainer.style.alignItems = 'center';
+          messageContainer.style.justifyContent = 'center';
+          messageContainer.style.padding = '32px 20px';
+          messageContainer.style.backgroundColor = '#fffbeb';
+          messageContainer.style.borderRadius = '8px';
+          messageContainer.style.border = '1px solid #f59e0b';
+          messageContainer.style.gap = '12px';
+
+          // Create icon or emoji
+          const iconElement = document.createElement('div');
+          iconElement.textContent = '📅';
+          iconElement.style.fontSize = '32px';
+          messageContainer.appendChild(iconElement);
+
+          // Create message text
+          const messageText = document.createElement('div');
+          messageText.textContent = 'Select stay dates first';
+          messageText.style.fontSize = '16px';
+          messageText.style.fontFamily = 'TT Fors, sans-serif';
+          messageText.style.fontWeight = '500';
+          messageText.style.color = '#92400e';
+          messageText.style.textAlign = 'center';
+          messageContainer.appendChild(messageText);
+
+          // Create helper text
+          const helperText = document.createElement('div');
+          helperText.textContent = 'Charter dates must be within your stay period';
+          helperText.style.fontSize = '14px';
+          helperText.style.fontFamily = 'TT Fors, sans-serif';
+          helperText.style.color = '#b45309';
+          helperText.style.textAlign = 'center';
+          messageContainer.appendChild(helperText);
+
+          // Create button to select dates
+          const selectDatesButton = document.createElement('button');
+          selectDatesButton.textContent = 'Add Stay Dates';
+          selectDatesButton.style.marginTop = '8px';
+          selectDatesButton.style.padding = '10px 20px';
+          selectDatesButton.style.backgroundColor = '#000000';
+          selectDatesButton.style.color = '#ffffff';
+          selectDatesButton.style.border = 'none';
+          selectDatesButton.style.borderRadius = '8px';
+          selectDatesButton.style.fontSize = '14px';
+          selectDatesButton.style.fontFamily = 'TT Fors, sans-serif';
+          selectDatesButton.style.fontWeight = '500';
+          selectDatesButton.style.cursor = 'pointer';
+          selectDatesButton.addEventListener('click', () => {
+            // Close this modal
+            this.closeModal();
+            // Ensure mobile reservation block is visible
+            const reservationContainer = document.querySelector('[data-element="reservationBlock_phoneContainer"]');
+            if (reservationContainer) {
+              reservationContainer.style.display = 'flex';
+            }
+            // Open the stay calendar (desktop or mobile)
+            const calendarTrigger = document.querySelector('[data-element="listing_checkAvailability_button"]');
+            const mobileCalendarModal = document.querySelector('[data-element="mobileCalendarModal"]');
+            const desktopCalendarModal = document.querySelector('[data-element="calendarModal"]');
+
+            // Try trigger click first
+            if (calendarTrigger) calendarTrigger.click();
+
+            // Fallback: manually open mobile/desktop calendar
+            if (window.innerWidth <= 991 && mobileCalendarModal) {
+              mobileCalendarModal.style.display = 'flex';
+              document.body.classList.add('no-scroll');
+            } else if (desktopCalendarModal) {
+              desktopCalendarModal.style.display = 'flex';
+            }
+          });
+          selectDatesButton.addEventListener('mouseover', () => {
+            selectDatesButton.style.backgroundColor = '#333333';
+          });
+          selectDatesButton.addEventListener('mouseout', () => {
+            selectDatesButton.style.backgroundColor = '#000000';
+          });
+          messageContainer.appendChild(selectDatesButton);
+
+          this.detailsDatesPopupSelectDates.appendChild(messageContainer);
+          return;
+        }
 
         this.detailsDatesPopupSelectDates.innerHTML = '';
 
@@ -19906,6 +20375,39 @@ document.addEventListener('DOMContentLoaded', () => {
           // Remove any existing event listeners to prevent duplicates
           const newButton = addToReservationButton.cloneNode(true);
           addToReservationButton.parentNode.replaceChild(newButton, addToReservationButton);
+
+          // Check if this specific trip is the one being edited
+          // Only show "Confirm Selection" for the exact trip being edited, not all trips
+          const isThisTripBeingEdited = this.isEditMode && String(this.editingTripId) === String(trip.id);
+
+          // Update button text and style based on edit mode
+          const buttonTextElement = newButton.querySelector('[data-element="fishingCharterDetails_tripType_addToReservationButtonText"]');
+          if (buttonTextElement) {
+            if (isThisTripBeingEdited) {
+              buttonTextElement.textContent = 'Confirm Selection';
+              buttonTextElement.style.color = '#fff';
+              newButton.style.backgroundColor = '#07f'; // Blue background for confirm
+              newButton.style.color = '#fff';
+            } else {
+              buttonTextElement.textContent = 'Add to reservation';
+              buttonTextElement.style.color = '';
+              newButton.style.backgroundColor = ''; // Reset background
+              newButton.style.color = '';
+            }
+          } else {
+            // If no text element, update button text directly if it contains text
+            if (newButton.childNodes.length === 1 && newButton.childNodes[0].nodeType === Node.TEXT_NODE) {
+              if (isThisTripBeingEdited) {
+                newButton.textContent = 'Confirm Selection';
+                newButton.style.backgroundColor = '#07f';
+                newButton.style.color = '#fff';
+              } else {
+                newButton.textContent = 'Add to reservation';
+                newButton.style.backgroundColor = '';
+                newButton.style.color = '';
+              }
+            }
+          }
 
           // Add click handler to the new button
           newButton.addEventListener('click', () => {
@@ -20445,15 +20947,19 @@ document.addEventListener('DOMContentLoaded', () => {
           this.mobileFishingCharterButtonXButton.style.display = 'flex';
         }
 
+        // Check if any fishing charters need dates
+        const extrasInfo = window.getExtrasNeedingDates ? window.getExtrasNeedingDates() : { fishingChartersNeedingDates: [] };
+        const needsDates = extrasInfo.fishingChartersNeedingDates.length > 0;
+
         // Reset any disabled styling and apply selected state
         this.mobileFishingCharterButton.style.opacity = '1';
         this.mobileFishingCharterButton.style.cursor = 'pointer';
-        this.mobileFishingCharterButton.style.borderColor = '#0074ff';
-        this.mobileFishingCharterButton.style.backgroundColor = '#e5f2ff';
 
-        // Force background color update with additional methods
-        this.mobileFishingCharterButton.style.setProperty('background-color', '#e5f2ff', 'important');
-        this.mobileFishingCharterButton.style.setProperty('border-color', '#0074ff', 'important');
+        // Keep neutral styling; rely on text for prompts
+        this.mobileFishingCharterButton.style.borderColor = '';
+        this.mobileFishingCharterButton.style.backgroundColor = '';
+        this.mobileFishingCharterButton.style.removeProperty('background-color');
+        this.mobileFishingCharterButton.style.removeProperty('border-color');
 
         // Reset opacity for child elements
         if (this.mobileFishingCharterButtonText) {
@@ -20466,12 +20972,20 @@ document.addEventListener('DOMContentLoaded', () => {
         // Get charter trip name and update text
         try {
           const tripName = await this.getSingleCharterTripName();
+          const urlParams = new URLSearchParams(window.location.search);
+          const hasStayDates = urlParams.get('checkin') && urlParams.get('checkout');
           if (this.mobileFishingCharterButtonText) {
-            this.mobileFishingCharterButtonText.textContent = tripName ? `🎣 ${tripName}` : 'Fishing Charter Selected';
+            if (needsDates && hasStayDates) {
+              this.mobileFishingCharterButtonText.textContent = tripName ? `🎣 ${tripName} - Add dates` : 'Fishing charter - Add dates';
+            } else {
+              this.mobileFishingCharterButtonText.textContent = tripName ? `🎣 ${tripName}` : 'Fishing Charter Selected';
+            }
           }
         } catch (error) {
           if (this.mobileFishingCharterButtonText) {
-            this.mobileFishingCharterButtonText.textContent = 'Fishing Charter Selected';
+            const urlParams = new URLSearchParams(window.location.search);
+            const hasStayDates = urlParams.get('checkin') && urlParams.get('checkout');
+            this.mobileFishingCharterButtonText.textContent = (needsDates && hasStayDates) ? 'Fishing charter - Add dates' : 'Fishing Charter Selected';
           }
         }
       }
@@ -20485,15 +20999,20 @@ document.addEventListener('DOMContentLoaded', () => {
           this.mobileFishingCharterButtonXButton.style.display = 'flex';
         }
 
+        // Check if any fishing charters need dates
+        const extrasInfo = window.getExtrasNeedingDates ? window.getExtrasNeedingDates() : { fishingChartersNeedingDates: [] };
+        const chartersNeedingDates = extrasInfo.fishingChartersNeedingDates.length;
+        const needsDates = chartersNeedingDates > 0;
+
         // Reset any disabled styling and apply selected state
         this.mobileFishingCharterButton.style.opacity = '1';
         this.mobileFishingCharterButton.style.cursor = 'pointer';
-        this.mobileFishingCharterButton.style.borderColor = '#0074ff';
-        this.mobileFishingCharterButton.style.backgroundColor = '#e5f2ff';
 
-        // Force background color update with additional methods
-        this.mobileFishingCharterButton.style.setProperty('background-color', '#e5f2ff', 'important');
-        this.mobileFishingCharterButton.style.setProperty('border-color', '#0074ff', 'important');
+        // Keep neutral styling; rely on text for prompts
+        this.mobileFishingCharterButton.style.borderColor = '';
+        this.mobileFishingCharterButton.style.backgroundColor = '';
+        this.mobileFishingCharterButton.style.removeProperty('background-color');
+        this.mobileFishingCharterButton.style.removeProperty('border-color');
 
         // Reset opacity for child elements
         if (this.mobileFishingCharterButtonText) {
@@ -20505,7 +21024,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Update text to show count with a fishing rod emoji
         if (this.mobileFishingCharterButtonText) {
-          this.mobileFishingCharterButtonText.textContent = `🎣 ${count} Charters`;
+          const urlParams = new URLSearchParams(window.location.search);
+          const hasStayDates = urlParams.get('checkin') && urlParams.get('checkout');
+          if (needsDates && hasStayDates) {
+            this.mobileFishingCharterButtonText.textContent = `🎣 ${count} Charters - Add dates`;
+          } else {
+            this.mobileFishingCharterButtonText.textContent = `🎣 ${count} Charters`;
+          }
         }
       }
 
@@ -20829,8 +21354,13 @@ document.addEventListener('DOMContentLoaded', () => {
       // Update "Won't be charged" text visibility
       updateWontBeChargedTextVisibility(validation);
 
-      // Handle boat rental and fishing charter clearing if dates are cleared
+      // Handle boat rental and fishing charter state if dates are cleared
       handleExtrasWhenDatesCleared(validation);
+
+      // Update visual state for extras that need dates
+      if (window.updateExtrasNeedingDatesState) {
+        window.updateExtrasNeedingDatesState();
+      }
     }
 
     // Get comprehensive validation state
@@ -20884,13 +21414,20 @@ document.addEventListener('DOMContentLoaded', () => {
         guestsValid = true;
       }
 
+      // Check if extras need dates
+      const extrasNeedingDates = window.getExtrasNeedingDates ? window.getExtrasNeedingDates() : { hasAnyExtrasNeedingDates: false };
+      const extrasNeedDates = extrasNeedingDates.hasAnyExtrasNeedingDates;
+
       return {
         datesSelected,
         datesValid,
         guestsValid,
         datesUnavailable: datesSelected && !datesValid,
         guestsIncorrect: !guestsValid,
-        noErrors: datesSelected && datesValid && guestsValid
+        extrasNeedDates,
+        extrasNeedingDates,
+        // noErrors is true only when dates are selected, valid, guests valid, AND all extras have dates
+        noErrors: datesSelected && datesValid && guestsValid && !extrasNeedDates
       };
     }
 
@@ -20927,12 +21464,46 @@ document.addEventListener('DOMContentLoaded', () => {
     // Update check availability button visibility
     function updateCheckAvailabilityButtonVisibility(validation) {
       const checkAvailabilityButtons = document.querySelectorAll('[data-element="listing_checkAvailability_button"]');
-      const shouldShow = !validation.datesSelected;
+      // Show when no stay dates selected OR when stay dates are selected but extras need dates
+      const shouldShowForNoDates = !validation.datesSelected;
+      const shouldShowForExtrasDates = validation.datesSelected && validation.datesValid && validation.guestsValid && validation.extrasNeedDates;
+      const shouldShow = shouldShowForNoDates || shouldShowForExtrasDates;
 
       checkAvailabilityButtons.forEach((button, index) => {
         if (button) {
           const newDisplay = shouldShow ? 'flex' : 'none';
           button.style.display = newDisplay;
+
+          // Update button text based on context
+          const buttonText = button.querySelector('[data-element="listing_checkAvailability_buttonText"]');
+          if (buttonText) {
+            if (shouldShowForExtrasDates) {
+              const extrasInfo = validation.extrasNeedingDates;
+              const chartersNeedingDates = extrasInfo.fishingChartersNeedingDates.length;
+
+              // Boat always shows simple text (only 1 boat allowed)
+              // Charters show "(1 of X)" only when multiple charters need dates
+              if (extrasInfo.boatNeedsDates) {
+                // Boat takes priority - always simple text
+                buttonText.textContent = 'Add boat dates';
+              } else if (chartersNeedingDates === 1) {
+                // Single charter needs dates
+                buttonText.textContent = 'Add charter dates';
+              } else if (chartersNeedingDates > 1) {
+                // Multiple charters need dates - show (1 of X) format
+                buttonText.textContent = `Add charter dates (1 of ${chartersNeedingDates})`;
+              } else {
+                buttonText.textContent = 'Add dates';
+              }
+            } else {
+              // No stay dates selected -> clarify this opens stay calendar
+              if (shouldShowForNoDates) {
+                buttonText.textContent = 'Add stay dates';
+              } else {
+                buttonText.textContent = 'Add dates';
+              }
+            }
+          }
         }
       });
     }
@@ -20942,9 +21513,24 @@ document.addEventListener('DOMContentLoaded', () => {
       const priceDetailsElements = document.querySelectorAll('[data-element="Listing_Query_Price_Details"]');
       const listingOnlyElements = document.querySelectorAll('[data-element="ListingOnly_Query_Price_Details"]');
       const listingExtrasElements = document.querySelectorAll('[data-element="ListingExtras_Query_Price_Details"]');
+      const addDatesHeadings = document.querySelectorAll('[data-element="Listing_Reservaton_AddDates_Heading"]');
+      const totalContainers = document.querySelectorAll('[data-element="Listing_Reservation_Amount_Total_Container"]');
 
-      // Show pricing only when dates are selected, valid, AND guests are valid
-      const shouldShowPricing = validation.datesSelected && validation.datesValid && validation.guestsValid;
+      // Show pricing when dates are selected, valid, guests are valid, AND no extras need dates
+      const stayDatesValid = validation.datesSelected && validation.datesValid && validation.guestsValid;
+      const hasExtras = window.hasAnyExtrasSelected && window.hasAnyExtrasSelected();
+      const extrasNeedDates = validation.extrasNeedDates;
+
+      // Only show pricing when ALL dates are selected (stay + extras)
+      // If extras need dates, keep showing "Add Dates" heading instead
+      const shouldShowPricing = stayDatesValid && (!hasExtras || !extrasNeedDates);
+
+      // Toggle the add-dates heading
+      addDatesHeadings.forEach(element => {
+        if (element) {
+          element.style.display = shouldShowPricing ? 'none' : 'flex';
+        }
+      });
 
       // Handle main price details container
       priceDetailsElements.forEach(element => {
@@ -20953,23 +21539,44 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       });
 
+      // Handle total container visibility in sync with pricing
+      totalContainers.forEach(element => {
+        if (element) {
+          element.style.display = shouldShowPricing ? 'flex' : 'none';
+        }
+      });
+
       // Handle listing-only vs listing-extras visibility
       if (shouldShowPricing) {
-        const hasExtras = window.hasAnyExtrasSelected && window.hasAnyExtrasSelected();
+        if (hasExtras) {
+          // Show combined pricing when extras have dates
+          listingOnlyElements.forEach(element => {
+            if (element) {
+              element.style.display = 'none';
+            }
+          });
 
-        listingOnlyElements.forEach(element => {
-          if (element) {
-            element.style.display = hasExtras ? 'none' : 'flex';
-          }
-        });
+          listingExtrasElements.forEach(element => {
+            if (element) {
+              element.style.display = 'flex';
+            }
+          });
+        } else {
+          // No extras - show listing-only pricing
+          listingOnlyElements.forEach(element => {
+            if (element) {
+              element.style.display = 'flex';
+            }
+          });
 
-        listingExtrasElements.forEach(element => {
-          if (element) {
-            element.style.display = hasExtras ? 'flex' : 'none';
-          }
-        });
+          listingExtrasElements.forEach(element => {
+            if (element) {
+              element.style.display = 'none';
+            }
+          });
+        }
       } else {
-        // Hide both when dates are invalid/not selected OR guests are invalid
+        // Hide both when stay dates are invalid/not selected OR extras need dates
         listingOnlyElements.forEach(element => {
           if (element) {
             element.style.display = 'none';
@@ -21028,19 +21635,11 @@ document.addEventListener('DOMContentLoaded', () => {
     function handleExtrasWhenDatesCleared(validation) {
       const urlParams = new URLSearchParams(window.location.search);
 
-      // Case 1: No dates selected - BUT check if user is actively selecting new dates in calendar
+      // Case 1: No dates selected - Keep extras but update their visual state
+      // This allows sharing links with extras pre-added without stay dates
       if (!validation.datesSelected) {
-        // Check if calendar modal is open (user is selecting new dates)
-        const calendarModal = document.querySelector('[data-element="calendarModal"]');
-        const mobileCalendarModal = document.querySelector('[data-element="mobileCalendarModal"]');
-        const isCalendarOpen = (calendarModal && calendarModal.style.display === 'flex') ||
-          (mobileCalendarModal && mobileCalendarModal.style.display === 'flex');
-
-        if (isCalendarOpen) {
-          return; // Don't remove extras while user is actively selecting dates
-        }
-
-        removeAllExtras();
+        // Update extras visual state to show they need dates
+        updateExtrasNeedingDatesState();
         return;
       }
 
@@ -21185,6 +21784,159 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
     }
+
+    // Check if any extras are missing dates
+    function getExtrasNeedingDates() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const result = {
+        boatNeedsDates: false,
+        fishingChartersNeedingDates: [],
+        hasAnyExtrasNeedingDates: false
+      };
+
+      // Check boat rental
+      const boatId = urlParams.get('boatId');
+      const boatDates = urlParams.get('boatDates');
+      if (boatId && (!boatDates || boatDates.trim() === '')) {
+        result.boatNeedsDates = true;
+        result.hasAnyExtrasNeedingDates = true;
+      }
+
+      // Check fishing charters
+      const charterNumbers = getAllFishingCharterNumbersForValidation();
+      charterNumbers.forEach(number => {
+        const charterId = urlParams.get(`fishingCharterId${number}`);
+        const charterDates = urlParams.get(`fishingCharterDates${number}`);
+        if (charterId && (!charterDates || charterDates.trim() === '')) {
+          result.fishingChartersNeedingDates.push(number);
+          result.hasAnyExtrasNeedingDates = true;
+        }
+      });
+
+      return result;
+    }
+
+    // Make getExtrasNeedingDates globally accessible
+    window.getExtrasNeedingDates = getExtrasNeedingDates;
+
+    // Update visual state for extras that need dates
+    function updateExtrasNeedingDatesState() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const checkin = urlParams.get('checkin');
+      const checkout = urlParams.get('checkout');
+      const hasStayDates = !!(checkin && checkout && checkin.trim() !== '' && checkout.trim() !== '');
+
+      const extrasInfo = getExtrasNeedingDates();
+
+      // Warning colors (still used for mobile buttons)
+      const warningBgColor = '#fffbeb'; // Very light amber
+      const warningBorderColor = '#f59e0b'; // Amber border
+
+      // Update boat rental block state
+      const boatBlocks = document.querySelectorAll('[data-element="selectedBoatBlock"]');
+      const boatId = urlParams.get('boatId');
+
+      boatBlocks.forEach(block => {
+        if (!block || !boatId) return;
+
+        if (extrasInfo.boatNeedsDates) {
+          // Remove any desktop warning backgrounds/borders for missing dates
+          block.style.backgroundColor = '';
+          block.style.borderColor = '';
+          block.style.boxShadow = '';
+
+          // Update edit button text based on whether stay dates are selected
+          const editButton = block.querySelector('[data-element="editSelectedBoat"]');
+          if (editButton) {
+            editButton.textContent = (hasStayDates ? 'Add dates' : 'Edit');
+          }
+
+          // Update dates/delivery text - leave empty when dates missing to avoid clutter
+          const datesDeliveryElement = block.querySelector('[data-element="selectedBoatBlock_datesDelivery"]');
+          if (datesDeliveryElement) {
+            datesDeliveryElement.textContent = '';
+            datesDeliveryElement.style.color = '';
+            datesDeliveryElement.style.fontStyle = '';
+          }
+        } else {
+          // Ensure no warning background/border remains
+          block.style.backgroundColor = '';
+          block.style.borderColor = '';
+          block.style.boxShadow = '';
+
+          // Reset edit button text to "Edit"
+          const editButton = block.querySelector('[data-element="editSelectedBoat"]');
+          if (editButton) {
+            editButton.textContent = 'Edit';
+          }
+
+          // Reset dates/delivery text style
+          const datesDeliveryElement = block.querySelector('[data-element="selectedBoatBlock_datesDelivery"]');
+          if (datesDeliveryElement) {
+            datesDeliveryElement.style.color = '';
+            datesDeliveryElement.style.fontStyle = '';
+          }
+        }
+      });
+
+      // Update fishing charter blocks state
+      const charterBlocks = document.querySelectorAll('[data-element="selectedFishingCharterBlock"]');
+
+      charterBlocks.forEach(block => {
+        if (!block) return;
+
+        // Get the charter number from the block's stored data
+        const charterNumber = block.tripData?.number;
+
+        const needsCharterDates = charterNumber
+          ? extrasInfo.fishingChartersNeedingDates.map(String).includes(String(charterNumber))
+          : false;
+
+        if (charterNumber && needsCharterDates) {
+          // Remove any desktop warning backgrounds/borders for missing dates
+          block.style.backgroundColor = '';
+          block.style.borderColor = '';
+          block.style.boxShadow = '';
+
+          // Update edit button text based on whether stay dates are selected
+          const editButton = block.querySelector('[data-element="editSelectedFishingCharter"]');
+          if (editButton) {
+            editButton.textContent = (hasStayDates ? 'Add dates' : 'Edit');
+          }
+
+          // Update dates text - leave empty when dates missing to avoid clutter
+          const datesDeliveryElement = block.querySelector('[data-element="selectedFishingCharterBlock_datesDelivery"]');
+          if (datesDeliveryElement) {
+            datesDeliveryElement.textContent = '';
+            datesDeliveryElement.style.color = '';
+            datesDeliveryElement.style.fontStyle = '';
+          }
+        } else if (charterNumber) {
+          // Ensure no warning background/border remains
+          block.style.backgroundColor = '';
+          block.style.borderColor = '';
+          block.style.boxShadow = '';
+
+          // Reset edit button text to "Edit"
+          const editButton = block.querySelector('[data-element="editSelectedFishingCharter"]');
+          if (editButton) {
+            editButton.textContent = 'Edit';
+          }
+
+          // Reset dates text style
+          const datesDeliveryElement = block.querySelector('[data-element="selectedFishingCharterBlock_datesDelivery"]');
+          if (datesDeliveryElement) {
+            datesDeliveryElement.style.color = '';
+            datesDeliveryElement.style.fontStyle = '';
+          }
+        }
+      });
+
+      // Leave mobile button styling neutral; text cues handle missing dates
+    }
+
+    // Make updateExtrasNeedingDatesState globally accessible
+    window.updateExtrasNeedingDatesState = updateExtrasNeedingDatesState;
 
     // NOTE: removeBoatFromReservation() and removeFishingCharterFromReservation() 
     // are defined globally (lines 4688 and 4742) and reused here
@@ -21390,4 +22142,3 @@ document.addEventListener('DOMContentLoaded', () => {
 
   });
 });
-
