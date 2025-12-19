@@ -3528,12 +3528,10 @@ document.addEventListener('DOMContentLoaded', () => {
                               reservationBlock.style.display = 'flex';
                             }
                             datesPopup.style.display = 'flex';
-                            datesPopup.scrollIntoView({ behavior: 'smooth', block: 'center' });
-
-                            // Guard against anything that might immediately hide it
-                            requestAnimationFrame(() => {
-                              datesPopup.style.display = 'flex';
-                            });
+                            // No scroll on mobile to avoid jank; desktop can still scroll if needed
+                            if (!this.isMobileView()) {
+                              datesPopup.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            }
                           }
                         }
                       }
@@ -3684,50 +3682,69 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
+    // Track skeleton start for reservation total to enforce a minimum display time
+    let reservationTotalSkeletonStart = null;
+
     // Function to update reservation total display
     function updateReservationTotal() {
-      // Don't update if extras are selected - let the extras pricing handle it
-      if (hasAnyExtrasSelected()) {
-        return;
-      }
 
       const totalElements = document.querySelectorAll('[data-element="Reservation_Total"]');
       const totalAmountElements = document.querySelectorAll('[data-element="Reservation_TotalAmount"]');
+      const totalSkeletonElements = document.querySelectorAll('[data-element="Reservation_Total_skeletonDivBlock"]');
 
       const r = Wized.data.r;
 
       const hasPriceData = !!(r && r.Load_Property_Calendar_Query && r.Load_Property_Calendar_Query.data &&
         r.Load_Property_Calendar_Query.data.dateRange_totalPrice);
 
-      if (!hasPriceData) {
-        // Show a lightweight skeleton placeholder while total is loading
+      const minSkeletonMs = 1000;
+      const now = Date.now();
+      if (!reservationTotalSkeletonStart) {
+        reservationTotalSkeletonStart = now;
+      }
+
+      const showSkeleton = () => {
+        totalSkeletonElements.forEach(el => {
+          if (!el) return;
+          el.style.display = 'flex';
+        });
         totalElements.forEach(el => {
           if (!el) return;
           el.textContent = '';
-          el.style.display = 'inline-block';
-          el.style.minWidth = '50px';
-          el.style.height = '18px';
-          el.style.background = '#f0f0f0';
-          el.style.borderRadius = '4px';
+          el.style.display = 'none';
         });
         totalAmountElements.forEach(el => {
           if (!el) return;
           el.textContent = '';
         });
+      };
+
+      if (!hasPriceData) {
+        showSkeleton();
+        return;
+      }
+
+      const elapsed = now - reservationTotalSkeletonStart;
+      if (elapsed < minSkeletonMs) {
+        showSkeleton();
+        setTimeout(updateReservationTotal, minSkeletonMs - elapsed);
         return;
       }
 
       const totalPrice = Math.floor(r.Load_Property_Calendar_Query.data.dateRange_totalPrice);
       const formattedPrice = "$" + totalPrice.toLocaleString();
 
+      // Hide skeletons when showing price
+      totalSkeletonElements.forEach(el => {
+        if (!el) return;
+        el.style.display = 'none';
+      });
+
       // Update all total elements (desktop and mobile)
       totalElements.forEach(element => {
         if (element) {
           element.textContent = formattedPrice;
-          element.style.background = '';
-          element.style.minWidth = '';
-          element.style.height = '';
-          element.style.borderRadius = '';
+          element.style.display = '';
         }
       });
 
