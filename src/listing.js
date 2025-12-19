@@ -3755,6 +3755,48 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
+    // Function to update phone total description
+    function updatePhoneTotalDescription() {
+      const phoneDescriptionElements = document.querySelectorAll('[data-element="Reservation_Total_phoneTextDescription"]');
+      if (!phoneDescriptionElements || phoneDescriptionElements.length === 0) return;
+
+      // Require a price to avoid showing text flashes
+      const phonePriceElements = document.querySelectorAll('[data-element="Reservation_Total_phoneAmount"]');
+      const hasPrice = Array.from(phonePriceElements || []).some(el => el && el.textContent && el.textContent.trim() !== '');
+      if (!hasPrice) {
+        phoneDescriptionElements.forEach(el => { if (el) el.style.display = 'none'; });
+        return;
+      }
+
+      const urlParams = new URLSearchParams(window.location.search);
+      const boatId = urlParams.get('boatId');
+      const hasAnyExtras = window.hasAnyExtrasSelected ? window.hasAnyExtrasSelected() : false;
+      const hasFishingCharters = window.fishingCharterService ? window.fishingCharterService.hasAnyFishingCharters() : false;
+
+      let descriptionText = "total after taxes";
+
+      if (hasAnyExtras || boatId || hasFishingCharters) {
+        let extraTypes = [];
+        extraTypes.push("home");
+
+        if (boatId) extraTypes.push("boat");
+        if (hasFishingCharters) extraTypes.push("charter");
+
+        if (hasAnyExtras && window.getSelectedExtrasTypes) {
+          const otherExtras = window.getSelectedExtrasTypes();
+          extraTypes = extraTypes.concat(otherExtras.filter(type => type !== "boat" && type !== "charter"));
+        }
+
+        descriptionText = `total (${extraTypes.join(" + ")})`;
+      }
+
+      phoneDescriptionElements.forEach(element => {
+        if (!element) return;
+        element.style.display = 'block';
+        element.textContent = descriptionText;
+      });
+    }
+
     // Function to update selected boat block visibility
     function updateSelectedBoatBlockVisibility() {
       const selectedBoatBlocks = document.querySelectorAll('[data-element="selectedBoatBlock"]');
@@ -4192,6 +4234,9 @@ document.addEventListener('DOMContentLoaded', () => {
       phoneFooterContainer.style.display = shouldShow ? 'flex' : 'none';
 
       if (!shouldShow) return;
+
+      // Update phone total description
+      updatePhoneTotalDescription();
 
       // Update phone dates display
       updatePhoneDatesDisplay();
