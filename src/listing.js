@@ -14414,27 +14414,11 @@ document.addEventListener('DOMContentLoaded', () => {
     mobileBoatStyles.textContent = `
       @media (max-width: 990px) {
         [data-element="mobileBoatButton"] {
-          transition: all 0.2s ease !important;
           cursor: pointer;
-        }
-        [data-element="mobileBoatButton"]:hover:not([style*="not-allowed"]) {
-          opacity: 0.8 !important;
         }
         [data-element="mobileBoatButton_xButton"] {
           z-index: 10;
           cursor: pointer;
-        }
-        [data-element="mobileBoatButton_xButton"]:hover {
-          opacity: 0.7;
-        }
-        /* Ensure background colors are applied with higher specificity */
-        [data-element="mobileBoatButton"][style*="background-color: rgb(229, 242, 255)"],
-        [data-element="mobileBoatButton"][style*="background-color:#e5f2ff"] {
-          background-color: #e5f2ff !important;
-        }
-        [data-element="mobileBoatButton"][style*="border-color: rgb(0, 116, 255)"],
-        [data-element="mobileBoatButton"][style*="border-color:#0074ff"] {
-          border-color: #0074ff !important;
         }
       }
     `;
@@ -21485,27 +21469,11 @@ document.addEventListener('DOMContentLoaded', () => {
     mobileFishingCharterStyles.textContent = `
       @media (max-width: 990px) {
         [data-element="mobileFishingCharterButton"] {
-          transition: all 0.2s ease !important;
           cursor: pointer;
-        }
-        [data-element="mobileFishingCharterButton"]:hover:not([style*="not-allowed"]) {
-          opacity: 0.8 !important;
         }
         [data-element="mobileFishingCharterButton_xButton"] {
           z-index: 10;
           cursor: pointer;
-        }
-        [data-element="mobileFishingCharterButton_xButton"]:hover {
-          opacity: 0.7;
-        }
-        /* Ensure background colors are applied with higher specificity */
-        [data-element="mobileFishingCharterButton"][style*="background-color: rgb(229, 242, 255)"],
-        [data-element="mobileFishingCharterButton"][style*="background-color:#e5f2ff"] {
-          background-color: #e5f2ff !important;
-        }
-        [data-element="mobileFishingCharterButton"][style*="border-color: rgb(0, 116, 255)"],
-        [data-element="mobileFishingCharterButton"][style*="border-color:#0074ff"] {
-          border-color: #0074ff !important;
         }
       }
     `;
