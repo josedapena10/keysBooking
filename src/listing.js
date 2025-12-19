@@ -4162,9 +4162,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (!shouldShow) return;
 
-      // Update phone total description
-      updatePhoneTotalDescription();
-
       // Update phone dates display
       updatePhoneDatesDisplay();
 
@@ -4172,60 +4169,7 @@ document.addEventListener('DOMContentLoaded', () => {
       updatePhoneCancellationText();
     }
 
-    // Function to update phone total description
-    function updatePhoneTotalDescription() {
-      const phoneDescriptionElements = document.querySelectorAll('[data-element="Reservation_Total_phoneTextDescription"]');
-      if (!phoneDescriptionElements || phoneDescriptionElements.length === 0) return;
-
-      // Hide description until a price is present to avoid empty text flashes
-      const phonePriceElements = document.querySelectorAll('[data-element="Reservation_Total_phoneAmount"]');
-      const hasPrice = Array.from(phonePriceElements || []).some(el => el && el.textContent && el.textContent.trim() !== '');
-      if (!hasPrice) {
-        phoneDescriptionElements.forEach(el => { if (el) el.style.display = 'none'; });
-        return;
-      }
-
-      // Check what extras are selected
-      const urlParams = new URLSearchParams(window.location.search);
-      const boatId = urlParams.get('boatId');
-      const hasAnyExtras = window.hasAnyExtrasSelected ? window.hasAnyExtrasSelected() : false;
-
-      // Check for fishing charters
-      const hasFishingCharters = window.fishingCharterService ? window.fishingCharterService.hasAnyFishingCharters() : false;
-
-      let descriptionText = "total after taxes";
-
-      if (hasAnyExtras || boatId || hasFishingCharters) {
-        let extraTypes = [];
-        extraTypes.push("home");
-
-        if (boatId) {
-          extraTypes.push("boat");
-        }
-
-        if (hasFishingCharters) {
-          extraTypes.push("charter");
-        }
-
-        // Check for other extras (excluding boat and charter since we handle them separately)
-        if (hasAnyExtras && window.getSelectedExtrasTypes) {
-          const otherExtras = window.getSelectedExtrasTypes();
-          extraTypes = extraTypes.concat(otherExtras.filter(type => type !== "boat" && type !== "charter"));
-        }
-
-        descriptionText = `total (${extraTypes.join(" + ")})`;
-      }
-
-      phoneDescriptionElements.forEach(element => {
-        if (element) {
-          element.style.display = 'block';
-          element.textContent = descriptionText;
-        }
-      });
-    }
-
-    // Make function globally available
-    window.updatePhoneTotalDescription = updatePhoneTotalDescription;
+    // Deprecated: phone total description no longer used
 
     // Function to update phone dates display
     function updatePhoneDatesDisplay() {
@@ -12912,10 +12856,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!reservationBlock) return;
 
         if (this.isMobileView()) {
-          // In mobile view, check if we're in boat details view
+          const boatDetailsPopupOpen = this.boatDetailsPopup && this.boatDetailsPopup.style.display === 'flex';
+          // In boat details view on mobile, hide reservation block unless the dates popup is open
           if (this.detailsWrapper && this.detailsWrapper.style.display === 'flex') {
-            // In boat details view on mobile, hide reservation block (footer takes over)
-            reservationBlock.style.display = 'none';
+            reservationBlock.style.display = boatDetailsPopupOpen ? 'flex' : 'none';
           }
           // If not in boat details view on mobile, leave it as is
         } else {
@@ -13395,6 +13339,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Update dates done button text
             this.updateDatesDoneButtonText();
+
+            // Ensure reservation block remains visible on mobile when dates popup is opened
+            const reservationBlock = document.querySelector('[data-element="boatRental_listingPage_reservationBlock"]');
+            if (reservationBlock && this.isMobileView()) {
+              reservationBlock.style.display = 'flex';
+            }
           });
         }
 
@@ -13434,7 +13384,9 @@ document.addEventListener('DOMContentLoaded', () => {
               this.skipRestoreOnClose = true;
               this.autoOpenedFromMissingDates = false;
               const reservationBlock = document.querySelector('[data-element="boatRental_listingPage_reservationBlock"]');
-              if (reservationBlock) reservationBlock.style.display = 'none';
+              if (reservationBlock && this.isMobileView()) {
+                reservationBlock.style.display = 'none';
+              }
               this.closeModal();
             }
           });
@@ -13483,7 +13435,9 @@ document.addEventListener('DOMContentLoaded', () => {
               this.skipRestoreOnClose = true;
               this.autoOpenedFromMissingDates = false;
               const reservationBlock = document.querySelector('[data-element="boatRental_listingPage_reservationBlock"]');
-              if (reservationBlock) reservationBlock.style.display = 'none';
+              if (reservationBlock && this.isMobileView()) {
+                reservationBlock.style.display = 'none';
+              }
               // Close dates popup
               if (this.boatDetailsPopup) this.boatDetailsPopup.style.display = 'none';
               this.closeModal();
@@ -17178,9 +17132,8 @@ document.addEventListener('DOMContentLoaded', () => {
           this.autoOpenDetailsDatesAfterShow = false;
           this.autoOpenDetailsDatesReason = null;
 
-          requestAnimationFrame(() => {
-            this.openDetailsDatesPopup({ scrollIntoView: true, reason });
-          });
+          // Open immediately to avoid visible delay on mobile
+          this.openDetailsDatesPopup({ scrollIntoView: true, reason });
         }
       }
 
