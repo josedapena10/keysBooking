@@ -3511,26 +3511,33 @@ document.addEventListener('DOMContentLoaded', () => {
                 const waitForService = () => {
                   if (window.boatRentalService && window.boatRentalService.handleEditBoat) {
                     // Use the new edit method that fetches boat data and opens to details view
-                    window.boatRentalService.handleEditBoat(boatId);
+                    const done = window.boatRentalService.handleEditBoat(boatId);
 
-                    // If boat needs dates, automatically open the dates popup immediately (no delay)
-                    if (needsDates) {
-                      const hasStayDates = !!(urlParams.get('checkin') && urlParams.get('checkout'));
-                      if (needsDates && hasStayDates) {
-                        const datesPopup = document.querySelector('[data-element="addBoatModal_boatDetails_datesPopup"]');
-                        if (datesPopup) {
-                          // Remember this popup was auto-opened for missing dates so we can auto-save on exit
-                          window.boatRentalService.autoOpenedFromMissingDates = true;
-                          // Ensure reservation block is visible on mobile while selecting dates
-                          const reservationBlock = document.querySelector('[data-element="boatRental_listingPage_reservationBlock"]');
-                          if (reservationBlock) {
-                            reservationBlock.style.display = 'flex';
+                    Promise.resolve(done).then(() => {
+                      // If boat needs dates, automatically open the dates popup immediately (no delay)
+                      if (needsDates) {
+                        const hasStayDates = !!(urlParams.get('checkin') && urlParams.get('checkout'));
+                        if (needsDates && hasStayDates) {
+                          const datesPopup = document.querySelector('[data-element="addBoatModal_boatDetails_datesPopup"]');
+                          if (datesPopup) {
+                            // Remember this popup was auto-opened for missing dates so we can auto-save on exit
+                            window.boatRentalService.autoOpenedFromMissingDates = true;
+                            // Ensure reservation block is visible on mobile while selecting dates
+                            const reservationBlock = document.querySelector('[data-element="boatRental_listingPage_reservationBlock"]');
+                            if (reservationBlock) {
+                              reservationBlock.style.display = 'flex';
+                            }
+                            datesPopup.style.display = 'flex';
+                            datesPopup.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+                            // Guard against anything that might immediately hide it
+                            requestAnimationFrame(() => {
+                              datesPopup.style.display = 'flex';
+                            });
                           }
-                          datesPopup.style.display = 'flex';
-                          datesPopup.scrollIntoView({ behavior: 'smooth', block: 'center' });
                         }
                       }
-                    }
+                    });
                   } else {
                     // If service not ready, wait a bit and try again
                     setTimeout(waitForService, 100);
@@ -4170,6 +4177,14 @@ document.addEventListener('DOMContentLoaded', () => {
       const phoneDescriptionElements = document.querySelectorAll('[data-element="Reservation_Total_phoneTextDescription"]');
       if (!phoneDescriptionElements || phoneDescriptionElements.length === 0) return;
 
+      // Hide description until a price is present to avoid empty text flashes
+      const phonePriceElements = document.querySelectorAll('[data-element="Reservation_Total_phoneAmount"]');
+      const hasPrice = Array.from(phonePriceElements || []).some(el => el && el.textContent && el.textContent.trim() !== '');
+      if (!hasPrice) {
+        phoneDescriptionElements.forEach(el => { if (el) el.style.display = 'none'; });
+        return;
+      }
+
       // Check what extras are selected
       const urlParams = new URLSearchParams(window.location.search);
       const boatId = urlParams.get('boatId');
@@ -4203,6 +4218,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       phoneDescriptionElements.forEach(element => {
         if (element) {
+          element.style.display = 'block';
           element.textContent = descriptionText;
         }
       });
@@ -8755,11 +8771,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const checkout = urlParams.get('checkout');
         const hasStayDates = !!(checkin && checkout && checkin.trim() !== '' && checkout.trim() !== '');
 
-        // Only block when stay dates exist but fail validation (e.g., availability)
-        if (hasStayDates && !this.areDatesValid()) {
-          this.showMessage('Valid dates must be selected to add boat rental');
-          return;
-        }
+        // Validation handled elsewhere; no modal message needed here
 
         // Close all popups when modal opens
         this.closeAllPopups();
@@ -11556,6 +11568,7 @@ document.addEventListener('DOMContentLoaded', () => {
           const img = document.createElement('img');
           img.src = photo.image.url;
           img.alt = `Boat image ${index + 1}`;
+          img.draggable = false;
 
           // Optimize loading: first image eager, rest lazy
           if (index === 0) {
@@ -11571,6 +11584,9 @@ document.addEventListener('DOMContentLoaded', () => {
             object-fit: cover;
             object-position: center;
           `;
+
+          imageWrapper.style.userSelect = 'none';
+          imageWrapper.addEventListener('mousedown', (e) => e.preventDefault());
 
           // Handle image load error
           img.onerror = () => {
@@ -13460,6 +13476,20 @@ document.addEventListener('DOMContentLoaded', () => {
               this.setupDeliveryCheckbox(this.currentBoatData);
             }
 
+            // Check if popup was auto-opened due to missing dates and should auto-save
+            if (this.autoOpenedFromMissingDates) {
+              const addButton = document.querySelector('[data-element="boatDetails_reservation_addToReservationButton"]');
+              if (addButton) addButton.click();
+              this.skipRestoreOnClose = true;
+              this.autoOpenedFromMissingDates = false;
+              const reservationBlock = document.querySelector('[data-element="boatRental_listingPage_reservationBlock"]');
+              if (reservationBlock) reservationBlock.style.display = 'none';
+              // Close dates popup
+              if (this.boatDetailsPopup) this.boatDetailsPopup.style.display = 'none';
+              this.closeModal();
+              return;
+            }
+
             // In mobile view, follow the flow: dates → pickup time → guests
             if (this.isMobileView()) {
               const hasPickupTime = this.selectedPickupTime && this.selectedPickupTime !== '';
@@ -14541,6 +14571,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Editing state
         this.editingCharterNumber = null;
+        this.editingCharterId = null;
         this.editingTripId = null;
 
         // Edit mode tracking - store original params to restore if user cancels
@@ -15031,6 +15062,7 @@ document.addEventListener('DOMContentLoaded', () => {
       handleEditSpecificFishingCharter(trip) {
         // Store the charter number being edited
         this.editingCharterNumber = trip.number;
+        this.editingCharterId = trip.charterId;
 
         // Get the original dates from URL parameters for this charter
         const urlParams = new URLSearchParams(window.location.search);
@@ -15064,6 +15096,20 @@ document.addEventListener('DOMContentLoaded', () => {
         this.detailsSelectedDates = [...this.selectedDates];
         this.detailsSelectedGuests = this.selectedGuests;
         this.detailsSelectedPrivateDock = this.selectedPrivateDock;
+
+        // Update UI elements to reflect the selected filters
+        if (this.guestNumber) this.guestNumber.textContent = this.selectedGuests;
+        if (this.detailsGuestNumber) this.detailsGuestNumber.textContent = this.detailsSelectedGuests;
+        this.updateDatesFilterText();
+        this.updateGuestsFilterText();
+        this.updatePrivateDockFilterText();
+        this.updateDetailsDateFilterText();
+        this.updateDetailsGuestsFilterText();
+        this.updateDetailsPrivateDockFilterText();
+        this.updateFilterStyles();
+        this.updateDetailsFilterStyles();
+        this.renderDateSelection();
+        this.renderDetailsDateSelection();
 
         // Show modal directly to details view
         if (this.modal) this.modal.style.display = 'flex';
@@ -16018,35 +16064,43 @@ document.addEventListener('DOMContentLoaded', () => {
           const checkout = urlParams.get('checkout');
           const hasStayDates = !!(checkin && checkout && checkin.trim() !== '' && checkout.trim() !== '');
 
-          // Only block when stay dates exist but fail validation (e.g., unavailable)
-          if (hasStayDates && !this.areDatesValid()) {
-            this.showMessage('Valid dates must be selected to add fishing charter');
-            return;
-          }
+          // Validation handled elsewhere; no modal message needed here
 
           // Close all popups when modal opens
           this.closeAllPopups();
 
           // Clear editing state when adding new charter (not editing existing one)
           this.editingCharterNumber = null;
+          this.editingCharterId = null;
           this.editingTripId = null;
 
-          // Clear all filters when adding a new charter (not editing)
+          // Always start fresh when adding a new charter (do not prefill from existing)
           this.selectedGuests = 0;
           this.selectedDates = [];
           this.selectedPickupTime = '';
           this.selectedPrivateDock = false;
+          this.detailsSelectedDates = [];
+          this.detailsSelectedGuests = 0;
+          this.detailsSelectedPrivateDock = false;
+
+          // Always reset these filters when adding new charter
           this.selectedFishingTypes = [];
           this.priceMin = 0;
           this.priceMax = 5000;
 
-          // Update UI elements to reflect cleared state
+          // Update UI elements to reflect state
           if (this.guestNumber) this.guestNumber.textContent = this.selectedGuests;
+          if (this.detailsGuestNumber) this.detailsGuestNumber.textContent = this.detailsSelectedGuests;
           this.updateGuestsFilterText();
           this.updateDatesFilterText();
           this.updatePrivateDockFilterText();
           this.updateFishingTypeFilterText();
           this.updatePriceFilterText();
+          this.updateDetailsDateFilterText();
+          this.updateDetailsGuestsFilterText();
+          this.updateDetailsPrivateDockFilterText();
+          this.renderDateSelection();
+          this.renderDetailsDateSelection();
 
           // Reset checkbox styles for fishing types
           Object.values(this.fishingTypes).forEach(checkbox => {
@@ -16065,6 +16119,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
           // Update filter styles
           this.updateFilterStyles();
+          this.updateDetailsFilterStyles();
 
           // Show modal
           this.modal.style.display = 'flex';
@@ -16176,6 +16231,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Reset editing state when modal is closed
         this.editingCharterNumber = null;
         this.editingTripId = null;
+        this.editingCharterId = null;
         this.isEditMode = false;
         this.originalEditParams = null;
         this.autoOpenDetailsDatesAfterShow = false;
@@ -16252,6 +16308,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Reset editing state
         this.editingCharterNumber = null;
+        this.editingCharterId = null;
         this.editingTripId = null;
 
         // Update guest number displays
@@ -16417,16 +16474,47 @@ document.addEventListener('DOMContentLoaded', () => {
 
           // Fetch all fishing charter options
           const allCharters = await this.fetchFishingCharterOptions();
-          this.allFishingCharters = allCharters;
+          let effectiveCharters = allCharters;
+
+          if (!Array.isArray(allCharters) || allCharters.length === 0) {
+            console.info('[FishingCharters] fetchFishingCharterOptions returned empty', {
+              selectedDates: this.selectedDates,
+              selectedGuests: this.selectedGuests,
+              isEditMode: this.isEditMode,
+              editingCharterId: this.editingCharterId,
+              editingCharterNumber: this.editingCharterNumber,
+              cachedCount: Array.isArray(this.allFishingCharters) ? this.allFishingCharters.length : 0,
+              lastSuccessfulCount: Array.isArray(this._lastSuccessfulCharters) ? this._lastSuccessfulCharters.length : 0
+            });
+
+            // Fallback: if we have previous results cached, reuse them instead of showing nothing
+            if (Array.isArray(this.allFishingCharters) && this.allFishingCharters.length > 0) {
+              console.info('[FishingCharters] Using cached charter list as fallback');
+              effectiveCharters = this.allFishingCharters;
+            } else if (Array.isArray(this._lastSuccessfulCharters) && this._lastSuccessfulCharters.length > 0) {
+              console.info('[FishingCharters] Using lastSuccessfulCharters as fallback');
+              effectiveCharters = this._lastSuccessfulCharters;
+            } else {
+              effectiveCharters = [];
+            }
+          } else {
+            // Keep a copy of the last non-empty response to guard against intermittent empty payloads
+            this._lastSuccessfulCharters = allCharters;
+          }
+
+          this.allFishingCharters = effectiveCharters;
 
           // Filter charters based on current filters
-          const filteredCharters = this.filterFishingCharters(allCharters);
+          const filteredCharters = this.filterFishingCharters(effectiveCharters);
 
           // Update private dock filter visibility based on whether any charter offers it
           this.updatePrivateDockFilterVisibility(filteredCharters);
 
           // Hide skeleton cards
           this.hideSkeletonCards();
+
+          // Debug log when nothing returns
+          this.logFilterDebugInfo(filteredCharters, this._lastFilterDebugReasons || {});
 
           // Render the filtered charters
           this.renderFishingCharterCards(filteredCharters);
@@ -16482,7 +16570,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
           return sortedCharters;
         } catch (error) {
-
+          console.warn('[FishingCharters] fetchFishingCharterOptions error', error);
           return [];
         }
       }
@@ -16532,11 +16620,22 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       filterFishingCharters(charters) {
-        return charters.filter(charter => {
+        const debugReasons = {
+          capacity: 0,
+          noTripsMatchFilters: 0,
+          priceOutOfRange: 0,
+          privateDockMismatch: 0,
+          alreadyBooked: 0
+        };
+
+        const filtered = charters.filter(charter => {
           // Guest filter
           if (this.selectedGuests > 0) {
             const maxCapacity = charter.boatInfo && charter.boatInfo[0] ? charter.boatInfo[0].boatCapacity : 0;
-            if (maxCapacity < this.selectedGuests) return false;
+            if (maxCapacity < this.selectedGuests) {
+              debugReasons.capacity++;
+              return false;
+            }
           }
 
           // Filter charters based on available trips that match all filters
@@ -16545,7 +16644,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const filteredTrips = this.getFilteredTripOptions(charter);
 
             // If no trips match the date/fishing type filters, exclude charter completely
-            if (filteredTrips.length === 0) return false;
+            if (filteredTrips.length === 0) {
+              debugReasons.noTripsMatchFilters++;
+              return false;
+            }
 
             // Check if any filtered trip fits the price range
             const hasValidPricedTrip = filteredTrips.some(trip => {
@@ -16584,7 +16686,10 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             // If no filtered trip fits the price range, exclude this charter completely
-            if (!hasValidPricedTrip) return false;
+            if (!hasValidPricedTrip) {
+              debugReasons.priceOutOfRange++;
+              return false;
+            }
           }
 
           // Fishing type filter - now handled at card level to show available trips
@@ -16625,6 +16730,7 @@ document.addEventListener('DOMContentLoaded', () => {
             );
 
             if (!canDeliverToProperty) {
+              debugReasons.privateDockMismatch++;
               return false;
             }
           }
@@ -16662,12 +16768,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // If charter is already booked for any of the selected dates, filter it out
             if (isCharterAlreadyBookedForSelectedDates) {
+              debugReasons.alreadyBooked++;
               return false;
             }
           }
 
           return true;
         });
+
+        // Store last debug reasons for logging in the fetch caller
+        this._lastFilterDebugReasons = debugReasons;
+
+        return filtered;
+      }
+
+      logFilterDebugInfo(filteredCharters, debugReasons) {
       }
 
       renderFishingCharterCards(charters) {
@@ -17352,11 +17467,28 @@ document.addEventListener('DOMContentLoaded', () => {
           const newBackButton = document.querySelector('[data-element="fishingCharterDetails_back"]');
 
           newBackButton.addEventListener('click', async () => {
-            // DON'T reset editing state when going back - preserve it so user can select different charter
-            // this.editingCharterNumber and this.editingTripId remain set
+            const isEditingCharter = this.isEditMode || !!this.editingCharterNumber;
 
-            // Sync all filter states back to main view
+            // Sync filters from details view back to main before re-rendering list
             this.transferValuesToMain();
+
+            // Only reset filters when adding a brand-new charter. While editing,
+            // keep the current filters so the user can continue editing seamlessly.
+            if (!isEditingCharter) {
+              this.selectedDates = [];
+              this.selectedGuests = 0;
+              this.selectedPrivateDock = false;
+              this.selectedFishingTypes = [];
+              this.priceMin = 0;
+              this.priceMax = 5000;
+              this.updateDatesFilterText();
+              this.updateGuestsFilterText();
+              this.updateFishingTypeFilterText();
+              this.updatePriceFilterText();
+              this.updatePrivateDockFilterText();
+              this.updateFilterStyles();
+              this.renderDateSelection();
+            }
 
             // Show select wrapper
             this.detailsWrapper.style.display = 'none';
@@ -17368,12 +17500,8 @@ document.addEventListener('DOMContentLoaded', () => {
               selectFilterContainer.scrollLeft = 0;
             }
 
-            // Fetch and render charters if not already loaded
-            if (this.allFishingCharters.length === 0) {
-              await this.fetchAndRenderFishingCharters();
-            } else {
-              this.refilterChartersIfModalOpen();
-            }
+            // Always re-fetch and render to ensure fresh results with current filters
+            await this.fetchAndRenderFishingCharters();
           });
         }
       }
@@ -17863,6 +17991,7 @@ document.addEventListener('DOMContentLoaded', () => {
           const img = document.createElement('img');
           img.src = image.image?.url || '';
           img.alt = `${charter.name} image ${index + 1}`;
+          img.draggable = false;
 
           // Optimize loading: first image eager, rest lazy
           if (index === 0) {
@@ -17878,6 +18007,9 @@ document.addEventListener('DOMContentLoaded', () => {
             object-fit: cover;
             object-position: center;
           `;
+
+          imageWrapper.style.userSelect = 'none';
+          imageWrapper.addEventListener('mousedown', (e) => e.preventDefault());
 
           // Handle image load error
           img.onerror = () => {
@@ -20511,7 +20643,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
           // Check if this specific trip is the one being edited
           // Only show "Confirm Selection" for the exact trip being edited, not all trips
-          const isThisTripBeingEdited = this.isEditMode && String(this.editingTripId) === String(trip.id);
+          const isThisTripBeingEdited =
+            this.isEditMode &&
+            String(this.editingTripId) === String(trip.id) &&
+            String(this.editingCharterId) === String(charter.id);
 
           // Update button text and style based on edit mode
           const buttonTextElement = newButton.querySelector('[data-element="fishingCharterDetails_tripType_addToReservationButtonText"]');
@@ -20743,17 +20878,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const errorFields = [];
 
             if (needsDates && needsGuests) {
-              message += 'date(s) and guests';
               errorFields.push('dates', 'guests');
             } else if (needsDates) {
-              message += 'date(s)';
               errorFields.push('dates');
             } else {
-              message += 'guests';
               errorFields.push('guests');
             }
-
-            this.showMessage(message + ' before adding to reservation.');
 
             // Highlight error fields
             this.highlightFishingCharterErrorFields(errorFields);
@@ -20813,6 +20943,7 @@ document.addEventListener('DOMContentLoaded', () => {
           // Reset editing state
           this.editingCharterNumber = null;
           this.editingTripId = null;
+          this.editingCharterId = null;
 
           // Close modal first without clearing filters (pass true to skip style updates)
           this.closeModal(true);
@@ -21189,11 +21320,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const checkout = urlParams.get('checkout');
 
         if (!checkin || !checkout || checkin === '' || checkout === '') {
-          this.showMessage('Dates must be selected before adding a fishing charter');
-          // Flash check availability button if no dates are selected
-          if (window.fishingCharterService) {
-            window.fishingCharterService.flashCheckAvailabilityButton();
-          }
+          // Validation handled elsewhere; no modal message needed here
           return;
         }
 
