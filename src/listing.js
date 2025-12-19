@@ -3973,29 +3973,24 @@ document.addEventListener('DOMContentLoaded', () => {
         });
       }
 
-      // Update Reservation Total
-      // Don't update if extras are selected - let the extras pricing handle it
-      if (!hasAnyExtrasSelected()) {
-        const reservationTotalElements = document.querySelectorAll('[data-element="Reservation_Total"]');
-        const reservationTotalAmountElements = document.querySelectorAll('[data-element="Reservation_TotalAmount"]');
-        if (r.Load_Property_Calendar_Query.data.dateRange_totalPrice) {
-          const amount = Math.floor(r.Load_Property_Calendar_Query.data.dateRange_totalPrice);
-          const formattedAmount = `$${amount.toLocaleString()}`;
+      // Update Reservation Total (stay base price only)
+      const reservationTotalElements = document.querySelectorAll('[data-element="Reservation_Total"]');
+      const reservationTotalAmountElements = document.querySelectorAll('[data-element="Reservation_TotalAmount"]');
+      if (r.Load_Property_Calendar_Query.data.dateRange_totalPrice) {
+        const amount = Math.floor(r.Load_Property_Calendar_Query.data.dateRange_totalPrice);
+        const formattedAmount = `$${amount.toLocaleString()}`;
 
-          // Update all reservation total elements (desktop and mobile)
-          reservationTotalElements.forEach(element => {
-            if (element) {
-              element.textContent = formattedAmount;
-            }
-          });
+        reservationTotalElements.forEach(element => {
+          if (element) {
+            element.textContent = formattedAmount;
+          }
+        });
 
-          reservationTotalAmountElements.forEach(element => {
-            if (element) {
-              element.textContent = formattedAmount;
-            }
-          });
-        }
-      } else {
+        reservationTotalAmountElements.forEach(element => {
+          if (element) {
+            element.textContent = formattedAmount;
+          }
+        });
       }
 
       // Update Free Cancellation Date Text
