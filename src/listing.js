@@ -11568,8 +11568,33 @@ document.addEventListener('DOMContentLoaded', () => {
             imageWrapper.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #888; font-size: 14px;">Image unavailable</div>';
           };
 
-          // Add click handler to show boat details (not open modal)
-          imageWrapper.addEventListener('click', () => {
+          // Touch/drag guard: prevent small swipe from triggering click
+          let touchStartX = 0;
+          let touchStartY = 0;
+          let didSwipe = false;
+          const swipeThreshold = 12; // require ~12px to treat as swipe
+
+          imageWrapper.addEventListener('touchstart', (e) => {
+            if (!e.touches || e.touches.length === 0) return;
+            touchStartX = e.touches[0].clientX;
+            touchStartY = e.touches[0].clientY;
+            didSwipe = false;
+          }, { passive: true });
+
+          imageWrapper.addEventListener('touchmove', (e) => {
+            if (!e.touches || e.touches.length === 0) return;
+            const dx = Math.abs(e.touches[0].clientX - touchStartX);
+            const dy = Math.abs(e.touches[0].clientY - touchStartY);
+            if (dx > swipeThreshold && dx > dy) {
+              didSwipe = true;
+            }
+          }, { passive: true });
+
+          imageWrapper.addEventListener('touchend', (e) => {
+            if (didSwipe) {
+              e.stopPropagation();
+              return;
+            }
             const currentBoat = card.boatData || boat;
             this.showBoatDetails(currentBoat);
           });
@@ -18013,8 +18038,33 @@ document.addEventListener('DOMContentLoaded', () => {
             imageWrapper.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #888; font-size: 14px;">Image unavailable</div>';
           };
 
-          // Add click handler to show fishing charter details (not open modal)
-          imageWrapper.addEventListener('click', () => {
+          // Touch/drag guard: prevent small swipe from triggering click
+          let touchStartX = 0;
+          let touchStartY = 0;
+          let didSwipe = false;
+          const swipeThreshold = 12; // require ~12px horizontal movement to treat as swipe
+
+          imageWrapper.addEventListener('touchstart', (e) => {
+            if (!e.touches || e.touches.length === 0) return;
+            touchStartX = e.touches[0].clientX;
+            touchStartY = e.touches[0].clientY;
+            didSwipe = false;
+          }, { passive: true });
+
+          imageWrapper.addEventListener('touchmove', (e) => {
+            if (!e.touches || e.touches.length === 0) return;
+            const dx = Math.abs(e.touches[0].clientX - touchStartX);
+            const dy = Math.abs(e.touches[0].clientY - touchStartY);
+            if (dx > swipeThreshold && dx > dy) {
+              didSwipe = true;
+            }
+          }, { passive: true });
+
+          imageWrapper.addEventListener('touchend', (e) => {
+            if (didSwipe) {
+              e.stopPropagation();
+              return;
+            }
             this.showFishingCharterDetails(charter);
           });
 
