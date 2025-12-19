@@ -3696,9 +3696,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const r = Wized.data.r;
 
-      // Check if required data exists
-      if (!r || !r.Load_Property_Calendar_Query || !r.Load_Property_Calendar_Query.data ||
-        !r.Load_Property_Calendar_Query.data.dateRange_totalPrice) {
+      const hasPriceData = !!(r && r.Load_Property_Calendar_Query && r.Load_Property_Calendar_Query.data &&
+        r.Load_Property_Calendar_Query.data.dateRange_totalPrice);
+
+      if (!hasPriceData) {
+        // Show a lightweight skeleton placeholder while total is loading
+        totalElements.forEach(el => {
+          if (!el) return;
+          el.textContent = '';
+          el.style.display = 'inline-block';
+          el.style.minWidth = '50px';
+          el.style.height = '18px';
+          el.style.background = '#f0f0f0';
+          el.style.borderRadius = '4px';
+        });
+        totalAmountElements.forEach(el => {
+          if (!el) return;
+          el.textContent = '';
+        });
         return;
       }
 
@@ -3709,6 +3724,10 @@ document.addEventListener('DOMContentLoaded', () => {
       totalElements.forEach(element => {
         if (element) {
           element.textContent = formattedPrice;
+          element.style.background = '';
+          element.style.minWidth = '';
+          element.style.height = '';
+          element.style.borderRadius = '';
         }
       });
 
@@ -16472,6 +16491,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
           // Render the filtered charters
           this.renderFishingCharterCards(filteredCharters);
+
+          // If we auto-open details dates (missing dates flow), open immediately once list is rendered
+          if (this.autoOpenDetailsDatesAfterShow && this.autoOpenDetailsDatesReason === 'missingDates') {
+            this.autoOpenDetailsDatesAfterShow = false;
+            const reason = 'missingDates';
+            this.autoOpenDetailsDatesReason = null;
+            // Use the current charter data if already available; otherwise take first result
+            const targetCharter = this.currentCharterData || filteredCharters[0] || null;
+            if (targetCharter) {
+              this.showFishingCharterDetails(targetCharter);
+            }
+            this.openDetailsDatesPopup({ scrollIntoView: true, reason });
+          }
 
           return filteredCharters;
         } catch (error) {
