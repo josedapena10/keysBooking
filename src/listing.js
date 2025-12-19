@@ -6821,7 +6821,85 @@ document.addEventListener('DOMContentLoaded', () => {
         const checkin = urlParams.get('checkin');
         const checkout = urlParams.get('checkout');
 
-        if (!checkin || !checkout) return;
+        // If no stay dates, show a message instead of the calendar
+        if (!checkin || !checkout || checkin.trim() === '' || checkout.trim() === '') {
+          this.selectDatesSection.innerHTML = '';
+
+          const messageContainer = document.createElement('div');
+          messageContainer.style.display = 'flex';
+          messageContainer.style.flexDirection = 'column';
+          messageContainer.style.alignItems = 'center';
+          messageContainer.style.justifyContent = 'center';
+          messageContainer.style.padding = '32px 20px';
+          messageContainer.style.backgroundColor = '#fffbeb';
+          messageContainer.style.borderRadius = '8px';
+          messageContainer.style.border = '1px solid #f59e0b';
+          messageContainer.style.gap = '12px';
+
+          const iconElement = document.createElement('div');
+          iconElement.textContent = '📅';
+          iconElement.style.fontSize = '32px';
+          messageContainer.appendChild(iconElement);
+
+          const messageText = document.createElement('div');
+          messageText.textContent = 'Select stay dates first';
+          messageText.style.fontSize = '16px';
+          messageText.style.fontFamily = 'TT Fors, sans-serif';
+          messageText.style.fontWeight = '500';
+          messageText.style.color = '#92400e';
+          messageText.style.textAlign = 'center';
+          messageContainer.appendChild(messageText);
+
+          const helperText = document.createElement('div');
+          helperText.textContent = 'Boat dates must be within your stay period';
+          helperText.style.fontSize = '14px';
+          helperText.style.fontFamily = 'TT Fors, sans-serif';
+          helperText.style.color = '#b45309';
+          helperText.style.textAlign = 'center';
+          messageContainer.appendChild(helperText);
+
+          const selectDatesButton = document.createElement('button');
+          selectDatesButton.textContent = 'Add Stay Dates';
+          selectDatesButton.style.marginTop = '8px';
+          selectDatesButton.style.padding = '10px 20px';
+          selectDatesButton.style.backgroundColor = '#000000';
+          selectDatesButton.style.color = '#ffffff';
+          selectDatesButton.style.border = 'none';
+          selectDatesButton.style.borderRadius = '8px';
+          selectDatesButton.style.fontSize = '14px';
+          selectDatesButton.style.fontFamily = 'TT Fors, sans-serif';
+          selectDatesButton.style.fontWeight = '500';
+          selectDatesButton.style.cursor = 'pointer';
+          selectDatesButton.addEventListener('click', () => {
+            // Close boat modal if open
+            if (this.modal) this.modal.style.display = 'none';
+            document.body.classList.remove('no-scroll');
+
+            // Open stay calendar (preferring existing trigger)
+            const calendarTrigger = document.querySelector('[data-element="listing_checkAvailability_button"]');
+            const mobileCalendarModal = document.querySelector('[data-element="mobileCalendarModal"]');
+            const desktopCalendarModal = document.querySelector('[data-element="calendarModal"]');
+
+            if (calendarTrigger) {
+              calendarTrigger.click();
+            } else if (window.innerWidth <= 991 && mobileCalendarModal) {
+              mobileCalendarModal.style.display = 'flex';
+              document.body.classList.add('no-scroll');
+            } else if (desktopCalendarModal) {
+              desktopCalendarModal.style.display = 'flex';
+            }
+          });
+          selectDatesButton.addEventListener('mouseover', () => {
+            selectDatesButton.style.backgroundColor = '#333333';
+          });
+          selectDatesButton.addEventListener('mouseout', () => {
+            selectDatesButton.style.backgroundColor = '#000000';
+          });
+          messageContainer.appendChild(selectDatesButton);
+
+          this.selectDatesSection.appendChild(messageContainer);
+          return;
+        }
 
         this.selectDatesSection.innerHTML = '';
 
@@ -8672,24 +8750,14 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       async handleButtonClick() {
-        if (!this.areDatesValid()) {
-          const urlParams = new URLSearchParams(window.location.search);
-          const checkin = urlParams.get('checkin');
-          const checkout = urlParams.get('checkout');
-          const hasDates = urlParams.has('checkin') && urlParams.has('checkout') &&
-            checkin !== '' && checkout !== '';
+        const urlParams = new URLSearchParams(window.location.search);
+        const checkin = urlParams.get('checkin');
+        const checkout = urlParams.get('checkout');
+        const hasStayDates = !!(checkin && checkout && checkin.trim() !== '' && checkout.trim() !== '');
 
-          const message = hasDates
-            ? 'Valid dates must be selected to add boat rental'
-            : 'Dates must be selected to add boat rental';
-
-          this.showMessage(message);
-
-          // Flash check availability button if no dates are selected
-          if (!hasDates) {
-            this.flashCheckAvailabilityButton();
-          }
-
+        // Only block when stay dates exist but fail validation (e.g., availability)
+        if (hasStayDates && !this.areDatesValid()) {
+          this.showMessage('Valid dates must be selected to add boat rental');
           return;
         }
 
@@ -14064,16 +14132,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const urlParams = new URLSearchParams(window.location.search);
         const boatId = urlParams.get('boatId');
-        const checkin = urlParams.get('checkin');
-        const checkout = urlParams.get('checkout');
-        const hasValidDates = checkin && checkout && checkin !== '' && checkout !== '';
 
         if (boatId) {
           // Boat is selected
           this.showSelectedBoatState(boatId);
         } else {
           // No boat selected
-          this.showAddBoatState(hasValidDates);
+          this.showAddBoatState();
         }
       }
 
@@ -14127,7 +14192,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
 
-      showAddBoatState(hasValidDates = true) {
+      showAddBoatState() {
         // Show add image, hide X button
         if (this.mobileBoatButtonAddImage) {
           this.mobileBoatButtonAddImage.style.display = 'flex';
@@ -14144,23 +14209,13 @@ document.addEventListener('DOMContentLoaded', () => {
         this.mobileBoatButton.style.removeProperty('background-color');
         this.mobileBoatButton.style.removeProperty('border-color');
 
-        // Apply disabled styling if no valid dates (only to inner elements, keep background white)
-        if (!hasValidDates) {
-          this.mobileBoatButton.style.cursor = 'not-allowed';
-          if (this.mobileBoatButtonAddImage) {
-            this.mobileBoatButtonAddImage.style.opacity = '0.5';
-          }
-          if (this.mobileBoatButtonText) {
-            this.mobileBoatButtonText.style.opacity = '0.5';
-          }
-        } else {
-          this.mobileBoatButton.style.cursor = 'pointer';
-          if (this.mobileBoatButtonAddImage) {
-            this.mobileBoatButtonAddImage.style.opacity = '1';
-          }
-          if (this.mobileBoatButtonText) {
-            this.mobileBoatButtonText.style.opacity = '1';
-          }
+        // Always allow tapping to browse boats, even without stay dates
+        this.mobileBoatButton.style.cursor = 'pointer';
+        if (this.mobileBoatButtonAddImage) {
+          this.mobileBoatButtonAddImage.style.opacity = '1';
+        }
+        if (this.mobileBoatButtonText) {
+          this.mobileBoatButtonText.style.opacity = '1';
         }
 
         // Update text
@@ -14202,26 +14257,6 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       addBoat() {
-        // Check if dates are selected
-        const urlParams = new URLSearchParams(window.location.search);
-        const checkin = urlParams.get('checkin');
-        const checkout = urlParams.get('checkout');
-
-        if (!checkin || !checkout || checkin === '' || checkout === '') {
-          this.showMessage('Dates must be selected before adding a boat rental');
-          // Flash check availability button if no dates are selected
-          if (window.boatRentalService) {
-            window.boatRentalService.flashCheckAvailabilityButton();
-          }
-          return;
-        }
-
-        // Check if dates are valid using the existing boat service logic
-        if (window.boatRentalService && !window.boatRentalService.areDatesValid()) {
-          this.showMessage('Valid dates must be selected to add boat rental');
-          return;
-        }
-
         // Open the boat modal
         const boatModal = document.querySelector('[data-element="addBoatModal"]');
         if (boatModal && window.boatRentalService) {
@@ -14287,6 +14322,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (window.updateMobileHandlersState) {
           window.updateMobileHandlersState();
         }
+
+        // Ensure add boat buttons are visually re-enabled after removal
+        const addBoatButtons = document.querySelectorAll('[data-element="addBoatButton"]');
+        addBoatButtons.forEach(btn => {
+          if (!btn) return;
+          btn.style.opacity = '1';
+          btn.style.cursor = 'pointer';
+        });
       }
 
       showMessage(message) {
@@ -14491,6 +14534,10 @@ document.addEventListener('DOMContentLoaded', () => {
         this.detailsSelectedDates = [];
         this.detailsSelectedGuests = 0;
         this.detailsSelectedPrivateDock = false;
+
+        // Track auto-open state for details date popup (mobile missing dates flow)
+        this.autoOpenDetailsDatesAfterShow = false;
+        this.autoOpenDetailsDatesReason = null;
 
         // Editing state
         this.editingCharterNumber = null;
@@ -15035,20 +15082,14 @@ document.addEventListener('DOMContentLoaded', () => {
         // Fetch and show the charter details for editing
         this.fetchAndShowCharterForEdit(trip.charterId, trip.tripId);
 
-        // If charter needs dates, automatically open the dates popup after a short delay
+        // If charter needs dates, queue the dates popup to open once details are ready
         if (needsDates) {
-          setTimeout(() => {
-            const { checkin, checkout } = this.getCheckInOutDates();
-            const hasStayDates = !!(checkin && checkout && checkin.trim() !== '' && checkout.trim() !== '');
-            if (!hasStayDates) return;
-
-            const datesPopup = document.querySelector('[data-element="fishingCharterDetailsModal_selectFishingCharter_datesPopup"]');
-            if (datesPopup) {
-              this.autoOpenedFromMissingDates = true;
-              datesPopup.style.display = 'flex';
-              datesPopup.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }
-          }, 500);
+          const { checkin, checkout } = this.getCheckInOutDates();
+          const hasStayDates = !!(checkin && checkout && checkin.trim() !== '' && checkout.trim() !== '');
+          if (hasStayDates) {
+            this.autoOpenDetailsDatesAfterShow = true;
+            this.autoOpenDetailsDatesReason = 'missingDates';
+          }
         }
       }
 
@@ -15972,23 +16013,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
       async handleButtonClick() {
         try {
-          // Check if dates are valid (selected AND meet validation criteria)
-          if (!this.areDatesValid()) {
-            const urlParams = new URLSearchParams(window.location.search);
-            const hasDates = urlParams.has('checkin') && urlParams.has('checkout') &&
-              urlParams.get('checkin') !== '' && urlParams.get('checkout') !== '';
+          const urlParams = new URLSearchParams(window.location.search);
+          const checkin = urlParams.get('checkin');
+          const checkout = urlParams.get('checkout');
+          const hasStayDates = !!(checkin && checkout && checkin.trim() !== '' && checkout.trim() !== '');
 
-            const message = hasDates
-              ? 'Valid dates must be selected to add fishing charter'
-              : 'Dates must be selected to add fishing charter';
-
-            this.showMessage(message);
-
-            // Flash check availability button if no dates are selected
-            if (!hasDates) {
-              this.flashCheckAvailabilityButton();
-            }
-
+          // Only block when stay dates exist but fail validation (e.g., unavailable)
+          if (hasStayDates && !this.areDatesValid()) {
+            this.showMessage('Valid dates must be selected to add fishing charter');
             return;
           }
 
@@ -16146,6 +16178,9 @@ document.addEventListener('DOMContentLoaded', () => {
         this.editingTripId = null;
         this.isEditMode = false;
         this.originalEditParams = null;
+        this.autoOpenDetailsDatesAfterShow = false;
+        this.autoOpenDetailsDatesReason = null;
+        this.autoOpenedFromMissingDates = false;
 
         // Skip filter clearing and style updates if closing after successful save
         // (they will be handled separately after modal is closed)
@@ -17021,6 +17056,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Setup contact us form
         await this.setupFishingCharterContactUsForm(charter);
+
+        // Auto-open dates popup when queued (e.g., missing dates from reservation)
+        if (this.autoOpenDetailsDatesAfterShow) {
+          const reason = this.autoOpenDetailsDatesReason;
+          this.autoOpenDetailsDatesAfterShow = false;
+          this.autoOpenDetailsDatesReason = null;
+
+          requestAnimationFrame(() => {
+            this.openDetailsDatesPopup({ scrollIntoView: true, reason });
+          });
+        }
       }
 
       async setupFishingCharterContactUsForm(charter) {
@@ -19215,7 +19261,85 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const { checkin, checkout } = this.getCheckInOutDates();
 
-        if (!checkin || !checkout) return;
+        // If no stay dates, show a message instead of the calendar
+        if (!checkin || !checkout || checkin.trim() === '' || checkout.trim() === '') {
+          this.datesPopupSelectDates.innerHTML = '';
+
+          const messageContainer = document.createElement('div');
+          messageContainer.style.display = 'flex';
+          messageContainer.style.flexDirection = 'column';
+          messageContainer.style.alignItems = 'center';
+          messageContainer.style.justifyContent = 'center';
+          messageContainer.style.padding = '32px 20px';
+          messageContainer.style.backgroundColor = '#fffbeb';
+          messageContainer.style.borderRadius = '8px';
+          messageContainer.style.border = '1px solid #f59e0b';
+          messageContainer.style.gap = '12px';
+
+          const iconElement = document.createElement('div');
+          iconElement.textContent = '📅';
+          iconElement.style.fontSize = '32px';
+          messageContainer.appendChild(iconElement);
+
+          const messageText = document.createElement('div');
+          messageText.textContent = 'Select stay dates first';
+          messageText.style.fontSize = '16px';
+          messageText.style.fontFamily = 'TT Fors, sans-serif';
+          messageText.style.fontWeight = '500';
+          messageText.style.color = '#92400e';
+          messageText.style.textAlign = 'center';
+          messageContainer.appendChild(messageText);
+
+          const helperText = document.createElement('div');
+          helperText.textContent = 'Charter dates must be within your stay period';
+          helperText.style.fontSize = '14px';
+          helperText.style.fontFamily = 'TT Fors, sans-serif';
+          helperText.style.color = '#b45309';
+          helperText.style.textAlign = 'center';
+          messageContainer.appendChild(helperText);
+
+          const selectDatesButton = document.createElement('button');
+          selectDatesButton.textContent = 'Add Stay Dates';
+          selectDatesButton.style.marginTop = '8px';
+          selectDatesButton.style.padding = '10px 20px';
+          selectDatesButton.style.backgroundColor = '#000000';
+          selectDatesButton.style.color = '#ffffff';
+          selectDatesButton.style.border = 'none';
+          selectDatesButton.style.borderRadius = '8px';
+          selectDatesButton.style.fontSize = '14px';
+          selectDatesButton.style.fontFamily = 'TT Fors, sans-serif';
+          selectDatesButton.style.fontWeight = '500';
+          selectDatesButton.style.cursor = 'pointer';
+          selectDatesButton.addEventListener('click', () => {
+            // Close charter modal if open
+            if (this.modal) this.modal.style.display = 'none';
+            document.body.classList.remove('no-scroll');
+
+            // Open stay calendar (preferring existing trigger)
+            const calendarTrigger = document.querySelector('[data-element="listing_checkAvailability_button"]');
+            const mobileCalendarModal = document.querySelector('[data-element="mobileCalendarModal"]');
+            const desktopCalendarModal = document.querySelector('[data-element="calendarModal"]');
+
+            if (calendarTrigger) {
+              calendarTrigger.click();
+            } else if (window.innerWidth <= 991 && mobileCalendarModal) {
+              mobileCalendarModal.style.display = 'flex';
+              document.body.classList.add('no-scroll');
+            } else if (desktopCalendarModal) {
+              desktopCalendarModal.style.display = 'flex';
+            }
+          });
+          selectDatesButton.addEventListener('mouseover', () => {
+            selectDatesButton.style.backgroundColor = '#333333';
+          });
+          selectDatesButton.addEventListener('mouseout', () => {
+            selectDatesButton.style.backgroundColor = '#000000';
+          });
+          messageContainer.appendChild(selectDatesButton);
+
+          this.datesPopupSelectDates.appendChild(messageContainer);
+          return;
+        }
 
         this.datesPopupSelectDates.innerHTML = '';
 
@@ -19507,6 +19631,32 @@ document.addEventListener('DOMContentLoaded', () => {
         this.renderDateSelection();
       }
 
+      // Central helper to open the details dates popup with correct stacking on mobile
+      openDetailsDatesPopup(options = {}) {
+        const { scrollIntoView = false, reason = null } = options;
+
+        if (!this.detailsDatesPopup) return;
+
+        if (window.innerWidth <= 991) {
+          // Store original parent so we can restore on close
+          if (!this.detailsDatesPopup._originalParent) {
+            this.detailsDatesPopup._originalParent = this.detailsDatesPopup.parentElement;
+          }
+          // Move to body to avoid stacking context issues on mobile
+          document.body.appendChild(this.detailsDatesPopup);
+        }
+
+        this.detailsDatesPopup.style.display = 'flex';
+
+        if (scrollIntoView) {
+          this.detailsDatesPopup.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        if (reason === 'missingDates') {
+          this.autoOpenedFromMissingDates = true;
+        }
+      }
+
       setupDetailsFilterHandlers() {
         const closeAllDetailsPopups = () => {
           if (this.detailsDatesPopup) this.detailsDatesPopup.style.display = 'none';
@@ -19518,24 +19668,7 @@ document.addEventListener('DOMContentLoaded', () => {
           this.detailsDatesFilter.addEventListener('click', (e) => {
             e.stopPropagation();
             closeAllDetailsPopups();
-            if (this.detailsDatesPopup) {
-              // Only move to body on mobile (991px and below) where popup is position: fixed
-              if (window.innerWidth <= 991) {
-                // Store original parent to restore later
-                if (!this.detailsDatesPopup._originalParent) {
-                  this.detailsDatesPopup._originalParent = this.detailsDatesPopup.parentElement;
-                }
-
-                // Move popup to body to escape stacking context (mobile fix)
-                document.body.appendChild(this.detailsDatesPopup);
-
-
-              }
-
-              this.detailsDatesPopup.style.display = 'flex';
-            } else {
-
-            }
+            this.openDetailsDatesPopup({ scrollIntoView: true, reason: null });
           });
         } else {
 
@@ -20874,14 +21007,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!this.mobileFishingCharterButton) return;
 
         const charterCount = this.getFishingCharterCount();
-        const urlParams = new URLSearchParams(window.location.search);
-        const checkin = urlParams.get('checkin');
-        const checkout = urlParams.get('checkout');
-        const hasValidDates = checkin && checkout && checkin !== '' && checkout !== '';
 
         if (charterCount === 0) {
           // No charters selected
-          this.showAddCharterState(hasValidDates);
+          this.showAddCharterState();
         } else if (charterCount === 1) {
           // Single charter selected
           this.showSingleCharterState();
@@ -20896,7 +21025,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return window.fishingCharterService.getAllFishingCharterNumbers().length;
       }
 
-      showAddCharterState(hasValidDates = true) {
+      showAddCharterState() {
         // Show plus image, hide X button
         if (this.mobileFishingCharterButtonPlusImage) {
           this.mobileFishingCharterButtonPlusImage.style.display = 'flex';
@@ -20913,23 +21042,13 @@ document.addEventListener('DOMContentLoaded', () => {
         this.mobileFishingCharterButton.style.removeProperty('background-color');
         this.mobileFishingCharterButton.style.removeProperty('border-color');
 
-        // Apply disabled styling if no valid dates (only to inner elements, keep background white)
-        if (!hasValidDates) {
-          this.mobileFishingCharterButton.style.cursor = 'not-allowed';
-          if (this.mobileFishingCharterButtonPlusImage) {
-            this.mobileFishingCharterButtonPlusImage.style.opacity = '0.5';
-          }
-          if (this.mobileFishingCharterButtonText) {
-            this.mobileFishingCharterButtonText.style.opacity = '0.5';
-          }
-        } else {
-          this.mobileFishingCharterButton.style.cursor = 'pointer';
-          if (this.mobileFishingCharterButtonPlusImage) {
-            this.mobileFishingCharterButtonPlusImage.style.opacity = '1';
-          }
-          if (this.mobileFishingCharterButtonText) {
-            this.mobileFishingCharterButtonText.style.opacity = '1';
-          }
+        // Always allow tapping to browse charters, even without stay dates
+        this.mobileFishingCharterButton.style.cursor = 'pointer';
+        if (this.mobileFishingCharterButtonPlusImage) {
+          this.mobileFishingCharterButtonPlusImage.style.opacity = '1';
+        }
+        if (this.mobileFishingCharterButtonText) {
+          this.mobileFishingCharterButtonText.style.opacity = '1';
         }
 
         // Update text
@@ -21595,12 +21714,12 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateBoatButtonState(validation) {
       const boatButtons = document.querySelectorAll('[data-element="addBoatButton"]');
       if (boatButtons.length > 0) {
-        const datesValid = validation.datesSelected && validation.datesValid;
+        const enabled = !validation.datesSelected || (validation.datesSelected && validation.datesValid);
 
         boatButtons.forEach(button => {
           if (button) {
-            button.style.opacity = datesValid ? '1' : '0.5';
-            button.style.cursor = datesValid ? 'pointer' : 'not-allowed';
+            button.style.opacity = enabled ? '1' : '0.5';
+            button.style.cursor = enabled ? 'pointer' : 'not-allowed';
           }
         });
       }
@@ -21610,12 +21729,12 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateFishingCharterButtonState(validation) {
       const fishingCharterButtons = document.querySelectorAll('[data-element="addFishingCharterButton"]');
       if (fishingCharterButtons.length > 0) {
-        const datesValid = validation.datesSelected && validation.datesValid;
+        const enabled = !validation.datesSelected || (validation.datesSelected && validation.datesValid);
 
         fishingCharterButtons.forEach(button => {
           if (button) {
-            button.style.opacity = datesValid ? '1' : '0.5';
-            button.style.cursor = datesValid ? 'pointer' : 'not-allowed';
+            button.style.opacity = enabled ? '1' : '0.5';
+            button.style.cursor = enabled ? 'pointer' : 'not-allowed';
           }
         });
       }
@@ -22142,3 +22261,4 @@ document.addEventListener('DOMContentLoaded', () => {
 
   });
 });
+
