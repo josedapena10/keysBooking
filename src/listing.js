@@ -3682,9 +3682,6 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
-    // Track skeleton start for reservation total to enforce a minimum display time
-    let reservationTotalSkeletonStart = null;
-
     // Function to update reservation total display
     function updateReservationTotal() {
 
@@ -3697,54 +3694,13 @@ document.addEventListener('DOMContentLoaded', () => {
       const hasPriceData = !!(r && r.Load_Property_Calendar_Query && r.Load_Property_Calendar_Query.data &&
         r.Load_Property_Calendar_Query.data.dateRange_totalPrice);
 
-      const minSkeletonMs = 1000;
-      const now = Date.now();
-      if (!reservationTotalSkeletonStart) {
-        reservationTotalSkeletonStart = now;
-      }
-
-      const showSkeleton = () => {
-        totalSkeletonElements.forEach(el => {
-          if (!el) return;
-          el.style.display = 'flex';
-        });
-        totalElements.forEach(el => {
-          if (!el) return;
-          el.textContent = '';
-          el.style.display = 'none';
-        });
-        totalAmountElements.forEach(el => {
-          if (!el) return;
-          el.textContent = '';
-        });
-      };
-
-      if (!hasPriceData) {
-        showSkeleton();
-        return;
-      }
-
-      const elapsed = now - reservationTotalSkeletonStart;
-      if (elapsed < minSkeletonMs) {
-        showSkeleton();
-        setTimeout(updateReservationTotal, minSkeletonMs - elapsed);
-        return;
-      }
-
       const totalPrice = Math.floor(r.Load_Property_Calendar_Query.data.dateRange_totalPrice);
       const formattedPrice = "$" + totalPrice.toLocaleString();
-
-      // Hide skeletons when showing price
-      totalSkeletonElements.forEach(el => {
-        if (!el) return;
-        el.style.display = 'none';
-      });
 
       // Update all total elements (desktop and mobile)
       totalElements.forEach(element => {
         if (element) {
           element.textContent = formattedPrice;
-          element.style.display = '';
         }
       });
 
