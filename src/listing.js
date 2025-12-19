@@ -11622,7 +11622,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!e.touches || e.touches.length === 0) return;
             const dx = Math.abs(e.touches[0].clientX - touchStartX);
             const dy = Math.abs(e.touches[0].clientY - touchStartY);
-            if (dx > swipeThreshold && dx > dy) {
+            // Treat either meaningful horizontal or vertical movement as swipe to suppress click
+            if ((dx > swipeThreshold && dx >= dy) || (dy > swipeThreshold && dy > dx)) {
               didSwipe = true;
             }
           }, { passive: true });
@@ -18092,7 +18093,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!e.touches || e.touches.length === 0) return;
             const dx = Math.abs(e.touches[0].clientX - touchStartX);
             const dy = Math.abs(e.touches[0].clientY - touchStartY);
-            if (dx > swipeThreshold && dx > dy) {
+            // Treat either meaningful horizontal or vertical movement as swipe to suppress click
+            if ((dx > swipeThreshold && dx >= dy) || (dy > swipeThreshold && dy > dx)) {
               didSwipe = true;
             }
           }, { passive: true });
