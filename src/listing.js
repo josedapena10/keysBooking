@@ -11585,10 +11585,7 @@ document.addEventListener('DOMContentLoaded', () => {
           }, { passive: true });
 
           imageWrapper.addEventListener('touchend', (e) => {
-            if (didSwipe) {
-              e.stopPropagation();
-              return;
-            }
+            if (didSwipe) return; // let swipe handlers (if any) handle it
             const currentBoat = card.boatData || boat;
             this.showBoatDetails(currentBoat);
           });
@@ -18056,10 +18053,7 @@ document.addEventListener('DOMContentLoaded', () => {
           }, { passive: true });
 
           imageWrapper.addEventListener('touchend', (e) => {
-            if (didSwipe) {
-              e.stopPropagation();
-              return;
-            }
+            if (didSwipe) return; // let swipe handlers (if any) handle it
             this.showFishingCharterDetails(charter);
           });
 
