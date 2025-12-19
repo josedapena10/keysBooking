@@ -3761,13 +3761,6 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!phoneDescriptionElements || phoneDescriptionElements.length === 0) return;
 
       // Require a price to avoid showing text flashes
-      const phonePriceElements = document.querySelectorAll('[data-element="Reservation_Total_phoneAmount"]');
-      const hasPrice = Array.from(phonePriceElements || []).some(el => el && el.textContent && el.textContent.trim() !== '');
-      if (!hasPrice) {
-        phoneDescriptionElements.forEach(el => { if (el) el.style.display = 'none'; });
-        return;
-      }
-
       const urlParams = new URLSearchParams(window.location.search);
       const boatId = urlParams.get('boatId');
       const hasAnyExtras = window.hasAnyExtrasSelected ? window.hasAnyExtrasSelected() : false;
@@ -3792,7 +3785,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
       phoneDescriptionElements.forEach(element => {
         if (!element) return;
-        element.style.display = 'block';
         element.textContent = descriptionText;
       });
     }
