@@ -2429,6 +2429,17 @@ document.addEventListener('DOMContentLoaded', () => {
         // Retrieve the properties and sliders
         var propertyPhotos = event.data.property._property_all_pictures;
 
+        // Preload the first photo to reduce initial slider paint delay
+        if (propertyPhotos && propertyPhotos[0] && propertyPhotos[0].property_image && propertyPhotos[0].property_image.url) {
+          const firstPhotoUrl = propertyPhotos[0].property_image.url;
+          const preload = document.createElement('link');
+          preload.rel = 'preload';
+          preload.as = 'image';
+          preload.href = firstPhotoUrl;
+          preload.fetchPriority = 'high';
+          document.head.appendChild(preload);
+        }
+
         // Select all elements that should be Splide sliders
         var splide = document.querySelector('.splide');
 
@@ -3165,8 +3176,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }).catch(error => {
     });
 
-    // Add this entire function for updating the heading
+    // Add this entire function for updating the heading (debounced to avoid flicker)
+    let addDatesHeadingTimer = null;
     function updateAddDatesHeading() {
+      if (addDatesHeadingTimer) clearTimeout(addDatesHeadingTimer);
+      addDatesHeadingTimer = setTimeout(runUpdateAddDatesHeading, 120);
+    }
+
+    function runUpdateAddDatesHeading() {
       if (!addDatesHeadings || addDatesHeadings.length === 0) return;
 
       const r = Wized.data.r;
@@ -3178,6 +3195,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const hasCheckin = urlParams.has('checkin') && urlParams.get('checkin') !== "";
       const hasCheckout = urlParams.has('checkout') && urlParams.get('checkout') !== "";
       const datesSelected = hasCheckin && hasCheckout;
+      const extrasNeedDates = typeof hasExtrasMissingDatesInURL === 'function' ? hasExtrasMissingDatesInURL() : false;
 
       // Check guest validation
       let hasGuestError = false;
@@ -3192,9 +3210,14 @@ document.addEventListener('DOMContentLoaded', () => {
       let shouldBeVisible = true;
       let headingText = "Add dates for pricing";
 
-      // Priority 0: If both dates are selected, hide heading immediately (even while waiting for validation)
+      // If extras still need dates, keep prompting to add dates (don't flip to change dates)
+      if (extrasNeedDates) {
+        shouldBeVisible = true;
+        headingText = "Add dates for pricing";
+      }
+      // Priority 0: If both dates are selected and extras are complete, hide heading immediately (even while waiting for validation)
       // This provides instant feedback when user selects dates
-      if (datesSelected) {
+      else if (datesSelected) {
         // Check if calendar query is still loading
         if (r.Load_Property_Calendar_Query && r.Load_Property_Calendar_Query.isRequesting) {
           // Loading - hide heading while waiting
