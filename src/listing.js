@@ -4199,8 +4199,19 @@ document.addEventListener('DOMContentLoaded', () => {
       const extrasMissingInURL = typeof hasExtrasMissingDatesInURL === 'function' ? hasExtrasMissingDatesInURL() : false;
       const extrasNeedDates = extrasInfo.hasAnyExtrasNeedingDates || extrasMissingInURL;
 
+      // Debug logging to understand why the footer is hidden
+      console.info('[FooterDebug] updatePhoneReservationFooter', {
+        hasCheckin,
+        hasCheckout,
+        datesSelected,
+        extrasNeedDates,
+        extrasInfo,
+        extrasMissingInURL
+      });
+
       // Show/hide footer based on date selection
       if (!datesSelected || extrasNeedDates) {
+        console.info('[FooterDebug] hiding because datesSelected/extrasNeedDates check failed', { datesSelected, extrasNeedDates });
         phoneFooterContainer.style.display = 'none';
         return;
       }
@@ -4234,6 +4245,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const maxGuests = r.Load_Property_Details.data.property.num_guests;
         shouldShow = allAvailable && meetsMinNights && (maxGuests >= currentGuests) && (currentGuests >= 1);
       }
+
+      console.info('[FooterDebug] availability check', {
+        shouldShow,
+        hasR: !!r,
+        hasCalendar: !!(r && r.Load_Property_Calendar_Query && r.Load_Property_Calendar_Query.data),
+        hasDetails: !!(r && r.Load_Property_Details && r.Load_Property_Details.data),
+        allAvailable,
+        meetsMinNights,
+        currentGuests: n && n.parameter ? n.parameter.guests : null
+      });
 
       phoneFooterContainer.style.display = shouldShow ? 'flex' : 'none';
 
@@ -19927,6 +19948,10 @@ document.addEventListener('DOMContentLoaded', () => {
               e.stopPropagation();
               if (this.detailsDatesPopup) this.detailsDatesPopup.style.display = 'none';
 
+              // Clear any queued auto-open state once user manually closes
+              this.autoOpenDetailsDatesAfterShow = false;
+              this.autoOpenDetailsDatesReason = null;
+
               // If popup was auto-opened due to missing dates, auto-save and close modal
               if (this.autoOpenedFromMissingDates) {
                 const addButton = document.querySelector('[data-element="fishingCharterDetails_tripType_addToReservationButton"]');
@@ -21058,6 +21083,11 @@ document.addEventListener('DOMContentLoaded', () => {
           this.editingCharterNumber = null;
           this.editingTripId = null;
           this.editingCharterId = null;
+
+          // Clear any queued auto-open state now that dates are saved
+          this.autoOpenDetailsDatesAfterShow = false;
+          this.autoOpenDetailsDatesReason = null;
+          this.autoOpenedFromMissingDates = false;
 
           // Close modal first without clearing filters (pass true to skip style updates)
           this.closeModal(true);
