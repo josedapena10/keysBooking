@@ -3748,6 +3748,13 @@ document.addEventListener('DOMContentLoaded', () => {
       const hasPriceData = !!(r && r.Load_Property_Calendar_Query && r.Load_Property_Calendar_Query.data &&
         r.Load_Property_Calendar_Query.data.dateRange_totalPrice);
 
+      // Guard against missing price data to avoid null access
+      if (!hasPriceData) {
+        totalElements.forEach(element => { if (element) element.textContent = '$0'; });
+        totalAmountElements.forEach(element => { if (element) element.textContent = '$0'; });
+        return;
+      }
+
       const totalPrice = Math.floor(r.Load_Property_Calendar_Query.data.dateRange_totalPrice);
       const formattedPrice = "$" + totalPrice.toLocaleString();
 
@@ -4197,7 +4204,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const datesSelected = hasCheckin && hasCheckout;
       const extrasInfo = window.getExtrasNeedingDates ? window.getExtrasNeedingDates() : { hasAnyExtrasNeedingDates: false };
       const extrasMissingInURL = typeof hasExtrasMissingDatesInURL === 'function' ? hasExtrasMissingDatesInURL() : false;
-      const extrasNeedDates = extrasInfo.hasAnyExtrasNeedingDates || extrasMissingInURL;
+      // Prefer URL as source of truth; service state can lag after save
+      const extrasNeedDates = extrasMissingInURL;
 
       // Debug logging to understand why the footer is hidden
       console.info('[FooterDebug] updatePhoneReservationFooter', {
