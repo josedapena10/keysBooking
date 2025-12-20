@@ -2947,21 +2947,15 @@ document.addEventListener('DOMContentLoaded', () => {
         window.updatePhoneReservationFooter();
       }
 
-      // Update boat rental button state if it exists
+      // Ensure boat buttons remain enabled/visible (no dimming)
       const boatButtons = document.querySelectorAll('[data-element="addBoatButton"]');
-      if (boatButtons.length > 0) {
-        const datesValid = color !== "#ffd4d2" &&
-          r && r.Load_Property_Calendar_Query &&
-          r.Load_Property_Calendar_Query.data;
-
-        boatButtons.forEach(button => {
-          if (button) {
-            button.style.borderColor = datesValid ? '#e2e2e2' : '#e2e2e2';
-            button.style.opacity = datesValid ? '1' : '0.5';
-            button.style.cursor = datesValid ? 'pointer' : 'not-allowed';
-          }
-        });
-      }
+      boatButtons.forEach(button => {
+        if (button) {
+          button.style.borderColor = '#e2e2e2';
+          button.style.opacity = '1';
+          button.style.cursor = 'pointer';
+        }
+      });
     }
 
     // New function to handle error display
@@ -22034,12 +22028,11 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateBoatButtonState(validation) {
       const boatButtons = document.querySelectorAll('[data-element="addBoatButton"]');
       if (boatButtons.length > 0) {
-        const enabled = !validation.datesSelected || (validation.datesSelected && validation.datesValid);
-
         boatButtons.forEach(button => {
           if (button) {
-            button.style.opacity = enabled ? '1' : '0.5';
-            button.style.cursor = enabled ? 'pointer' : 'not-allowed';
+            // Always keep enabled appearance; no dimming
+            button.style.opacity = '1';
+            button.style.cursor = 'pointer';
           }
         });
       }
@@ -22049,12 +22042,11 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateFishingCharterButtonState(validation) {
       const fishingCharterButtons = document.querySelectorAll('[data-element="addFishingCharterButton"]');
       if (fishingCharterButtons.length > 0) {
-        const enabled = !validation.datesSelected || (validation.datesSelected && validation.datesValid);
-
         fishingCharterButtons.forEach(button => {
           if (button) {
-            button.style.opacity = enabled ? '1' : '0.5';
-            button.style.cursor = enabled ? 'pointer' : 'not-allowed';
+            // Always keep enabled appearance; no dimming
+            button.style.opacity = '1';
+            button.style.cursor = 'pointer';
           }
         });
       }
