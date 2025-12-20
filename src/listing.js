@@ -3482,6 +3482,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Setup edit and remove boat handlers
     function setupBoatHandlers() {
+      // Ensure the dates popup is visible before the modal opens for auto "add dates" flows
+      const preflexBoatDatesPopupForAutoOpen = () => {
+        const datesPopup = document.querySelector('[data-element="addBoatModal_boatDetails_datesPopup"]');
+        if (datesPopup) {
+          datesPopup.style.display = 'flex';
+          datesPopup.style.visibility = 'visible';
+          datesPopup.style.opacity = '1';
+        }
+
+        // Keep the reservation block visible on mobile while adding dates
+        const reservationBlock = document.querySelector('[data-element="boatRental_listingPage_reservationBlock"]');
+        if (reservationBlock && window.innerWidth <= 991) {
+          reservationBlock.style.display = 'flex';
+        }
+      };
+
       // Edit boat handler
       const editButtons = document.querySelectorAll('[data-element="editSelectedBoat"]');
       editButtons.forEach(editButton => {
@@ -3491,6 +3507,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const boatId = urlParams.get('boatId');
             const boatDates = urlParams.get('boatDates');
             const needsDates = !boatDates || boatDates.trim() === '';
+            const hasStayDates = !!(urlParams.get('checkin') && urlParams.get('checkout'));
 
             if (boatId) {
               // Open boat modal in details view for the selected boat
@@ -3499,6 +3516,13 @@ document.addEventListener('DOMContentLoaded', () => {
               const detailsWrapper = document.querySelector('[data-element="addBoatModal_boatDetailsWrapper"]');
 
               if (modal && selectWrapper && detailsWrapper) {
+                if (needsDates && hasStayDates) {
+                  // Pre-flex popup before the modal opens so it renders in view immediately
+                  preflexBoatDatesPopupForAutoOpen();
+                  // Re-assert shortly after layout to avoid Webflow transitions hiding it
+                  requestAnimationFrame(() => preflexBoatDatesPopupForAutoOpen());
+                }
+
                 modal.style.display = 'flex';
                 selectWrapper.style.display = 'none';
                 detailsWrapper.style.display = 'flex';
@@ -3514,24 +3538,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     Promise.resolve(done).then(() => {
                       // If boat needs dates, automatically open the dates popup immediately (no delay)
-                      if (needsDates) {
-                        const hasStayDates = !!(urlParams.get('checkin') && urlParams.get('checkout'));
-                        if (needsDates && hasStayDates) {
-                          const datesPopup = document.querySelector('[data-element="addBoatModal_boatDetails_datesPopup"]');
-                          if (datesPopup) {
-                            // Remember this popup was auto-opened for missing dates so we can auto-save on exit
-                            window.boatRentalService.autoOpenedFromMissingDates = true;
-                            // Ensure reservation block is visible on mobile while selecting dates
-                            const reservationBlock = document.querySelector('[data-element="boatRental_listingPage_reservationBlock"]');
-                            if (reservationBlock) {
-                              reservationBlock.style.display = 'flex';
-                            }
-                            datesPopup.style.display = 'flex';
-                            // No scroll on mobile to avoid jank; desktop can still scroll if needed
-                            if (!this.isMobileView()) {
-                              datesPopup.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                            }
-                          }
+                      if (needsDates && hasStayDates) {
+                        // Remember this popup was auto-opened for missing dates so we can auto-save on exit
+                        window.boatRentalService.autoOpenedFromMissingDates = true;
+                        preflexBoatDatesPopupForAutoOpen();
+
+                        const datesPopup = document.querySelector('[data-element="addBoatModal_boatDetails_datesPopup"]');
+                        // No scroll on mobile to avoid jank; desktop can still scroll if needed
+                        if (
+                          datesPopup &&
+                          window.boatRentalService &&
+                          typeof window.boatRentalService.isMobileView === 'function' &&
+                          !window.boatRentalService.isMobileView()
+                        ) {
+                          requestAnimationFrame(() => {
+                            datesPopup.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                          });
                         }
                       }
                     });
@@ -15162,6 +15184,27 @@ document.addEventListener('DOMContentLoaded', () => {
         this.renderDateSelection();
         this.renderDetailsDateSelection();
 
+        const preflexCharterDatesPopupForAutoOpen = () => {
+          if (this.detailsDatesPopup) {
+            this.detailsDatesPopup.style.display = 'flex';
+            this.detailsDatesPopup.style.visibility = 'visible';
+            this.detailsDatesPopup.style.opacity = '1';
+          }
+        };
+
+        const { checkin, checkout } = this.getCheckInOutDates();
+        const hasStayDates = !!(checkin && checkout && checkin.trim() !== '' && checkout.trim() !== '');
+
+        if (needsDates && hasStayDates && this.detailsDatesPopup) {
+          // Move popup to body for mobile stacking before modal opens so it renders in view
+          if (window.innerWidth <= 991 && !this.detailsDatesPopup._originalParent) {
+            this.detailsDatesPopup._originalParent = this.detailsDatesPopup.parentElement;
+            document.body.appendChild(this.detailsDatesPopup);
+          }
+          preflexCharterDatesPopupForAutoOpen();
+          requestAnimationFrame(() => preflexCharterDatesPopupForAutoOpen());
+        }
+
         // Show modal directly to details view
         if (this.modal) this.modal.style.display = 'flex';
         this.selectWrapper.style.display = 'none';
@@ -15181,11 +15224,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // If charter needs dates, queue the dates popup to open once details are ready
         if (needsDates) {
-          const { checkin, checkout } = this.getCheckInOutDates();
-          const hasStayDates = !!(checkin && checkout && checkin.trim() !== '' && checkout.trim() !== '');
           if (hasStayDates) {
             this.autoOpenDetailsDatesAfterShow = true;
             this.autoOpenDetailsDatesReason = 'missingDates';
+            // Ensure the popup scrolls into view once the modal finishes opening
+            requestAnimationFrame(() => {
+              if (this.detailsDatesPopup) {
+                this.detailsDatesPopup.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }
+            });
           }
         }
       }
