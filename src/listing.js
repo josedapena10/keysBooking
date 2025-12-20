@@ -3755,7 +3755,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      const totalPrice = Math.floor(r.Load_Property_Calendar_Query.data.dateRange_totalPrice);
+      const totalPrice = Math.floor(r.Load_Property_Calendar_Query.data.dateRange_totalPrice || 0);
       const formattedPrice = "$" + totalPrice.toLocaleString();
 
       // Update all total elements (desktop and mobile)
@@ -17301,6 +17301,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
           // Open immediately to avoid visible delay on mobile
           this.openDetailsDatesPopup({ scrollIntoView: true, reason });
+          // After auto-open, mark it so we don't reopen after user saves/ closes
+          this.autoOpenedFromMissingDates = true;
         }
       }
 
