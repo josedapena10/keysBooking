@@ -358,6 +358,39 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 
+// Global helper: detect extras in URL that are missing dates (boat or charters)
+// Used by reservation footer and price visibility logic to avoid showing totals
+// while extras still need dates.
+function hasExtrasMissingDatesInURL() {
+  const urlParams = new URLSearchParams(window.location.search);
+
+  // Boat missing dates
+  const boatId = urlParams.get('boatId');
+  const boatDates = urlParams.get('boatDates');
+  if (boatId && (!boatDates || boatDates.trim() === '')) {
+    return true;
+  }
+
+  // Fishing charters missing dates
+  for (const [key, value] of urlParams.entries()) {
+    const match = key.match(/^fishingCharterId(\d+)$/);
+    if (match) {
+      const num = match[1];
+      const charterId = value;
+      const charterDates = urlParams.get(`fishingCharterDates${num}`);
+      if (charterId && (!charterDates || charterDates.trim() === '')) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+// Make globally accessible
+window.hasExtrasMissingDatesInURL = hasExtrasMissingDatesInURL;
+
+
+
 (async function () {
   try {
     const profileButton = document.querySelector('[data-element="profile_button"]');
@@ -22490,6 +22523,9 @@ document.addEventListener('DOMContentLoaded', () => {
       originalPushState.apply(history, arguments);
       setTimeout(() => {
         updateAllButtonVisibility();
+        if (window.updatePhoneReservationFooter) {
+          window.updatePhoneReservationFooter();
+        }
       }, 100);
     };
 
@@ -22497,6 +22533,9 @@ document.addEventListener('DOMContentLoaded', () => {
       originalReplaceState.apply(history, arguments);
       setTimeout(() => {
         updateAllButtonVisibility();
+        if (window.updatePhoneReservationFooter) {
+          window.updatePhoneReservationFooter();
+        }
       }, 100);
     };
 
