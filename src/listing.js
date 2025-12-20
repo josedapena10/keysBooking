@@ -8540,6 +8540,30 @@ document.addEventListener('DOMContentLoaded', () => {
           return;
         }
 
+        // Preload first photo of the first 2 boats to reduce initial paint delay
+        boats.slice(0, 2).forEach(boat => {
+          if (boat.photos && boat.photos[0] && boat.photos[0].image && boat.photos[0].image.url) {
+            const preload = document.createElement('link');
+            preload.rel = 'preload';
+            preload.as = 'image';
+            preload.href = boat.photos[0].image.url;
+            preload.fetchPriority = 'high';
+            document.head.appendChild(preload);
+          }
+        });
+
+        // Preload first photo of the first 2 boats to reduce initial paint delay
+        boats.slice(0, 2).forEach(boat => {
+          if (boat.photos && boat.photos[0] && boat.photos[0].image && boat.photos[0].image.url) {
+            const preload = document.createElement('link');
+            preload.rel = 'preload';
+            preload.as = 'image';
+            preload.href = boat.photos[0].image.url;
+            preload.fetchPriority = 'high';
+            document.head.appendChild(preload);
+          }
+        });
+
         // Show and populate cards for each boat
         boats.forEach((boat, index) => {
           let card;
@@ -11595,6 +11619,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Sort photos by order
         const sortedPhotos = [...boat.photos].sort((a, b) => (a.order || 0) - (b.order || 0));
+
+        // Preload first image to reduce initial paint delay
+        if (sortedPhotos[0] && sortedPhotos[0].image && sortedPhotos[0].image.url) {
+          const preload = document.createElement('link');
+          preload.rel = 'preload';
+          preload.as = 'image';
+          preload.href = sortedPhotos[0].image.url;
+          preload.fetchPriority = 'high';
+          document.head.appendChild(preload);
+        }
 
         // Card carousel always shows 1 image at a time
         const carouselHeight = '280px';
@@ -17805,6 +17839,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Sort images by order
         const sortedImages = [...charter.images].sort((a, b) => (a.order || 0) - (b.order || 0));
+
+        // Preload first image to reduce initial paint delay
+        if (sortedImages[0] && sortedImages[0].image && sortedImages[0].image.url) {
+          const preload = document.createElement('link');
+          preload.rel = 'preload';
+          preload.as = 'image';
+          preload.href = sortedImages[0].image.url;
+          preload.fetchPriority = 'high';
+          document.head.appendChild(preload);
+        }
 
         // Check screen width for responsive behavior
         const isMobile = window.innerWidth <= 767;
