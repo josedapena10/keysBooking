@@ -2205,7 +2205,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
       .calendar-month-header {
         font-size: 16px;
-        font-weight: bold;
+        font-weight: 500;
         margin: 35px 0 20px 0;
         color: black;
         text-align: center;
