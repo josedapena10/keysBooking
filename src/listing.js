@@ -4212,20 +4212,8 @@ document.addEventListener('DOMContentLoaded', () => {
       // Prefer URL as source of truth; service state can lag after save
       const extrasNeedDates = extrasMissingInURL;
 
-      // Debug logging to understand why the footer is hidden
-      console.info('[FooterDebug] updatePhoneReservationFooter', {
-        hasCheckin,
-        hasCheckout,
-        datesSelected,
-        extrasNeedDates,
-        extrasInfo,
-        extrasMissingInURL,
-        urlParamsSnapshot: Array.from(urlParams.entries()).filter(([k]) => k.startsWith('boat') || k.startsWith('fishingCharter'))
-      });
-
       // Show/hide footer based on date selection
       if (!datesSelected || extrasNeedDates) {
-        console.info('[FooterDebug] hiding because datesSelected/extrasNeedDates check failed', { datesSelected, extrasNeedDates });
         phoneFooterContainer.style.display = 'none';
         return;
       }
@@ -4261,16 +4249,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const maxGuests = r.Load_Property_Details.data.property.num_guests;
         shouldShow = allAvailable && meetsMinNights && (maxGuests >= currentGuests) && (currentGuests >= 1);
       }
-
-      console.info('[FooterDebug] availability check', {
-        shouldShow,
-        hasR: !!r,
-        hasCalendar: !!(r && r.Load_Property_Calendar_Query && r.Load_Property_Calendar_Query.data),
-        hasDetails: !!(r && r.Load_Property_Details && r.Load_Property_Details.data),
-        allAvailable,
-        meetsMinNights,
-        currentGuests: n && n.parameter ? n.parameter.guests : null
-      });
 
       phoneFooterContainer.style.display = shouldShow ? 'flex' : 'none';
 
@@ -20592,7 +20570,9 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       renderTripTypes(charter) {
-        if (!this.tripTypeTemplate || !this.tripTypeWrapper || !charter.tripOptions) return;
+        if (!this.tripTypeTemplate || !this.tripTypeWrapper || !charter || !Array.isArray(charter.tripOptions)) {
+          return;
+        }
 
         // Clear existing trip type cards except template
         const existingCards = this.tripTypeWrapper.querySelectorAll('[data-element="fishingCharterDetails_tripType_card"]');
