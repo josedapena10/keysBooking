@@ -5662,7 +5662,6 @@ document.addEventListener('DOMContentLoaded', () => {
         this.boatDetailsFullDayBtn = document.querySelector('[data-element="addBoatModal_boatDetails_datesPopup_fullDay"]');
         this.boatDetailsHalfDayBtn = document.querySelector('[data-element="addBoatModal_boatDetails_datesPopup_halfDay"]');
         this.boatDetailsFullHalfDaysContainer = document.querySelector('[data-element="addBoatModal_boatDetails_datesPopup_fullHalfDaysContainer"]');
-        this.boatDetailsMinDaysText = document.querySelector('[data-element="addBoatModal_boatDetails_datesPopup_minDaysText"]');
 
         // Boat details pickup time filter elements (separate from dates now)
         this.boatDetailsPickupTimeFilter = document.querySelector('[data-element="boatDetails_reservation_pickupTime"]');
@@ -6771,8 +6770,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Update pricing if boat details is open
                 if (this.currentBoatData) {
                   this.updateBoatDetailsPricing(this.currentBoatData);
-                  // Update min days text when private dock changes
-                  this.updateBoatDetailsMinDaysText(this.currentBoatData);
                   // Re-check delivery checkbox availability
                   this.setupDeliveryCheckbox(this.currentBoatData);
                 }
@@ -10447,17 +10444,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const effectiveMinDays = Math.max(publicDockMinDays, privateDockMinDays, boatMinDays);
 
-        // Update min days text display
-        if (this.boatDetailsMinDaysText) {
-          if (effectiveMinDays > 1) {
-            const daysText = effectiveMinDays === 1 ? 'Day' : 'Days';
-            this.boatDetailsMinDaysText.textContent = `${effectiveMinDays} ${daysText} Minimum`;
-            this.boatDetailsMinDaysText.style.display = 'block';
-          } else {
-            this.boatDetailsMinDaysText.style.display = 'none';
-          }
-        }
-
         // Hide half-day option if minimum days > 0.5
         if (effectiveMinDays > 0.5 && this.boatDetailsFullHalfDaysContainer) {
           this.boatDetailsFullHalfDaysContainer.style.display = 'none';
@@ -10484,48 +10470,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Update reservation block visibility
         this.updateReservationBlockVisibility();
-      }
-
-      updateBoatDetailsMinDaysText(boat) {
-        if (!this.boatDetailsMinDaysText || !boat) return;
-
-        // Handle min days requirement (public dock, private dock if selected, or boat minimum)
-        const publicDockDetails = this.getPublicDockDeliveryDetails(boat);
-        const publicDockMinDays = publicDockDetails?.minDays ? Number(publicDockDetails.minDays) : 0;
-        const boatMinDays = boat.minReservationLength || 0;
-
-        // Only consider private dock minimum if private dock delivery is selected
-        let privateDockMinDays = 0;
-        if (this.selectedPrivateDock) {
-          const privateDockDetails = this.getPrivateDockDeliveryDetails(boat);
-          privateDockMinDays = privateDockDetails?.minDays ? Number(privateDockDetails.minDays) : 0;
-        }
-
-        const effectiveMinDays = Math.max(publicDockMinDays, privateDockMinDays, boatMinDays);
-
-        // Update min days text display - show if greater than 1 OR if equal to 1 but from private dock
-        if (effectiveMinDays > 1 || (effectiveMinDays >= 1 && privateDockMinDays > 0 && this.selectedPrivateDock)) {
-          const daysText = effectiveMinDays === 1 ? 'Day' : 'Days';
-          this.boatDetailsMinDaysText.textContent = `${effectiveMinDays} ${daysText} Minimum`;
-          this.boatDetailsMinDaysText.style.display = 'block';
-        } else {
-          this.boatDetailsMinDaysText.style.display = 'none';
-        }
-
-        // Hide half-day option if minimum days > 0.5
-        if (effectiveMinDays > 0.5 && this.boatDetailsFullHalfDaysContainer) {
-          this.boatDetailsFullHalfDaysContainer.style.display = 'none';
-          // Force full day type
-          this.selectedLengthType = 'full';
-          // Update URL to reflect full type
-          const urlParams = new URLSearchParams(window.location.search);
-          urlParams.set('type', 'full');
-          const newUrl = `${window.location.pathname}?${urlParams.toString()}`;
-          window.history.replaceState(null, '', newUrl);
-        } else if (this.boatDetailsFullHalfDaysContainer) {
-          // Show half-day option if allowed
-          this.boatDetailsFullHalfDaysContainer.style.display = 'flex';
-        }
       }
 
       hideBoatDetails() {
