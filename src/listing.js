@@ -2616,6 +2616,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const priceDetailsElements = document.querySelectorAll('[data-element="Listing_Query_Price_Details"]');
   const totalContainers = document.querySelectorAll('[data-element="Listing_Reservation_Amount_Total_Container"]');
   const wontBeChargedElements = document.querySelectorAll('[data-element="ListingReservation_WontBeCharged_Text"]');
+  // Prefetch caches for extras details to speed up missing-dates flow
+  window.prefetchedBoatData = null;
+  window.prefetchedCharterData = window.prefetchedCharterData || {};
 
   // Default: hide pricing/total until validation explicitly shows them
   priceDetailsElements.forEach(el => { if (el) el.style.display = 'none'; });
@@ -2655,6 +2658,12 @@ document.addEventListener('DOMContentLoaded', () => {
       totalContainers.forEach(el => { if (el) el.style.display = 'none'; });
       addDatesHeadings.forEach(el => { if (el) el.style.display = 'flex'; });
       wontBeChargedElements.forEach(el => { if (el) el.style.display = 'none'; });
+    }
+
+    // Prefetch extras data if stay dates exist and extras need dates
+    const hasStayDates = urlParams.get('checkin') && urlParams.get('checkout');
+    if (extrasNeedDates && hasStayDates) {
+      prefetchMissingExtrasData();
     }
   })();
 
@@ -3497,30 +3506,34 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Prevent body scroll when modal is open
                 document.body.classList.add('no-scroll');
 
-                // If dates are needed, open the dates popup immediately (before fetching details)
-                if (needsDates) {
-                  const datesPopup = document.querySelector('[data-element="addBoatModal_boatDetails_datesPopup"]');
-                  if (datesPopup) {
-                    window.boatRentalService.autoOpenedFromMissingDates = true;
-                    const reservationBlock = document.querySelector('[data-element="boatRental_listingPage_reservationBlock"]');
-                    if (reservationBlock && this.isMobileView()) {
-                      reservationBlock.style.display = 'flex';
-                    }
-                    datesPopup.style.display = 'flex';
-                    if (!this.isMobileView()) {
-                      datesPopup.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    }
-                  }
-                }
-
                 // Wait for boatRentalService to be available and trigger boat details loading
                 const waitForService = () => {
                   if (window.boatRentalService && window.boatRentalService.handleEditBoat) {
                     // Use the new edit method that fetches boat data and opens to details view
-                    const done = window.boatRentalService.handleEditBoat(boatId);
+                    const done = window.boatRentalService.handleEditBoat(boatId, window.prefetchedBoatData || null);
 
                     Promise.resolve(done).then(() => {
-                      // No-op here; dates popup already handled immediately above when needed
+                      // If boat needs dates, automatically open the dates popup immediately (no delay)
+                      if (needsDates) {
+                        const hasStayDates = !!(urlParams.get('checkin') && urlParams.get('checkout'));
+                        if (needsDates && hasStayDates) {
+                          const datesPopup = document.querySelector('[data-element="addBoatModal_boatDetails_datesPopup"]');
+                          if (datesPopup) {
+                            // Remember this popup was auto-opened for missing dates so we can auto-save on exit
+                            window.boatRentalService.autoOpenedFromMissingDates = true;
+                            // Ensure reservation block is visible on mobile while selecting dates
+                            const reservationBlock = document.querySelector('[data-element="boatRental_listingPage_reservationBlock"]');
+                            if (reservationBlock) {
+                              reservationBlock.style.display = 'flex';
+                            }
+                            datesPopup.style.display = 'flex';
+                            // No scroll on mobile to avoid jank; desktop can still scroll if needed
+                            if (!this.isMobileView()) {
+                              datesPopup.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            }
+                          }
+                        }
+                      }
                     });
                   } else {
                     // If service not ready, wait a bit and try again
@@ -4382,6 +4395,47 @@ async function updatePricingDisplayForExtras() {
       }
     }
     return false;
+  }
+
+  // Prefetch missing extras data (boat and charters) to speed up modal display when adding dates
+  async function prefetchMissingExtrasData() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const hasStayDates = urlParams.get('checkin') && urlParams.get('checkout');
+    if (!hasStayDates) return;
+
+    // Boat
+    const boatId = urlParams.get('boatId');
+    const boatDates = urlParams.get('boatDates');
+    if (boatId && (!boatDates || boatDates.trim() === '') && !window.prefetchedBoatData) {
+      try {
+        const res = await fetch(`https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/boats/${boatId}`);
+        if (res.ok) {
+          window.prefetchedBoatData = await res.json();
+        }
+      } catch (e) {
+      }
+    }
+
+    // Fishing charters
+    for (const [key, value] of urlParams.entries()) {
+      const match = key.match(/^fishingCharterId(\d+)$/);
+      if (match) {
+        const num = match[1];
+        const charterId = value;
+        const charterDates = urlParams.get(`fishingCharterDates${num}`);
+        if (charterId && (!charterDates || charterDates.trim() === '')) {
+          if (!window.prefetchedCharterData[charterId]) {
+            try {
+              const res = await fetch(`https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/fishingcharters/${charterId}`);
+              if (res.ok) {
+                window.prefetchedCharterData[charterId] = await res.json();
+              }
+            } catch (e) {
+            }
+          }
+        }
+      }
+    }
   }
 
   // Extras are selected - show extras pricing
@@ -15130,10 +15184,8 @@ document.addEventListener('DOMContentLoaded', () => {
           const { checkin, checkout } = this.getCheckInOutDates();
           const hasStayDates = !!(checkin && checkout && checkin.trim() !== '' && checkout.trim() !== '');
           if (hasStayDates) {
-            // Open dates popup immediately to avoid lag/flashing
-            this.openDetailsDatesPopup({ scrollIntoView: this.isMobileView() ? false : true, reason: 'missingDates' });
-            this.autoOpenDetailsDatesAfterShow = false;
-            this.autoOpenDetailsDatesReason = null;
+            this.autoOpenDetailsDatesAfterShow = true;
+            this.autoOpenDetailsDatesReason = 'missingDates';
           }
         }
       }
@@ -15141,12 +15193,16 @@ document.addEventListener('DOMContentLoaded', () => {
       // Fetch charter data and show details for editing
       async fetchAndShowCharterForEdit(charterId, tripId) {
         try {
-          const response = await fetch(`https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/fishingcharters/${charterId}`);
-          if (!response.ok) {
-            throw new Error('Failed to fetch charter data');
+          let charter = window.prefetchedCharterData && window.prefetchedCharterData[charterId];
+          if (!charter) {
+            const response = await fetch(`https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/fishingcharters/${charterId}`);
+            if (!response.ok) {
+              throw new Error('Failed to fetch charter data');
+            }
+            charter = await response.json();
+            if (!window.prefetchedCharterData) window.prefetchedCharterData = {};
+            window.prefetchedCharterData[charterId] = charter;
           }
-
-          const charter = await response.json();
 
           // Store the trip ID being edited for the handleAddToReservation method
           this.editingTripId = tripId;
