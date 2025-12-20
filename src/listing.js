@@ -187,19 +187,21 @@ function truncateToFit(element) {
       return;
     }
 
-    // Wait for first 5 header images to load
+    // On mobile, only wait for the first image; on desktop, wait for first 5
     const images = splideElement.querySelectorAll('img');
-    const firstFiveImages = Array.from(images).slice(0, 5);
+    const isMobile = window.innerWidth <= 991;
+    const targetCount = isMobile ? 1 : 5;
+    const firstImages = Array.from(images).slice(0, targetCount);
 
-    if (firstFiveImages.length === 0) {
+    if (firstImages.length === 0) {
       checkAllContentLoaded();
       return;
     }
 
     let loadedCount = 0;
-    const totalToLoad = Math.min(firstFiveImages.length, 5);
+    const totalToLoad = Math.min(firstImages.length, targetCount);
 
-    firstFiveImages.forEach((img, index) => {
+    firstImages.forEach((img, index) => {
       if (img.complete && img.naturalHeight !== 0) {
         loadedCount++;
       } else {
@@ -2403,11 +2405,9 @@ document.addEventListener('DOMContentLoaded', () => {
           type: 'loop',   // Enable looping
         });
 
+        // On mobile, keep pagination minimal; on desktop, limit to 5 dots
         slider.on('pagination:mounted', function (data) {
-          // Limit the number of pagination dots to a maximum of 5
-          const maxDots = 5;
-
-          // Hide excess pagination dots beyond maxDots
+          const maxDots = window.innerWidth <= 991 ? 3 : 5;
           data.items.forEach((item, i) => {
             if (i >= maxDots) {
               item.li.style.display = 'none';
@@ -2416,20 +2416,10 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         slider.on('move', function (newIndex) {
-          const maxDots = 5;
-
-          // Calculate which dot should be highlighted based on the current slide
+          const maxDots = window.innerWidth <= 991 ? 3 : 5;
           const activeDotIndex = newIndex % maxDots;
-
-          // Get all pagination dots
           const dots = splide.querySelectorAll('.splide__pagination__page');
-
-          // Remove active class from all dots
-          dots.forEach((dot) => {
-            dot.classList.remove('is-active');
-          });
-
-          // Add active class to the correct dot
+          dots.forEach((dot) => dot.classList.remove('is-active'));
           if (dots[activeDotIndex]) {
             dots[activeDotIndex].classList.add('is-active');
           }
@@ -2442,21 +2432,21 @@ document.addEventListener('DOMContentLoaded', () => {
           var li = document.createElement('li');
           li.classList.add('splide__slide');
 
-          // First image gets highest priority for instant loading
+          // Mobile: only the first image eager/high priority; others lazy
+          // Desktop: first 3 eager for faster initial carousel
+          const isMobile = window.innerWidth <= 991;
           if (index === 0) {
             li.innerHTML = `<img src="${photoUrl.property_image.url}" 
                              alt="Property Photo"
                              loading="eager"
                              fetchpriority="high"
                              decoding="async">`;
-          } else if (index < 3) {
-            // Load first 3 images eagerly
+          } else if (!isMobile && index < 3) {
             li.innerHTML = `<img src="${photoUrl.property_image.url}" 
                              alt="Property Photo"
                              loading="eager"
                              decoding="async">`;
           } else {
-            // Rest load lazily
             li.innerHTML = `<img src="${photoUrl.property_image.url}" 
                              alt="Property Photo"
                              loading="lazy"
@@ -3507,6 +3497,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Prevent body scroll when modal is open
                 document.body.classList.add('no-scroll');
 
+                // If dates are needed, open the dates popup immediately (before fetching details)
+                if (needsDates) {
+                  const datesPopup = document.querySelector('[data-element="addBoatModal_boatDetails_datesPopup"]');
+                  if (datesPopup) {
+                    window.boatRentalService.autoOpenedFromMissingDates = true;
+                    const reservationBlock = document.querySelector('[data-element="boatRental_listingPage_reservationBlock"]');
+                    if (reservationBlock && this.isMobileView()) {
+                      reservationBlock.style.display = 'flex';
+                    }
+                    datesPopup.style.display = 'flex';
+                    if (!this.isMobileView()) {
+                      datesPopup.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                  }
+                }
+
                 // Wait for boatRentalService to be available and trigger boat details loading
                 const waitForService = () => {
                   if (window.boatRentalService && window.boatRentalService.handleEditBoat) {
@@ -3514,27 +3520,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const done = window.boatRentalService.handleEditBoat(boatId);
 
                     Promise.resolve(done).then(() => {
-                      // If boat needs dates, automatically open the dates popup immediately (no delay)
-                      if (needsDates) {
-                        const hasStayDates = !!(urlParams.get('checkin') && urlParams.get('checkout'));
-                        if (needsDates && hasStayDates) {
-                          const datesPopup = document.querySelector('[data-element="addBoatModal_boatDetails_datesPopup"]');
-                          if (datesPopup) {
-                            // Remember this popup was auto-opened for missing dates so we can auto-save on exit
-                            window.boatRentalService.autoOpenedFromMissingDates = true;
-                            // Ensure reservation block is visible on mobile while selecting dates
-                            const reservationBlock = document.querySelector('[data-element="boatRental_listingPage_reservationBlock"]');
-                            if (reservationBlock) {
-                              reservationBlock.style.display = 'flex';
-                            }
-                            datesPopup.style.display = 'flex';
-                            // No scroll on mobile to avoid jank; desktop can still scroll if needed
-                            if (!this.isMobileView()) {
-                              datesPopup.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                            }
-                          }
-                        }
-                      }
+                      // No-op here; dates popup already handled immediately above when needed
                     });
                   } else {
                     // If service not ready, wait a bit and try again
@@ -4142,9 +4128,11 @@ document.addEventListener('DOMContentLoaded', () => {
       const hasCheckout = urlParams.has('checkout') && urlParams.get('checkout') !== "";
       const datesSelected = hasCheckin && hasCheckout;
       const extrasInfo = window.getExtrasNeedingDates ? window.getExtrasNeedingDates() : { hasAnyExtrasNeedingDates: false };
+      const extrasMissingInURL = typeof hasExtrasMissingDatesInURL === 'function' ? hasExtrasMissingDatesInURL() : false;
+      const extrasNeedDates = extrasInfo.hasAnyExtrasNeedingDates || extrasMissingInURL;
 
       // Show/hide footer based on date selection
-      if (!datesSelected || extrasInfo.hasAnyExtrasNeedingDates) {
+      if (!datesSelected || extrasNeedDates) {
         phoneFooterContainer.style.display = 'none';
         return;
       }
@@ -4370,6 +4358,30 @@ async function updatePricingDisplayForExtras() {
       }
     });
     return;
+  }
+
+  // Helper: detect extras in URL that are missing dates
+  function hasExtrasMissingDatesInURL() {
+    const urlParams = new URLSearchParams(window.location.search);
+    // Boat missing dates
+    const boatId = urlParams.get('boatId');
+    const boatDates = urlParams.get('boatDates');
+    if (boatId && (!boatDates || boatDates.trim() === '')) {
+      return true;
+    }
+    // Fishing charters missing dates
+    for (const [key, value] of urlParams.entries()) {
+      const match = key.match(/^fishingCharterId(\d+)$/);
+      if (match) {
+        const num = match[1];
+        const charterId = value;
+        const charterDates = urlParams.get(`fishingCharterDates${num}`);
+        if (charterId && (!charterDates || charterDates.trim() === '')) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
 
   // Extras are selected - show extras pricing
@@ -15118,8 +15130,10 @@ document.addEventListener('DOMContentLoaded', () => {
           const { checkin, checkout } = this.getCheckInOutDates();
           const hasStayDates = !!(checkin && checkout && checkin.trim() !== '' && checkout.trim() !== '');
           if (hasStayDates) {
-            this.autoOpenDetailsDatesAfterShow = true;
-            this.autoOpenDetailsDatesReason = 'missingDates';
+            // Open dates popup immediately to avoid lag/flashing
+            this.openDetailsDatesPopup({ scrollIntoView: this.isMobileView() ? false : true, reason: 'missingDates' });
+            this.autoOpenDetailsDatesAfterShow = false;
+            this.autoOpenDetailsDatesReason = null;
           }
         }
       }
@@ -21769,7 +21783,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // Show pricing when dates are selected, valid, guests are valid, AND no extras need dates
       const stayDatesValid = validation.datesSelected && validation.datesValid && validation.guestsValid;
       const hasExtras = window.hasAnyExtrasSelected && window.hasAnyExtrasSelected();
-      const extrasNeedDates = validation.extrasNeedDates;
+      const extrasNeedDates = validation.extrasNeedDates || hasExtrasMissingDatesInURL();
 
       // Only show pricing when ALL dates are selected (stay + extras)
       // If extras need dates, keep showing "Add Dates" heading instead
