@@ -3770,6 +3770,11 @@ document.addEventListener('DOMContentLoaded', () => {
           element.textContent = formattedPrice;
         }
       });
+
+      // Update mobile footer after totals change to keep footer state in sync
+      if (window.updatePhoneReservationFooter) {
+        window.updatePhoneReservationFooter();
+      }
     }
 
     // Function to update phone total description
@@ -4214,7 +4219,8 @@ document.addEventListener('DOMContentLoaded', () => {
         datesSelected,
         extrasNeedDates,
         extrasInfo,
-        extrasMissingInURL
+        extrasMissingInURL,
+        urlParamsSnapshot: Array.from(urlParams.entries()).filter(([k]) => k.startsWith('boat') || k.startsWith('fishingCharter'))
       });
 
       // Show/hide footer based on date selection
@@ -4226,6 +4232,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Check if we have valid data and dates are available
       let shouldShow = false;
+      let allAvailable = false;
+      let meetsMinNights = false;
       if (r && r.Load_Property_Calendar_Query && r.Load_Property_Calendar_Query.data &&
         r.Load_Property_Details && r.Load_Property_Details.data &&
         r.Load_Property_Details.data.property) {
@@ -4233,9 +4241,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const propertyCalendarRange = r.Load_Property_Calendar_Query.data.property_calendar_range;
         const minNights = r.Load_Property_Details.data.property.min_nights;
 
-        let allAvailable = true;
+        allAvailable = true;
         let consecutiveAvailableDays = 0;
-        let meetsMinNights = false;
+        meetsMinNights = false;
 
         for (let i = 0; i < propertyCalendarRange.length; i++) {
           if (propertyCalendarRange[i].status === "available") {
