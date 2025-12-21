@@ -101,16 +101,25 @@ document.addEventListener('DOMContentLoaded', () => {
             const card = baseTemplate.cloneNode(true);
 
             // trip name
-            setImageOrText(card.querySelector('[data-element="card_image"]'), trip?.trip_name || '');
+            setImageOrText(card.querySelector('[data-element="card_title"]'), trip?.trip_name || '');
 
             // cover image
-            setImageOrText(card.querySelector('[data-element="card_title"]'), trip?.post_coverImage?.url || '');
+            setImageOrText(card.querySelector('[data-element="card_image"]'), trip?.post_coverImage?.url || '');
 
             // nights
             const nightsEl = card.querySelector('[data-element="card_city_nights"]');
             if (nightsEl) {
                 const nights = trip?.trip_nights;
-                nightsEl.textContent = typeof nights === 'number' ? `${nights} night${nights === 1 ? '' : 's'}` : '';
+                const city = trip?._property?.listing_city_state || '';
+                const nightsText = typeof nights === 'number' ? `${nights} night${nights === 1 ? '' : 's'}` : '';
+
+                if (city && nightsText) {
+                    nightsEl.textContent = `${city} · ${nightsText}`;
+                } else if (city) {
+                    nightsEl.textContent = city;
+                } else {
+                    nightsEl.textContent = nightsText;
+                }
             }
 
             // stay image
