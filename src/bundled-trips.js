@@ -192,6 +192,17 @@ document.addEventListener('DOMContentLoaded', () => {
         return primary?.image?.url || '';
     };
 
+    const waitForImages = (root) => {
+        const imgs = Array.from(root.querySelectorAll('img'));
+        if (!imgs.length) return Promise.resolve();
+        const toPromise = (img) => new Promise((resolve) => {
+            if (img.complete && img.naturalWidth > 0) return resolve();
+            img.addEventListener('load', () => resolve(), { once: true });
+            img.addEventListener('error', () => resolve(), { once: true });
+        });
+        return Promise.all(imgs.map(toPromise)).then(() => undefined);
+    };
+
     const renderTrips = (trips) => {
         trips.forEach((trip) => {
             const card = baseTemplate.cloneNode(true);
@@ -307,6 +318,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
         });
+
+        // wait for images to settle before hiding loader
+        return waitForImages(cardsContainer);
     };
 
     setLoading(true);
@@ -314,8 +328,10 @@ document.addEventListener('DOMContentLoaded', () => {
     fetch(apiUrl)
         .then((res) => res.json())
         .then((data) => {
-            setLoading(false);
-            if (!Array.isArray(data)) return;
+            if (!Array.isArray(data)) {
+                setLoading(false);
+                return;
+            }
 
             const params = new URLSearchParams(window.location.search);
             const referenceRaw = params.get('reference') || '';
@@ -344,7 +360,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 linked_used_name: referenceNormalized ? toTitleLike(referenceRaw) : '',
             });
 
-            renderTrips(tripsToRender);
+            renderTrips(tripsToRender).finally(() => setLoading(false));
         })
         .catch((err) => {
             setLoading(false);
