@@ -95,6 +95,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const baseTemplate = templateCard.cloneNode(true);
     templateCard.remove();
 
+    // Loader element
+    const loaderEl = document.querySelector('[data-element="loader"]');
+    const setLoading = (isLoading) => {
+        if (!loaderEl) return;
+        loaderEl.style.display = isLoading ? 'block' : 'none';
+    };
+
     const setImageOrText = (el, value) => {
         if (!el) return;
 
@@ -302,9 +309,12 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
+    setLoading(true);
+
     fetch(apiUrl)
         .then((res) => res.json())
         .then((data) => {
+            setLoading(false);
             if (!Array.isArray(data)) return;
 
             const params = new URLSearchParams(window.location.search);
@@ -337,6 +347,7 @@ document.addEventListener('DOMContentLoaded', () => {
             renderTrips(tripsToRender);
         })
         .catch((err) => {
+            setLoading(false);
             console.error('Failed to load bundled trips', err);
         });
 });
