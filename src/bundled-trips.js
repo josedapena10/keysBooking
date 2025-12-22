@@ -110,14 +110,58 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    const setButtonLink = (el, url) => {
+    // Session + helpers for matching/logging
+    const sessionId = (crypto && crypto.randomUUID) ? crypto.randomUUID() :
+        `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+
+    const normalizeForMatch = (str = '') =>
+        str.toLowerCase().replace(/-/g, ' ').replace(/\s+/g, ' ').trim();
+
+    const toTitleLike = (str = '') =>
+        normalizeForMatch(str).replace(/\b\w/g, c => c.toUpperCase());
+
+    const logEvent = (payload = {}) => {
+        const body = {
+            session_id: sessionId,
+            on_load: false,
+            link_used: '',
+            linked_used_name: '',
+            on_link_click: false,
+            link_clicked: '',
+            link_clicked_trip_name: '',
+            ...payload
+        };
+
+        try {
+            fetch('https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/bundled_trips_eventlog', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+                keepalive: true
+            }).catch(() => { });
+        } catch (e) {
+            // ignore network errors
+        }
+    };
+
+    const setButtonLink = (el, url, tripName = '') => {
         if (!el || !url) return;
+        const handleClick = () => {
+            logEvent({
+                on_link_click: true,
+                link_clicked: url.toLowerCase(),
+                link_clicked_trip_name: tripName
+            });
+        };
+
         if (el.tagName === 'A') {
             el.href = url;
             el.target = '_blank';
             el.rel = 'noopener';
+            el.addEventListener('click', handleClick);
         } else {
             el.addEventListener('click', () => {
+                handleClick();
                 window.open(url, '_blank', 'noopener');
             });
         }
@@ -245,7 +289,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // visit page button
-            setButtonLink(card.querySelector('[data-element="card_visitPage_button"]'), trip?.trip_link);
+            setButtonLink(card.querySelector('[data-element="card_visitPage_button"]'), trip?.trip_link, trip?.trip_name || '');
 
             cardsContainer.appendChild(card);
 
@@ -262,7 +306,35 @@ document.addEventListener('DOMContentLoaded', () => {
         .then((res) => res.json())
         .then((data) => {
             if (!Array.isArray(data)) return;
-            renderTrips(data);
+
+            const params = new URLSearchParams(window.location.search);
+            const referenceRaw = params.get('reference') || '';
+            const referenceNormalized = normalizeForMatch(referenceRaw);
+
+            // baseline order: soonest publish_date first
+            const sorted = [...data].sort((a, b) => {
+                const da = a?.publish_date ? new Date(a.publish_date).getTime() : Infinity;
+                const db = b?.publish_date ? new Date(b.publish_date).getTime() : Infinity;
+                return da - db;
+            });
+
+            let tripsToRender = sorted;
+            if (referenceNormalized) {
+                const idx = sorted.findIndex(trip => normalizeForMatch(trip?.trip_name || '') === referenceNormalized);
+                if (idx > -1) {
+                    const [match] = sorted.splice(idx, 1);
+                    tripsToRender = [match, ...sorted];
+                }
+            }
+
+            // log on-load event
+            logEvent({
+                on_load: true,
+                link_used: referenceRaw || '',
+                linked_used_name: referenceNormalized ? toTitleLike(referenceRaw) : '',
+            });
+
+            renderTrips(tripsToRender);
         })
         .catch((err) => {
             console.error('Failed to load bundled trips', err);
