@@ -143,6 +143,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const renderTrips = (trips) => {
         trips.forEach((trip) => {
             const card = baseTemplate.cloneNode(true);
+            const toTruncate = [];
 
             // trip name
             setImageOrText(card.querySelector('[data-element="card_title"]'), trip?.trip_name || '');
@@ -176,12 +177,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const stayCompanyEl = card.querySelector('[data-element="card_stay_company"]');
             if (stayNameEl) {
                 stayNameEl.textContent = trip?._property?.property_name || '';
-                truncateToFit(stayNameEl);
+                toTruncate.push(stayNameEl);
             }
             if (stayCompanyEl) {
                 const hostFirst = trip?._property?._host_info?.First_Name || '';
                 stayCompanyEl.textContent = hostFirst ? `Hosted by ${hostFirst}` : '';
-                truncateToFit(stayCompanyEl);
+                toTruncate.push(stayCompanyEl);
             }
 
             // boat image
@@ -198,11 +199,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 );
                 if (boatNameEl) {
                     boatNameEl.textContent = trip?._boat?.name || '';
-                    truncateToFit(boatNameEl);
+                    toTruncate.push(boatNameEl);
                 }
                 if (boatCompanyEl) {
-                    boatCompanyEl.textContent = trip?._boat?.__boatcompany?.name || '';
-                    truncateToFit(boatCompanyEl);
+                    boatCompanyEl.textContent =
+                        trip?._boat?.__boatcompany?.name ||
+                        trip?._boat?._boatcompany?.name ||
+                        trip?._boat?.boat_company?.name ||
+                        '';
+                    toTruncate.push(boatCompanyEl);
                 }
             }
 
@@ -226,12 +231,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     const tripOptionName = charter?._fishingcharter?.tripOptions?.find((opt) => opt?.id === tripId)?.name || '';
                     if (charterNameEl) {
                         charterNameEl.textContent = tripOptionName;
-                        truncateToFit(charterNameEl);
+                        toTruncate.push(charterNameEl);
                     }
 
                     if (charterCompanyEl) {
                         charterCompanyEl.textContent = charter?.__fishingcharter?.name || charter?._fishingcharter?.name || '';
-                        truncateToFit(charterCompanyEl);
+                        toTruncate.push(charterCompanyEl);
                     }
 
                     charterParent.appendChild(block);
@@ -242,6 +247,13 @@ document.addEventListener('DOMContentLoaded', () => {
             setButtonLink(card.querySelector('[data-element="card_visitPage_button"]'), trip?.trip_link);
 
             cardsContainer.appendChild(card);
+
+            // defer truncation until after layout
+            if (toTruncate.length) {
+                requestAnimationFrame(() => {
+                    toTruncate.forEach(truncateToFit);
+                });
+            }
         });
     };
 
