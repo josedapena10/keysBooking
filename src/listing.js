@@ -1180,6 +1180,7 @@ document.addEventListener('DOMContentLoaded', function () {
     let checkoutOnlyDates = new Set(); // Dates only available for checkout
     let unclickableCheckInDates = new Set(); // Available dates that can't be used as check-in
     let selectingCheckOut = false;
+    let isRefreshingCalendarData = false;
 
     // Convert disabled dates from API
     calendarData.data.forEach(item => {
@@ -1353,6 +1354,69 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         currentDate = addDays(currentDate, 1);
+      }
+    }
+
+    // Ensure latest availability data is applied before rendering calendars
+    async function refreshStayCalendarData(resetViewToSelectedDate = false) {
+      if (isRefreshingCalendarData) return;
+      isRefreshingCalendarData = true;
+
+      try {
+        const hasDisabledData = Wized.data.r &&
+          Wized.data.r.Load_Property_Calendar_Disabled &&
+          Array.isArray(Wized.data.r.Load_Property_Calendar_Disabled.data);
+
+        const hasPropertyDetails = Wized.data.r &&
+          Wized.data.r.Load_Property_Details &&
+          Wized.data.r.Load_Property_Details.data;
+
+        // If disabled dates aren't loaded (or were cleared by another flow), fetch them again
+        if (!hasDisabledData && Wized.requests && typeof Wized.requests.execute === 'function') {
+          Wized.requests.execute('Load_Property_Calendar_Disabled');
+        }
+
+        // Wait for required data before rebuilding state
+        if (!hasDisabledData) {
+          await Wized.requests.waitFor('Load_Property_Calendar_Disabled');
+        }
+        if (!hasPropertyDetails) {
+          await Wized.requests.waitFor('Load_Property_Details');
+        }
+
+        if (Wized.data.r && Wized.data.r.Load_Property_Calendar_Disabled) {
+          calendarData = Wized.data.r.Load_Property_Calendar_Disabled;
+        }
+        if (Wized.data.r &&
+          Wized.data.r.Load_Property_Details &&
+          Wized.data.r.Load_Property_Details.data &&
+          Wized.data.r.Load_Property_Details.data.property) {
+          propertyData = Wized.data.r.Load_Property_Details.data.property;
+        }
+
+        // Rebuild availability sets from freshest data
+        disabledDates.clear();
+        checkoutOnlyDates.clear();
+        unclickableCheckInDates.clear();
+
+        if (calendarData && Array.isArray(calendarData.data)) {
+          calendarData.data.forEach(item => {
+            disabledDates.add(item.date);
+            if (item.isAvailableForCheckout === true) {
+              checkoutOnlyDates.add(item.date);
+            }
+          });
+        }
+
+        // Recompute derived state and re-render calendars
+        markSmallGapsAsUnavailable();
+        markUnclickableCheckInDates();
+        createCalendar(resetViewToSelectedDate);
+        createMobileCalendar();
+      } catch (error) {
+        console.error('Failed to refresh stay calendar data', error);
+      } finally {
+        isRefreshingCalendarData = false;
       }
     }
 
@@ -1989,14 +2053,15 @@ document.addEventListener('DOMContentLoaded', function () {
     window.resetCalendarView = function () {
       createCalendar(true); // Pass true to reset view to selected date
     };
+    // Expose refresh helper so other flows (extras/dates removal) can force a rebuild
+    window.refreshStayCalendarData = refreshStayCalendarData;
 
     // Initialize inputs first, then create calendars to ensure proper styling
     updateInputs();
 
     // Add slight delay to ensure DOM is ready and proper styling is applied
     setTimeout(() => {
-      createCalendar();
-      createMobileCalendar();
+      refreshStayCalendarData();
     }, 10);
 
     // Add clear dates functionality
@@ -2738,11 +2803,16 @@ document.addEventListener('DOMContentLoaded', () => {
             }
           }
 
-          if (isVisible && window.resetCalendarView) {
-            // Reset view to selected date when modal opens
-            setTimeout(() => {
-              window.resetCalendarView();
-            }, 50);
+          if (isVisible) {
+            // Always rebuild availability when modal opens to avoid stale state after extras/date changes
+            if (window.refreshStayCalendarData) {
+              window.refreshStayCalendarData(true);
+            } else if (window.resetCalendarView) {
+              // Fallback to previous behavior
+              setTimeout(() => {
+                window.resetCalendarView();
+              }, 50);
+            }
           }
         }
       });
@@ -2764,6 +2834,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
           const isVisible = window.getComputedStyle(mobileCalendarModal).display !== 'none';
           if (isVisible) {
+            if (window.refreshStayCalendarData) {
+              window.refreshStayCalendarData(true);
+            }
             scrollMobileCalendarToSelectedMonth();
           }
         }
@@ -2808,6 +2881,9 @@ document.addEventListener('DOMContentLoaded', () => {
       if (button) {
         button.addEventListener('click', function (e) {
           // The desktop modal is already handled above, also show mobile modal if it exists
+          if (window.refreshStayCalendarData) {
+            window.refreshStayCalendarData(true);
+          }
           mobileCalendarModal.style.display = 'flex';
           // Prevent body scroll on mobile (991px or less)
           if (window.innerWidth <= 991) {
@@ -2823,6 +2899,9 @@ document.addEventListener('DOMContentLoaded', () => {
       if (button) {
         button.addEventListener('click', function (e) {
           // The desktop modal is already handled above, also show mobile modal if it exists
+          if (window.refreshStayCalendarData) {
+            window.refreshStayCalendarData(true);
+          }
           mobileCalendarModal.style.display = 'flex';
           // Prevent body scroll on mobile (991px or less)
           if (window.innerWidth <= 991) {
