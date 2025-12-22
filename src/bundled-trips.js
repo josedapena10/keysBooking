@@ -115,9 +115,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (el.tagName === 'A') {
             el.href = url;
             el.target = '_blank';
+            el.rel = 'noopener';
         } else {
             el.addEventListener('click', () => {
-                window.location.href = url;
+                window.open(url, '_blank', 'noopener');
             });
         }
     };
@@ -571,6 +572,11 @@ window.Wized.push((Wized) => {
     //forgot password
     // Handle input rules for ForgotPassword_Email
     const forgotPasswordEmailInput = Wized.elements.get('ForgotPassword_Email');
+
+    // If the element is missing (e.g., different page), skip attaching handlers
+    if (!forgotPasswordEmailInput || !forgotPasswordEmailInput.node) {
+        return;
+    }
 
     // Add validation logic for ForgotPassword_Email
     forgotPasswordEmailInput.node.addEventListener('focus', (event) => {
