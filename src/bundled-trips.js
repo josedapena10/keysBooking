@@ -99,7 +99,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const loaderEl = document.querySelector('[data-element="loader"]');
     const setLoading = (isLoading) => {
         if (!loaderEl) return;
-        loaderEl.style.display = isLoading ? 'block' : 'none';
+        loaderEl.style.display = isLoading ? 'flex' : 'none';
     };
 
     const setImageOrText = (el, value) => {
