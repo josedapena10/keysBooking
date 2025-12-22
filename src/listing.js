@@ -4152,6 +4152,18 @@ document.addEventListener('DOMContentLoaded', () => {
         const property = r.Load_Property_Details.data.property;
         const cancellationPolicy = property.cancellation_policy;
 
+        // Guard: if no check-in date (dates cleared) or malformed date, clear and exit to avoid invalid Date errors
+        const checkInDate = n.parameter.checkin;
+        const isValidCheckIn = typeof checkInDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(checkInDate);
+        if (!isValidCheckIn) {
+          freeCancellationTextElements.forEach(element => {
+            if (element) {
+              element.textContent = "";
+            }
+          });
+          return;
+        }
+
         if (!cancellationPolicy) {
           freeCancellationTextElements.forEach(element => {
             if (element) {
@@ -4163,7 +4175,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const today = new Date();
         const todayStr = today.toISOString().split("T")[0];
-        const checkInDate = n.parameter.checkin;
 
         let cutoffDate;
 
@@ -5047,6 +5058,16 @@ function updateStayCancellationPolicy() {
 
   const property = r.Load_Property_Details.data.property;
   const cancellationPolicy = property.cancellation_policy;
+  // Validate check-in format before parsing
+  const isValidCheckIn = typeof n.parameter.checkin === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(n.parameter.checkin);
+  if (!isValidCheckIn) {
+    stayFreeCancellationElements.forEach(element => {
+      if (element) {
+        element.textContent = "";
+      }
+    });
+    return;
+  }
 
   if (!cancellationPolicy) {
     stayFreeCancellationElements.forEach(element => {
