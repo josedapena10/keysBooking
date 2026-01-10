@@ -2485,6 +2485,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     Wized.on('requestend', (event) => {
       if (event.name === 'Load_Property_Details') {
+        const splideLogPrefix = '[Splide Init]';
+        const now = () => Math.round(performance.now());
+        console.log(`${splideLogPrefix} requestend: Load_Property_Details @ ${now()}ms`);
 
         // Check property private dock status for boat rental service
         if (window.boatRentalService) {
@@ -2497,22 +2500,31 @@ document.addEventListener('DOMContentLoaded', () => {
         // Preload the first photo to reduce initial slider paint delay
         if (propertyPhotos && propertyPhotos[0] && propertyPhotos[0].property_image && propertyPhotos[0].property_image.url) {
           const firstPhotoUrl = propertyPhotos[0].property_image.url;
+          console.log(`${splideLogPrefix} first photo preload start @ ${now()}ms`, { firstPhotoUrl });
           const preload = document.createElement('link');
           preload.rel = 'preload';
           preload.as = 'image';
           preload.href = firstPhotoUrl;
           preload.fetchPriority = 'high';
           document.head.appendChild(preload);
+        } else {
+          console.warn(`${splideLogPrefix} missing first photo data`, { propertyPhotos });
         }
 
         // Select all elements that should be Splide sliders
         var splide = document.querySelector('.splide');
+        const isMobile = window.innerWidth <= 991;
+        console.log(`${splideLogPrefix} preparing slider @ ${now()}ms`, {
+          isMobile,
+          propertyPhotosLength: Array.isArray(propertyPhotos) ? propertyPhotos.length : 0
+        });
 
 
         // Initialize Splide for this slider
         var slider = new Splide(splide, {
           type: 'loop',   // Enable looping
         });
+        console.log(`${splideLogPrefix} slider created before mount @ ${now()}ms`);
 
         // On mobile, keep pagination minimal; on desktop, limit to 5 dots
         slider.on('pagination:mounted', function (data) {
@@ -2535,6 +2547,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         slider.mount();
+        console.log(`${splideLogPrefix} slider mounted @ ${now()}ms`);
 
         // Add slides for each image with optimized loading
         propertyPhotos.forEach((photoUrl, index) => {
@@ -2543,27 +2556,34 @@ document.addEventListener('DOMContentLoaded', () => {
 
           // Mobile: only the first image eager/high priority; others lazy
           // Desktop: first 3 eager for faster initial carousel
-          const isMobile = window.innerWidth <= 991;
           if (index === 0) {
             li.innerHTML = `<img src="${photoUrl.property_image.url}" 
                              alt="Property Photo"
                              loading="eager"
                              fetchpriority="high"
                              decoding="async">`;
+            console.log(`${splideLogPrefix} added first slide @ ${now()}ms`, { index, url: photoUrl.property_image.url });
           } else if (!isMobile && index < 3) {
             li.innerHTML = `<img src="${photoUrl.property_image.url}" 
                              alt="Property Photo"
                              loading="eager"
                              decoding="async">`;
+            if (index < 5) {
+              console.log(`${splideLogPrefix} added eager desktop slide @ ${now()}ms`, { index, url: photoUrl.property_image.url });
+            }
           } else {
             li.innerHTML = `<img src="${photoUrl.property_image.url}" 
                              alt="Property Photo"
                              loading="lazy"
                              decoding="async">`;
+            if (index < 5) {
+              console.log(`${splideLogPrefix} added lazy slide @ ${now()}ms`, { index, url: photoUrl.property_image.url });
+            }
           }
 
           slider.add(li);
         });
+        console.log(`${splideLogPrefix} all slides added @ ${now()}ms`);
 
         var prevArrow = splide.querySelector('.splide__arrow--prev');
         var nextArrow = splide.querySelector('.splide__arrow--next');
@@ -2596,6 +2616,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Refresh the slider after adding slides
         slider.refresh();
+        console.log(`${splideLogPrefix} slider refreshed @ ${now()}ms`);
 
 
 
