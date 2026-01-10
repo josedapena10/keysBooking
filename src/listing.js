@@ -21617,16 +21617,6 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       addFishingCharter() {
-        // Check if dates are selected
-        const urlParams = new URLSearchParams(window.location.search);
-        const checkin = urlParams.get('checkin');
-        const checkout = urlParams.get('checkout');
-
-        if (!checkin || !checkout || checkin === '' || checkout === '') {
-          // Validation handled elsewhere; no modal message needed here
-          return;
-        }
-
         // Open the fishing charter modal
         if (window.fishingCharterService) {
           window.fishingCharterService.handleButtonClick();
