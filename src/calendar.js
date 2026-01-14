@@ -930,8 +930,20 @@ document.addEventListener('DOMContentLoaded', function () {
             const firstUnavailableStart = parseDateStr(firstUpcomingUnavailable.start);
             const gapNights = Math.floor((firstUnavailableStart - today) / MS_PER_DAY);
 
-            // Only mark as short gap if the opening run is shorter than min nights (and non-zero)
-            if (gapNights > 0 && gapNights < minNights) {
+            // Determine effective min nights for this opening run (respect custom_minNights if set)
+            let effectiveMinNights = minNights;
+            const cursorForMin = new Date(today);
+            while (cursorForMin < firstUnavailableStart) {
+                const cursorStr = formatDateYYYYMMDD(cursorForMin);
+                const day = calendarDayByDate.get(cursorStr);
+                if (day && day.custom_minNights !== undefined && day.custom_minNights !== null) {
+                    effectiveMinNights = Math.min(effectiveMinNights, day.custom_minNights);
+                }
+                cursorForMin.setDate(cursorForMin.getDate() + 1);
+            }
+
+            // Only mark as short gap if the opening run is shorter than the applicable min nights
+            if (gapNights > 0 && gapNights < effectiveMinNights) {
                 const cursor = new Date(today);
                 while (cursor < firstUnavailableStart) {
                     const cursorStr = formatDateYYYYMMDD(cursor);
