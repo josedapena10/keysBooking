@@ -1282,13 +1282,17 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Add function to find gaps smaller than min nights and mark them as unavailable
     function markSmallGapsAsUnavailable() {
-      const sortedDisabledDates = Array.from(disabledDates).sort();
-      console.log('[StayCalendar] markSmallGaps start - blocked dates:', sortedDisabledDates.length);
+      // Treat checkout-only dates as flexible boundaries; exclude them from gap detection
+      // so we do not mistakenly block the day before a checkout-only date.
+      const sortedBlockedDates = Array.from(disabledDates)
+        .filter(dateStr => !checkoutOnlyDates.has(dateStr))
+        .sort();
+      console.log('[StayCalendar] markSmallGaps start - blocked dates (excl checkout-only):', sortedBlockedDates.length);
 
       // Check first blocked date - verify there are enough nights from minDate
-      if (sortedDisabledDates.length > 0) {
-        const firstBlockedDate = createDateFromString(sortedDisabledDates[0]);
-        const firstBlockedDateStr = sortedDisabledDates[0];
+      if (sortedBlockedDates.length > 0) {
+        const firstBlockedDate = createDateFromString(sortedBlockedDates[0]);
+        const firstBlockedDateStr = sortedBlockedDates[0];
 
         // Calculate available days from minDate to first blocked date
         let availableDaysFromStart = 0;
@@ -1323,15 +1327,15 @@ document.addEventListener('DOMContentLoaded', function () {
         }
       }
 
-      for (let i = 0; i < sortedDisabledDates.length - 1; i++) {
-        const currentBlockedDate = createDateFromString(sortedDisabledDates[i]);
-        const nextBlockedDate = createDateFromString(sortedDisabledDates[i + 1]);
+      for (let i = 0; i < sortedBlockedDates.length - 1; i++) {
+        const currentBlockedDate = createDateFromString(sortedBlockedDates[i]);
+        const nextBlockedDate = createDateFromString(sortedBlockedDates[i + 1]);
 
         // Safety: skip malformed ordering to avoid negative gaps
         if (nextBlockedDate <= currentBlockedDate) {
           console.warn('[StayCalendar] unexpected blocked date order', {
-            current: sortedDisabledDates[i],
-            next: sortedDisabledDates[i + 1]
+            current: sortedBlockedDates[i],
+            next: sortedBlockedDates[i + 1]
           });
           continue;
         }
@@ -1375,10 +1379,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // If the next blocked date is checkout-only but the gap before it is too small,
         // remove it from checkoutOnlyDates so it shows as fully disabled
-        const nextBlockedDateStr = formatDate(nextBlockedDate);
-        if (checkoutOnlyDates.has(nextBlockedDateStr) && availableNights < lowestMinNights) {
-          checkoutOnlyDates.delete(nextBlockedDateStr);
-        }
+        // We intentionally keep checkout-only dates marked as such even when the gap is too small,
+        // so the UI can still show them as checkout-only instead of fully disabled.
       }
 
     }
