@@ -930,31 +930,26 @@ document.addEventListener('DOMContentLoaded', function () {
             const firstUnavailableStart = parseDateStr(firstUpcomingUnavailable.start);
             const gapNights = Math.floor((firstUnavailableStart - today) / MS_PER_DAY);
 
-            // Determine effective min nights for this opening run (respect custom_minNights if set)
-            let effectiveMinNights = minNights;
-            const cursorForMin = new Date(today);
-            while (cursorForMin < firstUnavailableStart) {
-                const cursorStr = formatDateYYYYMMDD(cursorForMin);
-                const day = calendarDayByDate.get(cursorStr);
-                if (day && day.custom_minNights !== undefined && day.custom_minNights !== null) {
-                    effectiveMinNights = Math.min(effectiveMinNights, day.custom_minNights);
-                }
-                cursorForMin.setDate(cursorForMin.getDate() + 1);
-            }
-
-            // Only mark as short gap if the opening run is shorter than the applicable min nights
-            if (gapNights > 0 && gapNights < effectiveMinNights) {
+            if (gapNights > 0) {
                 const cursor = new Date(today);
                 while (cursor < firstUnavailableStart) {
                     const cursorStr = formatDateYYYYMMDD(cursor);
                     const day = calendarDayByDate.get(cursorStr);
+                    const dayMin = (day && day.custom_minNights !== undefined && day.custom_minNights !== null)
+                        ? day.custom_minNights
+                        : minNights;
 
-                    // Only mark days that are actually available (skip if already blocked/reserved)
-                    if (day && day.isAvailable && day.status !== 'blocked' && day.status !== 'reserved') {
+                    // Mark as short gap per-day if the run length is below that day's min nights
+                    if (gapNights < dayMin &&
+                        day &&
+                        day.isAvailable &&
+                        day.status !== 'blocked' &&
+                        day.status !== 'reserved') {
                         if (!shortGaps.includes(cursorStr)) {
                             shortGaps.push(cursorStr);
                         }
                     }
+
                     cursor.setDate(cursor.getDate() + 1);
                 }
             }
