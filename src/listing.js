@@ -1299,7 +1299,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         // Nights you can stay before hitting the first blocked date
-        const availableNightsFromStart = availableDaysFromStart;
+        const availableNightsFromStart = Math.max(0, availableDaysFromStart - 1);
         const lowestMinNights = getLowestMinNightsBetween(minDate, firstBlockedDate);
         console.log('[StayCalendar] lowestMin in range', formatDate(minDate), '->', formatDate(addDays(firstBlockedDate, -1)), 'is', lowestMinNights);
 
@@ -1346,8 +1346,8 @@ document.addEventListener('DOMContentLoaded', function () {
           checkDate = addDays(checkDate, 1);
         }
 
-        // Available nights equals the number of available days between blocked dates
-        const availableNights = availableDays;
+        // Available nights = available days - 1
+        const availableNights = Math.max(0, availableDays - 1);
 
         // Find the lowest min nights requirement across the gap, considering per-day overrides
         const lowestMinNights = getLowestMinNightsBetween(
@@ -1376,7 +1376,7 @@ document.addEventListener('DOMContentLoaded', function () {
         // If the next blocked date is checkout-only but the gap before it is too small,
         // remove it from checkoutOnlyDates so it shows as fully disabled
         const nextBlockedDateStr = formatDate(nextBlockedDate);
-        if (checkoutOnlyDates.has(nextBlockedDateStr) && availableNights < minNights) {
+        if (checkoutOnlyDates.has(nextBlockedDateStr) && availableNights < lowestMinNights) {
           checkoutOnlyDates.delete(nextBlockedDateStr);
         }
       }
