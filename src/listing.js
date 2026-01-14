@@ -1379,10 +1379,51 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // If the next blocked date is checkout-only but the gap before it is too small,
         // remove it from checkoutOnlyDates so it shows as fully disabled
-        // We intentionally keep checkout-only dates marked as such even when the gap is too small,
-        // so the UI can still show them as checkout-only instead of fully disabled.
       }
 
+      // Second pass: any checkout-only date that sits in a gap smaller than the min nights
+      // should be marked fully unavailable, because no valid stay can end there.
+      checkoutOnlyDates.forEach(dateStr => {
+        const checkoutDate = createDateFromString(dateStr);
+
+        // Find previous and next blocked dates (excluding checkout-only)
+        let prevBlocked = null;
+        let nextBlocked = null;
+
+        for (let i = 0; i < sortedBlockedDates.length; i++) {
+          const blockedDate = createDateFromString(sortedBlockedDates[i]);
+          if (blockedDate < checkoutDate) {
+            prevBlocked = blockedDate;
+          }
+          if (blockedDate > checkoutDate) {
+            nextBlocked = blockedDate;
+            break;
+          }
+        }
+
+        // Use minDate/maxDate bounds if no blocked date on one side
+        if (!prevBlocked) {
+          prevBlocked = addDays(minDate, -1); // sentinel just before minDate
+        }
+        if (!nextBlocked) {
+          nextBlocked = addDays(maxDate, 1); // sentinel just after maxDate
+        }
+
+        // Nights available between prevBlocked+1 and checkoutDate
+        const startCandidate = addDays(prevBlocked, 1);
+        const nightsAvailable = Math.max(
+          0,
+          Math.round((checkoutDate - startCandidate) / (1000 * 60 * 60 * 24))
+        );
+
+        // Minimum nights required anywhere in that span
+        const lowestMin = getLowestMinNightsBetween(startCandidate, checkoutDate);
+
+        if (nightsAvailable < lowestMin) {
+          disabledDates.add(dateStr);
+          checkoutOnlyDates.delete(dateStr);
+        }
+      });
     }
 
     // Mark small gaps as unavailable
@@ -1390,13 +1431,23 @@ document.addEventListener('DOMContentLoaded', function () {
     markSmallGapsAsUnavailable();
 
     // Helper function to check if a date has valid checkout options
+    function getEffectiveMinNightsForDate(date) {
+      const dateStr = formatDate(date);
+      if (customMinNightsByDate.has(dateStr)) {
+        return customMinNightsByDate.get(dateStr);
+      }
+      return minNights;
+    }
+
     function hasValidCheckoutOptions(checkInDate) {
       // Find first blocked date after this check-in
       let checkDate = addDays(checkInDate, 1);
       const firstBlockedDate = findFirstBlockedDateAfter(checkInDate);
 
+      const effectiveMinNights = getEffectiveMinNightsForDate(checkInDate);
+
       // Check if there's at least one valid checkout date
-      for (let nightsCount = minNights; nightsCount <= maxNights; nightsCount++) {
+      for (let nightsCount = effectiveMinNights; nightsCount <= maxNights; nightsCount++) {
         const potentialCheckout = addDays(checkInDate, nightsCount);
 
         // Check if this potential checkout is within maxDate
