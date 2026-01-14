@@ -984,6 +984,82 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
 
+        // Handle leading gap from today to the first unavailable/custom block
+        const todayDateObj = new Date();
+        todayDateObj.setHours(0, 0, 0, 0);
+
+        if (unavailablePeriods.length > 0) {
+            const firstUnavailableStartStr = unavailablePeriods[0].start;
+            const firstUnavailableStartDate = new Date(firstUnavailableStartStr);
+            const leadingGapStartDate = new Date(todayDateObj);
+
+            if (leadingGapStartDate < firstUnavailableStartDate) {
+                const datesInGap = [];
+                const tempDate = new Date(leadingGapStartDate);
+
+                while (tempDate < firstUnavailableStartDate) {
+                    const year = tempDate.getFullYear();
+                    const month = (tempDate.getMonth() + 1).toString().padStart(2, '0');
+                    const day = tempDate.getDate().toString().padStart(2, '0');
+                    const dateStr = `${year}-${month}-${day}`;
+                    datesInGap.push(dateStr);
+                    tempDate.setDate(tempDate.getDate() + 1);
+                }
+
+                let lowestMinNights = minNights;
+                if (data.property_calendar && data.property_calendar.length > 0) {
+                    datesInGap.forEach(gapDateStr => {
+                        const calendarDay = data.property_calendar.find(day => day.date === gapDateStr);
+                        if (calendarDay && calendarDay.custom_minNights !== undefined && calendarDay.custom_minNights !== null) {
+                            lowestMinNights = Math.min(lowestMinNights, calendarDay.custom_minNights);
+                        }
+                    });
+                }
+
+                if (datesInGap.length > 0 && datesInGap.length < lowestMinNights) {
+                    shortGaps.push(...datesInGap);
+                }
+            }
+        }
+
+        // Handle trailing gap from the last unavailable/custom block to the end of the calendar data
+        if (data.property_calendar && data.property_calendar.length > 0 && unavailablePeriods.length > 0) {
+            const calendarDates = data.property_calendar.map(day => new Date(day.date));
+            const maxDate = new Date(Math.max(...calendarDates));
+            maxDate.setHours(0, 0, 0, 0);
+
+            const lastUnavailableEndStr = unavailablePeriods[unavailablePeriods.length - 1].end;
+            const lastUnavailableEndDate = new Date(lastUnavailableEndStr);
+            const trailingGapStartDate = new Date(lastUnavailableEndDate);
+            trailingGapStartDate.setDate(trailingGapStartDate.getDate() + 1); // Start after the unavailable period
+
+            if (trailingGapStartDate <= maxDate) {
+                const datesInGap = [];
+                const tempDate = new Date(trailingGapStartDate);
+
+                while (tempDate <= maxDate) {
+                    const year = tempDate.getFullYear();
+                    const month = (tempDate.getMonth() + 1).toString().padStart(2, '0');
+                    const day = tempDate.getDate().toString().padStart(2, '0');
+                    const dateStr = `${year}-${month}-${day}`;
+                    datesInGap.push(dateStr);
+                    tempDate.setDate(tempDate.getDate() + 1);
+                }
+
+                let lowestMinNights = minNights;
+                datesInGap.forEach(gapDateStr => {
+                    const calendarDay = data.property_calendar.find(day => day.date === gapDateStr);
+                    if (calendarDay && calendarDay.custom_minNights !== undefined && calendarDay.custom_minNights !== null) {
+                        lowestMinNights = Math.min(lowestMinNights, calendarDay.custom_minNights);
+                    }
+                });
+
+                if (datesInGap.length > 0 && datesInGap.length < lowestMinNights) {
+                    shortGaps.push(...datesInGap);
+                }
+            }
+        }
+
         // Process property calendar data for available dates
         if (data.property_calendar && data.property_calendar.length > 0) {
             let availableDaysCount = 0;
