@@ -1197,6 +1197,8 @@ document.addEventListener('DOMContentLoaded', function () {
       }
     });
 
+    console.log('[StayCalendar] initial disabled dates:', disabledDates.size, 'checkout-only:', checkoutOnlyDates.size, 'customMin entries:', customMinNightsByDate.size, 'sample:', Array.from(customMinNightsByDate.entries()).slice(0, 5));
+
     // Get property rules
     const advanceNotice = propertyData.advanceNotice || 0;
     const minNights = propertyData.min_nights || 1;
@@ -1231,6 +1233,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // Add function to find gaps smaller than min nights and mark them as unavailable
     function markSmallGapsAsUnavailable() {
       const sortedDisabledDates = Array.from(disabledDates).sort();
+      console.log('[StayCalendar] markSmallGaps start - blocked dates:', sortedDisabledDates.length);
 
       // Helper to get the lowest min-nights requirement within a date range (inclusive start, exclusive end)
       function getLowestMinNightsBetween(startDate, endDate) {
@@ -1243,6 +1246,7 @@ document.addEventListener('DOMContentLoaded', function () {
           }
           cursor = addDays(cursor, 1);
         }
+        console.log('[StayCalendar] lowestMin in range', formatDate(startDate), '->', formatDate(addDays(endDate, -1)), 'is', lowestMin);
         return lowestMin;
       }
 
@@ -1264,6 +1268,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // If there aren't enough nights before the first blocked date, mark all dates in between as unavailable
         if (availableNightsFromStart < lowestMinNights) {
+          console.log('[StayCalendar] blocking start gap', { availableNightsFromStart, lowestMinNights, minDate: formatDate(minDate), firstBlocked: firstBlockedDateStr });
           let dateToBlock = new Date(minDate);
 
           while (dateToBlock < firstBlockedDate) {
@@ -1306,6 +1311,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // If available nights are less than minimum required, mark all dates in between as unavailable
         if (availableNights < lowestMinNights) {
+          console.log('[StayCalendar] blocking gap', {
+            from: formatDate(addDays(currentBlockedDate, 1)),
+            to: formatDate(addDays(nextBlockedDate, -1)),
+            availableNights,
+            lowestMinNights
+          });
           let dateToBlock = addDays(currentBlockedDate, 1); // Start from day after blocked date
 
           while (dateToBlock < nextBlockedDate) {
@@ -1438,6 +1449,8 @@ document.addEventListener('DOMContentLoaded', function () {
             }
           });
         }
+
+        console.log('[StayCalendar] refresh data rebuilt sets - disabled:', disabledDates.size, 'checkout-only:', checkoutOnlyDates.size, 'customMin entries:', customMinNightsByDate.size);
 
         // Recompute derived state and re-render calendars
         markSmallGapsAsUnavailable();
