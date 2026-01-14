@@ -1215,8 +1215,6 @@ document.addEventListener('DOMContentLoaded', function () {
       }
     });
 
-    console.log('[StayCalendar] initial disabled dates:', disabledDates.size, 'checkout-only:', checkoutOnlyDates.size, 'customMin entries:', customMinNightsByDate.size, 'sample:', Array.from(customMinNightsByDate.entries()).slice(0, 5));
-
     async function hydrateCustomMinNights(currentPropertyData) {
       const propertyId = currentPropertyData?.id || currentPropertyData?.property_id;
       if (!propertyId) {
@@ -1232,7 +1230,6 @@ document.addEventListener('DOMContentLoaded', function () {
         }
         const body = await res.json();
         const rows = Array.isArray(body) ? body : Array.isArray(body?.data) ? body.data : [];
-        console.log('[StayCalendar] fetched custom min nights rows:', rows.length, 'first row keys:', rows[0] ? Object.keys(rows[0]) : []);
         rows.forEach(row => {
           if (row.date && row.custom_minNights !== undefined && row.custom_minNights !== null) {
             customMinNightsByDate.set(row.date, row.custom_minNights);
@@ -1241,11 +1238,6 @@ document.addEventListener('DOMContentLoaded', function () {
           if (row.date && row.isAvailable === true && row.isAvailableForCheckout === true) {
             checkoutOnlyDates.add(row.date);
           }
-        });
-        console.log('[StayCalendar] hydrated custom min nights', {
-          count: customMinNightsByDate.size,
-          sample: Array.from(customMinNightsByDate.entries()).slice(0, 5),
-          checkoutOnlyAdds: Array.from(checkoutOnlyDates).slice(0, 10)
         });
       } catch (err) {
         console.error('[StayCalendar] error fetching custom min nights', err);
@@ -1340,7 +1332,6 @@ document.addEventListener('DOMContentLoaded', function () {
       const sortedBlockedDates = Array.from(disabledDates)
         .filter(dateStr => !checkoutOnlyDates.has(dateStr))
         .sort();
-      console.log('[StayCalendar] markSmallGaps start - blocked dates (excl checkout-only):', sortedBlockedDates.length);
 
       // Check first blocked date - verify there are enough nights from minDate
       if (sortedBlockedDates.length > 0) {
@@ -1358,11 +1349,9 @@ document.addEventListener('DOMContentLoaded', function () {
         // Nights you can stay before hitting the first blocked date
         const availableNightsFromStart = Math.max(0, availableDaysFromStart - 1);
         const lowestMinNights = getLowestMinNightsBetween(minDate, firstBlockedDate);
-        console.log('[StayCalendar] lowestMin in range', formatDate(minDate), '->', formatDate(addDays(firstBlockedDate, -1)), 'is', lowestMinNights);
 
         // If there aren't enough nights before the first blocked date, mark all dates in between as unavailable
         if (availableNightsFromStart < lowestMinNights) {
-          console.log('[StayCalendar] blocking start gap', { availableNightsFromStart, lowestMinNights, minDate: formatDate(minDate), firstBlocked: firstBlockedDateStr });
           let dateToBlock = new Date(minDate);
 
           while (dateToBlock < firstBlockedDate) {
@@ -1411,16 +1400,9 @@ document.addEventListener('DOMContentLoaded', function () {
           addDays(currentBlockedDate, 1),
           nextBlockedDate
         );
-        console.log('[StayCalendar] lowestMin in range', formatDate(addDays(currentBlockedDate, 1)), '->', formatDate(addDays(nextBlockedDate, -1)), 'is', lowestMinNights);
 
         // If available nights are less than minimum required, mark all dates in between as unavailable
         if (availableNights < lowestMinNights) {
-          console.log('[StayCalendar] blocking gap', {
-            from: formatDate(addDays(currentBlockedDate, 1)),
-            to: formatDate(addDays(nextBlockedDate, -1)),
-            availableNights,
-            lowestMinNights
-          });
           let dateToBlock = addDays(currentBlockedDate, 1); // Start from day after blocked date
 
           while (dateToBlock < nextBlockedDate) {
@@ -1607,7 +1589,6 @@ document.addEventListener('DOMContentLoaded', function () {
         // Fetch custom min nights from availability endpoint as well
         await hydrateCustomMinNights(propertyData);
 
-        console.log('[StayCalendar] refresh data rebuilt sets - disabled:', disabledDates.size, 'checkout-only:', checkoutOnlyDates.size, 'customMin entries:', customMinNightsByDate.size);
 
         // Recompute derived state and re-render calendars
         markSmallGapsAsUnavailable();
