@@ -4315,8 +4315,8 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
           const start = window.createDateFromString(ci);
           const end = window.createDateFromString(co);
-          const nights = Math.max(0, Math.round((end - start) / (1000 * 60 * 60 * 24)));
-          if (nights >= minNights) {
+          nightsFromParams = Math.max(0, Math.round((end - start) / (1000 * 60 * 60 * 24)));
+          if (nightsFromParams >= minNights) {
             meetsMinNights = true;
           }
         } catch (_) { /* ignore */ }
