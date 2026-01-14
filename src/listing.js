@@ -3138,25 +3138,29 @@ document.addEventListener('DOMContentLoaded', () => {
     // Helper: effective min nights for the currently selected range (respects custom overrides surfaced in StayCalendar)
     function getEffectiveMinNightsForSelection(r) {
       const baseMin = r?.Load_Property_Details?.data?.property?.min_nights || 1;
-      const queryMin = Number(r?.Load_Property_Calendar_Query?.data?.dateRange_minNights);
-
       const params = new URLSearchParams(window.location.search);
       const ci = params.get('checkin');
       const co = params.get('checkout');
+
+      const queryMin = Number(r?.Load_Property_Calendar_Query?.data?.dateRange_minNights);
+      // Nights from selected URL params (used as a lower-bound override when present)
+      let nightsFromParams = 0;
+      if (ci && co) {
+        try {
+          const start = window.createDateFromString(ci);
+          const end = window.createDateFromString(co);
+          nightsFromParams = Math.max(0, Math.round((end - start) / (1000 * 60 * 60 * 24)));
+        } catch (e) {
+          nightsFromParams = 0;
+        }
+      }
 
       let effective = baseMin;
       if (!Number.isNaN(queryMin) && queryMin > 0) {
         effective = Math.min(effective, queryMin);
       }
-
-      if (ci && co && typeof window.getLowestMinNightsBetween === 'function' && typeof window.createDateFromString === 'function') {
-        try {
-          const checkinDate = window.createDateFromString(ci);
-          const checkoutDate = window.createDateFromString(co);
-          effective = Math.min(effective, window.getLowestMinNightsBetween(checkinDate, checkoutDate));
-        } catch (e) {
-          // fall back to current effective
-        }
+      if (nightsFromParams > 0) {
+        effective = Math.min(effective, nightsFromParams);
       }
 
       return effective;
@@ -3594,31 +3598,12 @@ document.addEventListener('DOMContentLoaded', () => {
             }
           }
 
-          // Fallback: if selected nights count meets the effective min, honor it
-          const nightsFromParams = (() => {
-            const params = new URLSearchParams(window.location.search);
-            const ci = params.get('checkin');
-            const co = params.get('checkout');
-            if (ci && co && typeof window.createDateFromString === 'function') {
-              try {
-                const start = window.createDateFromString(ci);
-                const end = window.createDateFromString(co);
-                return Math.max(0, Math.round((end - start) / (1000 * 60 * 60 * 24)));
-              } catch (_) { return 0; }
-            }
-            return 0;
-          })();
-          if (!meetsMinNights && nightsFromParams >= minNights) {
-            meetsMinNights = true;
-          }
-
           const datesValid = allAvailable && meetsMinNights;
           console.log('[StayValidation:addDatesHeading]', {
             datesSelected,
             allAvailable,
             meetsMinNights,
             minNights,
-            nightsFromParams,
             datesValid
           });
 
