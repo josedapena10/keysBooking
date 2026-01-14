@@ -3432,6 +3432,7 @@ document.addEventListener('DOMContentLoaded', () => {
       let allAvailable = true;
       let consecutiveAvailableDays = 0;
       let meetsMinNights = false;
+      let nightsFromParams = 0;
 
       for (let i = 0; i < propertyCalendarRange.length; i++) {
         if (propertyCalendarRange[i].status === "available") {
@@ -3453,8 +3454,8 @@ document.addEventListener('DOMContentLoaded', () => {
           try {
             const start = createDateFromString(ci);
             const end = createDateFromString(co);
-            const nights = Math.max(0, Math.round((end - start) / (1000 * 60 * 60 * 24)));
-            if (nights >= effectiveMinNights) {
+            nightsFromParams = Math.max(0, Math.round((end - start) / (1000 * 60 * 60 * 24)));
+            if (nightsFromParams >= effectiveMinNights) {
               meetsMinNights = true;
             }
           } catch (_) { /* ignore */ }
@@ -3463,6 +3464,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Determine color based on availability and minimum night conditions
       const color = !allAvailable || !meetsMinNights ? "#ffd4d2" : "";
+
+      console.log('[StayValidation:getAvailabilityColor]', {
+        allAvailable,
+        meetsMinNights,
+        effectiveMinNights,
+        nightsFromParams,
+        color
+      });
 
       return color;
     }
@@ -4059,6 +4068,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       let allAvailable = true;
       let meetsMinNights = true;
+      let nightsFromParams = 0;
 
       // Calculate the total number of days available in a row
       let consecutiveAvailableDays = 0;
@@ -4095,8 +4105,8 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
           const start = window.createDateFromString(ci);
           const end = window.createDateFromString(co);
-          const nights = Math.max(0, Math.round((end - start) / (1000 * 60 * 60 * 24)));
-          if (nights >= minNights) {
+          nightsFromParams = Math.max(0, Math.round((end - start) / (1000 * 60 * 60 * 24)));
+          if (nightsFromParams >= minNights) {
             meetsMinNights = true;
           }
         } catch (_) { /* ignore */ }
@@ -4112,6 +4122,7 @@ document.addEventListener('DOMContentLoaded', () => {
         allAvailable,
         meetsMinNights,
         minNights,
+        nightsFromParams,
         shouldShow
       });
 
@@ -4327,6 +4338,7 @@ document.addEventListener('DOMContentLoaded', () => {
         allAvailable,
         meetsMinNights,
         minNights,
+        nightsFromParams,
         currentGuests,
         maxGuests,
         extrasNeedDates: extrasInfo.hasAnyExtrasNeedingDates,
