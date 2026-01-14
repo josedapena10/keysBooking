@@ -3572,6 +3572,24 @@ document.addEventListener('DOMContentLoaded', () => {
             }
           }
 
+          // Fallback: if selected nights count meets the effective min, honor it
+          const nightsFromParams = (() => {
+            const params = new URLSearchParams(window.location.search);
+            const ci = params.get('checkin');
+            const co = params.get('checkout');
+            if (ci && co && typeof window.createDateFromString === 'function') {
+              try {
+                const start = window.createDateFromString(ci);
+                const end = window.createDateFromString(co);
+                return Math.max(0, Math.round((end - start) / (1000 * 60 * 60 * 24)));
+              } catch (_) { return 0; }
+            }
+            return 0;
+          })();
+          if (!meetsMinNights && nightsFromParams >= minNights) {
+            meetsMinNights = true;
+          }
+
           const datesValid = allAvailable && meetsMinNights;
 
           // If dates are valid but guests are wrong, show "Change Guests"
@@ -22174,6 +22192,22 @@ document.addEventListener('DOMContentLoaded', () => {
           } else {
             consecutiveAvailableDays = 0;
             allAvailable = false;
+          }
+        }
+
+        // Fallback: if selected URL range meets effective min nights, honor it
+        if (!meetsMinNights) {
+          const ci = urlParams.get('checkin');
+          const co = urlParams.get('checkout');
+          if (ci && co && typeof window.createDateFromString === 'function') {
+            try {
+              const start = window.createDateFromString(ci);
+              const end = window.createDateFromString(co);
+              const nights = Math.max(0, Math.round((end - start) / (1000 * 60 * 60 * 24)));
+              if (nights >= minNights) {
+                meetsMinNights = true;
+              }
+            } catch (_) { /* ignore */ }
           }
         }
 
