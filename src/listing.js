@@ -3237,6 +3237,21 @@ document.addEventListener('DOMContentLoaded', () => {
           r.Load_Property_Details.data.property.min_nights) {
           const minNights = r.Load_Property_Details.data.property.min_nights;
 
+          // Derive effective min nights based on custom per-day overrides for the selected range
+          let effectiveMinNights = minNights;
+          const params = new URLSearchParams(window.location.search);
+          const checkinParam = params.get('checkin');
+          const checkoutParam = params.get('checkout');
+          if (checkinParam && checkoutParam && typeof getLowestMinNightsBetween === 'function' && typeof createDateFromString === 'function') {
+            try {
+              const checkinDate = createDateFromString(checkinParam);
+              const checkoutDate = createDateFromString(checkoutParam);
+              effectiveMinNights = getLowestMinNightsBetween(checkinDate, checkoutDate);
+            } catch (_) {
+              // fall back to base minNights
+            }
+          }
+
           // Check if calendar data exists to determine if it's a min nights issue
           if (r.Load_Property_Calendar_Query && r.Load_Property_Calendar_Query.data &&
             r.Load_Property_Calendar_Query.data.property_calendar_range) {
@@ -3253,8 +3268,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (unavailableDayFound) {
               dateErrorMessage = "Selected dates unavailable";
-            } else if (calendarData.length < minNights) {
-              dateErrorMessage = `Minimum stay is ${minNights} nights`;
+            } else if (calendarData.length < effectiveMinNights) {
+              dateErrorMessage = `Minimum stay is ${effectiveMinNights} night${effectiveMinNights === 1 ? '' : 's'}`;
             }
           }
         }
@@ -3353,6 +3368,21 @@ document.addEventListener('DOMContentLoaded', () => {
       const propertyCalendarRange = r.Load_Property_Calendar_Query.data.property_calendar_range;
       const minNights = r.Load_Property_Details.data.property.min_nights;
 
+      // Effective min nights for selected range, honoring custom overrides
+      let effectiveMinNights = minNights;
+      const params = new URLSearchParams(window.location.search);
+      const checkinParam = params.get('checkin');
+      const checkoutParam = params.get('checkout');
+      if (checkinParam && checkoutParam && typeof getLowestMinNightsBetween === 'function' && typeof createDateFromString === 'function') {
+        try {
+          const checkinDate = createDateFromString(checkinParam);
+          const checkoutDate = createDateFromString(checkoutParam);
+          effectiveMinNights = getLowestMinNightsBetween(checkinDate, checkoutDate);
+        } catch (_) {
+          // ignore parsing errors, fallback to base min
+        }
+      }
+
       let allAvailable = true;
       let consecutiveAvailableDays = 0;
       let meetsMinNights = false;
@@ -3360,7 +3390,7 @@ document.addEventListener('DOMContentLoaded', () => {
       for (let i = 0; i < propertyCalendarRange.length; i++) {
         if (propertyCalendarRange[i].status === "available") {
           consecutiveAvailableDays++; // Count consecutive available days
-          if (consecutiveAvailableDays >= minNights) {
+          if (consecutiveAvailableDays >= effectiveMinNights) {
             meetsMinNights = true; // If consecutive days meet min nights at any point
           }
         } else {
