@@ -1280,6 +1280,10 @@ document.addEventListener('DOMContentLoaded', function () {
       return lowestMin;
     }
 
+    // Expose helpers for other modules that need effective min-night calculations
+    window.getLowestMinNightsBetween = getLowestMinNightsBetween;
+    window.createDateFromString = createDateFromString;
+
     // Add function to find gaps smaller than min nights and mark them as unavailable
     function markSmallGapsAsUnavailable() {
       // Treat checkout-only dates as flexible boundaries; exclude them from gap detection
@@ -3082,6 +3086,24 @@ document.addEventListener('DOMContentLoaded', () => {
     const checkInElement = document.querySelector('[data-element="Input_CheckIn"]');
     const checkOutElement = document.querySelector('[data-element="Input_CheckOut"]');
 
+    // Helper: effective min nights for the currently selected range (respects custom overrides surfaced in StayCalendar)
+    function getEffectiveMinNightsForSelection(r) {
+      const baseMin = r?.Load_Property_Details?.data?.property?.min_nights || 1;
+      const params = new URLSearchParams(window.location.search);
+      const ci = params.get('checkin');
+      const co = params.get('checkout');
+      if (ci && co && typeof window.getLowestMinNightsBetween === 'function' && typeof window.createDateFromString === 'function') {
+        try {
+          const checkinDate = window.createDateFromString(ci);
+          const checkoutDate = window.createDateFromString(co);
+          return window.getLowestMinNightsBetween(checkinDate, checkoutDate);
+        } catch (e) {
+          // fall back to base min
+        }
+      }
+      return baseMin;
+    }
+
     // Initialize
     setupCalendarElements();
 
@@ -3235,7 +3257,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (r && r.Load_Property_Details && r.Load_Property_Details.data &&
           r.Load_Property_Details.data.property &&
           r.Load_Property_Details.data.property.min_nights) {
-          const minNights = r.Load_Property_Details.data.property.min_nights;
+          const minNights = getEffectiveMinNightsForSelection(r);
 
           // Derive effective min nights based on custom per-day overrides for the selected range
           let effectiveMinNights = minNights;
@@ -3366,7 +3388,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       const propertyCalendarRange = r.Load_Property_Calendar_Query.data.property_calendar_range;
-      const minNights = r.Load_Property_Details.data.property.min_nights;
+      const minNights = getEffectiveMinNightsForSelection(r);
 
       // Effective min nights for selected range, honoring custom overrides
       let effectiveMinNights = minNights;
@@ -3496,7 +3518,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
           // Check if dates are valid
           const propertyCalendarRange = r.Load_Property_Calendar_Query.data.property_calendar_range;
-          const minNights = r.Load_Property_Details.data.property.min_nights;
+          const minNights = getEffectiveMinNightsForSelection(r);
 
           let allAvailable = true;
           let consecutiveAvailableDays = 0;
@@ -3980,7 +4002,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       const propertyCalendarRange = r.Load_Property_Calendar_Query.data.property_calendar_range;
-      const minNights = r.Load_Property_Details.data.property.min_nights;
+      const minNights = getEffectiveMinNightsForSelection(r);
 
       let allAvailable = true;
       let meetsMinNights = true;
@@ -4166,7 +4188,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       const propertyCalendarRange = r.Load_Property_Calendar_Query.data.property_calendar_range;
-      const minNights = r.Load_Property_Details.data.property.min_nights;
+      const minNights = getEffectiveMinNightsForSelection(r);
 
       let allAvailable = true;
       let meetsMinNights = true;
@@ -4528,7 +4550,7 @@ document.addEventListener('DOMContentLoaded', () => {
         r.Load_Property_Details.data.property) {
 
         const propertyCalendarRange = r.Load_Property_Calendar_Query.data.property_calendar_range;
-        const minNights = r.Load_Property_Details.data.property.min_nights;
+        const minNights = getEffectiveMinNightsForSelection(r);
 
         allAvailable = true;
         let consecutiveAvailableDays = 0;
@@ -9314,7 +9336,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const propertyCalendarRange = r.Load_Property_Calendar_Query.data.property_calendar_range;
-        const minNights = r.Load_Property_Details.data.property.min_nights;
+        const minNights = getEffectiveMinNightsForSelection(r);
 
         let allAvailable = true;
         let consecutiveAvailableDays = 0;
@@ -16603,7 +16625,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const propertyCalendarRange = r.Load_Property_Calendar_Query.data.property_calendar_range;
-        const minNights = r.Load_Property_Details.data.property.min_nights;
+        const minNights = getEffectiveMinNightsForSelection(r);
 
         let allAvailable = true;
         let consecutiveAvailableDays = 0;
@@ -22098,7 +22120,7 @@ document.addEventListener('DOMContentLoaded', () => {
         r.Load_Property_Details.data) {
 
         const propertyCalendarRange = r.Load_Property_Calendar_Query.data.property_calendar_range;
-        const minNights = r.Load_Property_Details.data.property.min_nights;
+        const minNights = getEffectiveMinNightsForSelection(r);
 
         let allAvailable = true;
         let consecutiveAvailableDays = 0;
