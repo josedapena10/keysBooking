@@ -3464,6 +3464,22 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
 
+      // Fallback: if URL-selected nights meet effective min, honor it
+      if (allAvailable && !meetsMinNights) {
+        const ci = params.get('checkin');
+        const co = params.get('checkout');
+        if (ci && co) {
+          try {
+            const start = createDateFromString(ci);
+            const end = createDateFromString(co);
+            const nights = Math.max(0, Math.round((end - start) / (1000 * 60 * 60 * 24)));
+            if (nights >= effectiveMinNights) {
+              meetsMinNights = true;
+            }
+          } catch (_) { /* ignore */ }
+        }
+      }
+
       // Determine color based on availability and minimum night conditions
       const color = !allAvailable || !meetsMinNights ? "#ffd4d2" : "";
 
@@ -3585,7 +3601,8 @@ document.addEventListener('DOMContentLoaded', () => {
             allAvailable,
             meetsMinNights,
             minNights,
-            datesValid
+            datesValid,
+            headingText: datesValid ? (hasGuestError ? 'Change guests' : 'hidden') : 'Change dates'
           });
 
           // If dates are valid but guests are wrong, show "Change Guests"
@@ -3626,6 +3643,11 @@ document.addEventListener('DOMContentLoaded', () => {
           heading.style.display = shouldBeVisible ? 'flex' : 'none';
           heading.textContent = headingText;
         }
+      });
+
+      console.log('[StayValidation:addDatesHeading:result]', {
+        shouldBeVisible,
+        headingText
       });
 
       // Update total container visibility - show only when heading is hidden and dates are valid
@@ -4104,6 +4126,14 @@ document.addEventListener('DOMContentLoaded', () => {
       const maxGuests = r.Load_Property_Details.data.property.num_guests;
       const shouldShow = allAvailable && meetsMinNights && (maxGuests >= currentGuests);
 
+      console.log('[StayValidation:ReservationTotalContainer]', {
+        datesSelected,
+        allAvailable,
+        meetsMinNights,
+        minNights,
+        shouldShow
+      });
+
       // Update all container elements (desktop and mobile)
       containerElements.forEach(containerElement => {
         if (containerElement) {
@@ -4311,6 +4341,16 @@ document.addEventListener('DOMContentLoaded', () => {
         && (currentGuests <= maxGuests)
         && (currentGuests != 0)
         && !extrasInfo.hasAnyExtrasNeedingDates;
+
+      console.log('[StayValidation:ListingQueryPriceDetails]', {
+        allAvailable,
+        meetsMinNights,
+        minNights,
+        currentGuests,
+        maxGuests,
+        extrasNeedDates: extrasInfo.hasAnyExtrasNeedingDates,
+        shouldShow
+      });
 
       priceDetailsElement.style.display = shouldShow ? 'block' : 'none';
     }
