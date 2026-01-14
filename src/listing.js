@@ -1286,19 +1286,32 @@ document.addEventListener('DOMContentLoaded', function () {
     // Helper: effective min nights for currently selected range (uses custom overrides)
     function getEffectiveMinNightsForSelection(r) {
       const baseMin = r?.Load_Property_Details?.data?.property?.min_nights || minNights;
+      // Prefer API-provided range min if present
+      const queryMin = Number(r?.Load_Property_Calendar_Query?.data?.dateRange_minNights);
+
       const params = new URLSearchParams(window.location.search);
       const ci = params.get('checkin');
       const co = params.get('checkout');
+
+      let effective = baseMin;
+
+      // If the API returned a min for the selected range, respect it
+      if (!Number.isNaN(queryMin) && queryMin > 0) {
+        effective = Math.min(effective, queryMin);
+      }
+
+      // Use custom per-day overrides if we can parse the selected range
       if (ci && co) {
         try {
           const checkinDate = createDateFromString(ci);
           const checkoutDate = createDateFromString(co);
-          return getLowestMinNightsBetween(checkinDate, checkoutDate);
+          effective = Math.min(effective, getLowestMinNightsBetween(checkinDate, checkoutDate));
         } catch (_) {
-          // ignore parse errors, fall back to base
+          // ignore parse errors, fall back to current effective
         }
       }
-      return baseMin;
+
+      return effective;
     }
 
     // Helper to get the lowest min-nights requirement within a date range (inclusive start, exclusive end)
@@ -3125,19 +3138,28 @@ document.addEventListener('DOMContentLoaded', () => {
     // Helper: effective min nights for the currently selected range (respects custom overrides surfaced in StayCalendar)
     function getEffectiveMinNightsForSelection(r) {
       const baseMin = r?.Load_Property_Details?.data?.property?.min_nights || 1;
+      const queryMin = Number(r?.Load_Property_Calendar_Query?.data?.dateRange_minNights);
+
       const params = new URLSearchParams(window.location.search);
       const ci = params.get('checkin');
       const co = params.get('checkout');
+
+      let effective = baseMin;
+      if (!Number.isNaN(queryMin) && queryMin > 0) {
+        effective = Math.min(effective, queryMin);
+      }
+
       if (ci && co && typeof window.getLowestMinNightsBetween === 'function' && typeof window.createDateFromString === 'function') {
         try {
           const checkinDate = window.createDateFromString(ci);
           const checkoutDate = window.createDateFromString(co);
-          return window.getLowestMinNightsBetween(checkinDate, checkoutDate);
+          effective = Math.min(effective, window.getLowestMinNightsBetween(checkinDate, checkoutDate));
         } catch (e) {
-          // fall back to base min
+          // fall back to current effective
         }
       }
-      return baseMin;
+
+      return effective;
     }
 
     // Initialize
@@ -3591,6 +3613,14 @@ document.addEventListener('DOMContentLoaded', () => {
           }
 
           const datesValid = allAvailable && meetsMinNights;
+          console.log('[StayValidation:addDatesHeading]', {
+            datesSelected,
+            allAvailable,
+            meetsMinNights,
+            minNights,
+            nightsFromParams,
+            datesValid
+          });
 
           // If dates are valid but guests are wrong, show "Change Guests"
           if (datesValid && hasGuestError) {
@@ -4089,6 +4119,20 @@ document.addEventListener('DOMContentLoaded', () => {
         meetsMinNights = false;
       }
 
+      // Fallback: if URL-selected nights meet effective min, honor it
+      const ci = urlParams.get('checkin');
+      const co = urlParams.get('checkout');
+      if (!meetsMinNights && ci && co && typeof window.createDateFromString === 'function') {
+        try {
+          const start = window.createDateFromString(ci);
+          const end = window.createDateFromString(co);
+          const nights = Math.max(0, Math.round((end - start) / (1000 * 60 * 60 * 24)));
+          if (nights >= minNights) {
+            meetsMinNights = true;
+          }
+        } catch (_) { /* ignore */ }
+      }
+
       // The final return statement checks both conditions
       const currentGuests = n && n.parameter ? n.parameter.guests : 1;
       const maxGuests = r.Load_Property_Details.data.property.num_guests;
@@ -4273,6 +4317,21 @@ document.addEventListener('DOMContentLoaded', () => {
       // Final check at the end of the loop to catch cases where the last days are available and not followed by an unavailable day
       if (consecutiveAvailableDays < minNights && previousDayAvailable) {
         meetsMinNights = false;
+      }
+
+      // Fallback: if URL-selected nights meet effective min, honor it
+      const params = new URLSearchParams(window.location.search);
+      const ci = params.get('checkin');
+      const co = params.get('checkout');
+      if (!meetsMinNights && ci && co && typeof window.createDateFromString === 'function') {
+        try {
+          const start = window.createDateFromString(ci);
+          const end = window.createDateFromString(co);
+          const nights = Math.max(0, Math.round((end - start) / (1000 * 60 * 60 * 24)));
+          if (nights >= minNights) {
+            meetsMinNights = true;
+          }
+        } catch (_) { /* ignore */ }
       }
 
       // Include extras needing dates to avoid flashing pricing when extras are incomplete
@@ -22172,16 +22231,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Check if dates are valid
       let datesValid = false;
+      let allAvailable = false;
+      let meetsMinNights = false;
+      let nightsFromParams = 0;
+      let minNightsUsed = 0;
       if (datesSelected && r && r.Load_Property_Calendar_Query &&
         r.Load_Property_Calendar_Query.data && r.Load_Property_Details &&
         r.Load_Property_Details.data) {
 
         const propertyCalendarRange = r.Load_Property_Calendar_Query.data.property_calendar_range;
         const minNights = getEffectiveMinNightsForSelection(r);
+        minNightsUsed = minNights;
 
-        let allAvailable = true;
+        allAvailable = true;
         let consecutiveAvailableDays = 0;
-        let meetsMinNights = false;
 
         for (let i = 0; i < propertyCalendarRange.length; i++) {
           if (propertyCalendarRange[i].status === "available") {
@@ -22204,6 +22267,7 @@ document.addEventListener('DOMContentLoaded', () => {
               const start = window.createDateFromString(ci);
               const end = window.createDateFromString(co);
               const nights = Math.max(0, Math.round((end - start) / (1000 * 60 * 60 * 24)));
+              nightsFromParams = nights;
               if (nights >= minNights) {
                 meetsMinNights = true;
               }
@@ -22241,6 +22305,18 @@ document.addEventListener('DOMContentLoaded', () => {
         // noErrors is true only when dates are selected, valid, guests valid, AND all extras have dates
         noErrors: datesSelected && datesValid && guestsValid && !extrasNeedDates
       };
+
+      // Debug log for validation state
+      console.log('[StayValidation]', {
+        datesSelected,
+        datesValid,
+        allAvailable,
+        meetsMinNights,
+        minNightsUsed,
+        nightsFromParams,
+        guestsValid,
+        extrasNeedDates
+      });
     }
 
     // Update reserve button visibility
