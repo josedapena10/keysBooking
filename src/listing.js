@@ -1181,11 +1181,9 @@ document.addEventListener('DOMContentLoaded', function () {
     let unclickableCheckInDates = new Set(); // Available dates that can't be used as check-in
     let selectingCheckOut = false;
     let isRefreshingCalendarData = false;
+    const customMinNightsByDate = new Map(); // Per-day overrides for minimum nights
 
     // Convert disabled dates from API
-    // Track per-date custom minimum nights (if provided by the API)
-    const customMinNightsByDate = new Map();
-
     calendarData.data.forEach(item => {
       disabledDates.add(item.date);
       // Track dates that are available for checkout only
@@ -1193,7 +1191,7 @@ document.addEventListener('DOMContentLoaded', function () {
         checkoutOnlyDates.add(item.date);
       }
 
-      // Collect custom minimum nights overrides
+      // Collect custom minimum nights overrides if present
       if (item.custom_minNights !== undefined && item.custom_minNights !== null) {
         customMinNightsByDate.set(item.date, item.custom_minNights);
       }
@@ -1234,7 +1232,7 @@ document.addEventListener('DOMContentLoaded', function () {
     function markSmallGapsAsUnavailable() {
       const sortedDisabledDates = Array.from(disabledDates).sort();
 
-      // Helper to get the lowest min-nights requirement within a date range (inclusive of start, exclusive of end)
+      // Helper to get the lowest min-nights requirement within a date range (inclusive start, exclusive end)
       function getLowestMinNightsBetween(startDate, endDate) {
         let lowestMin = minNights;
         let cursor = new Date(startDate);
@@ -1248,7 +1246,7 @@ document.addEventListener('DOMContentLoaded', function () {
         return lowestMin;
       }
 
-      // Check first blocked date - verify there are enough nights from minDate using per-day overrides
+      // Check first blocked date - verify there are enough nights from minDate
       if (sortedDisabledDates.length > 0) {
         const firstBlockedDate = createDateFromString(sortedDisabledDates[0]);
         const firstBlockedDateStr = sortedDisabledDates[0];
@@ -1427,12 +1425,16 @@ document.addEventListener('DOMContentLoaded', function () {
         disabledDates.clear();
         checkoutOnlyDates.clear();
         unclickableCheckInDates.clear();
+        customMinNightsByDate.clear();
 
         if (calendarData && Array.isArray(calendarData.data)) {
           calendarData.data.forEach(item => {
             disabledDates.add(item.date);
             if (item.isAvailableForCheckout === true) {
               checkoutOnlyDates.add(item.date);
+            }
+            if (item.custom_minNights !== undefined && item.custom_minNights !== null) {
+              customMinNightsByDate.set(item.date, item.custom_minNights);
             }
           });
         }
