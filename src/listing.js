@@ -1221,13 +1221,14 @@ document.addEventListener('DOMContentLoaded', function () {
             customMinNightsByDate.set(row.date, row.custom_minNights);
           }
           // If API returns checkout-only info for available dates, respect it
-          if (row.date && row.isAvailableForCheckout === true) {
+          if (row.date && row.isAvailable === true && row.isAvailableForCheckout === true) {
             checkoutOnlyDates.add(row.date);
           }
         });
         console.log('[StayCalendar] hydrated custom min nights', {
           count: customMinNightsByDate.size,
-          sample: Array.from(customMinNightsByDate.entries()).slice(0, 5)
+          sample: Array.from(customMinNightsByDate.entries()).slice(0, 5),
+          checkoutOnlyAdds: Array.from(checkoutOnlyDates).slice(0, 10)
         });
       } catch (err) {
         console.error('[StayCalendar] error fetching custom min nights', err);
@@ -1298,7 +1299,8 @@ document.addEventListener('DOMContentLoaded', function () {
           checkDate = addDays(checkDate, 1);
         }
 
-        const availableNightsFromStart = availableDaysFromStart - 1;
+        // Nights you can stay before hitting the first blocked date
+        const availableNightsFromStart = availableDaysFromStart;
         const lowestMinNights = getLowestMinNightsBetween(minDate, firstBlockedDate);
 
         // If there aren't enough nights before the first blocked date, mark all dates in between as unavailable
@@ -1325,6 +1327,15 @@ document.addEventListener('DOMContentLoaded', function () {
         const currentBlockedDate = createDateFromString(sortedDisabledDates[i]);
         const nextBlockedDate = createDateFromString(sortedDisabledDates[i + 1]);
 
+        // Safety: skip malformed ordering to avoid negative gaps
+        if (nextBlockedDate <= currentBlockedDate) {
+          console.warn('[StayCalendar] unexpected blocked date order', {
+            current: sortedDisabledDates[i],
+            next: sortedDisabledDates[i + 1]
+          });
+          continue;
+        }
+
         // Calculate available nights (days - 1)
         let availableDays = 0;
         let checkDate = addDays(currentBlockedDate, 1); // Start from day after blocked date
@@ -1335,8 +1346,8 @@ document.addEventListener('DOMContentLoaded', function () {
           checkDate = addDays(checkDate, 1);
         }
 
-        // Available nights is one less than available days
-        const availableNights = availableDays - 1;
+        // Available nights equals the number of available days between blocked dates
+        const availableNights = availableDays;
 
         // Find the lowest min nights requirement across the gap, considering per-day overrides
         const lowestMinNights = getLowestMinNightsBetween(
