@@ -1266,25 +1266,24 @@ document.addEventListener('DOMContentLoaded', function () {
       return result;
     }
 
+    // Helper to get the lowest min-nights requirement within a date range (inclusive start, exclusive end)
+    function getLowestMinNightsBetween(startDate, endDate) {
+      let lowestMin = minNights;
+      let cursor = new Date(startDate);
+      while (cursor < endDate) {
+        const cursorStr = formatDate(cursor);
+        if (customMinNightsByDate.has(cursorStr)) {
+          lowestMin = Math.min(lowestMin, customMinNightsByDate.get(cursorStr));
+        }
+        cursor = addDays(cursor, 1);
+      }
+      return lowestMin;
+    }
+
     // Add function to find gaps smaller than min nights and mark them as unavailable
     function markSmallGapsAsUnavailable() {
       const sortedDisabledDates = Array.from(disabledDates).sort();
       console.log('[StayCalendar] markSmallGaps start - blocked dates:', sortedDisabledDates.length);
-
-      // Helper to get the lowest min-nights requirement within a date range (inclusive start, exclusive end)
-      function getLowestMinNightsBetween(startDate, endDate) {
-        let lowestMin = minNights;
-        let cursor = new Date(startDate);
-        while (cursor < endDate) {
-          const cursorStr = formatDate(cursor);
-          if (customMinNightsByDate.has(cursorStr)) {
-            lowestMin = Math.min(lowestMin, customMinNightsByDate.get(cursorStr));
-          }
-          cursor = addDays(cursor, 1);
-        }
-        console.log('[StayCalendar] lowestMin in range', formatDate(startDate), '->', formatDate(addDays(endDate, -1)), 'is', lowestMin);
-        return lowestMin;
-      }
 
       // Check first blocked date - verify there are enough nights from minDate
       if (sortedDisabledDates.length > 0) {
@@ -1302,6 +1301,7 @@ document.addEventListener('DOMContentLoaded', function () {
         // Nights you can stay before hitting the first blocked date
         const availableNightsFromStart = availableDaysFromStart;
         const lowestMinNights = getLowestMinNightsBetween(minDate, firstBlockedDate);
+        console.log('[StayCalendar] lowestMin in range', formatDate(minDate), '->', formatDate(addDays(firstBlockedDate, -1)), 'is', lowestMinNights);
 
         // If there aren't enough nights before the first blocked date, mark all dates in between as unavailable
         if (availableNightsFromStart < lowestMinNights) {
@@ -1354,6 +1354,7 @@ document.addEventListener('DOMContentLoaded', function () {
           addDays(currentBlockedDate, 1),
           nextBlockedDate
         );
+        console.log('[StayCalendar] lowestMin in range', formatDate(addDays(currentBlockedDate, 1)), '->', formatDate(addDays(nextBlockedDate, -1)), 'is', lowestMinNights);
 
         // If available nights are less than minimum required, mark all dates in between as unavailable
         if (availableNights < lowestMinNights) {
@@ -1752,6 +1753,9 @@ document.addEventListener('DOMContentLoaded', function () {
     function applyDateStyling(dayElement, currentDate) {
       const dateString = formatDate(currentDate);
       const isCheckoutOnly = checkoutOnlyDates.has(dateString);
+      const effectiveMinNights = selectedStartDate
+        ? getLowestMinNightsBetween(selectedStartDate, addDays(selectedStartDate, 1 + Math.max(0, Math.round((currentDate - selectedStartDate) / (1000 * 60 * 60 * 24)))))
+        : minNights;
 
       // Reset styles first
       dayElement.style.backgroundColor = '';
@@ -1829,7 +1833,7 @@ document.addEventListener('DOMContentLoaded', function () {
           }
 
           // Dates within min nights range (blocked for checkout)
-          if (currentDate > selectedStartDate && daysDiff < minNights) {
+          if (currentDate > selectedStartDate && daysDiff < effectiveMinNights) {
             dayElement.style.opacity = '0.4';
             dayElement.style.color = 'grey';
             dayElement.style.cursor = 'not-allowed';
@@ -1896,6 +1900,9 @@ document.addEventListener('DOMContentLoaded', function () {
     function handleDateSelection(date) {
       const dateString = formatDate(date);
       const isCheckoutOnly = checkoutOnlyDates.has(dateString);
+      const effectiveMinNights = selectedStartDate
+        ? getLowestMinNightsBetween(selectedStartDate, addDays(date, 1))
+        : minNights;
 
       // If no check-in selected yet, select this as check-in
       if (!selectedStartDate) {
@@ -1958,8 +1965,8 @@ document.addEventListener('DOMContentLoaded', function () {
         // Prevent selection if it violates rules
         const daysDiff = Math.round((date - selectedStartDate) / (1000 * 60 * 60 * 24));
 
-        if (daysDiff < minNights) {
-          showError(`Minimum stay is ${minNights} nights`);
+        if (daysDiff < effectiveMinNights) {
+          showError(`Minimum stay is ${effectiveMinNights} nights`);
           return;
         }
 
