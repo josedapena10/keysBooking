@@ -1124,6 +1124,23 @@ window.addEventListener('pageshow', function (event) {
 // Initial reset
 resetReserveButtonState();
 
+// Global helper stub for effective min nights (will be overwritten once custom mins load)
+window.getEffectiveMinNightsForSelection = function (r) {
+  const baseMin = r?.Load_Property_Details?.data?.property?.min_nights || 1;
+  const params = new URLSearchParams(window.location.search);
+  const ci = params.get('checkin');
+  const co = params.get('checkout');
+  if (ci && co) {
+    const checkin = new Date(ci);
+    const checkout = new Date(co);
+    if (!Number.isNaN(checkin) && !Number.isNaN(checkout)) {
+      const diff = Math.max(0, Math.round((checkout - checkin) / (1000 * 60 * 60 * 24)));
+      return Math.max(baseMin, diff || baseMin);
+    }
+  }
+  return baseMin;
+};
+
 reserveButtons.forEach(button => {
   if (button) {
     const buttonText = button.querySelector('[data-element="listing_reserve_button_text"]');
@@ -1266,6 +1283,24 @@ document.addEventListener('DOMContentLoaded', function () {
       return result;
     }
 
+    // Helper: effective min nights for currently selected range (uses custom overrides)
+    function getEffectiveMinNightsForSelection(r) {
+      const baseMin = r?.Load_Property_Details?.data?.property?.min_nights || minNights;
+      const params = new URLSearchParams(window.location.search);
+      const ci = params.get('checkin');
+      const co = params.get('checkout');
+      if (ci && co) {
+        try {
+          const checkinDate = createDateFromString(ci);
+          const checkoutDate = createDateFromString(co);
+          return getLowestMinNightsBetween(checkinDate, checkoutDate);
+        } catch (_) {
+          // ignore parse errors, fall back to base
+        }
+      }
+      return baseMin;
+    }
+
     // Helper to get the lowest min-nights requirement within a date range (inclusive start, exclusive end)
     function getLowestMinNightsBetween(startDate, endDate) {
       let lowestMin = minNights;
@@ -1283,6 +1318,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // Expose helpers for other modules that need effective min-night calculations
     window.getLowestMinNightsBetween = getLowestMinNightsBetween;
     window.createDateFromString = createDateFromString;
+    window.getEffectiveMinNightsForSelection = getEffectiveMinNightsForSelection;
 
     // Add function to find gaps smaller than min nights and mark them as unavailable
     function markSmallGapsAsUnavailable() {
