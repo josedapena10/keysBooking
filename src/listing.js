@@ -1164,6 +1164,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // Get calendar data and property details
     let calendarData = Wized.data.r.Load_Property_Calendar_Disabled;
     let propertyData = Wized.data.r.Load_Property_Details.data.property;
+    const CUSTOM_MIN_NIGHTS_ENDPOINT = 'https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/property_calendar_customMinNights';
 
     // Get DOM elements
     const checkInInput = document.querySelector('[data-element="checkInInput"]');
@@ -1198,6 +1199,40 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     console.log('[StayCalendar] initial disabled dates:', disabledDates.size, 'checkout-only:', checkoutOnlyDates.size, 'customMin entries:', customMinNightsByDate.size, 'sample:', Array.from(customMinNightsByDate.entries()).slice(0, 5));
+
+    async function hydrateCustomMinNights(currentPropertyData) {
+      const propertyId = currentPropertyData?.id || currentPropertyData?.property_id;
+      if (!propertyId) {
+        console.warn('[StayCalendar] no property id available for custom min nights fetch');
+        return;
+      }
+      const url = `${CUSTOM_MIN_NIGHTS_ENDPOINT}?property_id=${encodeURIComponent(propertyId)}`;
+      try {
+        const res = await fetch(url);
+        if (!res.ok) {
+          console.error('[StayCalendar] custom min nights fetch failed', res.status, res.statusText);
+          return;
+        }
+        const body = await res.json();
+        const rows = Array.isArray(body) ? body : Array.isArray(body?.data) ? body.data : [];
+        console.log('[StayCalendar] fetched custom min nights rows:', rows.length, 'first row keys:', rows[0] ? Object.keys(rows[0]) : []);
+        rows.forEach(row => {
+          if (row.date && row.custom_minNights !== undefined && row.custom_minNights !== null) {
+            customMinNightsByDate.set(row.date, row.custom_minNights);
+          }
+          // If API returns checkout-only info for available dates, respect it
+          if (row.date && row.isAvailableForCheckout === true) {
+            checkoutOnlyDates.add(row.date);
+          }
+        });
+        console.log('[StayCalendar] hydrated custom min nights', {
+          count: customMinNightsByDate.size,
+          sample: Array.from(customMinNightsByDate.entries()).slice(0, 5)
+        });
+      } catch (err) {
+        console.error('[StayCalendar] error fetching custom min nights', err);
+      }
+    }
 
     // Get property rules
     const advanceNotice = propertyData.advanceNotice || 0;
@@ -1337,6 +1372,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // Mark small gaps as unavailable
+    await hydrateCustomMinNights(propertyData);
     markSmallGapsAsUnavailable();
 
     // Helper function to check if a date has valid checkout options
@@ -1449,6 +1485,9 @@ document.addEventListener('DOMContentLoaded', function () {
             }
           });
         }
+
+        // Fetch custom min nights from availability endpoint as well
+        await hydrateCustomMinNights(propertyData);
 
         console.log('[StayCalendar] refresh data rebuilt sets - disabled:', disabledDates.size, 'checkout-only:', checkoutOnlyDates.size, 'customMin entries:', customMinNightsByDate.size);
 
