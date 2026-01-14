@@ -1275,10 +1275,9 @@ document.addEventListener('DOMContentLoaded', function () {
       return result;
     }
 
-    // Helper: effective min nights for currently selected range (uses custom overrides)
+    // Helper: effective min nights for currently selected range (uses custom overrides and URL length)
     function getEffectiveMinNightsForSelection(r) {
       const baseMin = r?.Load_Property_Details?.data?.property?.min_nights || minNights;
-      // Prefer API-provided range min if present
       const queryMin = Number(r?.Load_Property_Calendar_Query?.data?.dateRange_minNights);
 
       const params = new URLSearchParams(window.location.search);
@@ -1286,21 +1285,26 @@ document.addEventListener('DOMContentLoaded', function () {
       const co = params.get('checkout');
 
       let effective = baseMin;
+      let nightsFromParams = 0;
 
-      // If the API returned a min for the selected range, respect it
       if (!Number.isNaN(queryMin) && queryMin > 0) {
         effective = Math.min(effective, queryMin);
       }
 
-      // Use custom per-day overrides if we can parse the selected range
       if (ci && co) {
         try {
           const checkinDate = createDateFromString(ci);
           const checkoutDate = createDateFromString(co);
+          nightsFromParams = Math.max(0, Math.round((checkoutDate - checkinDate) / (1000 * 60 * 60 * 24)));
+          // custom per-day overrides
           effective = Math.min(effective, getLowestMinNightsBetween(checkinDate, checkoutDate));
         } catch (_) {
-          // ignore parse errors, fall back to current effective
+          nightsFromParams = 0;
         }
+      }
+
+      if (nightsFromParams > 0) {
+        effective = Math.min(effective, nightsFromParams);
       }
 
       return effective;
@@ -3118,33 +3122,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Helper: effective min nights for the currently selected range (respects custom overrides surfaced in StayCalendar)
     function getEffectiveMinNightsForSelection(r) {
-      const baseMin = r?.Load_Property_Details?.data?.property?.min_nights || 1;
-      const params = new URLSearchParams(window.location.search);
-      const ci = params.get('checkin');
-      const co = params.get('checkout');
-
-      const queryMin = Number(r?.Load_Property_Calendar_Query?.data?.dateRange_minNights);
-      // Nights from selected URL params (used as a lower-bound override when present)
-      let nightsFromParams = 0;
-      if (ci && co) {
-        try {
-          const start = window.createDateFromString(ci);
-          const end = window.createDateFromString(co);
-          nightsFromParams = Math.max(0, Math.round((end - start) / (1000 * 60 * 60 * 24)));
-        } catch (e) {
-          nightsFromParams = 0;
-        }
+      if (typeof window.getEffectiveMinNightsForSelection === 'function') {
+        return window.getEffectiveMinNightsForSelection(r);
       }
-
-      let effective = baseMin;
-      if (!Number.isNaN(queryMin) && queryMin > 0) {
-        effective = Math.min(effective, queryMin);
-      }
-      if (nightsFromParams > 0) {
-        effective = Math.min(effective, nightsFromParams);
-      }
-
-      return effective;
+      return (r?.Load_Property_Details?.data?.property?.min_nights || 1);
     }
 
     // Initialize
