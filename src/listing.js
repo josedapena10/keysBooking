@@ -4316,7 +4316,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Convert milliseconds to days
         const millisecondsPerDay = 1000 * 60 * 60 * 24;
-        const differenceDays = Math.floor(differenceMillis / millisecondsPerDay);
+        const differenceDaysRaw = differenceMillis / millisecondsPerDay;
+        // Use at least 1 night to avoid zero-night display when dates are set via URL
+        const differenceDays = Math.max(1, Math.round(differenceDaysRaw));
 
         // Calculate nightly rate
         const nightsTotal = r.Load_Property_Calendar_Query.data.dateRange_nightsTotal;
@@ -4325,7 +4327,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // Update all nightly price text elements (desktop and mobile)
         nightlyPriceTextElements.forEach(element => {
           if (element) {
-            element.textContent = `$${nightlyRate} x ${differenceDays} nights`;
+            const label = differenceDays === 1 ? 'night' : 'nights';
+            element.textContent = `$${nightlyRate} x ${differenceDays} ${label}`;
           }
         });
       }
