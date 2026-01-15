@@ -1270,15 +1270,21 @@ document.addEventListener('DOMContentLoaded', function () {
         customMinNightsLoaded = true;
         window.customMinNightsLoaded = true;
 
+        console.log('[Custom Min Nights] ✅ Loaded, about to trigger validation');
+
         // Re-trigger validation after custom min nights load
         if (window.updateAvailabilityStatus) {
+          console.log('[Custom Min Nights] Calling updateAvailabilityStatus');
           window.updateAvailabilityStatus();
         }
 
         // Notify page loader that custom min nights are ready
         if (window.notifyCustomMinNightsLoaded) {
+          console.log('[Custom Min Nights] Notifying page loader');
           window.notifyCustomMinNightsLoaded();
         }
+
+        console.log('[Custom Min Nights] ✅ All done');
       } catch (err) {
         console.error('[StayCalendar] error fetching custom min nights', err);
         // Mark as loaded even on error to avoid infinite waiting
@@ -3716,7 +3722,12 @@ document.addEventListener('DOMContentLoaded', () => {
       // Apply visibility and text to all heading elements (desktop and mobile)
       addDatesHeadings.forEach(heading => {
         if (heading) {
-          heading.style.display = shouldBeVisible ? 'flex' : 'none';
+          const oldDisplay = heading.style.display;
+          const newDisplay = shouldBeVisible ? 'flex' : 'none';
+          if (oldDisplay !== newDisplay) {
+            console.log(`[${Date.now()}] Heading: ${oldDisplay} → ${newDisplay} | "${headingText}" | customMinLoaded=${window.customMinNightsLoaded}`);
+          }
+          heading.style.display = newDisplay;
           heading.textContent = headingText;
         }
       });
@@ -4230,7 +4241,12 @@ document.addEventListener('DOMContentLoaded', () => {
       // Update all container elements (desktop and mobile)
       containerElements.forEach(containerElement => {
         if (containerElement) {
-          containerElement.style.display = shouldShow ? 'flex' : 'none';
+          const oldDisplay = containerElement.style.display;
+          const newDisplay = shouldShow ? 'flex' : 'none';
+          if (oldDisplay !== newDisplay) {
+            console.log(`[${Date.now()}] Total Container: ${oldDisplay} → ${newDisplay} | customMinLoaded=${window.customMinNightsLoaded} meetsMin=${meetsMinNights}`);
+          }
+          containerElement.style.display = newDisplay;
         }
       });
     }
