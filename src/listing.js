@@ -1212,8 +1212,15 @@ document.addEventListener('DOMContentLoaded', function () {
       // Collect custom minimum nights overrides if present
       if (item.custom_minNights !== undefined && item.custom_minNights !== null) {
         customMinNightsByDate.set(item.date, item.custom_minNights);
+        // Log custom min nights for debugging
+        if (item.date === '2026-03-18' || item.date === '2026-03-19') {
+          console.log(`[Calendar] Custom min nights for ${item.date}:`, item.custom_minNights);
+        }
       }
     });
+
+    console.log('[Calendar] Total custom min nights loaded:', customMinNightsByDate.size);
+    console.log('[Calendar] Custom min nights map:', Array.from(customMinNightsByDate.entries()));
 
     async function hydrateCustomMinNights(currentPropertyData) {
       const propertyId = currentPropertyData?.id || currentPropertyData?.property_id;
@@ -1230,15 +1237,21 @@ document.addEventListener('DOMContentLoaded', function () {
         }
         const body = await res.json();
         const rows = Array.isArray(body) ? body : Array.isArray(body?.data) ? body.data : [];
+        console.log('[Calendar] Hydrating custom min nights from API, rows:', rows.length);
         rows.forEach(row => {
           if (row.date && row.custom_minNights !== undefined && row.custom_minNights !== null) {
             customMinNightsByDate.set(row.date, row.custom_minNights);
+            // Log custom min nights for debugging
+            if (row.date === '2026-03-18' || row.date === '2026-03-19') {
+              console.log(`[Calendar API] Custom min nights for ${row.date}:`, row.custom_minNights);
+            }
           }
           // If API returns checkout-only info for available dates, respect it
           if (row.date && row.isAvailable === true && row.isAvailableForCheckout === true) {
             checkoutOnlyDates.add(row.date);
           }
         });
+        console.log('[Calendar API] After hydration, custom min nights map size:', customMinNightsByDate.size);
       } catch (err) {
         console.error('[StayCalendar] error fetching custom min nights', err);
       }
@@ -1321,13 +1334,28 @@ document.addEventListener('DOMContentLoaded', function () {
     function getLowestMinNightsBetween(startDate, endDate) {
       let lowestMin = minNights;
       let cursor = new Date(startDate);
+      const datesChecked = [];
+
       while (cursor < endDate) {
         const cursorStr = formatDate(cursor);
         if (customMinNightsByDate.has(cursorStr)) {
-          lowestMin = Math.min(lowestMin, customMinNightsByDate.get(cursorStr));
+          const customMin = customMinNightsByDate.get(cursorStr);
+          lowestMin = Math.min(lowestMin, customMin);
+          datesChecked.push({ date: cursorStr, customMin, lowestMin });
+        } else {
+          datesChecked.push({ date: cursorStr, customMin: 'none', lowestMin });
         }
         cursor = addDays(cursor, 1);
       }
+
+      // Log for specific date range we're debugging
+      if (formatDate(startDate) === '2026-03-18' && formatDate(endDate) === '2026-03-19') {
+        console.log('[getLowestMinNightsBetween] Checking range 2026-03-18 to 2026-03-19');
+        console.log('[getLowestMinNightsBetween] Default minNights:', minNights);
+        console.log('[getLowestMinNightsBetween] Dates checked:', datesChecked);
+        console.log('[getLowestMinNightsBetween] Result (lowestMin):', lowestMin);
+      }
+
       return lowestMin;
     }
 
@@ -3171,6 +3199,14 @@ document.addEventListener('DOMContentLoaded', () => {
       const n = Wized.data.n;
       const urlParams = new URLSearchParams(window.location.search);
 
+      const checkinParam = urlParams.get('checkin');
+      const checkoutParam = urlParams.get('checkout');
+
+      if (checkinParam === '2026-03-18' && checkoutParam === '2026-03-19') {
+        console.log('[updateAvailabilityStatus] Called for 2026-03-18 to 2026-03-19');
+        console.log('[updateAvailabilityStatus] Calendar Query data:', r.Load_Property_Calendar_Query?.data);
+      }
+
       if (n && n.parameter) {
       }
 
@@ -3440,11 +3476,22 @@ document.addEventListener('DOMContentLoaded', () => {
       const params = new URLSearchParams(window.location.search);
       const checkinParam = params.get('checkin');
       const checkoutParam = params.get('checkout');
+
+      // Log for debugging specific dates
+      if (checkinParam === '2026-03-18' && checkoutParam === '2026-03-19') {
+        console.log('=== DEBUGGING 2026-03-18 to 2026-03-19 ===');
+        console.log('[Validation] Base minNights from getEffectiveMinNightsForSelection:', minNights);
+      }
+
       if (checkinParam && checkoutParam && typeof getLowestMinNightsBetween === 'function' && typeof createDateFromString === 'function') {
         try {
           const checkinDate = createDateFromString(checkinParam);
           const checkoutDate = createDateFromString(checkoutParam);
           effectiveMinNights = getLowestMinNightsBetween(checkinDate, checkoutDate);
+
+          if (checkinParam === '2026-03-18' && checkoutParam === '2026-03-19') {
+            console.log('[Validation] Effective minNights after getLowestMinNightsBetween:', effectiveMinNights);
+          }
         } catch (_) {
           // ignore parsing errors, fallback to base min
         }
@@ -3476,10 +3523,20 @@ document.addEventListener('DOMContentLoaded', () => {
             const start = createDateFromString(ci);
             const end = createDateFromString(co);
             nightsFromParams = Math.max(0, Math.round((end - start) / (1000 * 60 * 60 * 24)));
+
+            if (ci === '2026-03-18' && co === '2026-03-19') {
+              console.log('[Validation] Nights from params:', nightsFromParams);
+              console.log('[Validation] Effective min nights:', effectiveMinNights);
+              console.log('[Validation] Will meet min nights?', nightsFromParams >= effectiveMinNights);
+            }
+
             if (nightsFromParams >= effectiveMinNights) {
               meetsMinNights = true;
             } else if (nightsFromParams > 0) {
               // Trust explicit selection length as a floor even if overrides not yet loaded
+              if (ci === '2026-03-18' && co === '2026-03-19') {
+                console.log('[Validation] OVERRIDE: Trusting selection length, setting effectiveMinNights to:', nightsFromParams);
+              }
               effectiveMinNights = Math.min(effectiveMinNights, nightsFromParams);
               meetsMinNights = true;
             }
@@ -3489,6 +3546,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Determine color based on availability and minimum night conditions
       const color = !allAvailable || !meetsMinNights ? "#ffd4d2" : "";
+
+      if (checkinParam === '2026-03-18' && checkoutParam === '2026-03-19') {
+        console.log('[Validation] Final validation results:');
+        console.log('  - allAvailable:', allAvailable);
+        console.log('  - meetsMinNights:', meetsMinNights);
+        console.log('  - consecutiveAvailableDays:', consecutiveAvailableDays);
+        console.log('  - effectiveMinNights:', effectiveMinNights);
+        console.log('  - nightsFromParams:', nightsFromParams);
+        console.log('  - Returning color:', color);
+        console.log('=== END DEBUG ===');
+      }
 
       return color;
     }
