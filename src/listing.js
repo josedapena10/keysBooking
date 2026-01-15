@@ -9555,15 +9555,12 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       updateButtonState() {
-        const isValid = this.areDatesValid();
-
-        // Update all button styles
+        // Always keep add boat buttons enabled/interactive
         this.buttons.forEach(button => {
-          if (button) {
-            button.style.borderColor = isValid ? '' : '#e2e2e2';
-            button.style.opacity = isValid ? '1' : '0.5';
-            button.style.cursor = isValid ? 'pointer' : 'not-allowed';
-          }
+          if (!button) return;
+          button.style.borderColor = '';
+          button.style.opacity = '1';
+          button.style.cursor = 'pointer';
         });
       }
 
