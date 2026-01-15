@@ -1183,8 +1183,6 @@ document.addEventListener('DOMContentLoaded', function () {
     let propertyData = Wized.data.r.Load_Property_Details.data.property;
     const CUSTOM_MIN_NIGHTS_ENDPOINT = 'https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/property_calendar_customMinNights';
 
-    console.log('[Calendar Init] Load_Property_Calendar_Disabled data:', calendarData);
-    console.log('[Calendar Init] Total items in calendar data:', calendarData?.data?.length);
 
     // Get DOM elements
     const checkInInput = document.querySelector('[data-element="checkInInput"]');
@@ -1203,6 +1201,7 @@ document.addEventListener('DOMContentLoaded', function () {
     let selectingCheckOut = false;
     let isRefreshingCalendarData = false;
     const customMinNightsByDate = new Map(); // Per-day overrides for minimum nights
+    let customMinNightsLoaded = false; // Track if custom min nights have been hydrated
 
     // Convert disabled dates from API
     calendarData.data.forEach(item => {
@@ -1215,11 +1214,8 @@ document.addEventListener('DOMContentLoaded', function () {
       // Collect custom minimum nights overrides if present
       if (item.custom_minNights !== undefined && item.custom_minNights !== null) {
         customMinNightsByDate.set(item.date, item.custom_minNights);
-        console.log(`[Calendar] Custom min night found: ${item.date} = ${item.custom_minNights}`);
       }
     });
-
-    console.log('[Calendar] After initial load, custom min nights map:', Array.from(customMinNightsByDate.entries()));
 
     async function hydrateCustomMinNights(currentPropertyData) {
       const propertyId = currentPropertyData?.id || currentPropertyData?.property_id;
@@ -1236,26 +1232,26 @@ document.addEventListener('DOMContentLoaded', function () {
         }
         const body = await res.json();
         const rows = Array.isArray(body) ? body : Array.isArray(body?.data) ? body.data : [];
-        console.log('[Calendar API] Hydrating custom min nights, rows received:', rows.length);
         rows.forEach(row => {
           if (row.date && row.custom_minNights !== undefined && row.custom_minNights !== null) {
             customMinNightsByDate.set(row.date, row.custom_minNights);
-            console.log(`[Calendar API] Custom min night found: ${row.date} = ${row.custom_minNights}`);
           }
           // If API returns checkout-only info for available dates, respect it
           if (row.date && row.isAvailable === true && row.isAvailableForCheckout === true) {
             checkoutOnlyDates.add(row.date);
           }
         });
-        console.log('[Calendar API] After hydration, custom min nights map:', Array.from(customMinNightsByDate.entries()));
+
+        // Mark as loaded
+        customMinNightsLoaded = true;
 
         // Re-trigger validation after custom min nights load
         if (window.updateAvailabilityStatus) {
-          console.log('[Calendar API] Re-triggering validation after custom min nights load');
           window.updateAvailabilityStatus();
         }
       } catch (err) {
         console.error('[StayCalendar] error fetching custom min nights', err);
+        customMinNightsLoaded = true; // Mark as loaded even on error to avoid infinite waiting
       }
     }
 
@@ -1336,30 +1332,14 @@ document.addEventListener('DOMContentLoaded', function () {
     function getLowestMinNightsBetween(startDate, endDate) {
       let lowestMin = minNights;
       let cursor = new Date(startDate);
-      const datesChecked = [];
 
       while (cursor < endDate) {
         const cursorStr = formatDate(cursor);
         if (customMinNightsByDate.has(cursorStr)) {
           const customMin = customMinNightsByDate.get(cursorStr);
           lowestMin = Math.min(lowestMin, customMin);
-          datesChecked.push({ date: cursorStr, hasCustom: true, customMin, lowestMin });
-        } else {
-          datesChecked.push({ date: cursorStr, hasCustom: false, lowestMin });
         }
         cursor = addDays(cursor, 1);
-      }
-
-      if (formatDate(startDate) === '2026-03-18') {
-        console.log('[getLowestMinNightsBetween] Range starting 2026-03-18:');
-        console.log('  - customMinNightsByDate.size:', customMinNightsByDate.size);
-        console.log('  - Has custom for 2026-03-18?', customMinNightsByDate.has('2026-03-18'));
-        if (customMinNightsByDate.has('2026-03-18')) {
-          console.log('  - Custom value:', customMinNightsByDate.get('2026-03-18'));
-        }
-        console.log('  - Default minNights:', minNights);
-        console.log('  - Dates checked:', datesChecked);
-        console.log('  - Returning lowestMin:', lowestMin);
       }
 
       return lowestMin;
@@ -2975,7 +2955,18 @@ document.addEventListener('DOMContentLoaded', () => {
   // Default: hide pricing/total until validation explicitly shows them
   priceDetailsElements.forEach(el => { if (el) el.style.display = 'none'; });
   totalContainers.forEach(el => { if (el) el.style.display = 'none'; });
-  addDatesHeadings.forEach(el => { if (el) el.style.display = 'flex'; });
+
+  // Check if dates are selected - if so, hide add dates heading too until we validate
+  const urlParams = new URLSearchParams(window.location.search);
+  const hasDatesSelected = urlParams.get('checkin') && urlParams.get('checkout');
+  if (hasDatesSelected) {
+    // Hide both pricing AND add dates heading until validation completes
+    addDatesHeadings.forEach(el => { if (el) el.style.display = 'none'; });
+  } else {
+    // No dates selected, show add dates heading
+    addDatesHeadings.forEach(el => { if (el) el.style.display = 'flex'; });
+  }
+
   // Default: hide "Won't be charged" until validation explicitly shows it
   wontBeChargedElements.forEach(el => { if (el) el.style.display = 'none'; });
 
@@ -3417,6 +3408,14 @@ document.addEventListener('DOMContentLoaded', () => {
         return ""; // Return empty string for default background when no dates are selected
       }
 
+      // Wait for custom min nights to load before validation
+      // This prevents flashing between states while API loads
+      if (!customMinNightsLoaded) {
+        // Return empty but don't validate yet - keep current visual state
+        // The re-trigger after load will update to correct state
+        return "";
+      }
+
       // Check if calendar query is currently executing (not completed yet)
       // When dates are selected from calendar UI, they're always valid, so clear error immediately
       if (r.Load_Property_Calendar_Query &&
@@ -3490,20 +3489,11 @@ document.addEventListener('DOMContentLoaded', () => {
       let meetsMinNights = false;
       let nightsFromParams = 0;
 
-      if (checkinParam === '2026-03-18' && checkoutParam === '2026-03-19') {
-        console.log('[getAvailabilityColor] Starting validation:');
-        console.log('  - effectiveMinNights:', effectiveMinNights);
-        console.log('  - propertyCalendarRange length:', propertyCalendarRange.length);
-      }
-
       for (let i = 0; i < propertyCalendarRange.length; i++) {
         if (propertyCalendarRange[i].status === "available") {
           consecutiveAvailableDays++; // Count consecutive available days
           if (consecutiveAvailableDays >= effectiveMinNights) {
             meetsMinNights = true; // If consecutive days meet min nights at any point
-            if (checkinParam === '2026-03-18' && checkoutParam === '2026-03-19') {
-              console.log(`[getAvailabilityColor] Day ${i}: consecutiveAvailableDays (${consecutiveAvailableDays}) >= effectiveMinNights (${effectiveMinNights}) - meetsMinNights = TRUE`);
-            }
           }
         } else {
           consecutiveAvailableDays = 0; // Reset if a day is not available
@@ -3530,16 +3520,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Determine color based on availability and minimum night conditions
       const color = !allAvailable || !meetsMinNights ? "#ffd4d2" : "";
-
-      if (checkinParam === '2026-03-18' && checkoutParam === '2026-03-19') {
-        console.log('[getAvailabilityColor] FINAL RESULT:');
-        console.log('  - allAvailable:', allAvailable);
-        console.log('  - meetsMinNights:', meetsMinNights);
-        console.log('  - consecutiveAvailableDays:', consecutiveAvailableDays);
-        console.log('  - effectiveMinNights:', effectiveMinNights);
-        console.log('  - nightsFromParams:', nightsFromParams);
-        console.log('  - color:', color);
-      }
 
       return color;
     }
@@ -3624,8 +3604,13 @@ document.addEventListener('DOMContentLoaded', () => {
       // Priority 0: If both dates are selected and extras are complete, hide heading immediately (even while waiting for validation)
       // This provides instant feedback when user selects dates
       else if (datesSelected) {
+        // Wait for custom min nights to load before showing/hiding heading
+        if (!customMinNightsLoaded) {
+          // Keep heading hidden while waiting for custom min nights
+          shouldBeVisible = false;
+        }
         // Check if calendar query is still loading
-        if (r.Load_Property_Calendar_Query && r.Load_Property_Calendar_Query.isRequesting) {
+        else if (r.Load_Property_Calendar_Query && r.Load_Property_Calendar_Query.isRequesting) {
           // Loading - hide heading while waiting
           shouldBeVisible = false;
         }
@@ -4112,6 +4097,12 @@ document.addEventListener('DOMContentLoaded', () => {
       const hasCheckout = urlParams.has('checkout') && urlParams.get('checkout') !== "";
       const datesSelected = hasCheckin && hasCheckout;
 
+      // Wait for custom min nights to load before hiding container
+      // This prevents hiding valid dates while API loads
+      if (!customMinNightsLoaded && datesSelected) {
+        return; // Don't change visibility until we know custom minimums
+      }
+
       // If no dates are selected, hide the container
       if (!datesSelected) {
         containerElements.forEach(containerElement => {
@@ -4337,6 +4328,12 @@ document.addEventListener('DOMContentLoaded', () => {
       const r = Wized.data.r;
       const n = Wized.data.n;
 
+      // Wait for custom min nights to load before hiding pricing
+      // This prevents hiding valid dates while API loads
+      if (!customMinNightsLoaded) {
+        return; // Don't change visibility until we know custom minimums
+      }
+
       // Check if required data exists
       if (!r || !r.Load_Property_Calendar_Query || !r.Load_Property_Calendar_Query.data ||
         !r.Load_Property_Details || !r.Load_Property_Details.data ||
@@ -4406,18 +4403,6 @@ document.addEventListener('DOMContentLoaded', () => {
         && (currentGuests <= maxGuests)
         && (currentGuests != 0)
         && !extrasInfo.hasAnyExtrasNeedingDates;
-
-      if (ci === '2026-03-18' && co === '2026-03-19') {
-        console.log('[updateListingQueryPriceDetailsVisibility] FINAL VALIDATION:');
-        console.log('  - minNights (from getEffective):', minNights);
-        console.log('  - allAvailable:', allAvailable);
-        console.log('  - meetsMinNights:', meetsMinNights);
-        console.log('  - consecutiveAvailableDays:', consecutiveAvailableDays);
-        console.log('  - currentGuests:', currentGuests, 'maxGuests:', maxGuests);
-        console.log('  - extrasNeedDates:', extrasInfo.hasAnyExtrasNeedingDates);
-        console.log('  - shouldShow:', shouldShow);
-        console.log('  - Setting display to:', shouldShow ? 'block' : 'none');
-      }
 
       priceDetailsElement.style.display = shouldShow ? 'block' : 'none';
     }
