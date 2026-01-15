@@ -11975,34 +11975,43 @@ document.addEventListener('DOMContentLoaded', () => {
           imageElements.push({ img, photo });
         });
 
-        // Load images sequentially
-        const loadImagesSequentially = async () => {
-          for (let i = 0; i < imageElements.length; i++) {
-            const { img, photo } = imageElements[i];
-            await new Promise((resolve) => {
+        // Load first 2 images immediately (visible on desktop), defer the rest
+        const visibleCount = isMobile ? 1 : 2;
+        for (let i = 0; i < Math.min(visibleCount, imageElements.length); i++) {
+          const { img, photo } = imageElements[i];
+          img.onload = () => {
+            img.style.opacity = '1';
+          };
+          img.onerror = () => {
+            // Handled above
+          };
+          img.src = photo.image.url;
+        }
+
+        // Load remaining images after a delay
+        if (imageElements.length > visibleCount) {
+          setTimeout(() => {
+            for (let i = visibleCount; i < imageElements.length; i++) {
+              const { img, photo } = imageElements[i];
               img.onload = () => {
                 img.style.opacity = '1';
-                resolve();
               };
               img.onerror = () => {
-                resolve(); // Continue even if image fails
+                // Handled above
               };
               img.src = photo.image.url;
-            });
-          }
-        };
-
-        // Start sequential loading
-        loadImagesSequentially();
+            }
+          }, 200);
+        }
 
         carouselWrapper.appendChild(imagesTrack);
 
         // Add navigation buttons only if there are more than the visible count
-        const visibleCount = isMobile ? 1 : 2;
+        const visibleCount2 = isMobile ? 1 : 2;
 
-        if (sortedPhotos.length > visibleCount) {
+        if (sortedPhotos.length > visibleCount2) {
           let currentIndex = 0;
-          const maxIndex = Math.max(0, sortedPhotos.length - visibleCount); // Show based on screen size
+          const maxIndex = Math.max(0, sortedPhotos.length - visibleCount2); // Show based on screen size
 
           // Left navigation button
           const leftButton = document.createElement('button');
@@ -12291,25 +12300,31 @@ document.addEventListener('DOMContentLoaded', () => {
           imageElements.push({ img, photo });
         });
 
-        // Load images sequentially
-        const loadImagesSequentially = async () => {
-          for (let i = 0; i < imageElements.length; i++) {
-            const { img, photo } = imageElements[i];
-            await new Promise((resolve) => {
-              img.onload = () => {
-                img.style.opacity = '1';
-                resolve();
-              };
-              img.onerror = () => {
-                resolve(); // Continue even if image fails
-              };
-              img.src = photo.image.url;
-            });
-          }
-        };
+        // Load only the first image immediately, defer the rest
+        if (imageElements.length > 0) {
+          const firstImage = imageElements[0];
+          firstImage.img.onload = () => {
+            firstImage.img.style.opacity = '1';
 
-        // Start sequential loading
-        loadImagesSequentially();
+            // After first image loads, load remaining images with delay
+            setTimeout(() => {
+              for (let i = 1; i < imageElements.length; i++) {
+                const { img, photo } = imageElements[i];
+                img.onload = () => {
+                  img.style.opacity = '1';
+                };
+                img.onerror = () => {
+                  // Handled above
+                };
+                img.src = photo.image.url;
+              }
+            }, 100);
+          };
+          firstImage.img.onerror = () => {
+            // Handled above
+          };
+          firstImage.img.src = firstImage.photo.image.url;
+        }
 
         carouselWrapper.appendChild(imagesTrack);
 
@@ -18524,34 +18539,43 @@ document.addEventListener('DOMContentLoaded', () => {
           imageElements.push({ img, image });
         });
 
-        // Load images sequentially
-        const loadImagesSequentially = async () => {
-          for (let i = 0; i < imageElements.length; i++) {
-            const { img, image } = imageElements[i];
-            await new Promise((resolve) => {
+        // Load first 2 images immediately (visible on desktop), defer the rest
+        const visibleCount = isMobile ? 1 : 2;
+        for (let i = 0; i < Math.min(visibleCount, imageElements.length); i++) {
+          const { img, image } = imageElements[i];
+          img.onload = () => {
+            img.style.opacity = '1';
+          };
+          img.onerror = () => {
+            // Handled above
+          };
+          img.src = image.image?.url || '';
+        }
+
+        // Load remaining images after a delay
+        if (imageElements.length > visibleCount) {
+          setTimeout(() => {
+            for (let i = visibleCount; i < imageElements.length; i++) {
+              const { img, image } = imageElements[i];
               img.onload = () => {
                 img.style.opacity = '1';
-                resolve();
               };
               img.onerror = () => {
-                resolve(); // Continue even if image fails
+                // Handled above
               };
               img.src = image.image?.url || '';
-            });
-          }
-        };
-
-        // Start sequential loading
-        loadImagesSequentially();
+            }
+          }, 200);
+        }
 
         carouselWrapper.appendChild(imagesTrack);
 
         // Add navigation buttons only if there are more than the visible count
-        const visibleCount = isMobile ? 1 : 2;
+        const visibleCount2 = isMobile ? 1 : 2;
 
-        if (sortedImages.length > visibleCount) {
+        if (sortedImages.length > visibleCount2) {
           let currentIndex = 0;
-          const maxIndex = Math.max(0, sortedImages.length - visibleCount); // Show based on screen size
+          const maxIndex = Math.max(0, sortedImages.length - visibleCount2); // Show based on screen size
 
           // Create counter first so it can be referenced in navigation
           const counter = document.createElement('div');
@@ -18844,25 +18868,31 @@ document.addEventListener('DOMContentLoaded', () => {
           imageElements.push({ img, image });
         });
 
-        // Load images sequentially
-        const loadImagesSequentially = async () => {
-          for (let i = 0; i < imageElements.length; i++) {
-            const { img, image } = imageElements[i];
-            await new Promise((resolve) => {
-              img.onload = () => {
-                img.style.opacity = '1';
-                resolve();
-              };
-              img.onerror = () => {
-                resolve(); // Continue even if image fails
-              };
-              img.src = image.image?.url || '';
-            });
-          }
-        };
+        // Load only the first image immediately, defer the rest
+        if (imageElements.length > 0) {
+          const firstImage = imageElements[0];
+          firstImage.img.onload = () => {
+            firstImage.img.style.opacity = '1';
 
-        // Start sequential loading
-        loadImagesSequentially();
+            // After first image loads, load remaining images with delay
+            setTimeout(() => {
+              for (let i = 1; i < imageElements.length; i++) {
+                const { img, image } = imageElements[i];
+                img.onload = () => {
+                  img.style.opacity = '1';
+                };
+                img.onerror = () => {
+                  // Handled above
+                };
+                img.src = image.image?.url || '';
+              }
+            }, 100);
+          };
+          firstImage.img.onerror = () => {
+            // Handled above
+          };
+          firstImage.img.src = firstImage.image.image?.url || '';
+        }
 
         carouselWrapper.appendChild(imagesTrack);
 
