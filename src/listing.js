@@ -8449,19 +8449,6 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       filterBoats(boats) {
-        console.log('🔍 === FILTER BOATS CALLED ===');
-        console.log('Total boats to filter:', boats.length);
-        console.log('Filter state:', {
-          selectedPrivateDock: this.selectedPrivateDock,
-          selectedDates: this.selectedDates,
-          selectedGuests: this.selectedGuests,
-          selectedPickupTime: this.selectedPickupTime,
-          selectedLengthType: this.selectedLengthType,
-          selectedBoatTypes: this.selectedBoatTypes,
-          selectedPriceMin: this.selectedPriceMin,
-          selectedPriceMax: this.selectedPriceMax
-        });
-
         // Reset min days filter tracking before filtering
         this.lastMinDaysFilterInfo = null;
         let minDaysFilteredCount = 0;
@@ -8566,58 +8553,36 @@ document.addEventListener('DOMContentLoaded', () => {
 
           // Filter by private dock delivery
           if (this.selectedPrivateDock) {
-            console.log('=== PRIVATE DOCK FILTER ACTIVE ===');
-            console.log('Boat being checked:', {
-              name: boat.name,
-              id: boat.id,
-              delivers: boat.delivers,
-              deliversTo: boat.deliversTo
-            });
-
             // First check if property actually has a private dock
             const r = Wized.data.r;
             if (r && r.Load_Property_Details && r.Load_Property_Details.data && r.Load_Property_Details.data.property) {
               const property = r.Load_Property_Details.data.property;
               const hasPrivateDock = property.private_dock;
 
-              console.log('Property private dock status:', hasPrivateDock);
-              console.log('Property city:', property.listing_city);
-
               if (hasPrivateDock === false) {
                 // Property doesn't have private dock, so skip this filter entirely
-                console.log('❌ Property has no private dock - allowing all boats');
                 return true; // Don't filter out this boat
               }
             }
 
             // Check if boat delivers
             if (!boat.delivers) {
-              console.log('❌ Boat does NOT deliver - FILTERED OUT');
               return false;
             }
-
-            console.log('✓ Boat delivers');
 
             // Get property city from Wized data
             if (r && r.Load_Property_Details && r.Load_Property_Details.data && r.Load_Property_Details.data.property) {
               const property = r.Load_Property_Details.data.property;
               const propertyCityName = property.listing_city;
 
-              console.log('Checking delivery to property city:', propertyCityName);
-
               if (!propertyCityName) {
-                console.log('⚠️ No property city found - cannot verify delivery');
-                console.log('❌ FILTERED OUT due to missing property city');
                 return false;
               }
 
               // Check if boat delivers to the property's city
               if (!boat.deliversTo || !Array.isArray(boat.deliversTo)) {
-                console.log('❌ Boat has no deliversTo data - FILTERED OUT');
                 return false;
               }
-
-              console.log('Boat delivers to cities:', boat.deliversTo.map(loc => loc.city));
 
               const matchingLocation = boat.deliversTo.find(location =>
                 location.city && location.city.toLowerCase() === propertyCityName.toLowerCase()
@@ -8625,44 +8590,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
               const canDeliverToProperty = !!matchingLocation;
 
-              console.log('Can deliver to property?', canDeliverToProperty);
-
               if (canDeliverToProperty && matchingLocation) {
-                console.log('Private dock delivery details:', {
-                  city: matchingLocation.city,
-                  minDays: matchingLocation.minDays,
-                  price: matchingLocation.price
-                });
-
                 // Check min days requirement for private dock ONLY if dates are selected
                 if (matchingLocation.minDays && this.selectedDates.length > 0) {
                   const selectedDays = this.selectedDates.length;
                   const minDaysRequired = Number(matchingLocation.minDays);
 
-                  console.log('Min days check:', {
-                    selectedDays: selectedDays,
-                    minDaysRequired: minDaysRequired,
-                    meetsRequirement: selectedDays >= minDaysRequired
-                  });
-
                   if (selectedDays < minDaysRequired) {
-                    console.log(`❌ Not enough days (${selectedDays} < ${minDaysRequired}) - FILTERED OUT`);
                     return false;
                   }
-                } else if (this.selectedDates.length === 0) {
-                  console.log('⚠️ No dates selected yet - skipping min days check');
                 }
 
-                console.log('✅ Boat PASSES private dock filter');
                 return true;
               } else {
-                console.log('❌ Boat does NOT deliver to property city - FILTERED OUT');
                 return false;
               }
             } else {
               // If we can't get property city, hide boats when private dock filter is active
-              console.log('⚠️ Could not access property data');
-              console.log('❌ FILTERED OUT due to missing property data');
               return false;
             }
           }
@@ -8678,12 +8622,6 @@ document.addEventListener('DOMContentLoaded', () => {
             filteredCount: minDaysFilteredCount,
             totalBoats: boats.length
           };
-        }
-
-        console.log('🔍 === FILTER BOATS COMPLETE ===');
-        console.log('Boats passed filter:', filteredBoats.length, 'out of', boats.length);
-        if (filteredBoats.length > 0) {
-          console.log('Passing boats:', filteredBoats.map(b => ({ name: b.name, id: b.id })));
         }
 
         return filteredBoats;
@@ -10171,19 +10109,6 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       filterBoats(boats) {
-        console.log('🔍 === FILTER BOATS CALLED ===');
-        console.log('Total boats to filter:', boats.length);
-        console.log('Filter state:', {
-          selectedPrivateDock: this.selectedPrivateDock,
-          selectedDates: this.selectedDates,
-          selectedGuests: this.selectedGuests,
-          selectedPickupTime: this.selectedPickupTime,
-          selectedLengthType: this.selectedLengthType,
-          selectedBoatTypes: this.selectedBoatTypes,
-          selectedPriceMin: this.selectedPriceMin,
-          selectedPriceMax: this.selectedPriceMax
-        });
-
         // Reset min days filter tracking before filtering
         this.lastMinDaysFilterInfo = null;
         let minDaysFilteredCount = 0;
@@ -10288,58 +10213,36 @@ document.addEventListener('DOMContentLoaded', () => {
 
           // Filter by private dock delivery
           if (this.selectedPrivateDock) {
-            console.log('=== PRIVATE DOCK FILTER ACTIVE ===');
-            console.log('Boat being checked:', {
-              name: boat.name,
-              id: boat.id,
-              delivers: boat.delivers,
-              deliversTo: boat.deliversTo
-            });
-
             // First check if property actually has a private dock
             const r = Wized.data.r;
             if (r && r.Load_Property_Details && r.Load_Property_Details.data && r.Load_Property_Details.data.property) {
               const property = r.Load_Property_Details.data.property;
               const hasPrivateDock = property.private_dock;
 
-              console.log('Property private dock status:', hasPrivateDock);
-              console.log('Property city:', property.listing_city);
-
               if (hasPrivateDock === false) {
                 // Property doesn't have private dock, so skip this filter entirely
-                console.log('❌ Property has no private dock - allowing all boats');
                 return true; // Don't filter out this boat
               }
             }
 
             // Check if boat delivers
             if (!boat.delivers) {
-              console.log('❌ Boat does NOT deliver - FILTERED OUT');
               return false;
             }
-
-            console.log('✓ Boat delivers');
 
             // Get property city from Wized data
             if (r && r.Load_Property_Details && r.Load_Property_Details.data && r.Load_Property_Details.data.property) {
               const property = r.Load_Property_Details.data.property;
               const propertyCityName = property.listing_city;
 
-              console.log('Checking delivery to property city:', propertyCityName);
-
               if (!propertyCityName) {
-                console.log('⚠️ No property city found - cannot verify delivery');
-                console.log('❌ FILTERED OUT due to missing property city');
                 return false;
               }
 
               // Check if boat delivers to the property's city
               if (!boat.deliversTo || !Array.isArray(boat.deliversTo)) {
-                console.log('❌ Boat has no deliversTo data - FILTERED OUT');
                 return false;
               }
-
-              console.log('Boat delivers to cities:', boat.deliversTo.map(loc => loc.city));
 
               const matchingLocation = boat.deliversTo.find(location =>
                 location.city && location.city.toLowerCase() === propertyCityName.toLowerCase()
@@ -10347,44 +10250,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
               const canDeliverToProperty = !!matchingLocation;
 
-              console.log('Can deliver to property?', canDeliverToProperty);
-
               if (canDeliverToProperty && matchingLocation) {
-                console.log('Private dock delivery details:', {
-                  city: matchingLocation.city,
-                  minDays: matchingLocation.minDays,
-                  price: matchingLocation.price
-                });
-
                 // Check min days requirement for private dock ONLY if dates are selected
                 if (matchingLocation.minDays && this.selectedDates.length > 0) {
                   const selectedDays = this.selectedDates.length;
                   const minDaysRequired = Number(matchingLocation.minDays);
 
-                  console.log('Min days check:', {
-                    selectedDays: selectedDays,
-                    minDaysRequired: minDaysRequired,
-                    meetsRequirement: selectedDays >= minDaysRequired
-                  });
-
                   if (selectedDays < minDaysRequired) {
-                    console.log(`❌ Not enough days (${selectedDays} < ${minDaysRequired}) - FILTERED OUT`);
                     return false;
                   }
-                } else if (this.selectedDates.length === 0) {
-                  console.log('⚠️ No dates selected yet - skipping min days check');
                 }
 
-                console.log('✅ Boat PASSES private dock filter');
                 return true;
               } else {
-                console.log('❌ Boat does NOT deliver to property city - FILTERED OUT');
                 return false;
               }
             } else {
               // If we can't get property city, hide boats when private dock filter is active
-              console.log('⚠️ Could not access property data');
-              console.log('❌ FILTERED OUT due to missing property data');
               return false;
             }
           }
@@ -10400,12 +10282,6 @@ document.addEventListener('DOMContentLoaded', () => {
             filteredCount: minDaysFilteredCount,
             totalBoats: boats.length
           };
-        }
-
-        console.log('🔍 === FILTER BOATS COMPLETE ===');
-        console.log('Boats passed filter:', filteredBoats.length, 'out of', boats.length);
-        if (filteredBoats.length > 0) {
-          console.log('Passing boats:', filteredBoats.map(b => ({ name: b.name, id: b.id })));
         }
 
         return filteredBoats;
@@ -12054,10 +11930,10 @@ document.addEventListener('DOMContentLoaded', () => {
             overflow: hidden;
             background-color: #f0f0f0;
             cursor: pointer;
+            position: relative;
           `;
 
           const img = document.createElement('img');
-          img.src = photo.image.url;
           img.alt = `Boat image ${index + 1}`;
 
           // Optimize loading: first 2 images eager (visible on desktop), rest lazy
@@ -12076,12 +11952,22 @@ document.addEventListener('DOMContentLoaded', () => {
             height: 100%;
             object-fit: cover;
             object-position: center;
+            opacity: 0;
+            transition: opacity 0.3s ease-in;
           `;
+
+          // Handle image load - fade in when ready
+          img.onload = () => {
+            img.style.opacity = '1';
+          };
 
           // Handle image load error
           img.onerror = () => {
             imageWrapper.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #888; font-size: 14px;">Image unavailable</div>';
           };
+
+          // Set src after onload handler is attached
+          img.src = photo.image.url;
 
           // Add click handler to open full-size modal
           imageWrapper.addEventListener('click', () => {
@@ -12319,10 +12205,10 @@ document.addEventListener('DOMContentLoaded', () => {
             overflow: hidden;
             background-color: #f0f0f0;
             cursor: pointer;
+            position: relative;
           `;
 
           const img = document.createElement('img');
-          img.src = photo.image.url;
           img.alt = `Boat image ${index + 1}`;
           img.draggable = false;
 
@@ -12339,15 +12225,25 @@ document.addEventListener('DOMContentLoaded', () => {
             height: 100%;
             object-fit: cover;
             object-position: center;
+            opacity: 0;
+            transition: opacity 0.3s ease-in;
           `;
 
-          imageWrapper.style.userSelect = 'none';
-          imageWrapper.addEventListener('mousedown', (e) => e.preventDefault());
+          // Handle image load - fade in when ready
+          img.onload = () => {
+            img.style.opacity = '1';
+          };
 
           // Handle image load error
           img.onerror = () => {
             imageWrapper.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #888; font-size: 14px;">Image unavailable</div>';
           };
+
+          // Set src after onload handler is attached
+          img.src = photo.image.url;
+
+          imageWrapper.style.userSelect = 'none';
+          imageWrapper.addEventListener('mousedown', (e) => e.preventDefault());
 
           // Touch/drag guard: prevent small swipe from triggering click
           let touchStartX = 0;
@@ -18551,10 +18447,10 @@ document.addEventListener('DOMContentLoaded', () => {
             overflow: hidden;
             background-color: #f0f0f0;
             cursor: pointer;
+            position: relative;
           `;
 
           const img = document.createElement('img');
-          img.src = image.image?.url || '';
           img.alt = `${charter.name} image ${index + 1}`;
 
           // Optimize loading: first 2 images eager (visible on desktop), rest lazy
@@ -18573,12 +18469,22 @@ document.addEventListener('DOMContentLoaded', () => {
             height: 100%;
             object-fit: cover;
             object-position: center;
+            opacity: 0;
+            transition: opacity 0.3s ease-in;
           `;
+
+          // Handle image load - fade in when ready
+          img.onload = () => {
+            img.style.opacity = '1';
+          };
 
           // Handle image load error
           img.onerror = () => {
             imageWrapper.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #888; font-size: 14px;">Image unavailable</div>';
           };
+
+          // Set src after onload handler is attached
+          img.src = image.image?.url || '';
 
           // Add click handler to open full-size modal
           imageWrapper.addEventListener('click', () => {
@@ -18821,10 +18727,10 @@ document.addEventListener('DOMContentLoaded', () => {
             overflow: hidden;
             background-color: #f0f0f0;
             cursor: pointer;
+            position: relative;
           `;
 
           const img = document.createElement('img');
-          img.src = image.image?.url || '';
           img.alt = `${charter.name} image ${index + 1}`;
           img.draggable = false;
 
@@ -18841,15 +18747,25 @@ document.addEventListener('DOMContentLoaded', () => {
             height: 100%;
             object-fit: cover;
             object-position: center;
+            opacity: 0;
+            transition: opacity 0.3s ease-in;
           `;
 
-          imageWrapper.style.userSelect = 'none';
-          imageWrapper.addEventListener('mousedown', (e) => e.preventDefault());
+          // Handle image load - fade in when ready
+          img.onload = () => {
+            img.style.opacity = '1';
+          };
 
           // Handle image load error
           img.onerror = () => {
             imageWrapper.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #888; font-size: 14px;">Image unavailable</div>';
           };
+
+          // Set src after onload handler is attached
+          img.src = image.image?.url || '';
+
+          imageWrapper.style.userSelect = 'none';
+          imageWrapper.addEventListener('mousedown', (e) => e.preventDefault());
 
           // Touch/drag guard: prevent small swipe from triggering click
           let touchStartX = 0;
