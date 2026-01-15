@@ -11285,8 +11285,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const boatDetailsLocationContainer = document.querySelector('[data-element="boatDetails_locationContainer"]');
         if (this.publicDockAddressElement) {
           const publicDockDetails = this.getPublicDockDeliveryDetails(boat);
-          // Only show public dock address if private dock delivery is NOT selected
-          if (publicDockDetails && publicDockDetails.address && !this.selectedPrivateDock) {
+          // Only show public dock address if private dock delivery is NOT selected (via filter or checkbox)
+          if (publicDockDetails && publicDockDetails.address && !this.selectedPrivateDock && !this.deliverySelected) {
             this.publicDockAddressElement.textContent = `Pickup Location: ${publicDockDetails.address}`;
             this.publicDockAddressElement.style.display = 'flex';
             // Hide location container to avoid confusion
@@ -13334,6 +13334,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (this.currentBoatData) {
               this.updateBoatDetailsPricing(this.currentBoatData);
             }
+
+            // Update public dock address visibility
+            this.updatePublicDockAddressVisibility(boat);
           }
 
           return;
@@ -13409,6 +13412,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (this.currentBoatData) {
               this.updateBoatDetailsPricing(this.currentBoatData);
             }
+
+            // Update public dock address visibility
+            this.updatePublicDockAddressVisibility(boat);
           }
 
           // Add tooltip handlers - only when disabled
@@ -13447,6 +13453,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Set initial checkbox state (deliverySelected was already initialized above)
         this.updateCheckboxVisual(checkbox, this.deliverySelected);
+
+        // Update public dock address visibility based on initial state
+        this.updatePublicDockAddressVisibility(boat);
 
         // Set delivery text based on delivery fee and minimum days
         const deliveryFee = boat.companyDeliveryFee || 0;
@@ -13505,6 +13514,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
           // Update pricing
           this.updateBoatDetailsPricing(boat);
+
+          // Update public dock address visibility
+          this.updatePublicDockAddressVisibility(boat);
         });
       }
 
@@ -13521,6 +13533,29 @@ document.addEventListener('DOMContentLoaded', () => {
           checkbox.style.backgroundColor = 'transparent';
           checkbox.style.borderColor = '#ccc';
           checkbox.innerHTML = '';
+        }
+      }
+
+      updatePublicDockAddressVisibility(boat) {
+        // Update public dock address element visibility based on delivery selection
+        const boatDetailsLocationContainer = document.querySelector('[data-element="boatDetails_locationContainer"]');
+        if (this.publicDockAddressElement) {
+          const publicDockDetails = this.getPublicDockDeliveryDetails(boat);
+          // Only show public dock address if private dock delivery is NOT selected
+          if (publicDockDetails && publicDockDetails.address && !this.deliverySelected) {
+            this.publicDockAddressElement.textContent = `Pickup Location: ${publicDockDetails.address}`;
+            this.publicDockAddressElement.style.display = 'flex';
+            // Hide location container to avoid confusion
+            if (boatDetailsLocationContainer) {
+              boatDetailsLocationContainer.style.display = 'none';
+            }
+          } else {
+            this.publicDockAddressElement.style.display = 'none';
+            // Show location container when public dock is not displayed
+            if (boatDetailsLocationContainer) {
+              boatDetailsLocationContainer.style.display = '';
+            }
+          }
         }
       }
 
