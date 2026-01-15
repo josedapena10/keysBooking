@@ -1321,6 +1321,13 @@ document.addEventListener('DOMContentLoaded', function () {
           nightsFromParams = Math.max(nightsFromParams, nights);
           const lowestInRange = getLowestMinNightsBetween(checkinDate, checkoutDate);
           effective = Math.min(effective, lowestInRange);
+
+          if (strStart === '2026-03-18' && strEnd === '2026-03-19') {
+            console.log('[getEffectiveMinNightsForSelection] Applying range 2026-03-18 to 2026-03-19:');
+            console.log('  - customMinNightsByDate.size:', customMinNightsByDate.size);
+            console.log('  - lowestInRange:', lowestInRange);
+            console.log('  - effective after applyRange:', effective);
+          }
         } catch (_) {
           // ignore parse errors
         }
@@ -1331,6 +1338,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
       // Don't lower effective min nights based on user selection
       // The whole point is to enforce the minimum!
+
+      if (ci === '2026-03-18' && co === '2026-03-19') {
+        console.log('[getEffectiveMinNightsForSelection] Final effective for 2026-03-18 to 2026-03-19:', effective);
+      }
 
       return effective;
     }
