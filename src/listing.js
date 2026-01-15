@@ -1203,6 +1203,9 @@ document.addEventListener('DOMContentLoaded', function () {
     const customMinNightsByDate = new Map(); // Per-day overrides for minimum nights
     let customMinNightsLoaded = false; // Track if custom min nights have been hydrated
 
+    // Expose globally so other functions can check if custom min nights are loaded
+    window.customMinNightsLoaded = false;
+
     // Convert disabled dates from API
     calendarData.data.forEach(item => {
       disabledDates.add(item.date);
@@ -1242,8 +1245,9 @@ document.addEventListener('DOMContentLoaded', function () {
           }
         });
 
-        // Mark as loaded
+        // Mark as loaded (both local and global)
         customMinNightsLoaded = true;
+        window.customMinNightsLoaded = true;
 
         // Re-trigger validation after custom min nights load
         if (window.updateAvailabilityStatus) {
@@ -1251,7 +1255,9 @@ document.addEventListener('DOMContentLoaded', function () {
         }
       } catch (err) {
         console.error('[StayCalendar] error fetching custom min nights', err);
-        customMinNightsLoaded = true; // Mark as loaded even on error to avoid infinite waiting
+        // Mark as loaded even on error to avoid infinite waiting
+        customMinNightsLoaded = true;
+        window.customMinNightsLoaded = true;
       }
     }
 
@@ -3410,7 +3416,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Wait for custom min nights to load before validation
       // This prevents flashing between states while API loads
-      if (!customMinNightsLoaded) {
+      if (!window.customMinNightsLoaded) {
         // Return empty but don't validate yet - keep current visual state
         // The re-trigger after load will update to correct state
         return "";
@@ -3605,7 +3611,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // This provides instant feedback when user selects dates
       else if (datesSelected) {
         // Wait for custom min nights to load before showing/hiding heading
-        if (!customMinNightsLoaded) {
+        if (!window.customMinNightsLoaded) {
           // Keep heading hidden while waiting for custom min nights
           shouldBeVisible = false;
         }
@@ -4099,7 +4105,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Wait for custom min nights to load before hiding container
       // This prevents hiding valid dates while API loads
-      if (!customMinNightsLoaded && datesSelected) {
+      if (!window.customMinNightsLoaded && datesSelected) {
         return; // Don't change visibility until we know custom minimums
       }
 
@@ -4330,7 +4336,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Wait for custom min nights to load before hiding pricing
       // This prevents hiding valid dates while API loads
-      if (!customMinNightsLoaded) {
+      if (!window.customMinNightsLoaded) {
         return; // Don't change visibility until we know custom minimums
       }
 
