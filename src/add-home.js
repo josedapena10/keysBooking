@@ -4563,7 +4563,7 @@ function validateDescription() {
     const descriptionInput = document.querySelector('[data-element="description_input"]');
     const descriptionError = document.getElementById('description-error');
     const descriptionSubText = document.getElementById('description-subText');
-    const maxChars = 1000;
+    const maxChars = 4000;
 
     if (!descriptionInput || !descriptionError || !descriptionSubText) return true;
 
