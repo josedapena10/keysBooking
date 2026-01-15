@@ -8988,6 +8988,8 @@ document.addEventListener('DOMContentLoaded', () => {
           } else {
             // Clone the template for additional boats
             card = this.cardTemplate.cloneNode(true);
+            // Ensure clone can attach fresh listeners
+            card.removeAttribute('data-click-initialized');
             this.cardWrapper.appendChild(card);
           }
 
@@ -9017,11 +9019,22 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       populateBoatCard(card, boat, deferCarousel = false) {
+        const isTemplateCard = card === this.cardTemplate;
+
+        // Reset click flags for cloned cards so listeners are attached
+        if (!isTemplateCard) {
+          card.removeAttribute('data-click-initialized');
+        }
+
         // Store boat data on the card for later updates
         card.boatData = boat;
 
         // Add click handlers for card interactions only if not already added
         const moreDetailsButton = card.querySelector('[data-element="addBoatModal_selectBoat_card_moreDetails"]');
+
+        if (!isTemplateCard && moreDetailsButton) {
+          moreDetailsButton.removeAttribute('data-click-initialized');
+        }
 
         // Make entire card clickable (except for specific interactive elements)
         card.style.cursor = 'pointer';
