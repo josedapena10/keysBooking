@@ -1248,6 +1248,7 @@ document.addEventListener('DOMContentLoaded', function () {
         // Mark as loaded (both local and global)
         customMinNightsLoaded = true;
         window.customMinNightsLoaded = true;
+        console.log('[Calendar API] ✅ Custom min nights loaded, re-triggering validation');
 
         // Re-trigger validation after custom min nights load
         if (window.updateAvailabilityStatus) {
@@ -3198,6 +3199,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Update availability status based on calendar data
     function updateAvailabilityStatus() {
+      console.log('[updateAvailabilityStatus] Called, customMinNightsLoaded=', window.customMinNightsLoaded);
       const r = Wized.data.r;
       const n = Wized.data.n;
       const urlParams = new URLSearchParams(window.location.search);
@@ -3680,7 +3682,13 @@ document.addEventListener('DOMContentLoaded', () => {
       // Apply visibility and text to all heading elements (desktop and mobile)
       addDatesHeadings.forEach(heading => {
         if (heading) {
-          heading.style.display = shouldBeVisible ? 'flex' : 'none';
+          const oldDisplay = heading.style.display;
+          const newDisplay = shouldBeVisible ? 'flex' : 'none';
+          if (oldDisplay !== newDisplay) {
+            console.log('[updateAddDatesHeading] Changing display from', oldDisplay, 'to', newDisplay, '| Text:', headingText);
+            console.log('[updateAddDatesHeading] Reason: customMinNightsLoaded=', window.customMinNightsLoaded, 'datesSelected=', datesSelected);
+          }
+          heading.style.display = newDisplay;
           heading.textContent = headingText;
         }
       });
@@ -4194,7 +4202,13 @@ document.addEventListener('DOMContentLoaded', () => {
       // Update all container elements (desktop and mobile)
       containerElements.forEach(containerElement => {
         if (containerElement) {
-          containerElement.style.display = shouldShow ? 'flex' : 'none';
+          const oldDisplay = containerElement.style.display;
+          const newDisplay = shouldShow ? 'flex' : 'none';
+          if (oldDisplay !== newDisplay) {
+            console.log('[updateReservationTotalContainer] Changing display from', oldDisplay, 'to', newDisplay);
+            console.log('[updateReservationTotalContainer] Reason: customMinNightsLoaded=', window.customMinNightsLoaded, 'allAvailable=', allAvailable, 'meetsMinNights=', meetsMinNights);
+          }
+          containerElement.style.display = newDisplay;
         }
       });
     }
@@ -4410,7 +4424,13 @@ document.addEventListener('DOMContentLoaded', () => {
         && (currentGuests != 0)
         && !extrasInfo.hasAnyExtrasNeedingDates;
 
-      priceDetailsElement.style.display = shouldShow ? 'block' : 'none';
+      const oldDisplay = priceDetailsElement.style.display;
+      const newDisplay = shouldShow ? 'block' : 'none';
+      if (oldDisplay !== newDisplay) {
+        console.log('[updateListingQueryPriceDetailsVisibility] Changing display from', oldDisplay, 'to', newDisplay);
+        console.log('[updateListingQueryPriceDetailsVisibility] Reason: customMinNightsLoaded=', window.customMinNightsLoaded, 'allAvailable=', allAvailable, 'meetsMinNights=', meetsMinNights);
+      }
+      priceDetailsElement.style.display = newDisplay;
     }
 
     // Function to handle listing-only pricing display (no extras selected)
