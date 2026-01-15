@@ -1248,6 +1248,12 @@ document.addEventListener('DOMContentLoaded', function () {
           }
         });
         console.log('[Calendar API] After hydration, custom min nights map:', Array.from(customMinNightsByDate.entries()));
+
+        // Re-trigger validation after custom min nights load
+        if (window.updateAvailabilityStatus) {
+          console.log('[Calendar API] Re-triggering validation after custom min nights load');
+          window.updateAvailabilityStatus();
+        }
       } catch (err) {
         console.error('[StayCalendar] error fetching custom min nights', err);
       }
