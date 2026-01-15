@@ -12874,6 +12874,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (window.updateBoatVisibility) window.updateBoatVisibility();
         if (window.handleBoatFunctionality) window.handleBoatFunctionality();
 
+        // Immediately recalc extras pricing and refresh button/price visibility (mirror fishing charter flow)
+        if (window.updatePricingDisplayForExtras) {
+          window.updatePricingDisplayForExtras();
+        }
+        if (window.updateAllButtonVisibility) {
+          window.updateAllButtonVisibility();
+        }
+
         // Update mobile handlers immediately after boat is added
         if (window.updateMobileHandlersState) {
           window.updateMobileHandlersState();
