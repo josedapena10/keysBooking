@@ -9065,7 +9065,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // This is the most accurate since it was tracked during actual filtering
         if (this.lastMinDaysFilterInfo) {
           const { requiredDays, availableDays } = this.lastMinDaysFilterInfo;
-          return `Boat rentals for this listing's location require ${requiredDays} day${requiredDays > 1 ? 's' : ''}, but your stay is only ${availableDays} day${availableDays > 1 ? 's' : ''}. Extend your dates or select another property.`;
+          return `Available boats require a minimum of ${requiredDays} day${requiredDays > 1 ? 's' : ''}, but you selected ${availableDays} day${availableDays > 1 ? 's' : ''} for boat rental. Try selecting more days for the boat rental.`;
         }
 
         // Priority 1: Check private dock delivery filter (most restrictive)
@@ -11281,11 +11281,12 @@ document.addEventListener('DOMContentLoaded', () => {
           boatDetailsLocation.textContent = boat.city ? `${boat.city}, FL` : '';
         }
 
-        // Public dock address (show if applicable)
+        // Public dock address (show if applicable, but not when private dock delivery is selected)
         const boatDetailsLocationContainer = document.querySelector('[data-element="boatDetails_locationContainer"]');
         if (this.publicDockAddressElement) {
           const publicDockDetails = this.getPublicDockDeliveryDetails(boat);
-          if (publicDockDetails && publicDockDetails.address) {
+          // Only show public dock address if private dock delivery is NOT selected
+          if (publicDockDetails && publicDockDetails.address && !this.selectedPrivateDock) {
             this.publicDockAddressElement.textContent = `Pickup Location: ${publicDockDetails.address}`;
             this.publicDockAddressElement.style.display = 'flex';
             // Hide location container to avoid confusion
