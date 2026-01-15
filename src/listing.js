@@ -11910,7 +11910,9 @@ document.addEventListener('DOMContentLoaded', () => {
           height: 100%;
         `;
 
-        // Add images to track
+        // Add images to track with sequential loading
+        const imageElements = [];
+
         sortedPhotos.forEach((photo, index) => {
           const imageContainer = document.createElement('div');
           const flexBasis = isMobile ? '100%' : '50%';
@@ -11956,18 +11958,10 @@ document.addEventListener('DOMContentLoaded', () => {
             transition: opacity 0.3s ease-in;
           `;
 
-          // Handle image load - fade in when ready
-          img.onload = () => {
-            img.style.opacity = '1';
-          };
-
           // Handle image load error
           img.onerror = () => {
             imageWrapper.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #888; font-size: 14px;">Image unavailable</div>';
           };
-
-          // Set src after onload handler is attached
-          img.src = photo.image.url;
 
           // Add click handler to open full-size modal
           imageWrapper.addEventListener('click', () => {
@@ -11977,7 +11971,29 @@ document.addEventListener('DOMContentLoaded', () => {
           imageWrapper.appendChild(img);
           imageContainer.appendChild(imageWrapper);
           imagesTrack.appendChild(imageContainer);
+
+          imageElements.push({ img, photo });
         });
+
+        // Load images sequentially
+        const loadImagesSequentially = async () => {
+          for (let i = 0; i < imageElements.length; i++) {
+            const { img, photo } = imageElements[i];
+            await new Promise((resolve) => {
+              img.onload = () => {
+                img.style.opacity = '1';
+                resolve();
+              };
+              img.onerror = () => {
+                resolve(); // Continue even if image fails
+              };
+              img.src = photo.image.url;
+            });
+          }
+        };
+
+        // Start sequential loading
+        loadImagesSequentially();
 
         carouselWrapper.appendChild(imagesTrack);
 
@@ -12187,7 +12203,9 @@ document.addEventListener('DOMContentLoaded', () => {
           height: 100%;
         `;
 
-        // Add images to track
+        // Add images to track with sequential loading
+        const imageElements = [];
+
         sortedPhotos.forEach((photo, index) => {
           const imageContainer = document.createElement('div');
           imageContainer.style.cssText = `
@@ -12229,18 +12247,10 @@ document.addEventListener('DOMContentLoaded', () => {
             transition: opacity 0.3s ease-in;
           `;
 
-          // Handle image load - fade in when ready
-          img.onload = () => {
-            img.style.opacity = '1';
-          };
-
           // Handle image load error
           img.onerror = () => {
             imageWrapper.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #888; font-size: 14px;">Image unavailable</div>';
           };
-
-          // Set src after onload handler is attached
-          img.src = photo.image.url;
 
           imageWrapper.style.userSelect = 'none';
           imageWrapper.addEventListener('mousedown', (e) => e.preventDefault());
@@ -12277,7 +12287,29 @@ document.addEventListener('DOMContentLoaded', () => {
           imageWrapper.appendChild(img);
           imageContainer.appendChild(imageWrapper);
           imagesTrack.appendChild(imageContainer);
+
+          imageElements.push({ img, photo });
         });
+
+        // Load images sequentially
+        const loadImagesSequentially = async () => {
+          for (let i = 0; i < imageElements.length; i++) {
+            const { img, photo } = imageElements[i];
+            await new Promise((resolve) => {
+              img.onload = () => {
+                img.style.opacity = '1';
+                resolve();
+              };
+              img.onerror = () => {
+                resolve(); // Continue even if image fails
+              };
+              img.src = photo.image.url;
+            });
+          }
+        };
+
+        // Start sequential loading
+        loadImagesSequentially();
 
         carouselWrapper.appendChild(imagesTrack);
 
@@ -18427,7 +18459,9 @@ document.addEventListener('DOMContentLoaded', () => {
           height: 100%;
         `;
 
-        // Add images to track
+        // Add images to track with sequential loading
+        const imageElements = [];
+
         sortedImages.forEach((image, index) => {
           const imageContainer = document.createElement('div');
           const flexBasis = isMobile ? '100%' : '50%';
@@ -18473,18 +18507,10 @@ document.addEventListener('DOMContentLoaded', () => {
             transition: opacity 0.3s ease-in;
           `;
 
-          // Handle image load - fade in when ready
-          img.onload = () => {
-            img.style.opacity = '1';
-          };
-
           // Handle image load error
           img.onerror = () => {
             imageWrapper.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #888; font-size: 14px;">Image unavailable</div>';
           };
-
-          // Set src after onload handler is attached
-          img.src = image.image?.url || '';
 
           // Add click handler to open full-size modal
           imageWrapper.addEventListener('click', () => {
@@ -18494,7 +18520,29 @@ document.addEventListener('DOMContentLoaded', () => {
           imageWrapper.appendChild(img);
           imageContainer.appendChild(imageWrapper);
           imagesTrack.appendChild(imageContainer);
+
+          imageElements.push({ img, image });
         });
+
+        // Load images sequentially
+        const loadImagesSequentially = async () => {
+          for (let i = 0; i < imageElements.length; i++) {
+            const { img, image } = imageElements[i];
+            await new Promise((resolve) => {
+              img.onload = () => {
+                img.style.opacity = '1';
+                resolve();
+              };
+              img.onerror = () => {
+                resolve(); // Continue even if image fails
+              };
+              img.src = image.image?.url || '';
+            });
+          }
+        };
+
+        // Start sequential loading
+        loadImagesSequentially();
 
         carouselWrapper.appendChild(imagesTrack);
 
@@ -18709,7 +18757,9 @@ document.addEventListener('DOMContentLoaded', () => {
           height: 100%;
         `;
 
-        // Add images to track
+        // Add images to track with sequential loading
+        const imageElements = [];
+
         sortedImages.forEach((image, index) => {
           const imageContainer = document.createElement('div');
           imageContainer.style.cssText = `
@@ -18751,18 +18801,10 @@ document.addEventListener('DOMContentLoaded', () => {
             transition: opacity 0.3s ease-in;
           `;
 
-          // Handle image load - fade in when ready
-          img.onload = () => {
-            img.style.opacity = '1';
-          };
-
           // Handle image load error
           img.onerror = () => {
             imageWrapper.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #888; font-size: 14px;">Image unavailable</div>';
           };
-
-          // Set src after onload handler is attached
-          img.src = image.image?.url || '';
 
           imageWrapper.style.userSelect = 'none';
           imageWrapper.addEventListener('mousedown', (e) => e.preventDefault());
@@ -18798,7 +18840,29 @@ document.addEventListener('DOMContentLoaded', () => {
           imageWrapper.appendChild(img);
           imageContainer.appendChild(imageWrapper);
           imagesTrack.appendChild(imageContainer);
+
+          imageElements.push({ img, image });
         });
+
+        // Load images sequentially
+        const loadImagesSequentially = async () => {
+          for (let i = 0; i < imageElements.length; i++) {
+            const { img, image } = imageElements[i];
+            await new Promise((resolve) => {
+              img.onload = () => {
+                img.style.opacity = '1';
+                resolve();
+              };
+              img.onerror = () => {
+                resolve(); // Continue even if image fails
+              };
+              img.src = image.image?.url || '';
+            });
+          }
+        };
+
+        // Start sequential loading
+        loadImagesSequentially();
 
         carouselWrapper.appendChild(imagesTrack);
 
