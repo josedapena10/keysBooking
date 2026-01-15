@@ -114,10 +114,12 @@ function truncateToFit(element) {
   function hideLoader() {
     const loader = document.querySelector('[data-element="loader"]');
     if (loader && loader.style.display !== 'none') {
+      console.log(`[${Date.now()}] 🔄 Hiding loader (will take 300ms to fade)`);
       // Add fade out effect
       loader.style.opacity = '0';
       setTimeout(() => {
         loader.style.display = 'none';
+        console.log(`[${Date.now()}] ✅ Loader hidden (display=none)`);
       }, 300);
     } else {
     }
@@ -125,6 +127,7 @@ function truncateToFit(element) {
 
   // Expose function to notify when custom min nights are loaded
   window.notifyCustomMinNightsLoaded = function () {
+    console.log('[Loader] Custom min nights loaded notification received');
     loadingTracker.customMinNightsLoaded = true;
     checkAllContentLoaded();
   };
