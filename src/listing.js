@@ -8634,8 +8634,8 @@ document.addEventListener('DOMContentLoaded', () => {
                   price: matchingLocation.price
                 });
 
-                // Check min days requirement for private dock
-                if (matchingLocation.minDays) {
+                // Check min days requirement for private dock ONLY if dates are selected
+                if (matchingLocation.minDays && this.selectedDates.length > 0) {
                   const selectedDays = this.selectedDates.length;
                   const minDaysRequired = Number(matchingLocation.minDays);
 
@@ -8649,6 +8649,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.log(`❌ Not enough days (${selectedDays} < ${minDaysRequired}) - FILTERED OUT`);
                     return false;
                   }
+                } else if (this.selectedDates.length === 0) {
+                  console.log('⚠️ No dates selected yet - skipping min days check');
                 }
 
                 console.log('✅ Boat PASSES private dock filter');
@@ -10354,8 +10356,8 @@ document.addEventListener('DOMContentLoaded', () => {
                   price: matchingLocation.price
                 });
 
-                // Check min days requirement for private dock
-                if (matchingLocation.minDays) {
+                // Check min days requirement for private dock ONLY if dates are selected
+                if (matchingLocation.minDays && this.selectedDates.length > 0) {
                   const selectedDays = this.selectedDates.length;
                   const minDaysRequired = Number(matchingLocation.minDays);
 
@@ -10369,6 +10371,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.log(`❌ Not enough days (${selectedDays} < ${minDaysRequired}) - FILTERED OUT`);
                     return false;
                   }
+                } else if (this.selectedDates.length === 0) {
+                  console.log('⚠️ No dates selected yet - skipping min days check');
                 }
 
                 console.log('✅ Boat PASSES private dock filter');
