@@ -1248,7 +1248,6 @@ document.addEventListener('DOMContentLoaded', function () {
         // Mark as loaded (both local and global)
         customMinNightsLoaded = true;
         window.customMinNightsLoaded = true;
-        console.log('[Calendar API] ✅ Custom min nights loaded, re-triggering validation');
 
         // Re-trigger validation after custom min nights load
         if (window.updateAvailabilityStatus) {
@@ -1321,13 +1320,6 @@ document.addEventListener('DOMContentLoaded', function () {
           nightsFromParams = Math.max(nightsFromParams, nights);
           const lowestInRange = getLowestMinNightsBetween(checkinDate, checkoutDate);
           effective = Math.min(effective, lowestInRange);
-
-          if (strStart === '2026-03-18' && strEnd === '2026-03-19') {
-            console.log('[getEffectiveMinNightsForSelection] Applying range 2026-03-18 to 2026-03-19:');
-            console.log('  - customMinNightsByDate.size:', customMinNightsByDate.size);
-            console.log('  - lowestInRange:', lowestInRange);
-            console.log('  - effective after applyRange:', effective);
-          }
         } catch (_) {
           // ignore parse errors
         }
@@ -1338,10 +1330,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
       // Don't lower effective min nights based on user selection
       // The whole point is to enforce the minimum!
-
-      if (ci === '2026-03-18' && co === '2026-03-19') {
-        console.log('[getEffectiveMinNightsForSelection] Final effective for 2026-03-18 to 2026-03-19:', effective);
-      }
 
       return effective;
     }
@@ -1611,6 +1599,9 @@ document.addEventListener('DOMContentLoaded', function () {
           propertyData = Wized.data.r.Load_Property_Details.data.property;
         }
 
+        // Mark custom min nights as loading to prevent validation from using stale data
+        window.customMinNightsLoaded = false;
+
         // Rebuild availability sets from freshest data
         disabledDates.clear();
         checkoutOnlyDates.clear();
@@ -1631,6 +1622,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Fetch custom min nights from availability endpoint as well
         await hydrateCustomMinNights(propertyData);
+
+        // hydrateCustomMinNights will set customMinNightsLoaded = true and trigger validation
 
 
         // Recompute derived state and re-render calendars
@@ -3210,8 +3203,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Update availability status based on calendar data
     function updateAvailabilityStatus() {
-      console.log('[updateAvailabilityStatus] Called, customMinNightsLoaded=', window.customMinNightsLoaded);
-      console.trace('[updateAvailabilityStatus] Call stack');
       const r = Wized.data.r;
       const n = Wized.data.n;
       const urlParams = new URLSearchParams(window.location.search);
@@ -3642,8 +3633,6 @@ document.addEventListener('DOMContentLoaded', () => {
           const propertyCalendarRange = r.Load_Property_Calendar_Query.data.property_calendar_range;
           const minNights = getEffectiveMinNightsForSelection(r);
 
-          console.log('[updateAddDatesHeading] Validating dates: minNights=', minNights, 'rangeLength=', propertyCalendarRange.length);
-
           let allAvailable = true;
           let consecutiveAvailableDays = 0;
           let meetsMinNights = false;
@@ -3659,8 +3648,6 @@ document.addEventListener('DOMContentLoaded', () => {
               allAvailable = false;
             }
           }
-
-          console.log('[updateAddDatesHeading] After validation: allAvailable=', allAvailable, 'meetsMinNights=', meetsMinNights, 'consecutiveAvailableDays=', consecutiveAvailableDays);
 
           const datesValid = allAvailable && meetsMinNights;
           // If dates are valid but guests are wrong, show "Change Guests"
@@ -3698,13 +3685,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // Apply visibility and text to all heading elements (desktop and mobile)
       addDatesHeadings.forEach(heading => {
         if (heading) {
-          const oldDisplay = heading.style.display;
-          const newDisplay = shouldBeVisible ? 'flex' : 'none';
-          if (oldDisplay !== newDisplay) {
-            console.log('[updateAddDatesHeading] Changing display from', oldDisplay, 'to', newDisplay, '| Text:', headingText);
-            console.log('[updateAddDatesHeading] Reason: customMinNightsLoaded=', window.customMinNightsLoaded, 'datesSelected=', datesSelected);
-          }
-          heading.style.display = newDisplay;
+          heading.style.display = shouldBeVisible ? 'flex' : 'none';
           heading.textContent = headingText;
         }
       });
@@ -4218,13 +4199,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // Update all container elements (desktop and mobile)
       containerElements.forEach(containerElement => {
         if (containerElement) {
-          const oldDisplay = containerElement.style.display;
-          const newDisplay = shouldShow ? 'flex' : 'none';
-          if (oldDisplay !== newDisplay) {
-            console.log('[updateReservationTotalContainer] Changing display from', oldDisplay, 'to', newDisplay);
-            console.log('[updateReservationTotalContainer] Reason: customMinNightsLoaded=', window.customMinNightsLoaded, 'allAvailable=', allAvailable, 'meetsMinNights=', meetsMinNights);
-          }
-          containerElement.style.display = newDisplay;
+          containerElement.style.display = shouldShow ? 'flex' : 'none';
         }
       });
     }
@@ -4440,13 +4415,7 @@ document.addEventListener('DOMContentLoaded', () => {
         && (currentGuests != 0)
         && !extrasInfo.hasAnyExtrasNeedingDates;
 
-      const oldDisplay = priceDetailsElement.style.display;
-      const newDisplay = shouldShow ? 'block' : 'none';
-      if (oldDisplay !== newDisplay) {
-        console.log('[updateListingQueryPriceDetailsVisibility] Changing display from', oldDisplay, 'to', newDisplay);
-        console.log('[updateListingQueryPriceDetailsVisibility] Reason: customMinNightsLoaded=', window.customMinNightsLoaded, 'allAvailable=', allAvailable, 'meetsMinNights=', meetsMinNights);
-      }
-      priceDetailsElement.style.display = newDisplay;
+      priceDetailsElement.style.display = shouldShow ? 'block' : 'none';
     }
 
     // Function to handle listing-only pricing display (no extras selected)
