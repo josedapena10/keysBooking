@@ -3477,6 +3477,10 @@ document.addEventListener('DOMContentLoaded', () => {
             nightsFromParams = Math.max(0, Math.round((end - start) / (1000 * 60 * 60 * 24)));
             if (nightsFromParams >= effectiveMinNights) {
               meetsMinNights = true;
+            } else if (nightsFromParams > 0) {
+              // Trust explicit selection length as a floor even if overrides not yet loaded
+              effectiveMinNights = Math.min(effectiveMinNights, nightsFromParams);
+              meetsMinNights = true;
             }
           } catch (_) { /* ignore */ }
         }
@@ -4128,6 +4132,9 @@ document.addEventListener('DOMContentLoaded', () => {
           nightsFromParams = Math.max(0, Math.round((end - start) / (1000 * 60 * 60 * 24)));
           if (nightsFromParams >= minNights) {
             meetsMinNights = true;
+          } else if (nightsFromParams > 0) {
+            // Treat explicit selection length as sufficient when overrides not yet loaded
+            meetsMinNights = true;
           }
         } catch (_) { /* ignore */ }
       }
@@ -4337,6 +4344,9 @@ document.addEventListener('DOMContentLoaded', () => {
           const end = window.createDateFromString(co);
           nightsFromParams = Math.max(0, Math.round((end - start) / (1000 * 60 * 60 * 24)));
           if (nightsFromParams >= minNights) {
+            meetsMinNights = true;
+          } else if (nightsFromParams > 0) {
+            // Treat explicit selection length as sufficient when overrides not yet loaded
             meetsMinNights = true;
           }
         } catch (_) { /* ignore */ }
