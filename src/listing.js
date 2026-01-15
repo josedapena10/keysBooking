@@ -3832,16 +3832,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Update selectedBoatBlock_datesDelivery
       const datesDeliveryElements = document.querySelectorAll('[data-element="selectedBoatBlock_datesDelivery"]');
+      const editButtons = document.querySelectorAll('[data-element="editSelectedBoat"]');
+
+      // Read directly from URL parameters instead of Wized data store
+      const urlParams = new URLSearchParams(window.location.search);
+      const rawDates = urlParams.get('boatDates') || n.parameter?.boatDates || "";
+      const boatDelivery = urlParams.get('boatDelivery') === "true" || n.parameter?.boatDelivery === "true";
+
+      // Decode if needed
+      const decodedDates = decodeURIComponent(rawDates);
+      const boatDates = decodedDates.split(",").filter(Boolean);
+
       if (datesDeliveryElements.length > 0) {
-        // Read directly from URL parameters instead of Wized data store
-        const urlParams = new URLSearchParams(window.location.search);
-        const rawDates = urlParams.get('boatDates') || n.parameter.boatDates || "";
-        const boatDelivery = urlParams.get('boatDelivery') === "true" || n.parameter.boatDelivery === "true";
-
-        // Decode if needed
-        const decodedDates = decodeURIComponent(rawDates);
-        const boatDates = decodedDates.split(",").filter(Boolean);
-
         if (boatDates.length === 0) {
           // No dates selected - leave text empty (warning styling handled elsewhere)
           datesDeliveryElements.forEach(element => {
@@ -3851,7 +3853,6 @@ document.addEventListener('DOMContentLoaded', () => {
               element.style.fontStyle = '';
             }
           });
-          // Don't return - continue to update other elements and let updateExtrasNeedingDatesState handle styling
         } else {
           const start = boatDates[0];
           const end = boatDates[boatDates.length - 1];
@@ -3891,15 +3892,12 @@ document.addEventListener('DOMContentLoaded', () => {
             }
           });
         }
-      } else {
       }
 
       // Update edit button text when boat dates are missing but stay dates exist
-      const editButtons = document.querySelectorAll('[data-element="editSelectedBoat"]');
       if (editButtons.length > 0) {
-        const urlParams = new URLSearchParams(window.location.search);
         const hasStayDates = !!(urlParams.get('checkin') && urlParams.get('checkout'));
-        const boatDatesMissing = (boatDates && boatDates.length === 0);
+        const boatDatesMissing = boatDates.length === 0;
 
         editButtons.forEach(btn => {
           if (btn) {
@@ -4181,14 +4179,6 @@ document.addEventListener('DOMContentLoaded', () => {
         ? lastExtrasGrandTotal
         : Math.floor(r.Load_Property_Calendar_Query.data.dateRange_totalPrice || 0);
       const formattedPrice = "$" + totalPrice.toLocaleString();
-
-      console.log('[updateReservationTotal]', {
-        extrasSelected,
-        lastExtrasGrandTotal,
-        stayOnlyPrice: Math.floor(r.Load_Property_Calendar_Query.data.dateRange_totalPrice || 0),
-        totalPrice,
-        formattedPrice
-      });
 
       // Update all total elements (desktop and mobile)
       totalElements.forEach(element => {
@@ -4889,14 +4879,6 @@ let lastExtrasGrandTotal = null;
 
 // Update pricing display when extras (boat or fishing charter) are selected
 async function updatePricingDisplayForExtras() {
-  const urlParams = new URLSearchParams(window.location.search);
-  console.log('[updatePricingDisplayForExtras] Called', {
-    hasSelectedBoatData: !!window.selectedBoatData,
-    selectedBoatId: window.selectedBoatData?.id,
-    boatIdInURL: urlParams.get('boatId'),
-    boatDatesInURL: urlParams.get('boatDates')
-  });
-
   const listingOnlyPricingSections = document.querySelectorAll('[data-element="ListingOnly_Query_Price_Details"]');
   const listingExtrasPricingSections = document.querySelectorAll('[data-element="ListingExtras_Query_Price_Details"]');
 
@@ -5010,13 +4992,11 @@ async function updatePricingDisplayForExtras() {
       // Calculate stay pricing components
       const stayPricing = calculateStayPricing(r);
 
-      // Calculate boat pricing components (now async to fetch data if needed)
+      // Calculate boat pricing components
       const boatPricing = await calculateBoatPricing();
-      console.log('[updatePricingDisplayForExtras] Boat pricing calculated:', boatPricing);
 
       // Calculate fishing charter pricing components
       const fishingCharterPricing = await calculateFishingCharterPricing();
-      console.log('[updatePricingDisplayForExtras] Fishing charter pricing calculated:', fishingCharterPricing);
 
       // Calculate boat taxes only (stay taxes already included in stayPricing.total)
       // Support both nested _boat_company and flat structure
@@ -5035,7 +5015,6 @@ async function updatePricingDisplayForExtras() {
 
       // Cache for other total updaters (e.g., Reservation_Total)
       lastExtrasGrandTotal = Math.round(grandTotal);
-      console.log('[updatePricingDisplayForExtras] Set lastExtrasGrandTotal:', lastExtrasGrandTotal);
 
       // Update all pricing elements
       updatePricingElements(stayPricing, boatPricing, fishingCharterPricing, combinedTaxes, grandTotal);
@@ -5072,18 +5051,18 @@ function calculateStayPricing(r) {
   };
 }
 
-// Calculate boat pricing based on selected dates and boat data
-// Now async to fetch boat data if needed (similar to fishing charter pricing)
+// Calculate boat pricing based on cached boat data and URL params
+// This must match the pattern used by fishing charters
 async function calculateBoatPricing() {
-  const urlParams = new URLSearchParams(window.location.search);
-  const boatId = urlParams.get('boatId');
+  // Use cached data - it's set by handleBoatFunctionality before pricing runs
+  const boatData = window.selectedBoatData;
 
-  // No boat selected
-  if (!boatId) {
+  if (!boatData) {
     return { basePrice: 0, serviceFee: 0, deliveryFee: 0, publicDockFee: 0, totalWithFees: 0 };
   }
 
   // Get boat dates and delivery preference from URL
+  const urlParams = new URLSearchParams(window.location.search);
   const rawDates = urlParams.get('boatDates') || "";
   const boatDelivery = urlParams.get('boatDelivery') === "true";
 
@@ -5093,43 +5072,7 @@ async function calculateBoatPricing() {
   const numDates = boatDates.length;
 
   if (numDates === 0) {
-    console.warn('[BoatPricing] No boat dates selected, returning zero pricing');
     return { basePrice: 0, serviceFee: 0, deliveryFee: 0, publicDockFee: 0, totalWithFees: 0 };
-  }
-
-  // Fetch boat data if not cached or if cached data is for a different boat
-  let boatData = window.selectedBoatData;
-  if (!boatData || boatData.id !== parseInt(boatId)) {
-    console.log('[BoatPricing] Fetching boat data for boatId:', boatId);
-    try {
-      const response = await fetch(`https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/boats/${boatId}`);
-      if (!response.ok) {
-        console.error('[BoatPricing] Failed to fetch boat data:', response.status);
-        return { basePrice: 0, serviceFee: 0, deliveryFee: 0, publicDockFee: 0, totalWithFees: 0 };
-      }
-      boatData = await response.json();
-      window.selectedBoatData = boatData; // Cache for future use
-      console.log('[BoatPricing] Fetched boat data:', {
-        id: boatData.id,
-        name: boatData.name,
-        hasBoatCompany: !!boatData._boat_company,
-        boatCompanyKeys: boatData._boat_company ? Object.keys(boatData._boat_company) : [],
-        integrationType: boatData._boat_company?.integration_type,
-        serviceFee: boatData._boat_company?.serviceFee,
-        deliveryFee: boatData._boat_company?.deliveryFee,
-        pricePerDay: boatData.pricePerDay,
-        pricePerHalfDay: boatData.pricePerHalfDay,
-        pricePerWeek: boatData.pricePerWeek
-      });
-    } catch (error) {
-      console.error('[BoatPricing] Error fetching boat data:', error);
-      return { basePrice: 0, serviceFee: 0, deliveryFee: 0, publicDockFee: 0, totalWithFees: 0 };
-    }
-  } else {
-    console.log('[BoatPricing] Using cached boat data:', {
-      id: boatData.id,
-      name: boatData.name
-    });
   }
 
   // Support both data structures: nested _boat_company or flat properties
@@ -5138,18 +5081,6 @@ async function calculateBoatPricing() {
   const serviceFeeRate = boatCompany.serviceFee || 0;
   const deliveryFeeAmount = boatCompany.deliveryFee || boatCompany.companyDeliveryFee || 0;
   const publicDockDetails = boatCompany.publicDockDeliveryDetails || [];
-
-  console.log('[BoatPricing] Calculating boat pricing', {
-    boatId: boatData.id,
-    boatName: boatData.name,
-    numDates,
-    boatDates,
-    boatDelivery,
-    hasBoatCompany: !!boatData._boat_company,
-    integrationType,
-    serviceFeeRate,
-    deliveryFeeAmount
-  });
 
   // Calculate base price based on rental duration
   let basePrice = calculateBoatBasePrice(boatData, numDates);
@@ -5189,16 +5120,13 @@ async function calculateBoatPricing() {
   // Calculate total with fees
   const totalWithFees = basePrice + publicDockFee + serviceFee + deliveryFee;
 
-  const result = {
+  return {
     basePrice: Math.round(basePrice),
     serviceFee: Math.round(serviceFee),
     deliveryFee: Math.round(deliveryFee),
     publicDockFee: Math.round(publicDockFee),
     totalWithFees: Math.round(totalWithFees)
   };
-
-  console.log('[BoatPricing] Returning:', result);
-  return result;
 }
 
 // Calculate boat base price based on duration and pricing tiers
@@ -5361,15 +5289,6 @@ function calculateCombinedTaxes(r, boatTotalWithFees) {
 
 // Update all pricing elements in the DOM
 function updatePricingElements(stayPricing, boatPricing, fishingCharterPricing, combinedTaxes, grandTotal) {
-  console.log('[updatePricingElements] Called with:', {
-    staySubtotal: stayPricing.subtotal,
-    stayTotal: stayPricing.total,
-    boatTotalWithFees: boatPricing.totalWithFees,
-    fishingCharterTotalWithFees: fishingCharterPricing.totalWithFees,
-    combinedTaxesTotal: combinedTaxes.total,
-    grandTotal: Math.round(grandTotal)
-  });
-
   // Update Stay Price Amount (use subtotal which excludes taxes)
   const stayPriceElements = document.querySelectorAll('[data-element="Stay_Price_Amount"]');
   stayPriceElements.forEach(element => {
@@ -5475,9 +5394,7 @@ function hasAnyExtrasSelected() {
     }
   }
 
-  const result = !!(hasBoat || hasFishingCharters);
-  console.log('[hasAnyExtrasSelected]', { hasBoatInURL: !!hasBoatInURL, hasBoatInCache, hasBoat, hasFishingCharters, result });
-  return result;
+  return !!(hasBoat || hasFishingCharters);
 }
 
 // Update cancellation policies for extras (boat and fishing charters)
@@ -5841,7 +5758,7 @@ const updatePricingDisplayForExtrasAsync = updatePricingDisplayForExtras;
 // Wrapper function to handle async pricing updates (non-blocking)
 function updatePricingDisplayForExtrasSync() {
   updatePricingDisplayForExtrasAsync().catch(error => {
-    console.error('[updatePricingDisplayForExtras] Error:', error);
+    // Silently handle errors
   });
 }
 
@@ -12957,11 +12874,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         this.clearBoatDetailsErrorHighlights();
 
-        // CRITICAL: Cache boat data immediately BEFORE any URL updates
-        // This ensures pricing calculations have the data they need
+        // Cache boat data BEFORE URL updates (critical for pricing)
         window.selectedBoatData = boat;
 
-        // Exit edit mode now that user is saving - this allows updateURLParams to work
+        // Exit edit mode now that user is saving
         this.isEditMode = false;
         this.originalEditParams = null;
 
@@ -12970,16 +12886,16 @@ document.addEventListener('DOMContentLoaded', () => {
         url.searchParams.set('boatId', boat.id);
         window.history.pushState({}, '', url);
 
-        // Force update all URL params now that we're out of edit mode
+        // Update all boat URL params
         this.updateURLParams();
 
-        // Update the service state to reflect the boat selection
+        // Update service state
         this.initializeFromURL();
 
-        // Close the modal
+        // Close modal
         this.closeModal();
 
-        // Hide reservation block if in mobile view
+        // Hide reservation block if mobile
         if (this.isMobileView()) {
           const reservationBlock = document.querySelector('[data-element="boatRental_listingPage_reservationBlock"]');
           if (reservationBlock) {
@@ -12987,28 +12903,27 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         }
 
-        // Ensure proper visibility: selectBoatWrapper as flex, boatDetailsWrapper hidden
+        // Ensure proper wrapper visibility
         this.selectWrapper.style.display = 'flex';
         this.detailsWrapper.style.display = 'none';
 
-        // Trigger visibility updates
-        if (window.updateBoatVisibility) window.updateBoatVisibility();
-
-        // Populate boat block UI - boat data is already cached in window.selectedBoatData
+        // Update boat block UI
         if (window.populateSelectedBoatBlock) {
           window.populateSelectedBoatBlock();
         }
 
-        // Explicitly trigger pricing update now that boat data is cached
-        // Use requestAnimationFrame to let URL params propagate without blocking
-        requestAnimationFrame(async () => {
-          if (window.updatePricingDisplayForExtras) {
-            await window.updatePricingDisplayForExtras();
-          }
-          if (window.updateAllButtonVisibility) {
-            window.updateAllButtonVisibility();
-          }
-        });
+        // Update visibility
+        if (window.updateBoatVisibility) {
+          window.updateBoatVisibility();
+        }
+
+        // Update pricing and button visibility (mirrors fishing charter flow exactly)
+        if (window.updatePricingDisplayForExtras) {
+          window.updatePricingDisplayForExtras();
+        }
+        if (window.updateAllButtonVisibility) {
+          window.updateAllButtonVisibility();
+        }
 
         // Update mobile handlers
         if (window.updateMobileHandlersState) {
