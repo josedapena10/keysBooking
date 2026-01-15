@@ -1290,8 +1290,17 @@ document.addEventListener('DOMContentLoaded', function () {
       let effective = baseMin;
       let nightsFromParams = 0;
 
+      if (ci === '2026-03-18' && co === '2026-03-19') {
+        console.log('[getEffectiveMinNightsForSelection] Starting:');
+        console.log('  - baseMin:', baseMin);
+        console.log('  - queryMin:', queryMin);
+      }
+
       if (!Number.isNaN(queryMin) && queryMin > 0) {
         effective = Math.min(effective, queryMin);
+        if (ci === '2026-03-18' && co === '2026-03-19') {
+          console.log('  - After queryMin, effective:', effective);
+        }
       }
 
       function applyRange(strStart, strEnd) {
@@ -1301,7 +1310,15 @@ document.addEventListener('DOMContentLoaded', function () {
           const checkoutDate = createDateFromString(strEnd);
           const nights = Math.max(0, Math.round((checkoutDate - checkinDate) / (1000 * 60 * 60 * 24)));
           nightsFromParams = Math.max(nightsFromParams, nights);
-          effective = Math.min(effective, getLowestMinNightsBetween(checkinDate, checkoutDate));
+          const lowestInRange = getLowestMinNightsBetween(checkinDate, checkoutDate);
+          effective = Math.min(effective, lowestInRange);
+
+          if (ci === '2026-03-18' && co === '2026-03-19') {
+            console.log('  - applyRange called with:', strStart, 'to', strEnd);
+            console.log('  - nights:', nights);
+            console.log('  - lowestInRange:', lowestInRange);
+            console.log('  - effective after applyRange:', effective);
+          }
         } catch (_) {
           // ignore parse errors
         }
@@ -1311,7 +1328,19 @@ document.addEventListener('DOMContentLoaded', function () {
       applyRange(wCheckin, wCheckout);
 
       if (nightsFromParams > 0) {
+        if (ci === '2026-03-18' && co === '2026-03-19') {
+          console.log('  - nightsFromParams:', nightsFromParams);
+          console.log('  - BEFORE override, effective:', effective);
+        }
         effective = Math.min(effective, nightsFromParams);
+        if (ci === '2026-03-18' && co === '2026-03-19') {
+          console.log('  - AFTER override (Math.min with nightsFromParams), effective:', effective);
+          console.log('  - ⚠️ THIS IS THE BUG - trusting user selection over min nights!');
+        }
+      }
+
+      if (ci === '2026-03-18' && co === '2026-03-19') {
+        console.log('  - Final return value:', effective);
       }
 
       return effective;
@@ -4062,6 +4091,13 @@ document.addEventListener('DOMContentLoaded', () => {
       const hasCheckout = urlParams.has('checkout') && urlParams.get('checkout') !== "";
       const datesSelected = hasCheckin && hasCheckout;
 
+      const checkinParam = urlParams.get('checkin');
+      const checkoutParam = urlParams.get('checkout');
+
+      if (checkinParam === '2026-03-18' && checkoutParam === '2026-03-19') {
+        console.log('[updateReservationTotalContainer] Called for 2026-03-18 to 2026-03-19');
+      }
+
       // If no dates are selected, hide the container
       if (!datesSelected) {
         containerElements.forEach(containerElement => {
@@ -4143,6 +4179,19 @@ document.addEventListener('DOMContentLoaded', () => {
       const currentGuests = n && n.parameter ? n.parameter.guests : 1;
       const maxGuests = r.Load_Property_Details.data.property.num_guests;
       const shouldShow = allAvailable && meetsMinNights && (maxGuests >= currentGuests);
+
+      if (checkinParam === '2026-03-18' && checkoutParam === '2026-03-19') {
+        console.log('[Total_Container] Validation results:');
+        console.log('  - allAvailable:', allAvailable);
+        console.log('  - meetsMinNights:', meetsMinNights);
+        console.log('  - consecutiveAvailableDays:', consecutiveAvailableDays);
+        console.log('  - minNights required:', minNights);
+        console.log('  - nightsFromParams:', nightsFromParams);
+        console.log('  - currentGuests:', currentGuests);
+        console.log('  - maxGuests:', maxGuests);
+        console.log('  - shouldShow:', shouldShow);
+        console.log('  - Setting display to:', shouldShow ? 'flex' : 'none');
+      }
 
       // Update all container elements (desktop and mobile)
       containerElements.forEach(containerElement => {
@@ -4287,6 +4336,14 @@ document.addEventListener('DOMContentLoaded', () => {
       const r = Wized.data.r;
       const n = Wized.data.n;
 
+      const urlParams = new URLSearchParams(window.location.search);
+      const checkinParam = urlParams.get('checkin');
+      const checkoutParam = urlParams.get('checkout');
+
+      if (checkinParam === '2026-03-18' && checkoutParam === '2026-03-19') {
+        console.log('[updateListingQueryPriceDetailsVisibility] Called for 2026-03-18 to 2026-03-19');
+      }
+
       // Check if required data exists
       if (!r || !r.Load_Property_Calendar_Query || !r.Load_Property_Calendar_Query.data ||
         !r.Load_Property_Details || !r.Load_Property_Details.data ||
@@ -4297,6 +4354,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const propertyCalendarRange = r.Load_Property_Calendar_Query.data.property_calendar_range;
       const minNights = getEffectiveMinNightsForSelection(r);
+
+      if (checkinParam === '2026-03-18' && checkoutParam === '2026-03-19') {
+        console.log('[Listing_Query_Price] minNights from getEffectiveMinNightsForSelection:', minNights);
+      }
 
       let allAvailable = true;
       let meetsMinNights = true;
@@ -4356,6 +4417,18 @@ document.addEventListener('DOMContentLoaded', () => {
         && (currentGuests <= maxGuests)
         && (currentGuests != 0)
         && !extrasInfo.hasAnyExtrasNeedingDates;
+
+      if (checkinParam === '2026-03-18' && checkoutParam === '2026-03-19') {
+        console.log('[Listing_Query_Price] Validation results:');
+        console.log('  - allAvailable:', allAvailable);
+        console.log('  - meetsMinNights:', meetsMinNights);
+        console.log('  - currentGuests:', currentGuests);
+        console.log('  - maxGuests:', maxGuests);
+        console.log('  - guestsValid:', currentGuests <= maxGuests && currentGuests != 0);
+        console.log('  - extrasNeedDates:', extrasInfo.hasAnyExtrasNeedingDates);
+        console.log('  - shouldShow:', shouldShow);
+        console.log('  - Setting display to:', shouldShow ? 'block' : 'none');
+      }
 
       priceDetailsElement.style.display = shouldShow ? 'block' : 'none';
     }
