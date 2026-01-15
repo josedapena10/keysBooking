@@ -87,17 +87,22 @@ function truncateToFit(element) {
   const loadingTracker = {
     propertyDetailsLoaded: false,
     calendarQueryLoaded: false,
-    reservationLogicInitialized: false
+    reservationLogicInitialized: false,
+    customMinNightsLoaded: false
   };
 
 
 
   // Function to check if all critical content is loaded
   function checkAllContentLoaded() {
+    // Check if dates are selected - if so, wait for custom min nights
+    const urlParams = new URLSearchParams(window.location.search);
+    const hasDatesSelected = urlParams.get('checkin') && urlParams.get('checkout');
 
     const allLoaded = loadingTracker.propertyDetailsLoaded &&
       loadingTracker.calendarQueryLoaded &&
-      loadingTracker.reservationLogicInitialized;
+      loadingTracker.reservationLogicInitialized &&
+      (!hasDatesSelected || loadingTracker.customMinNightsLoaded);
 
     if (allLoaded) {
       hideLoader();
@@ -117,6 +122,12 @@ function truncateToFit(element) {
     } else {
     }
   }
+
+  // Expose function to notify when custom min nights are loaded
+  window.notifyCustomMinNightsLoaded = function () {
+    loadingTracker.customMinNightsLoaded = true;
+    checkAllContentLoaded();
+  };
 
   // Make loader visible on page load
   window.addEventListener('DOMContentLoaded', () => {
@@ -226,6 +237,16 @@ function truncateToFit(element) {
 
 
   };
+
+  // Fallback: If no dates selected, mark custom min nights as loaded after short delay
+  setTimeout(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const hasDatesSelected = urlParams.get('checkin') && urlParams.get('checkout');
+    if (!hasDatesSelected && !loadingTracker.customMinNightsLoaded) {
+      loadingTracker.customMinNightsLoaded = true;
+      checkAllContentLoaded();
+    }
+  }, 100);
 
   // Fallback: Ensure loader is hidden after maximum wait time
   setTimeout(() => {
@@ -1253,11 +1274,21 @@ document.addEventListener('DOMContentLoaded', function () {
         if (window.updateAvailabilityStatus) {
           window.updateAvailabilityStatus();
         }
+
+        // Notify page loader that custom min nights are ready
+        if (window.notifyCustomMinNightsLoaded) {
+          window.notifyCustomMinNightsLoaded();
+        }
       } catch (err) {
         console.error('[StayCalendar] error fetching custom min nights', err);
         // Mark as loaded even on error to avoid infinite waiting
         customMinNightsLoaded = true;
         window.customMinNightsLoaded = true;
+
+        // Notify page loader even on error
+        if (window.notifyCustomMinNightsLoaded) {
+          window.notifyCustomMinNightsLoaded();
+        }
       }
     }
 
