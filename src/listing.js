@@ -7648,16 +7648,17 @@ document.addEventListener('DOMContentLoaded', () => {
           }
           // Check minimum days requirement only when private dock is NOT selected
           else if (!this.selectedPrivateDock && shouldDisableIntermediateDates && dateStr !== selectedSingleDate) {
-            // Calculate how many days would be in the range if this date was selected
-            const range = this.generateDateRange(
-              selectedSingleDate < dateStr ? selectedSingleDate : dateStr,
-              selectedSingleDate < dateStr ? dateStr : selectedSingleDate
-            );
-            const daysInRange = range.length;
+            // Only disable dates AFTER the selected date
+            // Dates BEFORE remain clickable and will replace the selection
+            if (dateStr > selectedSingleDate) {
+              // Calculate how many days would be in the range if this date was selected
+              const range = this.generateDateRange(selectedSingleDate, dateStr);
+              const daysInRange = range.length;
 
-            // Disable dates that would create a range less than minimum required
-            if (daysInRange < minDaysRequired) {
-              isDisabled = true;
+              // Disable dates that would create a range less than minimum required
+              if (daysInRange < minDaysRequired) {
+                isDisabled = true;
+              }
             }
           }
 
@@ -7835,14 +7836,15 @@ document.addEventListener('DOMContentLoaded', () => {
           }
           // Check minimum days requirement
           else if (shouldDisableIntermediateDates && dateStr !== selectedSingleDate) {
-            const range = this.generateDateRange(
-              selectedSingleDate < dateStr ? selectedSingleDate : dateStr,
-              selectedSingleDate < dateStr ? dateStr : selectedSingleDate
-            );
-            const daysInRange = range.length;
+            // Only disable dates AFTER the selected date
+            // Dates BEFORE remain clickable and will replace the selection
+            if (dateStr > selectedSingleDate) {
+              const range = this.generateDateRange(selectedSingleDate, dateStr);
+              const daysInRange = range.length;
 
-            if (daysInRange < minDaysRequired) {
-              isDisabled = true;
+              if (daysInRange < minDaysRequired) {
+                isDisabled = true;
+              }
             }
           }
 
@@ -7941,18 +7943,52 @@ document.addEventListener('DOMContentLoaded', () => {
           if (dateStr === existingDateStr) {
             this.selectedDates = [];
           }
-          // If clicking a different date, create a range
+          // If clicking a different date, check min days requirement
           else {
+            // Get min days requirement from boats
+            let effectiveMinDays = 0;
+            const boatsForCheck = this.initialBoats.length > 0 ? this.initialBoats : this.availableBoats;
+
+            if (boatsForCheck && boatsForCheck.length > 0) {
+              const minDaysArray = boatsForCheck.map(boat => {
+                const publicDockDetails = this.getPublicDockDeliveryDetails(boat);
+                const publicDockMinDays = publicDockDetails?.minDays ? Number(publicDockDetails.minDays) : 0;
+                const boatMinDays = boat.minReservationLength || 0;
+
+                let privateDockMinDays = 0;
+                if (this.selectedPrivateDock) {
+                  const privateDockDetails = this.getPrivateDockDeliveryDetails(boat);
+                  privateDockMinDays = privateDockDetails?.minDays ? Number(privateDockDetails.minDays) : 0;
+                }
+
+                return Math.max(publicDockMinDays, privateDockMinDays, boatMinDays);
+              });
+
+              if (minDaysArray.length > 0) {
+                effectiveMinDays = Math.min(...minDaysArray);
+              }
+            }
+
             // Compare date strings to determine order
             const startDateStr = existingDateStr < dateStr ? existingDateStr : dateStr;
             const endDateStr = existingDateStr < dateStr ? dateStr : existingDateStr;
 
             // Generate all dates in the range
-            this.selectedDates = this.generateDateRange(startDateStr, endDateStr);
+            const potentialRange = this.generateDateRange(startDateStr, endDateStr);
 
-            // If multiple dates selected, switch to full day
-            if (this.selectedDates.length > 1 && this.selectedLengthType === 'half') {
-              this.selectedLengthType = 'full';
+            // If min days requirement exists and clicking a date before the existing selection
+            // or the range doesn't meet min days, replace the selection instead of creating invalid range
+            if (effectiveMinDays > 1 && (dateStr < existingDateStr || potentialRange.length < effectiveMinDays)) {
+              // Replace with new single date selection
+              this.selectedDates = [dateStr];
+            } else {
+              // Create the range
+              this.selectedDates = potentialRange;
+
+              // If multiple dates selected, switch to full day
+              if (this.selectedDates.length > 1 && this.selectedLengthType === 'half') {
+                this.selectedLengthType = 'full';
+              }
             }
           }
         }
@@ -8181,9 +8217,9 @@ document.addEventListener('DOMContentLoaded', () => {
           pointer-events: none;
           white-space: nowrap;
           box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-          top: ${rect.bottom + 8}px;
-          left: ${rect.left + (rect.width / 2)}px;
-          transform: translateX(-50%);
+          bottom: ${window.innerHeight - rect.top + 8}px;
+          right: ${window.innerWidth - rect.right}px;
+          transform-origin: bottom right;
         `;
 
         document.body.appendChild(tooltip);
@@ -13953,14 +13989,19 @@ document.addEventListener('DOMContentLoaded', () => {
             disabledTooltip = 'Private dock delivery not available on check-in date';
           }
           // Check minimum days requirement only when private dock is NOT selected
-          else if (!this.selectedPrivateDock && this.selectedDates.length === 1 && effectiveMinDays > 0) {
+          else if (!this.selectedPrivateDock && this.selectedDates.length === 1 && effectiveMinDays > 1) {
             const firstSelectedDate = new Date(this.selectedDates[0]);
             const currentDate = new Date(dateStr);
-            const daysDiff = Math.round((currentDate - firstSelectedDate) / (1000 * 60 * 60 * 24)) + 1;
 
-            // Disable dates that are less than minDays away from the first selected date
-            if (currentDate > firstSelectedDate && daysDiff < effectiveMinDays) {
-              isDisabled = true;
+            // Only disable dates AFTER the selected date that are too close
+            // Dates BEFORE remain clickable and will replace the selection
+            if (currentDate > firstSelectedDate) {
+              const daysDiff = Math.round((currentDate - firstSelectedDate) / (1000 * 60 * 60 * 24)) + 1;
+
+              // Disable dates that are less than minDays away from the first selected date
+              if (daysDiff < effectiveMinDays) {
+                isDisabled = true;
+              }
             }
           }
 
@@ -14058,18 +14099,44 @@ document.addEventListener('DOMContentLoaded', () => {
           if (dateStr === existingDateStr) {
             this.selectedDates = [];
           }
-          // If clicking a different date, create a range
+          // If clicking a different date, check min days requirement
           else {
+            // Calculate effective min days for this boat
+            let effectiveMinDays = 0;
+            if (this.currentBoatData) {
+              const publicDockDetails = this.getPublicDockDeliveryDetails(this.currentBoatData);
+              const publicDockMinDays = publicDockDetails?.minDays ? Number(publicDockDetails.minDays) : 0;
+              const boatMinDays = this.currentBoatData.minReservationLength || 0;
+
+              let privateDockMinDays = 0;
+              if (this.selectedPrivateDock) {
+                const privateDockDetails = this.getPrivateDockDeliveryDetails(this.currentBoatData);
+                privateDockMinDays = privateDockDetails?.minDays ? Number(privateDockDetails.minDays) : 0;
+              }
+
+              effectiveMinDays = Math.max(publicDockMinDays, privateDockMinDays, boatMinDays);
+            }
+
             // Compare date strings to determine order
             const startDateStr = existingDateStr < dateStr ? existingDateStr : dateStr;
             const endDateStr = existingDateStr < dateStr ? dateStr : existingDateStr;
 
             // Generate all dates in the range
-            this.selectedDates = this.generateDateRange(startDateStr, endDateStr);
+            const potentialRange = this.generateDateRange(startDateStr, endDateStr);
 
-            // If multiple dates selected, switch to full day
-            if (this.selectedDates.length > 1 && this.selectedLengthType === 'half') {
-              this.selectedLengthType = 'full';
+            // If min days requirement exists and clicking a date before the existing selection
+            // or the range doesn't meet min days, replace the selection instead of creating invalid range
+            if (effectiveMinDays > 1 && (dateStr < existingDateStr || potentialRange.length < effectiveMinDays)) {
+              // Replace with new single date selection
+              this.selectedDates = [dateStr];
+            } else {
+              // Create the range
+              this.selectedDates = potentialRange;
+
+              // If multiple dates selected, switch to full day
+              if (this.selectedDates.length > 1 && this.selectedLengthType === 'half') {
+                this.selectedLengthType = 'full';
+              }
             }
           }
         }
