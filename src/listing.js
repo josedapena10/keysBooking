@@ -8448,51 +8448,25 @@ document.addEventListener('DOMContentLoaded', () => {
         return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
       }
 
-      // Helper to get property stay days only
-      getPropertyStayDays() {
-        const urlParams = new URLSearchParams(window.location.search);
-        const checkin = urlParams.get('checkin');
-        const checkout = urlParams.get('checkout');
-
-        if (checkin && checkout && checkin.trim() !== '' && checkout.trim() !== '') {
-          const checkinParts = checkin.split('-');
-          const checkoutParts = checkout.split('-');
-
-          if (checkinParts.length === 3 && checkoutParts.length === 3) {
-            const checkinDate = new Date(Date.UTC(
-              parseInt(checkinParts[0]),
-              parseInt(checkinParts[1]) - 1,
-              parseInt(checkinParts[2]),
-              12, 0, 0
-            ));
-            const checkoutDate = new Date(Date.UTC(
-              parseInt(checkoutParts[0]),
-              parseInt(checkoutParts[1]) - 1,
-              parseInt(checkoutParts[2]),
-              12, 0, 0
-            ));
-
-            const timeDiff = checkoutDate.getTime() - checkinDate.getTime();
-            const nightsDiff = Math.floor(timeDiff / (1000 * 60 * 60 * 24));
-
-            if (nightsDiff > 0) {
-              return nightsDiff + 1; // Convert nights to days
-            }
-          }
-        }
-
-        return 0;
-      }
-
       filterBoats(boats) {
+        console.log('🔍 === FILTER BOATS CALLED ===');
+        console.log('Total boats to filter:', boats.length);
+        console.log('Filter state:', {
+          selectedPrivateDock: this.selectedPrivateDock,
+          selectedDates: this.selectedDates,
+          selectedGuests: this.selectedGuests,
+          selectedPickupTime: this.selectedPickupTime,
+          selectedLengthType: this.selectedLengthType,
+          selectedBoatTypes: this.selectedBoatTypes,
+          selectedPriceMin: this.selectedPriceMin,
+          selectedPriceMax: this.selectedPriceMax
+        });
+
         // Reset min days filter tracking before filtering
         this.lastMinDaysFilterInfo = null;
         let minDaysFilteredCount = 0;
         let maxRequiredDays = 0;
-
-        // Get both property stay days and boat rental days for different checks
-        const propertyStayDays = this.getPropertyStayDays();
-        const boatRentalDays = this.selectedDates.length > 0 ? this.selectedDates.length : propertyStayDays;
+        const availableDays = this.getAvailableDaysForMinCheck();
 
         const filteredBoats = boats.filter(boat => {
           // Filter by guest count
@@ -8508,36 +8482,18 @@ document.addEventListener('DOMContentLoaded', () => {
             }
           }
 
-          // Filter by minimum days requirement (check separately for different contexts)
-          const publicDockDetails = this.getPublicDockDeliveryDetails(boat);
-          const publicDockMinDays = publicDockDetails?.minDays ? Number(publicDockDetails.minDays) : 0;
-          const boatMinDays = boat.minReservationLength || 0;
+          // Filter by minimum days requirement
+          if (availableDays > 0) {
+            const effectiveMinDays = this.getEffectiveMinDaysForBoat(boat);
 
-          // Public dock and boat minimums check against boat rental days
-          const rentalMinRequired = Math.max(publicDockMinDays, boatMinDays);
-          if (rentalMinRequired > 0 && boatRentalDays < rentalMinRequired) {
-            minDaysFilteredCount++;
-            if (rentalMinRequired > maxRequiredDays) {
-              maxRequiredDays = rentalMinRequired;
-            }
-            return false;
-          }
-
-          // Private dock minimum checks against property stay (only when private dock selected)
-          if (this.selectedPrivateDock) {
-            const privateDockDetails = this.getPrivateDockDeliveryDetails(boat);
-            const privateDockMinDays = privateDockDetails?.minDays ? Number(privateDockDetails.minDays) : 0;
-
-            if (privateDockMinDays > 0) {
-              // Can't use checkin day for private dock, so subtract 1
-              const usablePropertyDays = propertyStayDays - 1;
-              if (usablePropertyDays < privateDockMinDays) {
-                minDaysFilteredCount++;
-                if (privateDockMinDays > maxRequiredDays) {
-                  maxRequiredDays = privateDockMinDays;
-                }
-                return false;
+            // If boat requires more days than available, filter it out
+            if (effectiveMinDays > 0 && availableDays < effectiveMinDays) {
+              // Track min days filtering info
+              minDaysFilteredCount++;
+              if (effectiveMinDays > maxRequiredDays) {
+                maxRequiredDays = effectiveMinDays;
               }
+              return false;
             }
           }
 
@@ -8610,39 +8566,101 @@ document.addEventListener('DOMContentLoaded', () => {
 
           // Filter by private dock delivery
           if (this.selectedPrivateDock) {
+            console.log('=== PRIVATE DOCK FILTER ACTIVE ===');
+            console.log('Boat being checked:', {
+              name: boat.name,
+              id: boat.id,
+              delivers: boat.delivers,
+              deliversTo: boat.deliversTo
+            });
+
             // First check if property actually has a private dock
             const r = Wized.data.r;
             if (r && r.Load_Property_Details && r.Load_Property_Details.data && r.Load_Property_Details.data.property) {
-              const hasPrivateDock = r.Load_Property_Details.data.property.private_dock;
+              const property = r.Load_Property_Details.data.property;
+              const hasPrivateDock = property.private_dock;
+
+              console.log('Property private dock status:', hasPrivateDock);
+              console.log('Property city:', property.listing_city);
+
               if (hasPrivateDock === false) {
                 // Property doesn't have private dock, so skip this filter entirely
+                console.log('❌ Property has no private dock - allowing all boats');
                 return true; // Don't filter out this boat
               }
             }
 
             // Check if boat delivers
             if (!boat.delivers) {
+              console.log('❌ Boat does NOT deliver - FILTERED OUT');
               return false;
             }
 
-            // Get property city from Wized data
-            if (r && r.Load_Property_Details && r.Load_Property_Details.data && r.Load_Property_Details.data.property.listing_city) {
-              const propertyCityName = r.Load_Property_Details.data.property.listing_city;
+            console.log('✓ Boat delivers');
 
-              // Check if boat delivers to the property's city
-              if (!boat.deliversTo || !Array.isArray(boat.deliversTo)) {
+            // Get property city from Wized data
+            if (r && r.Load_Property_Details && r.Load_Property_Details.data && r.Load_Property_Details.data.property) {
+              const property = r.Load_Property_Details.data.property;
+              const propertyCityName = property.listing_city;
+
+              console.log('Checking delivery to property city:', propertyCityName);
+
+              if (!propertyCityName) {
+                console.log('⚠️ No property city found - cannot verify delivery');
+                console.log('❌ FILTERED OUT due to missing property city');
                 return false;
               }
 
-              const canDeliverToProperty = boat.deliversTo.some(location =>
+              // Check if boat delivers to the property's city
+              if (!boat.deliversTo || !Array.isArray(boat.deliversTo)) {
+                console.log('❌ Boat has no deliversTo data - FILTERED OUT');
+                return false;
+              }
+
+              console.log('Boat delivers to cities:', boat.deliversTo.map(loc => loc.city));
+
+              const matchingLocation = boat.deliversTo.find(location =>
                 location.city && location.city.toLowerCase() === propertyCityName.toLowerCase()
               );
 
-              if (!canDeliverToProperty) {
+              const canDeliverToProperty = !!matchingLocation;
+
+              console.log('Can deliver to property?', canDeliverToProperty);
+
+              if (canDeliverToProperty && matchingLocation) {
+                console.log('Private dock delivery details:', {
+                  city: matchingLocation.city,
+                  minDays: matchingLocation.minDays,
+                  price: matchingLocation.price
+                });
+
+                // Check min days requirement for private dock
+                if (matchingLocation.minDays) {
+                  const selectedDays = this.selectedDates.length;
+                  const minDaysRequired = Number(matchingLocation.minDays);
+
+                  console.log('Min days check:', {
+                    selectedDays: selectedDays,
+                    minDaysRequired: minDaysRequired,
+                    meetsRequirement: selectedDays >= minDaysRequired
+                  });
+
+                  if (selectedDays < minDaysRequired) {
+                    console.log(`❌ Not enough days (${selectedDays} < ${minDaysRequired}) - FILTERED OUT`);
+                    return false;
+                  }
+                }
+
+                console.log('✅ Boat PASSES private dock filter');
+                return true;
+              } else {
+                console.log('❌ Boat does NOT deliver to property city - FILTERED OUT');
                 return false;
               }
             } else {
               // If we can't get property city, hide boats when private dock filter is active
+              console.log('⚠️ Could not access property data');
+              console.log('❌ FILTERED OUT due to missing property data');
               return false;
             }
           }
@@ -8654,11 +8672,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (minDaysFilteredCount > 0 && filteredBoats.length === 0 && boats.length > 0) {
           this.lastMinDaysFilterInfo = {
             requiredDays: maxRequiredDays,
-            availableDays: boatRentalDays, // Show boat rental days in error, not property stay
+            availableDays: availableDays,
             filteredCount: minDaysFilteredCount,
-            totalBoats: boats.length,
-            isPrivateDockFilter: this.selectedPrivateDock // Track if private dock caused the filter
+            totalBoats: boats.length
           };
+        }
+
+        console.log('🔍 === FILTER BOATS COMPLETE ===');
+        console.log('Boats passed filter:', filteredBoats.length, 'out of', boats.length);
+        if (filteredBoats.length > 0) {
+          console.log('Passing boats:', filteredBoats.map(b => ({ name: b.name, id: b.id })));
         }
 
         return filteredBoats;
@@ -8964,21 +8987,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // Priority 0: Check if boats were filtered due to minimum days requirement
         // This is the most accurate since it was tracked during actual filtering
         if (this.lastMinDaysFilterInfo) {
-          const { requiredDays, availableDays, isPrivateDockFilter } = this.lastMinDaysFilterInfo;
-          const propertyStayDays = this.getPropertyStayDays();
-
-          if (isPrivateDockFilter) {
-            // Private dock minimum is based on property stay
-            const usableDays = propertyStayDays - 1; // Can't use checkin day
-            return `Private dock delivery requires a ${requiredDays}-day minimum, but your ${propertyStayDays}-day stay only has ${usableDays} usable days (check-in day excluded). Try a longer stay or remove the private dock filter.`;
-          } else {
-            // Public dock/boat minimums are based on boat rental days
-            if (this.selectedDates.length > 0) {
-              return `Available boats require a ${requiredDays}-day minimum rental, but you selected only ${availableDays} boat day${availableDays > 1 ? 's' : ''}. Select more boat rental dates.`;
-            } else {
-              return `Boats for this location require a ${requiredDays}-day minimum rental. Select ${requiredDays}+ boat dates from your ${propertyStayDays}-day stay to see available boats.`;
-            }
-          }
+          const { requiredDays, availableDays } = this.lastMinDaysFilterInfo;
+          return `Boat rentals for this listing's location require ${requiredDays} day${requiredDays > 1 ? 's' : ''}, but your stay is only ${availableDays} day${availableDays > 1 ? 's' : ''}. Extend your dates or select another property.`;
         }
 
         // Priority 1: Check private dock delivery filter (most restrictive)
@@ -10156,6 +10166,289 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
           return numDates * (boat.pricePerDay || 0);
         }
+      }
+
+      filterBoats(boats) {
+        console.log('🔍 === FILTER BOATS CALLED ===');
+        console.log('Total boats to filter:', boats.length);
+        console.log('Filter state:', {
+          selectedPrivateDock: this.selectedPrivateDock,
+          selectedDates: this.selectedDates,
+          selectedGuests: this.selectedGuests,
+          selectedPickupTime: this.selectedPickupTime,
+          selectedLengthType: this.selectedLengthType,
+          selectedBoatTypes: this.selectedBoatTypes,
+          selectedPriceMin: this.selectedPriceMin,
+          selectedPriceMax: this.selectedPriceMax
+        });
+
+        // Reset min days filter tracking before filtering
+        this.lastMinDaysFilterInfo = null;
+        let minDaysFilteredCount = 0;
+        let maxRequiredDays = 0;
+        const availableDays = this.getAvailableDaysForMinCheck();
+
+        const filteredBoats = boats.filter(boat => {
+          // Filter by guest count
+          if (this.selectedGuests > 0 && boat.maxPassengers < this.selectedGuests) {
+            return false;
+          }
+
+          // Filter by half-day compatibility
+          if (this.selectedDates.length === 1 && this.selectedLengthType === 'half') {
+            const minLength = boat.minReservationLength || 0;
+            if (minLength >= 1) {
+              return false; // Boat doesn't allow half days
+            }
+          }
+
+          // Filter by minimum days requirement
+          if (availableDays > 0) {
+            const effectiveMinDays = this.getEffectiveMinDaysForBoat(boat);
+
+            // If boat requires more days than available, filter it out
+            if (effectiveMinDays > 0 && availableDays < effectiveMinDays) {
+              // Track min days filtering info
+              minDaysFilteredCount++;
+              if (effectiveMinDays > maxRequiredDays) {
+                maxRequiredDays = effectiveMinDays;
+              }
+              return false;
+            }
+          }
+
+          // Filter by price range using unified pricing
+          const quote = this.computeBoatQuote(boat);
+          const totalPrice = quote.total;
+
+          // Always enforce min price
+          if (totalPrice < this.selectedPriceMin) {
+            return false;
+          }
+
+          // Always enforce max price (no gating based on maxPriceAdjusted)
+          if (totalPrice > this.selectedPriceMax) {
+            return false;
+          }
+
+          // Filter by boat length
+          const boatLength = boat.length || 0;
+          if (boatLength < this.selectedLengthMin) {
+            return false;
+          }
+          // Only apply max length filter if it has been manually adjusted
+          if (this.maxLengthAdjusted && boatLength > this.selectedLengthMax) {
+            return false;
+          }
+
+          // Filter by boat type (case-insensitive)
+          if (this.selectedBoatTypes.length > 0) {
+            const boatType = boat.boatType;
+            if (!boatType) {
+              return false;
+            }
+            // Normalize to lowercase for case-insensitive comparison
+            const boatTypeLower = boatType.toLowerCase();
+            const selectedTypesLower = this.selectedBoatTypes.map(type => type.toLowerCase());
+            if (!selectedTypesLower.includes(boatTypeLower)) {
+              return false;
+            }
+          }
+
+          // Filter by user age if user is logged in and age is available
+          if (this.userAge !== null && boat.minAge && this.userAge < boat.minAge) {
+            return false;
+          }
+
+          // Filter by dock length restrictions (property-based)
+          const r = Wized.data.r;
+          if (r && r.Load_Property_Details && r.Load_Property_Details.data && r.Load_Property_Details.data.property) {
+            const property = r.Load_Property_Details.data.property;
+
+            // If property has private dock, apply dock length restrictions
+            if (property.private_dock === true && property.dock_maxBoatLength) {
+              const boatLength = boat.length || 0;
+              // Extract integer value from dock_maxBoatLength (e.g., "55 ft" -> 55)
+              let maxDockLength = 0;
+              if (property.dock_maxBoatLength) {
+                const match = property.dock_maxBoatLength.match(/\d+/);
+                if (match) {
+                  maxDockLength = parseInt(match[0], 10);
+                }
+              }
+
+              // Filter out boats that are too long for the dock
+              if (boatLength > maxDockLength) {
+                return false;
+              }
+            }
+          }
+
+          // Filter by private dock delivery
+          if (this.selectedPrivateDock) {
+            console.log('=== PRIVATE DOCK FILTER ACTIVE ===');
+            console.log('Boat being checked:', {
+              name: boat.name,
+              id: boat.id,
+              delivers: boat.delivers,
+              deliversTo: boat.deliversTo
+            });
+
+            // First check if property actually has a private dock
+            const r = Wized.data.r;
+            if (r && r.Load_Property_Details && r.Load_Property_Details.data && r.Load_Property_Details.data.property) {
+              const property = r.Load_Property_Details.data.property;
+              const hasPrivateDock = property.private_dock;
+
+              console.log('Property private dock status:', hasPrivateDock);
+              console.log('Property city:', property.listing_city);
+
+              if (hasPrivateDock === false) {
+                // Property doesn't have private dock, so skip this filter entirely
+                console.log('❌ Property has no private dock - allowing all boats');
+                return true; // Don't filter out this boat
+              }
+            }
+
+            // Check if boat delivers
+            if (!boat.delivers) {
+              console.log('❌ Boat does NOT deliver - FILTERED OUT');
+              return false;
+            }
+
+            console.log('✓ Boat delivers');
+
+            // Get property city from Wized data
+            if (r && r.Load_Property_Details && r.Load_Property_Details.data && r.Load_Property_Details.data.property) {
+              const property = r.Load_Property_Details.data.property;
+              const propertyCityName = property.listing_city;
+
+              console.log('Checking delivery to property city:', propertyCityName);
+
+              if (!propertyCityName) {
+                console.log('⚠️ No property city found - cannot verify delivery');
+                console.log('❌ FILTERED OUT due to missing property city');
+                return false;
+              }
+
+              // Check if boat delivers to the property's city
+              if (!boat.deliversTo || !Array.isArray(boat.deliversTo)) {
+                console.log('❌ Boat has no deliversTo data - FILTERED OUT');
+                return false;
+              }
+
+              console.log('Boat delivers to cities:', boat.deliversTo.map(loc => loc.city));
+
+              const matchingLocation = boat.deliversTo.find(location =>
+                location.city && location.city.toLowerCase() === propertyCityName.toLowerCase()
+              );
+
+              const canDeliverToProperty = !!matchingLocation;
+
+              console.log('Can deliver to property?', canDeliverToProperty);
+
+              if (canDeliverToProperty && matchingLocation) {
+                console.log('Private dock delivery details:', {
+                  city: matchingLocation.city,
+                  minDays: matchingLocation.minDays,
+                  price: matchingLocation.price
+                });
+
+                // Check min days requirement for private dock
+                if (matchingLocation.minDays) {
+                  const selectedDays = this.selectedDates.length;
+                  const minDaysRequired = Number(matchingLocation.minDays);
+
+                  console.log('Min days check:', {
+                    selectedDays: selectedDays,
+                    minDaysRequired: minDaysRequired,
+                    meetsRequirement: selectedDays >= minDaysRequired
+                  });
+
+                  if (selectedDays < minDaysRequired) {
+                    console.log(`❌ Not enough days (${selectedDays} < ${minDaysRequired}) - FILTERED OUT`);
+                    return false;
+                  }
+                }
+
+                console.log('✅ Boat PASSES private dock filter');
+                return true;
+              } else {
+                console.log('❌ Boat does NOT deliver to property city - FILTERED OUT');
+                return false;
+              }
+            } else {
+              // If we can't get property city, hide boats when private dock filter is active
+              console.log('⚠️ Could not access property data');
+              console.log('❌ FILTERED OUT due to missing property data');
+              return false;
+            }
+          }
+
+          return true;
+        });
+
+        // Store min days filter info if boats were filtered due to min days
+        if (minDaysFilteredCount > 0 && filteredBoats.length === 0 && boats.length > 0) {
+          this.lastMinDaysFilterInfo = {
+            requiredDays: maxRequiredDays,
+            availableDays: availableDays,
+            filteredCount: minDaysFilteredCount,
+            totalBoats: boats.length
+          };
+        }
+
+        console.log('🔍 === FILTER BOATS COMPLETE ===');
+        console.log('Boats passed filter:', filteredBoats.length, 'out of', boats.length);
+        if (filteredBoats.length > 0) {
+          console.log('Passing boats:', filteredBoats.map(b => ({ name: b.name, id: b.id })));
+        }
+
+        return filteredBoats;
+      }
+
+      // Helper method to calculate available days for min days check
+      getAvailableDaysForMinCheck() {
+        let daysToCheck = 0;
+
+        // First, check property stay dates from URL (format: YYYY-MM-DD)
+        const urlParams = new URLSearchParams(window.location.search);
+        const checkin = urlParams.get('checkin');
+        const checkout = urlParams.get('checkout');
+
+        if (checkin && checkout && checkin.trim() !== '' && checkout.trim() !== '') {
+          const checkinParts = checkin.split('-');
+          const checkoutParts = checkout.split('-');
+
+          if (checkinParts.length === 3 && checkoutParts.length === 3) {
+            const checkinDate = new Date(Date.UTC(
+              parseInt(checkinParts[0]),
+              parseInt(checkinParts[1]) - 1,
+              parseInt(checkinParts[2]),
+              12, 0, 0
+            ));
+            const checkoutDate = new Date(Date.UTC(
+              parseInt(checkoutParts[0]),
+              parseInt(checkoutParts[1]) - 1,
+              parseInt(checkoutParts[2]),
+              12, 0, 0
+            ));
+
+            const timeDiff = checkoutDate.getTime() - checkinDate.getTime();
+            const nightsDiff = Math.floor(timeDiff / (1000 * 60 * 60 * 24));
+
+            if (nightsDiff > 0) {
+              daysToCheck = nightsDiff + 1;
+            }
+          }
+        }
+
+        // Override with boat dates if selected (boat dates take precedence)
+        if (this.selectedDates.length > 0) {
+          daysToCheck = this.selectedDates.length;
+        }
+
+        return daysToCheck;
       }
 
       // Helper method to calculate effective min days for a boat
