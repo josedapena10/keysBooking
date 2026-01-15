@@ -114,12 +114,10 @@ function truncateToFit(element) {
   function hideLoader() {
     const loader = document.querySelector('[data-element="loader"]');
     if (loader && loader.style.display !== 'none') {
-      console.log(`[${Date.now()}] 🔄 Hiding loader (will take 300ms to fade)`);
       // Add fade out effect
       loader.style.opacity = '0';
       setTimeout(() => {
         loader.style.display = 'none';
-        console.log(`[${Date.now()}] ✅ Loader hidden (display=none)`);
       }, 300);
     } else {
     }
@@ -127,7 +125,6 @@ function truncateToFit(element) {
 
   // Expose function to notify when custom min nights are loaded
   window.notifyCustomMinNightsLoaded = function () {
-    console.log('[Loader] Custom min nights loaded notification received');
     loadingTracker.customMinNightsLoaded = true;
     checkAllContentLoaded();
   };
@@ -1273,21 +1270,15 @@ document.addEventListener('DOMContentLoaded', function () {
         customMinNightsLoaded = true;
         window.customMinNightsLoaded = true;
 
-        console.log('[Custom Min Nights] ✅ Loaded, about to trigger validation');
-
         // Re-trigger validation after custom min nights load
         if (window.updateAvailabilityStatus) {
-          console.log('[Custom Min Nights] Calling updateAvailabilityStatus');
           window.updateAvailabilityStatus();
         }
 
         // Notify page loader that custom min nights are ready
         if (window.notifyCustomMinNightsLoaded) {
-          console.log('[Custom Min Nights] Notifying page loader');
           window.notifyCustomMinNightsLoaded();
         }
-
-        console.log('[Custom Min Nights] ✅ All done');
       } catch (err) {
         console.error('[StayCalendar] error fetching custom min nights', err);
         // Mark as loaded even on error to avoid infinite waiting
@@ -3303,12 +3294,10 @@ document.addEventListener('DOMContentLoaded', () => {
       updateErrorDisplay(!suppressDateError && color === "#ffd4d2", hasGuestError, r);
 
       // Update add dates heading
-      console.log(`[${Date.now()}] updateAvailabilityStatus calling updateAddDatesHeading`);
       updateAddDatesHeading();
 
       // Update reservation display elements
       if (window.updateReservationTotalContainer) {
-        console.log(`[${Date.now()}] updateAvailabilityStatus calling updateReservationTotalContainer`);
         window.updateReservationTotalContainer();
       }
       if (window.updateReservationTotal) {
@@ -3322,7 +3311,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Update listing query price details visibility
       if (window.updateListingQueryPriceDetailsVisibility) {
-        console.log(`[${Date.now()}] updateAvailabilityStatus calling updateListingQueryPriceDetailsVisibility`);
         window.updateListingQueryPriceDetailsVisibility();
       }
 
@@ -3623,7 +3611,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function runUpdateAddDatesHeading() {
-      console.log(`[${Date.now()}] runUpdateAddDatesHeading called, customMinNightsLoaded=`, window.customMinNightsLoaded);
       if (!addDatesHeadings || addDatesHeadings.length === 0) return;
 
       const r = Wized.data.r;
@@ -3728,12 +3715,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // Apply visibility and text to all heading elements (desktop and mobile)
       addDatesHeadings.forEach(heading => {
         if (heading) {
-          const oldDisplay = heading.style.display;
-          const newDisplay = shouldBeVisible ? 'flex' : 'none';
-          if (oldDisplay !== newDisplay) {
-            console.log(`[${Date.now()}] Heading: ${oldDisplay} → ${newDisplay} | "${headingText}" | customMinLoaded=${window.customMinNightsLoaded}`);
-          }
-          heading.style.display = newDisplay;
+          heading.style.display = shouldBeVisible ? 'flex' : 'none';
           heading.textContent = headingText;
         }
       });
@@ -4247,12 +4229,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // Update all container elements (desktop and mobile)
       containerElements.forEach(containerElement => {
         if (containerElement) {
-          const oldDisplay = containerElement.style.display;
-          const newDisplay = shouldShow ? 'flex' : 'none';
-          if (oldDisplay !== newDisplay) {
-            console.log(`[${Date.now()}] Total Container: ${oldDisplay} → ${newDisplay} | customMinLoaded=${window.customMinNightsLoaded} meetsMin=${meetsMinNights}`);
-          }
-          containerElement.style.display = newDisplay;
+          containerElement.style.display = shouldShow ? 'flex' : 'none';
         }
       });
     }
