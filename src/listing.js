@@ -1183,6 +1183,9 @@ document.addEventListener('DOMContentLoaded', function () {
     let propertyData = Wized.data.r.Load_Property_Details.data.property;
     const CUSTOM_MIN_NIGHTS_ENDPOINT = 'https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/property_calendar_customMinNights';
 
+    console.log('[Calendar Init] Load_Property_Calendar_Disabled data:', calendarData);
+    console.log('[Calendar Init] Total items in calendar data:', calendarData?.data?.length);
+
     // Get DOM elements
     const checkInInput = document.querySelector('[data-element="checkInInput"]');
     const checkOutInput = document.querySelector('[data-element="checkOutInput"]');
@@ -1212,8 +1215,11 @@ document.addEventListener('DOMContentLoaded', function () {
       // Collect custom minimum nights overrides if present
       if (item.custom_minNights !== undefined && item.custom_minNights !== null) {
         customMinNightsByDate.set(item.date, item.custom_minNights);
+        console.log(`[Calendar] Custom min night found: ${item.date} = ${item.custom_minNights}`);
       }
     });
+
+    console.log('[Calendar] After initial load, custom min nights map:', Array.from(customMinNightsByDate.entries()));
 
     async function hydrateCustomMinNights(currentPropertyData) {
       const propertyId = currentPropertyData?.id || currentPropertyData?.property_id;
@@ -1230,15 +1236,18 @@ document.addEventListener('DOMContentLoaded', function () {
         }
         const body = await res.json();
         const rows = Array.isArray(body) ? body : Array.isArray(body?.data) ? body.data : [];
+        console.log('[Calendar API] Hydrating custom min nights, rows received:', rows.length);
         rows.forEach(row => {
           if (row.date && row.custom_minNights !== undefined && row.custom_minNights !== null) {
             customMinNightsByDate.set(row.date, row.custom_minNights);
+            console.log(`[Calendar API] Custom min night found: ${row.date} = ${row.custom_minNights}`);
           }
           // If API returns checkout-only info for available dates, respect it
           if (row.date && row.isAvailable === true && row.isAvailableForCheckout === true) {
             checkoutOnlyDates.add(row.date);
           }
         });
+        console.log('[Calendar API] After hydration, custom min nights map:', Array.from(customMinNightsByDate.entries()));
       } catch (err) {
         console.error('[StayCalendar] error fetching custom min nights', err);
       }
@@ -1321,14 +1330,30 @@ document.addEventListener('DOMContentLoaded', function () {
     function getLowestMinNightsBetween(startDate, endDate) {
       let lowestMin = minNights;
       let cursor = new Date(startDate);
+      const datesChecked = [];
 
       while (cursor < endDate) {
         const cursorStr = formatDate(cursor);
         if (customMinNightsByDate.has(cursorStr)) {
           const customMin = customMinNightsByDate.get(cursorStr);
           lowestMin = Math.min(lowestMin, customMin);
+          datesChecked.push({ date: cursorStr, hasCustom: true, customMin, lowestMin });
+        } else {
+          datesChecked.push({ date: cursorStr, hasCustom: false, lowestMin });
         }
         cursor = addDays(cursor, 1);
+      }
+
+      if (formatDate(startDate) === '2026-03-18') {
+        console.log('[getLowestMinNightsBetween] Range starting 2026-03-18:');
+        console.log('  - customMinNightsByDate.size:', customMinNightsByDate.size);
+        console.log('  - Has custom for 2026-03-18?', customMinNightsByDate.has('2026-03-18'));
+        if (customMinNightsByDate.has('2026-03-18')) {
+          console.log('  - Custom value:', customMinNightsByDate.get('2026-03-18'));
+        }
+        console.log('  - Default minNights:', minNights);
+        console.log('  - Dates checked:', datesChecked);
+        console.log('  - Returning lowestMin:', lowestMin);
       }
 
       return lowestMin;
