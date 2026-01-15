@@ -3200,6 +3200,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Update availability status based on calendar data
     function updateAvailabilityStatus() {
       console.log('[updateAvailabilityStatus] Called, customMinNightsLoaded=', window.customMinNightsLoaded);
+      console.trace('[updateAvailabilityStatus] Call stack');
       const r = Wized.data.r;
       const n = Wized.data.n;
       const urlParams = new URLSearchParams(window.location.search);
@@ -3630,6 +3631,8 @@ document.addEventListener('DOMContentLoaded', () => {
           const propertyCalendarRange = r.Load_Property_Calendar_Query.data.property_calendar_range;
           const minNights = getEffectiveMinNightsForSelection(r);
 
+          console.log('[updateAddDatesHeading] Validating dates: minNights=', minNights, 'rangeLength=', propertyCalendarRange.length);
+
           let allAvailable = true;
           let consecutiveAvailableDays = 0;
           let meetsMinNights = false;
@@ -3645,6 +3648,8 @@ document.addEventListener('DOMContentLoaded', () => {
               allAvailable = false;
             }
           }
+
+          console.log('[updateAddDatesHeading] After validation: allAvailable=', allAvailable, 'meetsMinNights=', meetsMinNights, 'consecutiveAvailableDays=', consecutiveAvailableDays);
 
           const datesValid = allAvailable && meetsMinNights;
           // If dates are valid but guests are wrong, show "Change Guests"
