@@ -3169,6 +3169,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateAvailabilityStatus() {
       const r = Wized.data.r;
       const n = Wized.data.n;
+      const urlParams = new URLSearchParams(window.location.search);
 
       if (n && n.parameter) {
       }
@@ -3489,14 +3490,6 @@ document.addEventListener('DOMContentLoaded', () => {
       // Determine color based on availability and minimum night conditions
       const color = !allAvailable || !meetsMinNights ? "#ffd4d2" : "";
 
-      console.log('[StayValidation:getAvailabilityColor]', {
-        allAvailable,
-        meetsMinNights,
-        effectiveMinNights,
-        nightsFromParams,
-        color
-      });
-
       return color;
     }
 
@@ -3610,15 +3603,6 @@ document.addEventListener('DOMContentLoaded', () => {
           }
 
           const datesValid = allAvailable && meetsMinNights;
-          console.log('[StayValidation:addDatesHeading]', {
-            datesSelected,
-            allAvailable,
-            meetsMinNights,
-            minNights,
-            datesValid,
-            headingText: datesValid ? (hasGuestError ? 'Change guests' : 'hidden') : 'Change dates'
-          });
-
           // If dates are valid but guests are wrong, show "Change Guests"
           if (datesValid && hasGuestError) {
             shouldBeVisible = true;
@@ -3657,11 +3641,6 @@ document.addEventListener('DOMContentLoaded', () => {
           heading.style.display = shouldBeVisible ? 'flex' : 'none';
           heading.textContent = headingText;
         }
-      });
-
-      console.log('[StayValidation:addDatesHeading:result]', {
-        shouldBeVisible,
-        headingText
       });
 
       // Update total container visibility - show only when heading is hidden and dates are valid
@@ -4144,15 +4123,6 @@ document.addEventListener('DOMContentLoaded', () => {
       const maxGuests = r.Load_Property_Details.data.property.num_guests;
       const shouldShow = allAvailable && meetsMinNights && (maxGuests >= currentGuests);
 
-      console.log('[StayValidation:ReservationTotalContainer]', {
-        datesSelected,
-        allAvailable,
-        meetsMinNights,
-        minNights,
-        nightsFromParams,
-        shouldShow
-      });
-
       // Update all container elements (desktop and mobile)
       containerElements.forEach(containerElement => {
         if (containerElement) {
@@ -4305,6 +4275,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       let allAvailable = true;
       let meetsMinNights = true;
+      let nightsFromParams = 0;
 
       // Calculate the total number of days available in a row
       let consecutiveAvailableDays = 0;
@@ -4363,17 +4334,6 @@ document.addEventListener('DOMContentLoaded', () => {
         && (currentGuests <= maxGuests)
         && (currentGuests != 0)
         && !extrasInfo.hasAnyExtrasNeedingDates;
-
-      console.log('[StayValidation:ListingQueryPriceDetails]', {
-        allAvailable,
-        meetsMinNights,
-        minNights,
-        nightsFromParams,
-        currentGuests,
-        maxGuests,
-        extrasNeedDates: extrasInfo.hasAnyExtrasNeedingDates,
-        shouldShow
-      });
 
       priceDetailsElement.style.display = shouldShow ? 'block' : 'none';
     }
