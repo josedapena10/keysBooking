@@ -3303,10 +3303,12 @@ document.addEventListener('DOMContentLoaded', () => {
       updateErrorDisplay(!suppressDateError && color === "#ffd4d2", hasGuestError, r);
 
       // Update add dates heading
+      console.log(`[${Date.now()}] updateAvailabilityStatus calling updateAddDatesHeading`);
       updateAddDatesHeading();
 
       // Update reservation display elements
       if (window.updateReservationTotalContainer) {
+        console.log(`[${Date.now()}] updateAvailabilityStatus calling updateReservationTotalContainer`);
         window.updateReservationTotalContainer();
       }
       if (window.updateReservationTotal) {
@@ -3320,6 +3322,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Update listing query price details visibility
       if (window.updateListingQueryPriceDetailsVisibility) {
+        console.log(`[${Date.now()}] updateAvailabilityStatus calling updateListingQueryPriceDetailsVisibility`);
         window.updateListingQueryPriceDetailsVisibility();
       }
 
@@ -3616,11 +3619,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // Add this entire function for updating the heading (debounced to avoid flicker)
     let addDatesHeadingTimer = null;
     function updateAddDatesHeading() {
+      console.log(`[${Date.now()}] updateAddDatesHeading called, scheduling runUpdateAddDatesHeading in 120ms`);
       if (addDatesHeadingTimer) clearTimeout(addDatesHeadingTimer);
       addDatesHeadingTimer = setTimeout(runUpdateAddDatesHeading, 120);
     }
 
     function runUpdateAddDatesHeading() {
+      console.log(`[${Date.now()}] runUpdateAddDatesHeading called, customMinNightsLoaded=`, window.customMinNightsLoaded);
       if (!addDatesHeadings || addDatesHeadings.length === 0) return;
 
       const r = Wized.data.r;
