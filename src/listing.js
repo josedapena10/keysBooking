@@ -4150,7 +4150,11 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      const totalPrice = Math.floor(r.Load_Property_Calendar_Query.data.dateRange_totalPrice || 0);
+      // Prefer combined total when extras are selected and we have a cached value
+      const extrasSelected = typeof window.hasAnyExtrasSelected === 'function' ? window.hasAnyExtrasSelected() : false;
+      const totalPrice = (extrasSelected && typeof lastExtrasGrandTotal === 'number')
+        ? lastExtrasGrandTotal
+        : Math.floor(r.Load_Property_Calendar_Query.data.dateRange_totalPrice || 0);
       const formattedPrice = "$" + totalPrice.toLocaleString();
 
       // Update all total elements (desktop and mobile)
@@ -4846,6 +4850,10 @@ document.addEventListener('DOMContentLoaded', () => {
 // Global functions for ListingExtras_Query_Price_Details functionality
 // These functions handle boat pricing calculations and display updates
 
+// Cache the most recent combined total (stay + extras) so other updaters
+// like Reservation_Total can reuse it without recalculating.
+let lastExtrasGrandTotal = null;
+
 // Update pricing display when extras (boat or fishing charter) are selected
 async function updatePricingDisplayForExtras() {
 
@@ -4856,6 +4864,7 @@ async function updatePricingDisplayForExtras() {
   const hasExtras = window.hasAnyExtrasSelected();
 
   if (!hasExtras) {
+    lastExtrasGrandTotal = null;
     // No extras selected - show listing-only pricing
     listingOnlyPricingSections.forEach(section => {
       if (section) {
@@ -4979,8 +4988,16 @@ async function updatePricingDisplayForExtras() {
       const extrasTotalWithFees = boatPricing.totalWithFees + fishingCharterPricing.totalWithFees;
       const grandTotal = stayPricing.total + extrasTotalWithFees + combinedTaxes.boat;
 
+      // Cache for other total updaters (e.g., Reservation_Total)
+      lastExtrasGrandTotal = Math.round(grandTotal);
+
       // Update all pricing elements
       updatePricingElements(stayPricing, boatPricing, fishingCharterPricing, combinedTaxes, grandTotal);
+
+      // Sync the main reservation total with the combined amount immediately
+      if (typeof window.updateReservationTotal === 'function') {
+        window.updateReservationTotal();
+      }
 
       // Update stay cancellation policy for extras view (data is guaranteed to be available here)
       updateExtrasCancellationPolicies(r, n);
