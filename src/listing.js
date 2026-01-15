@@ -14208,7 +14208,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Boat details popup done handler
         if (this.boatDetailsPopupDone) {
           this.boatDetailsPopupDone.addEventListener('click', () => {
-            // Check if single date selected with min days > 1, reset if so
+            // Check if single date selected with min days > 1, show message and prevent close
             if (this.selectedDates.length === 1 && this.currentBoatData) {
               const publicDockDetails = this.getPublicDockDeliveryDetails(this.currentBoatData);
               const publicDockMinDays = publicDockDetails?.minDays ? Number(publicDockDetails.minDays) : 0;
@@ -14222,13 +14222,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
               const effectiveMinDays = Math.max(publicDockMinDays, privateDockMinDays, boatMinDays);
 
-              // If min days > 1 and only one date selected, reset to no selection
+              // If min days > 1 and only one date selected, show tooltip and return (don't close popup)
               if (effectiveMinDays > 1) {
-                this.selectedDates = [];
-                this.updateBoatDetailsDateButtonStyles();
-                this.initializeBoatDetailsDateFilter();
-                this.updateURLParams();
-                this.updateBoatDetailsPrice();
+                const message = `This boat requires a minimum of ${effectiveMinDays} ${effectiveMinDays === 1 ? 'day' : 'days'}`;
+                this.showTooltipMessage(this.boatDetailsPopupDone, message);
+
+                // Auto-hide tooltip after 3 seconds
+                setTimeout(() => {
+                  this.hideTooltipMessage();
+                }, 3000);
+
+                return; // Don't proceed - keep popup open
               }
             }
 
