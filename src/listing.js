@@ -3909,7 +3909,8 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-
+    // Make populateSelectedBoatBlock globally available
+    window.populateSelectedBoatBlock = populateSelectedBoatBlock;
 
     // Initialize boat functionality on page load
     handleBoatFunctionality();
@@ -5454,7 +5455,11 @@ function updatePricingElements(stayPricing, boatPricing, fishingCharterPricing, 
 // Check if any extras (boat or fishing charters) are selected
 function hasAnyExtrasSelected() {
   const urlParams = new URLSearchParams(window.location.search);
-  const hasBoat = urlParams.get('boatId');
+  const hasBoatInURL = urlParams.get('boatId');
+
+  // Also check if boat data is cached (handles race condition where URL hasn't propagated yet)
+  const hasBoatInCache = !!window.selectedBoatData;
+  const hasBoat = hasBoatInURL || hasBoatInCache;
 
   // Check for fishing charters - fallback to direct URL check if service not available
   let hasFishingCharters = false;
@@ -5471,7 +5476,7 @@ function hasAnyExtrasSelected() {
   }
 
   const result = !!(hasBoat || hasFishingCharters);
-  console.log('[hasAnyExtrasSelected]', { hasBoat: !!hasBoat, hasFishingCharters, result });
+  console.log('[hasAnyExtrasSelected]', { hasBoatInURL: !!hasBoatInURL, hasBoatInCache, hasBoat, hasFishingCharters, result });
   return result;
 }
 
@@ -12952,6 +12957,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         this.clearBoatDetailsErrorHighlights();
 
+        // CRITICAL: Cache boat data immediately BEFORE any URL updates
+        // This ensures pricing calculations have the data they need
+        window.selectedBoatData = boat;
+
         // Exit edit mode now that user is saving - this allows updateURLParams to work
         this.isEditMode = false;
         this.originalEditParams = null;
@@ -12985,13 +12994,21 @@ document.addEventListener('DOMContentLoaded', () => {
         // Trigger visibility updates
         if (window.updateBoatVisibility) window.updateBoatVisibility();
 
-        // handleBoatFunctionality will:
-        // 1. Fetch boat data if needed (or use cached)
-        // 2. Populate boat block UI
-        // 3. Call updatePricingDisplayForExtras (which now has async boat pricing)
-        // 4. Call updateAllButtonVisibility
-        // This mirrors the fishing charter flow where data is fetched and pricing is updated in sequence
-        if (window.handleBoatFunctionality) window.handleBoatFunctionality();
+        // Populate boat block UI - boat data is already cached in window.selectedBoatData
+        if (window.populateSelectedBoatBlock) {
+          window.populateSelectedBoatBlock();
+        }
+
+        // Explicitly trigger pricing update now that boat data is cached
+        // Use requestAnimationFrame to let URL params propagate without blocking
+        requestAnimationFrame(async () => {
+          if (window.updatePricingDisplayForExtras) {
+            await window.updatePricingDisplayForExtras();
+          }
+          if (window.updateAllButtonVisibility) {
+            window.updateAllButtonVisibility();
+          }
+        });
 
         // Update mobile handlers
         if (window.updateMobileHandlersState) {
