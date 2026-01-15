@@ -3682,9 +3682,23 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         });
 
-        // Variable to store selected boat data directly (not as Wized request)
-        window.selectedBoatData = null;
+        // Check if we already have the correct boat data cached (avoid unnecessary fetch)
+        const needsFetch = !window.selectedBoatData || window.selectedBoatData.id !== parseInt(boatId);
 
+        if (!needsFetch) {
+          // Data already cached for this boat - just update UI
+          populateSelectedBoatBlock();
+
+          // Update pricing (async) and then update button visibility
+          updatePricingDisplayForExtras().then(() => {
+            if (window.updateAllButtonVisibility) {
+              window.updateAllButtonVisibility();
+            }
+          });
+          return;
+        }
+
+        // Need to fetch boat data
         // Make direct fetch request for boat data
         fetch(`https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/boats/${boatId}`)
           .then(response => {
@@ -3702,10 +3716,20 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
               // Wait for calendar data to be available before updating pricing
               await Wized.requests.waitFor('Load_Property_Calendar_Query');
-              updatePricingDisplayForExtras();
+              await updatePricingDisplayForExtras();
+
+              // Also update button visibility and UI state after pricing is calculated
+              if (window.updateAllButtonVisibility) {
+                window.updateAllButtonVisibility();
+              }
             } catch (error) {
               // Still try to update pricing even if wait fails
-              updatePricingDisplayForExtras();
+              await updatePricingDisplayForExtras();
+
+              // Also update button visibility
+              if (window.updateAllButtonVisibility) {
+                window.updateAllButtonVisibility();
+              }
             }
           })
           .catch(error => {
@@ -4156,6 +4180,14 @@ document.addEventListener('DOMContentLoaded', () => {
         ? lastExtrasGrandTotal
         : Math.floor(r.Load_Property_Calendar_Query.data.dateRange_totalPrice || 0);
       const formattedPrice = "$" + totalPrice.toLocaleString();
+
+      console.log('[updateReservationTotal]', {
+        extrasSelected,
+        lastExtrasGrandTotal,
+        stayOnlyPrice: Math.floor(r.Load_Property_Calendar_Query.data.dateRange_totalPrice || 0),
+        totalPrice,
+        formattedPrice
+      });
 
       // Update all total elements (desktop and mobile)
       totalElements.forEach(element => {
@@ -4856,6 +4888,13 @@ let lastExtrasGrandTotal = null;
 
 // Update pricing display when extras (boat or fishing charter) are selected
 async function updatePricingDisplayForExtras() {
+  const urlParams = new URLSearchParams(window.location.search);
+  console.log('[updatePricingDisplayForExtras] Called', {
+    hasSelectedBoatData: !!window.selectedBoatData,
+    selectedBoatId: window.selectedBoatData?.id,
+    boatIdInURL: urlParams.get('boatId'),
+    boatDatesInURL: urlParams.get('boatDates')
+  });
 
   const listingOnlyPricingSections = document.querySelectorAll('[data-element="ListingOnly_Query_Price_Details"]');
   const listingExtrasPricingSections = document.querySelectorAll('[data-element="ListingExtras_Query_Price_Details"]');
@@ -4970,14 +5009,19 @@ async function updatePricingDisplayForExtras() {
       // Calculate stay pricing components
       const stayPricing = calculateStayPricing(r);
 
-      // Calculate boat pricing components
-      const boatPricing = window.selectedBoatData ? calculateBoatPricing(window.selectedBoatData) : { totalWithFees: 0 };
+      // Calculate boat pricing components (now async to fetch data if needed)
+      const boatPricing = await calculateBoatPricing();
+      console.log('[updatePricingDisplayForExtras] Boat pricing calculated:', boatPricing);
 
       // Calculate fishing charter pricing components
       const fishingCharterPricing = await calculateFishingCharterPricing();
+      console.log('[updatePricingDisplayForExtras] Fishing charter pricing calculated:', fishingCharterPricing);
 
       // Calculate boat taxes only (stay taxes already included in stayPricing.total)
-      const boatTaxableAmount = window.selectedBoatData && window.selectedBoatData._boat_company.integration_type !== 'Manual'
+      // Support both nested _boat_company and flat structure
+      const boatCompany = window.selectedBoatData?._boat_company || window.selectedBoatData;
+      const boatIntegrationType = boatCompany?.integration_type || boatCompany?.integrationType || '';
+      const boatTaxableAmount = window.selectedBoatData && boatIntegrationType !== 'Manual'
         ? boatPricing.totalWithFees
         : 0;
       const combinedTaxes = calculateCombinedTaxes(r, boatTaxableAmount);
@@ -4990,6 +5034,7 @@ async function updatePricingDisplayForExtras() {
 
       // Cache for other total updaters (e.g., Reservation_Total)
       lastExtrasGrandTotal = Math.round(grandTotal);
+      console.log('[updatePricingDisplayForExtras] Set lastExtrasGrandTotal:', lastExtrasGrandTotal);
 
       // Update all pricing elements
       updatePricingElements(stayPricing, boatPricing, fishingCharterPricing, combinedTaxes, grandTotal);
@@ -4999,8 +5044,8 @@ async function updatePricingDisplayForExtras() {
         window.updateReservationTotal();
       }
 
-      // Update stay cancellation policy for extras view (data is guaranteed to be available here)
-      updateExtrasCancellationPolicies(r, n);
+      // Update cancellation policies for extras view (data is guaranteed to be available here)
+      await updateExtrasCancellationPolicies();
 
     } catch (error) {
 
@@ -5027,14 +5072,17 @@ function calculateStayPricing(r) {
 }
 
 // Calculate boat pricing based on selected dates and boat data
-function calculateBoatPricing(boatData) {
+// Now async to fetch boat data if needed (similar to fishing charter pricing)
+async function calculateBoatPricing() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const boatId = urlParams.get('boatId');
 
-  if (!boatData) {
+  // No boat selected
+  if (!boatId) {
     return { basePrice: 0, serviceFee: 0, deliveryFee: 0, publicDockFee: 0, totalWithFees: 0 };
   }
 
-  // Get boat dates and delivery preference directly from URL parameters
-  const urlParams = new URLSearchParams(window.location.search);
+  // Get boat dates and delivery preference from URL
   const rawDates = urlParams.get('boatDates') || "";
   const boatDelivery = urlParams.get('boatDelivery') === "true";
 
@@ -5043,10 +5091,64 @@ function calculateBoatPricing(boatData) {
   const boatDates = decodedDates.split(",").filter(Boolean);
   const numDates = boatDates.length;
 
-
   if (numDates === 0) {
+    console.warn('[BoatPricing] No boat dates selected, returning zero pricing');
     return { basePrice: 0, serviceFee: 0, deliveryFee: 0, publicDockFee: 0, totalWithFees: 0 };
   }
+
+  // Fetch boat data if not cached or if cached data is for a different boat
+  let boatData = window.selectedBoatData;
+  if (!boatData || boatData.id !== parseInt(boatId)) {
+    console.log('[BoatPricing] Fetching boat data for boatId:', boatId);
+    try {
+      const response = await fetch(`https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/boats/${boatId}`);
+      if (!response.ok) {
+        console.error('[BoatPricing] Failed to fetch boat data:', response.status);
+        return { basePrice: 0, serviceFee: 0, deliveryFee: 0, publicDockFee: 0, totalWithFees: 0 };
+      }
+      boatData = await response.json();
+      window.selectedBoatData = boatData; // Cache for future use
+      console.log('[BoatPricing] Fetched boat data:', {
+        id: boatData.id,
+        name: boatData.name,
+        hasBoatCompany: !!boatData._boat_company,
+        boatCompanyKeys: boatData._boat_company ? Object.keys(boatData._boat_company) : [],
+        integrationType: boatData._boat_company?.integration_type,
+        serviceFee: boatData._boat_company?.serviceFee,
+        deliveryFee: boatData._boat_company?.deliveryFee,
+        pricePerDay: boatData.pricePerDay,
+        pricePerHalfDay: boatData.pricePerHalfDay,
+        pricePerWeek: boatData.pricePerWeek
+      });
+    } catch (error) {
+      console.error('[BoatPricing] Error fetching boat data:', error);
+      return { basePrice: 0, serviceFee: 0, deliveryFee: 0, publicDockFee: 0, totalWithFees: 0 };
+    }
+  } else {
+    console.log('[BoatPricing] Using cached boat data:', {
+      id: boatData.id,
+      name: boatData.name
+    });
+  }
+
+  // Support both data structures: nested _boat_company or flat properties
+  const boatCompany = boatData._boat_company || boatData;
+  const integrationType = boatCompany.integration_type || boatCompany.integrationType || '';
+  const serviceFeeRate = boatCompany.serviceFee || 0;
+  const deliveryFeeAmount = boatCompany.deliveryFee || boatCompany.companyDeliveryFee || 0;
+  const publicDockDetails = boatCompany.publicDockDeliveryDetails || [];
+
+  console.log('[BoatPricing] Calculating boat pricing', {
+    boatId: boatData.id,
+    boatName: boatData.name,
+    numDates,
+    boatDates,
+    boatDelivery,
+    hasBoatCompany: !!boatData._boat_company,
+    integrationType,
+    serviceFeeRate,
+    deliveryFeeAmount
+  });
 
   // Calculate base price based on rental duration
   let basePrice = calculateBoatBasePrice(boatData, numDates);
@@ -5059,17 +5161,16 @@ function calculateBoatPricing(boatData) {
     if (r && r.Load_Property_Details && r.Load_Property_Details.data) {
       const listingCity = r.Load_Property_Details.data.property?.listing_city;
 
-      if (listingCity && boatData._boat_company?.publicDockDeliveryDetails) {
+      if (listingCity && Array.isArray(publicDockDetails)) {
         const listingCityLower = listingCity.toLowerCase().trim();
 
-        const publicDockDetails = boatData._boat_company.publicDockDeliveryDetails.find(
+        const matchingDockDetails = publicDockDetails.find(
           detail => (detail.city || '').toLowerCase().trim() === listingCityLower
         );
 
-        if (publicDockDetails && publicDockDetails.fee) {
-          publicDockFee = Number(publicDockDetails.fee) || 0;
+        if (matchingDockDetails && matchingDockDetails.fee) {
+          publicDockFee = Number(matchingDockDetails.fee) || 0;
         }
-      } else {
       }
     }
   } catch (error) {
@@ -5077,24 +5178,26 @@ function calculateBoatPricing(boatData) {
 
   // Calculate service fee on (basePrice + publicDockFee) - skip if integrationType is 'Manual'
   let serviceFee = 0;
-  if (boatData._boat_company.integration_type !== 'Manual') {
-    const serviceFeeRate = boatData._boat_company?.serviceFee || 0;
+  if (integrationType !== 'Manual') {
     serviceFee = (basePrice + publicDockFee) * serviceFeeRate;
   }
 
   // Calculate delivery fee if delivery is selected
-  const deliveryFee = boatDelivery ? (boatData._boat_company?.deliveryFee || 0) : 0;
+  const deliveryFee = boatDelivery ? deliveryFeeAmount : 0;
 
   // Calculate total with fees
   const totalWithFees = basePrice + publicDockFee + serviceFee + deliveryFee;
 
-  return {
+  const result = {
     basePrice: Math.round(basePrice),
     serviceFee: Math.round(serviceFee),
     deliveryFee: Math.round(deliveryFee),
     publicDockFee: Math.round(publicDockFee),
     totalWithFees: Math.round(totalWithFees)
   };
+
+  console.log('[BoatPricing] Returning:', result);
+  return result;
 }
 
 // Calculate boat base price based on duration and pricing tiers
@@ -5257,7 +5360,14 @@ function calculateCombinedTaxes(r, boatTotalWithFees) {
 
 // Update all pricing elements in the DOM
 function updatePricingElements(stayPricing, boatPricing, fishingCharterPricing, combinedTaxes, grandTotal) {
-
+  console.log('[updatePricingElements] Called with:', {
+    staySubtotal: stayPricing.subtotal,
+    stayTotal: stayPricing.total,
+    boatTotalWithFees: boatPricing.totalWithFees,
+    fishingCharterTotalWithFees: fishingCharterPricing.totalWithFees,
+    combinedTaxesTotal: combinedTaxes.total,
+    grandTotal: Math.round(grandTotal)
+  });
 
   // Update Stay Price Amount (use subtotal which excludes taxes)
   const stayPriceElements = document.querySelectorAll('[data-element="Stay_Price_Amount"]');
@@ -5360,7 +5470,9 @@ function hasAnyExtrasSelected() {
     }
   }
 
-  return !!(hasBoat || hasFishingCharters);
+  const result = !!(hasBoat || hasFishingCharters);
+  console.log('[hasAnyExtrasSelected]', { hasBoat: !!hasBoat, hasFishingCharters, result });
+  return result;
 }
 
 // Update cancellation policies for extras (boat and fishing charters)
@@ -5721,10 +5833,10 @@ function populateFishingCharterCancellationPolicyFromCache(block, tripData) {
 // Save reference to the async function before it gets overwritten
 const updatePricingDisplayForExtrasAsync = updatePricingDisplayForExtras;
 
-// Wrapper function to handle async pricing updates
+// Wrapper function to handle async pricing updates (non-blocking)
 function updatePricingDisplayForExtrasSync() {
   updatePricingDisplayForExtrasAsync().catch(error => {
-
+    console.error('[updatePricingDisplayForExtras] Error:', error);
   });
 }
 
@@ -12870,19 +12982,18 @@ document.addEventListener('DOMContentLoaded', () => {
         this.selectWrapper.style.display = 'flex';
         this.detailsWrapper.style.display = 'none';
 
-        // Trigger other updates to ensure proper visibility
+        // Trigger visibility updates
         if (window.updateBoatVisibility) window.updateBoatVisibility();
+
+        // handleBoatFunctionality will:
+        // 1. Fetch boat data if needed (or use cached)
+        // 2. Populate boat block UI
+        // 3. Call updatePricingDisplayForExtras (which now has async boat pricing)
+        // 4. Call updateAllButtonVisibility
+        // This mirrors the fishing charter flow where data is fetched and pricing is updated in sequence
         if (window.handleBoatFunctionality) window.handleBoatFunctionality();
 
-        // Immediately recalc extras pricing and refresh button/price visibility (mirror fishing charter flow)
-        if (window.updatePricingDisplayForExtras) {
-          window.updatePricingDisplayForExtras();
-        }
-        if (window.updateAllButtonVisibility) {
-          window.updateAllButtonVisibility();
-        }
-
-        // Update mobile handlers immediately after boat is added
+        // Update mobile handlers
         if (window.updateMobileHandlersState) {
           window.updateMobileHandlersState();
         }
