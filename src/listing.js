@@ -9060,6 +9060,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         // Show and populate cards for each boat
+        const cardsData = [];
+
         boats.forEach((boat, index) => {
           let card;
           if (index === 0) {
@@ -9079,23 +9081,39 @@ document.addEventListener('DOMContentLoaded', () => {
           // Store boat data
           card.boatData = boat;
 
-          // Sequential loading: first 2 cards load immediately, rest load with small delays
-          if (index < 2) {
-            // Load first 2 immediately for instant feedback
-            this.populateBoatCard(card, boat, false);
-          } else {
-            // Load the rest sequentially with small delays
-            this.populateBoatCard(card, boat, true); // Defer carousel initially
+          // Populate card content without images first
+          this.populateBoatCard(card, boat, true); // Defer carousel for all cards
 
-            // Load carousel after a small delay (50ms per card after the first 2)
-            setTimeout(() => {
-              const photosContainer = card.querySelector('[data-element="addBoatModal_selectBoat_card_photos"]');
-              if (photosContainer && boat.photos && boat.photos.length > 0) {
-                this.setupBoatCardImagesCarousel(photosContainer, boat, card);
-              }
-            }, (index - 2) * 50); // Stagger by 50ms each
-          }
+          cardsData.push({ card, boat, index });
         });
+
+        // Load images sequentially across all cards
+        this.loadCardsImagesSequentially(cardsData);
+      }
+
+      async loadCardsImagesSequentially(cardsData) {
+        // Load first 6 cards (visible on screen) immediately
+        const visibleCards = cardsData.slice(0, 6);
+        const remainingCards = cardsData.slice(6);
+
+        for (const { card, boat } of visibleCards) {
+          const photosContainer = card.querySelector('[data-element="addBoatModal_selectBoat_card_photos"]');
+          if (photosContainer && boat.photos && boat.photos.length > 0) {
+            this.setupBoatCardImagesCarousel(photosContainer, boat, card);
+            // Small delay between each card for smooth appearance
+            await new Promise(resolve => setTimeout(resolve, 50));
+          }
+        }
+
+        // Load remaining cards with longer delay
+        setTimeout(() => {
+          remainingCards.forEach(({ card, boat }) => {
+            const photosContainer = card.querySelector('[data-element="addBoatModal_selectBoat_card_photos"]');
+            if (photosContainer && boat.photos && boat.photos.length > 0) {
+              this.setupBoatCardImagesCarousel(photosContainer, boat, card);
+            }
+          });
+        }, 100);
       }
 
       populateBoatCard(card, boat, deferCarousel = false) {
@@ -17592,6 +17610,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Show and populate cards for each charter
+        const cardsData = [];
+
         charters.forEach((charter, index) => {
           let card;
           if (index === 0) {
@@ -17609,23 +17629,39 @@ document.addEventListener('DOMContentLoaded', () => {
           // Store charter data
           card.charterData = charter;
 
-          // Sequential loading: first 2 cards load immediately, rest load with small delays
-          if (index < 2) {
-            // Load first 2 immediately for instant feedback
-            this.populateFishingCharterCard(card, charter, false);
-          } else {
-            // Load the rest sequentially with small delays
-            this.populateFishingCharterCard(card, charter, true); // Defer carousel initially
+          // Populate card content without images first
+          this.populateFishingCharterCard(card, charter, true); // Defer carousel for all cards
 
-            // Load carousel after a small delay (50ms per card after the first 2)
-            setTimeout(() => {
-              const photosContainer = card.querySelector('[data-element="addFishingCharterModal_selectFishingCharter_card_photos"]');
-              if (photosContainer && charter.images && charter.images.length > 0) {
-                this.setupFishingCharterCardImagesCarousel(photosContainer, charter, card);
-              }
-            }, (index - 2) * 50); // Stagger by 50ms each
-          }
+          cardsData.push({ card, charter, index });
         });
+
+        // Load images sequentially across all cards
+        this.loadCharterCardsImagesSequentially(cardsData);
+      }
+
+      async loadCharterCardsImagesSequentially(cardsData) {
+        // Load first 6 cards (visible on screen) immediately
+        const visibleCards = cardsData.slice(0, 6);
+        const remainingCards = cardsData.slice(6);
+
+        for (const { card, charter } of visibleCards) {
+          const photosContainer = card.querySelector('[data-element="addFishingCharterModal_selectFishingCharter_card_photos"]');
+          if (photosContainer && charter.images && charter.images.length > 0) {
+            this.setupFishingCharterCardImagesCarousel(photosContainer, charter, card);
+            // Small delay between each card for smooth appearance
+            await new Promise(resolve => setTimeout(resolve, 50));
+          }
+        }
+
+        // Load remaining cards with longer delay
+        setTimeout(() => {
+          remainingCards.forEach(({ card, charter }) => {
+            const photosContainer = card.querySelector('[data-element="addFishingCharterModal_selectFishingCharter_card_photos"]');
+            if (photosContainer && charter.images && charter.images.length > 0) {
+              this.setupFishingCharterCardImagesCarousel(photosContainer, charter, card);
+            }
+          });
+        }, 100);
       }
 
       populateFishingCharterCard(card, charter, deferCarousel = false) {
