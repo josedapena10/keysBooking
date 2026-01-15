@@ -8194,7 +8194,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       // Show tooltip message near an element
-      showTooltipMessage(element, message) {
+      showTooltipMessage(element, message, position = 'auto') {
         // Remove any existing tooltip
         this.hideTooltipMessage();
 
@@ -8204,6 +8204,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Get element position
         const rect = element.getBoundingClientRect();
+
+        // Determine if we should show above or below based on space available
+        const spaceAbove = rect.top;
+        const spaceBelow = window.innerHeight - rect.bottom;
+        const showAbove = position === 'above' || (position === 'auto' && spaceAbove > spaceBelow);
+
+        // Base styles
+        let positionStyles = '';
+        if (showAbove) {
+          positionStyles = `
+            bottom: ${window.innerHeight - rect.top + 8}px;
+            right: ${window.innerWidth - rect.right}px;
+          `;
+        } else {
+          positionStyles = `
+            top: ${rect.bottom + 8}px;
+            left: ${rect.left + (rect.width / 2)}px;
+            transform: translateX(-50%);
+          `;
+        }
 
         tooltip.style.cssText = `
           position: fixed;
@@ -8217,9 +8237,7 @@ document.addEventListener('DOMContentLoaded', () => {
           pointer-events: none;
           white-space: nowrap;
           box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-          bottom: ${window.innerHeight - rect.top + 8}px;
-          right: ${window.innerWidth - rect.right}px;
-          transform-origin: bottom right;
+          ${positionStyles}
         `;
 
         document.body.appendChild(tooltip);
@@ -11943,6 +11961,31 @@ document.addEventListener('DOMContentLoaded', () => {
         // Sort photos by order
         const sortedPhotos = [...boat.photos].sort((a, b) => (a.order || 0) - (b.order || 0));
 
+        // Preload first 2 images to reduce initial paint delay (visible on desktop)
+        // Check if preload already exists to avoid duplicates
+        if (sortedPhotos[0] && sortedPhotos[0].image && sortedPhotos[0].image.url) {
+          const url = sortedPhotos[0].image.url;
+          if (!document.querySelector(`link[rel="preload"][href="${url}"]`)) {
+            const preload = document.createElement('link');
+            preload.rel = 'preload';
+            preload.as = 'image';
+            preload.href = url;
+            preload.fetchPriority = 'high';
+            document.head.appendChild(preload);
+          }
+        }
+        if (sortedPhotos[1] && sortedPhotos[1].image && sortedPhotos[1].image.url) {
+          const url = sortedPhotos[1].image.url;
+          if (!document.querySelector(`link[rel="preload"][href="${url}"]`)) {
+            const preload = document.createElement('link');
+            preload.rel = 'preload';
+            preload.as = 'image';
+            preload.href = url;
+            preload.fetchPriority = 'high';
+            document.head.appendChild(preload);
+          }
+        }
+
         // Check screen width for responsive behavior
         const isMobile = window.innerWidth <= 767;
         const carouselHeight = isMobile ? '300px' : '400px';
@@ -12033,6 +12076,27 @@ document.addEventListener('DOMContentLoaded', () => {
         const visibleCount = isMobile ? 1 : 2;
         for (let i = 0; i < Math.min(visibleCount, imageElements.length); i++) {
           const { img, photo } = imageElements[i];
+
+          // Set up handlers
+          img.onload = () => {
+            img.style.opacity = '1';
+          };
+          img.onerror = () => {
+            // Handled above
+          };
+
+          // Set src - browser will use cache if available
+          img.src = photo.image.url;
+
+          // If image is already cached/loaded, show immediately
+          if (img.complete && img.naturalWidth > 0) {
+            img.style.opacity = '1';
+          }
+        }
+
+        // Load remaining images immediately (no delay - browser will use cache)
+        for (let i = visibleCount; i < imageElements.length; i++) {
+          const { img, photo } = imageElements[i];
           img.onload = () => {
             img.style.opacity = '1';
           };
@@ -12040,22 +12104,11 @@ document.addEventListener('DOMContentLoaded', () => {
             // Handled above
           };
           img.src = photo.image.url;
-        }
 
-        // Load remaining images after a delay
-        if (imageElements.length > visibleCount) {
-          setTimeout(() => {
-            for (let i = visibleCount; i < imageElements.length; i++) {
-              const { img, photo } = imageElements[i];
-              img.onload = () => {
-                img.style.opacity = '1';
-              };
-              img.onerror = () => {
-                // Handled above
-              };
-              img.src = photo.image.url;
-            }
-          }, 200);
+          // If image is already cached/loaded, show immediately
+          if (img.complete && img.naturalWidth > 0) {
+            img.style.opacity = '1';
+          }
         }
 
         carouselWrapper.appendChild(imagesTrack);
@@ -14145,8 +14198,8 @@ document.addEventListener('DOMContentLoaded', () => {
           this.selectedDates = [dateStr];
         }
 
-        // Update all button styles
-        this.updateBoatDetailsDateButtonStyles();
+        // Re-render calendar to recalculate disabled states (important when selection changes)
+        this.renderBoatDetailsDateSelection();
 
         // Update length type options and text
         this.initializeBoatDetailsDateFilter();
@@ -14292,13 +14345,7 @@ document.addEventListener('DOMContentLoaded', () => {
               // If min days > 1 and only one date selected, show tooltip and return (don't close popup)
               if (effectiveMinDays > 1) {
                 const message = `This boat requires a minimum of ${effectiveMinDays} ${effectiveMinDays === 1 ? 'day' : 'days'}`;
-                this.showTooltipMessage(this.boatDetailsPopupDone, message);
-
-                // Auto-hide tooltip after 3 seconds
-                setTimeout(() => {
-                  this.hideTooltipMessage();
-                }, 3000);
-
+                this.showTooltipMessage(this.boatDetailsPopupDone, message, 'above');
                 return; // Don't proceed - keep popup open
               }
             }
@@ -18550,14 +18597,29 @@ document.addEventListener('DOMContentLoaded', () => {
         // Sort images by order
         const sortedImages = [...charter.images].sort((a, b) => (a.order || 0) - (b.order || 0));
 
-        // Preload first image to reduce initial paint delay
+        // Preload first 2 images to reduce initial paint delay (visible on desktop)
+        // Check if preload already exists to avoid duplicates
         if (sortedImages[0] && sortedImages[0].image && sortedImages[0].image.url) {
-          const preload = document.createElement('link');
-          preload.rel = 'preload';
-          preload.as = 'image';
-          preload.href = sortedImages[0].image.url;
-          preload.fetchPriority = 'high';
-          document.head.appendChild(preload);
+          const url = sortedImages[0].image.url;
+          if (!document.querySelector(`link[rel="preload"][href="${url}"]`)) {
+            const preload = document.createElement('link');
+            preload.rel = 'preload';
+            preload.as = 'image';
+            preload.href = url;
+            preload.fetchPriority = 'high';
+            document.head.appendChild(preload);
+          }
+        }
+        if (sortedImages[1] && sortedImages[1].image && sortedImages[1].image.url) {
+          const url = sortedImages[1].image.url;
+          if (!document.querySelector(`link[rel="preload"][href="${url}"]`)) {
+            const preload = document.createElement('link');
+            preload.rel = 'preload';
+            preload.as = 'image';
+            preload.href = url;
+            preload.fetchPriority = 'high';
+            document.head.appendChild(preload);
+          }
         }
 
         // Check screen width for responsive behavior
@@ -18650,6 +18712,27 @@ document.addEventListener('DOMContentLoaded', () => {
         const visibleCount = isMobile ? 1 : 2;
         for (let i = 0; i < Math.min(visibleCount, imageElements.length); i++) {
           const { img, image } = imageElements[i];
+
+          // Set up handlers
+          img.onload = () => {
+            img.style.opacity = '1';
+          };
+          img.onerror = () => {
+            // Handled above
+          };
+
+          // Set src - browser will use cache if available
+          img.src = image.image?.url || '';
+
+          // If image is already cached/loaded, show immediately
+          if (img.complete && img.naturalWidth > 0) {
+            img.style.opacity = '1';
+          }
+        }
+
+        // Load remaining images immediately (no delay - browser will use cache)
+        for (let i = visibleCount; i < imageElements.length; i++) {
+          const { img, image } = imageElements[i];
           img.onload = () => {
             img.style.opacity = '1';
           };
@@ -18657,22 +18740,11 @@ document.addEventListener('DOMContentLoaded', () => {
             // Handled above
           };
           img.src = image.image?.url || '';
-        }
 
-        // Load remaining images after a delay
-        if (imageElements.length > visibleCount) {
-          setTimeout(() => {
-            for (let i = visibleCount; i < imageElements.length; i++) {
-              const { img, image } = imageElements[i];
-              img.onload = () => {
-                img.style.opacity = '1';
-              };
-              img.onerror = () => {
-                // Handled above
-              };
-              img.src = image.image?.url || '';
-            }
-          }, 200);
+          // If image is already cached/loaded, show immediately
+          if (img.complete && img.naturalWidth > 0) {
+            img.style.opacity = '1';
+          }
         }
 
         carouselWrapper.appendChild(imagesTrack);
