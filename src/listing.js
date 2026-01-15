@@ -3616,12 +3616,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }).catch(error => {
     });
 
-    // Add this entire function for updating the heading (debounced to avoid flicker)
-    let addDatesHeadingTimer = null;
+    // Add this entire function for updating the heading
     function updateAddDatesHeading() {
-      console.log(`[${Date.now()}] updateAddDatesHeading called, scheduling runUpdateAddDatesHeading in 120ms`);
-      if (addDatesHeadingTimer) clearTimeout(addDatesHeadingTimer);
-      addDatesHeadingTimer = setTimeout(runUpdateAddDatesHeading, 120);
+      // Call immediately instead of debouncing to keep in sync with other visibility updates
+      runUpdateAddDatesHeading();
     }
 
     function runUpdateAddDatesHeading() {
