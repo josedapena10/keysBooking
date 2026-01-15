@@ -7045,7 +7045,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Now that user is exiting dates section, check private dock filter availability and fetch boats
             this.checkPrivateDockFilterAvailabilityForBoatDates();
-            this.fetchAndRenderBoats();
+            this.fetchAndRenderBoats(false); // Use cached data
 
             // If popup was auto-opened due to missing dates, auto-save and close modal
             if (this.autoOpenedFromMissingDates) {
@@ -7072,7 +7072,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Now that user is exiting dates section, check private dock filter availability and fetch boats
             this.checkPrivateDockFilterAvailabilityForBoatDates();
-            this.fetchAndRenderBoats();
+            this.fetchAndRenderBoats(false); // Use cached data
           });
         }
 
@@ -7112,7 +7112,7 @@ document.addEventListener('DOMContentLoaded', () => {
               this.updateExistingCards();
               this.updateURLParams();
 
-              this.fetchAndRenderBoats();
+              this.fetchAndRenderBoats(false); // Use cached data
             }
           });
         }
@@ -7129,7 +7129,7 @@ document.addEventListener('DOMContentLoaded', () => {
               this.updateExistingCards();
               this.updateURLParams();
               // Re-filter boats to apply half-day filtering
-              this.fetchAndRenderBoats();
+              this.fetchAndRenderBoats(false); // Use cached data
             }
           });
         }
@@ -8726,15 +8726,17 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
           let allBoats;
 
-          // Only fetch if we don't have cached boats OR if forceFetch is true
-          if (forceFetch || this.initialBoats.length === 0) {
-            // Show skeleton cards while loading
+          // Use cached data if available and not forcing a fresh fetch
+          if (!forceFetch && this.initialBoats.length > 0) {
+            allBoats = this.initialBoats;
+          } else {
+            // Show skeleton cards only when actually fetching
             this.showSkeletonCards();
 
             // Fetch all boat options (user age is loaded inside fetchBoatOptions)
             allBoats = await this.fetchBoatOptions();
 
-            // Store initial boats on first fetch
+            // Store for future filter operations
             this.initialBoats = [...allBoats];
 
             // Check if any boat allows half day after considering all minimums
@@ -8766,14 +8768,11 @@ document.addEventListener('DOMContentLoaded', () => {
               this.fullHalfDayContainer.style.display = this.allowsHalfDay ? 'flex' : 'none';
             }
 
-            // Hide skeleton cards after initial fetch
+            // Hide skeleton cards after fetch completes
             this.hideSkeletonCards();
-          } else {
-            // Use cached boats for filtering
-            allBoats = this.initialBoats;
           }
 
-          // Filter boats based on current filters
+          // Filter boats based on current filters (works on cached or fresh data)
           const filteredBoats = this.filterBoats(allBoats);
 
           // Sort boats by length (smallest to largest)
@@ -8786,8 +8785,11 @@ document.addEventListener('DOMContentLoaded', () => {
           // Store current available boats
           this.availableBoats = sortedBoats;
 
-          // Render the sorted boats (will show/hide existing cards efficiently)
-          this.renderBoatCards(sortedBoats, forceFetch);
+          // Hide skeleton cards
+          this.hideSkeletonCards();
+
+          // Render the sorted boats
+          this.renderBoatCards(sortedBoats);
 
           // Check private dock filter availability now that boats are loaded
           this.checkPrivateDockFilterAvailabilityForBoatDates();
@@ -8959,30 +8961,35 @@ document.addEventListener('DOMContentLoaded', () => {
         return 'No boat rentals service this listing location. Try selecting a different property or check back later.';
       }
 
-      renderBoatCards(boats, isInitialRender = false) {
+      renderBoatCards(boats) {
         if (!this.cardWrapper) return;
 
-        // Remove skeleton cards
+        // First, remove any skeleton cards - this ensures clean state transition
         const skeletons = this.cardWrapper.querySelectorAll('[data-skeleton="true"]');
         skeletons.forEach(skeleton => skeleton.remove());
 
-        // Clear no results message
+        // Clear any existing duplicated cards
+        const existingCards = this.cardWrapper.querySelectorAll('[data-element="addBoatModal_selectBoat_card"]');
+        existingCards.forEach((card, index) => {
+          if (index !== 0) { // Keep the template card
+            card.remove();
+          }
+        });
+
+        // Clear any existing no results message
         const existingNoResultsMessage = this.cardWrapper.querySelector('.no-results-message');
         if (existingNoResultsMessage) {
           existingNoResultsMessage.remove();
         }
 
-        // If no boats, show no results message
+        // If no boats, hide the template card and show no results message
         if (boats.length === 0) {
           this.cardTemplate.style.display = 'none';
 
-          // Hide all existing cards
-          const existingCards = this.cardWrapper.querySelectorAll('[data-element="addBoatModal_selectBoat_card"]');
-          existingCards.forEach(card => card.style.display = 'none');
-
-          // Show no results message
+          // Create and add no results message with specific reason
           const noResultsMessage = document.createElement('div');
           noResultsMessage.className = 'no-results-message';
+          noResultsMessage.style.fontFamily = 'TT Fors, sans-serif !important';
           noResultsMessage.style.cssText = `
             display: flex;
             flex-direction: column;
@@ -8995,7 +9002,6 @@ document.addEventListener('DOMContentLoaded', () => {
             width: 100%;
             min-height: 200px;
             gap: 12px;
-            font-family: TT Fors, sans-serif;
           `;
 
           const message = this.getNoResultsMessage();
@@ -9008,51 +9014,9 @@ document.addEventListener('DOMContentLoaded', () => {
           return;
         }
 
-        // Get all existing cards
-        const existingCards = this.cardWrapper.querySelectorAll('[data-element="addBoatModal_selectBoat_card"]');
-
-        // If this is a filter operation (not initial render), try to reuse existing cards
-        if (!isInitialRender && existingCards.length > 1) {
-          // Create a map of existing cards by boat ID
-          const cardsByBoatId = new Map();
-          existingCards.forEach(card => {
-            if (card.boatData && card.boatData.id) {
-              cardsByBoatId.set(card.boatData.id, card);
-            }
-          });
-
-          // Hide all cards first
-          existingCards.forEach(card => card.style.display = 'none');
-
-          // Show and update cards for filtered boats
-          boats.forEach((boat, index) => {
-            const existingCard = cardsByBoatId.get(boat.id);
-
-            if (existingCard) {
-              // Reuse existing card - just show it and update text/price
-              existingCard.style.display = 'flex';
-              this.populateBoatCard(existingCard, boat, true); // Skip carousel reload
-            } else {
-              // Need to create a new card for this boat
-              const newCard = this.cardTemplate.cloneNode(true);
-              newCard.removeAttribute('data-click-initialized');
-              newCard.style.display = 'flex';
-              newCard.boatData = boat;
-              this.cardWrapper.appendChild(newCard);
-              this.populateBoatCard(newCard, boat, false);
-            }
-          });
-          return;
-        }
-
-        // Initial render - clear everything and build fresh
-        existingCards.forEach((card, index) => {
-          if (index !== 0) card.remove();
-        });
-
-        // Preload first image of first 2 boats
+        // Preload first photo of the first 2 boats to reduce initial paint delay
         boats.slice(0, 2).forEach(boat => {
-          if (boat.photos?.[0]?.image?.url) {
+          if (boat.photos && boat.photos[0] && boat.photos[0].image && boat.photos[0].image.url) {
             const preload = document.createElement('link');
             preload.rel = 'preload';
             preload.as = 'image';
@@ -9062,33 +9026,53 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         });
 
-        // Create and populate cards
+        // Preload first photo of the first 2 boats to reduce initial paint delay
+        boats.slice(0, 2).forEach(boat => {
+          if (boat.photos && boat.photos[0] && boat.photos[0].image && boat.photos[0].image.url) {
+            const preload = document.createElement('link');
+            preload.rel = 'preload';
+            preload.as = 'image';
+            preload.href = boat.photos[0].image.url;
+            preload.fetchPriority = 'high';
+            document.head.appendChild(preload);
+          }
+        });
+
+        // Show and populate cards for each boat
         boats.forEach((boat, index) => {
           let card;
           if (index === 0) {
+            // Use the template card for the first boat
             card = this.cardTemplate;
           } else {
+            // Clone the template for additional boats
             card = this.cardTemplate.cloneNode(true);
+            // Ensure clone can attach fresh listeners
             card.removeAttribute('data-click-initialized');
             this.cardWrapper.appendChild(card);
           }
 
+          // Show the card
           card.style.display = 'flex';
+
+          // Store boat data
           card.boatData = boat;
 
-          // Load first 2 immediately, defer rest
+          // Sequential loading: first 2 cards load immediately, rest load with small delays
           if (index < 2) {
+            // Load first 2 immediately for instant feedback
             this.populateBoatCard(card, boat, false);
           } else {
-            this.populateBoatCard(card, boat, true);
+            // Load the rest sequentially with small delays
+            this.populateBoatCard(card, boat, true); // Defer carousel initially
 
-            // Load carousel after delay
+            // Load carousel after a small delay (50ms per card after the first 2)
             setTimeout(() => {
               const photosContainer = card.querySelector('[data-element="addBoatModal_selectBoat_card_photos"]');
               if (photosContainer && boat.photos && boat.photos.length > 0) {
                 this.setupBoatCardImagesCarousel(photosContainer, boat, card);
               }
-            }, (index - 2) * 50);
+            }, (index - 2) * 50); // Stagger by 50ms each
           }
         });
       }
@@ -9177,10 +9161,9 @@ document.addEventListener('DOMContentLoaded', () => {
             this.setupBoatCardImagesCarousel(photosContainer, boat, card);
           }
         } else {
-          // Check if carousel already exists (card reuse) - skip placeholder
+          // Add placeholder for carousel to maintain layout
           const photosContainer = card.querySelector('[data-element="addBoatModal_selectBoat_card_photos"]');
-          if (photosContainer && !photosContainer.querySelector('.boat-card-carousel-wrapper')) {
-            // Only add placeholder if carousel doesn't exist yet
+          if (photosContainer) {
             photosContainer.innerHTML = '<div style="width: 100%; height: 280px; background-color: #f0f0f0; border-radius: 5px; display: flex; align-items: center; justify-content: center; color: #ccc;"></div>';
           }
         }
@@ -9775,7 +9758,7 @@ document.addEventListener('DOMContentLoaded', () => {
         this.checkPrivateDockFilterAvailabilityForBoatDates();
 
         // Re-filter boats to show all boats again
-        this.fetchAndRenderBoats();
+        this.fetchAndRenderBoats(false); // Use cached data
       }
 
       clearPickupTimeFilter() {
@@ -9806,7 +9789,7 @@ document.addEventListener('DOMContentLoaded', () => {
         this.updateExistingCards();
         this.updateURLParams();
         // Re-filter boats to show all boats again
-        this.fetchAndRenderBoats();
+        this.fetchAndRenderBoats(false); // Use cached data
       }
 
       clearGuestsFilter() {
@@ -9977,7 +9960,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       refilterBoatsIfModalOpen() {
         // Only re-filter if the modal is currently open
-        // Use cached boats - don't re-fetch from API
+        // Use cached data - don't re-fetch from API
         if (this.modal && this.modal.style.display === 'flex') {
           this.fetchAndRenderBoats(false); // false = use cached boats
         }
@@ -11079,7 +11062,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // The date buttons already exist and updateDateButtonStyles() will style them correctly
 
         // Re-filter and render boats with current filter parameters
-        this.fetchAndRenderBoats();
+        this.fetchAndRenderBoats(false); // Use cached data
 
         // Clear the current boat data
         this.currentBoatData = null;
@@ -12110,10 +12093,8 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       setupBoatCardImagesCarousel(photosContainer, boat, card) {
-        // Check if carousel already exists - if so, don't rebuild (reuse existing)
-        if (photosContainer.querySelector('.boat-card-carousel-wrapper')) {
-          return; // Carousel already set up, no need to rebuild
-        }
+        // Clear any existing content
+        photosContainer.innerHTML = '';
 
         // Check if boat has photos
         if (!boat.photos || boat.photos.length === 0) {
@@ -12124,12 +12105,21 @@ document.addEventListener('DOMContentLoaded', () => {
         // Sort photos by order
         const sortedPhotos = [...boat.photos].sort((a, b) => (a.order || 0) - (b.order || 0));
 
+        // Preload first image to reduce initial paint delay
+        if (sortedPhotos[0] && sortedPhotos[0].image && sortedPhotos[0].image.url) {
+          const preload = document.createElement('link');
+          preload.rel = 'preload';
+          preload.as = 'image';
+          preload.href = sortedPhotos[0].image.url;
+          preload.fetchPriority = 'high';
+          document.head.appendChild(preload);
+        }
+
         // Card carousel always shows 1 image at a time
         const carouselHeight = '280px';
 
         // Create carousel structure
         const carouselWrapper = document.createElement('div');
-        carouselWrapper.className = 'boat-card-carousel-wrapper'; // Mark for reuse detection
         carouselWrapper.style.cssText = `
           position: relative;
           width: 100%;
@@ -12145,7 +12135,7 @@ document.addEventListener('DOMContentLoaded', () => {
           height: 100%;
         `;
 
-        // Add images to track - use loading="lazy" for all but first to save bandwidth
+        // Add images to track
         sortedPhotos.forEach((photo, index) => {
           const imageContainer = document.createElement('div');
           imageContainer.style.cssText = `
@@ -12166,20 +12156,15 @@ document.addEventListener('DOMContentLoaded', () => {
           `;
 
           const img = document.createElement('img');
+          img.src = photo.image.url;
           img.alt = `Boat image ${index + 1}`;
           img.draggable = false;
 
-          // Optimize loading: only first image loads eagerly, rest are lazy
+          // Optimize loading: first image eager, rest lazy
           if (index === 0) {
-            img.src = photo.image.url;
             img.loading = 'eager';
-            img.fetchPriority = 'high';
           } else {
-            // Use data-src for lazy images to prevent automatic loading
-            img.dataset.src = photo.image.url;
             img.loading = 'lazy';
-            // Set src only when needed (IntersectionObserver handles this automatically with loading="lazy")
-            img.src = photo.image.url;
           }
           img.decoding = 'async';
 
@@ -14122,7 +14107,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Now that user is exiting dates section, check private dock filter availability and fetch boats
             this.checkPrivateDockFilterAvailabilityForBoatDates();
-            this.fetchAndRenderBoats();
+            this.fetchAndRenderBoats(false); // Use cached data
 
             // Re-check delivery checkbox now that user has finished selecting dates
             if (this.currentBoatData) {
@@ -16803,8 +16788,8 @@ document.addEventListener('DOMContentLoaded', () => {
           // Prevent body scroll when modal is open
           document.body.classList.add('no-scroll');
 
-          // Fetch and render fishing charters
-          await this.fetchAndRenderFishingCharters();
+          // Fetch and render fishing charters (force fresh fetch on modal open)
+          await this.fetchAndRenderFishingCharters(true);
         } catch (error) {
 
         }
@@ -17135,58 +17120,49 @@ document.addEventListener('DOMContentLoaded', () => {
         skeletons.forEach(skeleton => skeleton.remove());
       }
 
-      async fetchAndRenderFishingCharters() {
+      async fetchAndRenderFishingCharters(forceFetch = false) {
         try {
-          // Show skeleton cards while loading
-          this.showSkeletonCards();
+          let effectiveCharters;
 
-          // Fetch all fishing charter options
-          const allCharters = await this.fetchFishingCharterOptions();
-          let effectiveCharters = allCharters;
-
-          if (!Array.isArray(allCharters) || allCharters.length === 0) {
-            console.info('[FishingCharters] fetchFishingCharterOptions returned empty', {
-              selectedDates: this.selectedDates,
-              selectedGuests: this.selectedGuests,
-              isEditMode: this.isEditMode,
-              editingCharterId: this.editingCharterId,
-              editingCharterNumber: this.editingCharterNumber,
-              cachedCount: Array.isArray(this.allFishingCharters) ? this.allFishingCharters.length : 0,
-              lastSuccessfulCount: Array.isArray(this._lastSuccessfulCharters) ? this._lastSuccessfulCharters.length : 0
-            });
-
-            // Fallback: if we have previous results cached, reuse them instead of showing nothing
-            if (Array.isArray(this.allFishingCharters) && this.allFishingCharters.length > 0) {
-              console.info('[FishingCharters] Using cached charter list as fallback');
-              effectiveCharters = this.allFishingCharters;
-            } else if (Array.isArray(this._lastSuccessfulCharters) && this._lastSuccessfulCharters.length > 0) {
-              console.info('[FishingCharters] Using lastSuccessfulCharters as fallback');
-              effectiveCharters = this._lastSuccessfulCharters;
-            } else {
-              effectiveCharters = [];
-            }
+          // Use cached data if available and not forcing a fresh fetch
+          if (!forceFetch && this.allFishingCharters.length > 0) {
+            effectiveCharters = this.allFishingCharters;
           } else {
-            // Keep a copy of the last non-empty response to guard against intermittent empty payloads
-            this._lastSuccessfulCharters = allCharters;
+            // Show skeleton cards only when actually fetching
+            this.showSkeletonCards();
+
+            // Fetch all fishing charter options
+            const allCharters = await this.fetchFishingCharterOptions();
+
+            if (!Array.isArray(allCharters) || allCharters.length === 0) {
+              // Fallback to cache if fetch fails
+              if (Array.isArray(this.allFishingCharters) && this.allFishingCharters.length > 0) {
+                effectiveCharters = this.allFishingCharters;
+              } else if (Array.isArray(this._lastSuccessfulCharters) && this._lastSuccessfulCharters.length > 0) {
+                effectiveCharters = this._lastSuccessfulCharters;
+              } else {
+                effectiveCharters = [];
+              }
+            } else {
+              // Cache the successful fetch
+              this._lastSuccessfulCharters = allCharters;
+              effectiveCharters = allCharters;
+            }
+
+            this.allFishingCharters = effectiveCharters;
+
+            // Hide skeleton cards after fetch
+            this.hideSkeletonCards();
           }
 
-          this.allFishingCharters = effectiveCharters;
-
-          // Filter charters based on current filters
+          // Filter charters based on current filters (works on cached or fresh data)
           const filteredCharters = this.filterFishingCharters(effectiveCharters);
 
           // Update private dock filter visibility based on whether any charter offers it
           this.updatePrivateDockFilterVisibility(filteredCharters);
 
-          // Hide skeleton cards
-          this.hideSkeletonCards();
-
-          // Debug log when nothing returns
-          this.logFilterDebugInfo(filteredCharters, this._lastFilterDebugReasons || {});
-
-          // Render the filtered charters (mark as initial render only on first fetch)
-          const isInitialRender = this.allFishingCharters.length === 0 || effectiveCharters === allCharters;
-          this.renderFishingCharterCards(filteredCharters, isInitialRender);
+          // Render the filtered charters
+          this.renderFishingCharterCards(filteredCharters);
 
           // If we auto-open details dates (missing dates flow), open immediately once list is rendered
           if (this.autoOpenDetailsDatesAfterShow && this.autoOpenDetailsDatesReason === 'missingDates') {
@@ -17467,26 +17443,29 @@ document.addEventListener('DOMContentLoaded', () => {
       logFilterDebugInfo(filteredCharters, debugReasons) {
       }
 
-      renderFishingCharterCards(charters, isInitialRender = false) {
-        if (!this.cardWrapper) return;
+      renderFishingCharterCards(charters) {
+        // Clear any existing duplicated cards
+        const existingCards = this.cardWrapper.querySelectorAll('[data-element="addFishingCharterModal_selectFishingCharter_card"]');
+        existingCards.forEach((card, index) => {
+          if (index !== 0) { // Keep the template card
+            card.remove();
+          }
+        });
 
-        // Clear no results message
+        // Clear any existing no results message
         const existingNoResultsMessage = this.cardWrapper.querySelector('.no-results-message');
         if (existingNoResultsMessage) {
           existingNoResultsMessage.remove();
         }
 
-        // If no charters, show no results
+        // If no charters, hide the template card and show no results message
         if (charters.length === 0) {
           this.cardTemplate.style.display = 'none';
 
-          // Hide all existing cards
-          const existingCards = this.cardWrapper.querySelectorAll('[data-element="addFishingCharterModal_selectFishingCharter_card"]');
-          existingCards.forEach(card => card.style.display = 'none');
-
-          // Show no results message
+          // Create and add no results message
           const noResultsMessage = document.createElement('div');
           noResultsMessage.className = 'no-results-message';
+          noResultsMessage.style.fontFamily = 'TT Fors, sans-serif !important';
           noResultsMessage.style.cssText = `
             display: flex;
             align-items: center;
@@ -17497,77 +17476,45 @@ document.addEventListener('DOMContentLoaded', () => {
             font-size: 16px;
             width: 100%;
             min-height: 200px;
-            font-family: TT Fors, sans-serif;
           `;
           noResultsMessage.textContent = 'No fishing charters found for this listing :( Try adjusting your stay or search params.';
           this.cardWrapper.appendChild(noResultsMessage);
           return;
         }
 
-        // Get existing cards
-        const existingCards = this.cardWrapper.querySelectorAll('[data-element="addFishingCharterModal_selectFishingCharter_card"]');
-
-        // Try to reuse existing cards for filter operations
-        if (!isInitialRender && existingCards.length > 1) {
-          const cardsByCharterId = new Map();
-          existingCards.forEach(card => {
-            if (card.charterData && card.charterData.id) {
-              cardsByCharterId.set(card.charterData.id, card);
-            }
-          });
-
-          // Hide all cards first
-          existingCards.forEach(card => card.style.display = 'none');
-
-          // Show and update cards for filtered charters
-          charters.forEach(charter => {
-            const existingCard = cardsByCharterId.get(charter.id);
-
-            if (existingCard) {
-              // Reuse existing card
-              existingCard.style.display = 'flex';
-              this.populateFishingCharterCard(existingCard, charter, true); // Skip carousel reload
-            } else {
-              // Create new card for this charter
-              const newCard = this.cardTemplate.cloneNode(true);
-              newCard.style.display = 'flex';
-              newCard.charterData = charter;
-              this.cardWrapper.appendChild(newCard);
-              this.populateFishingCharterCard(newCard, charter, false);
-            }
-          });
-          return;
-        }
-
-        // Initial render - build fresh
-        existingCards.forEach((card, index) => {
-          if (index !== 0) card.remove();
-        });
-
+        // Show and populate cards for each charter
         charters.forEach((charter, index) => {
           let card;
           if (index === 0) {
+            // Use the template card for the first charter
             card = this.cardTemplate;
           } else {
+            // Clone the template for additional charters
             card = this.cardTemplate.cloneNode(true);
             this.cardWrapper.appendChild(card);
           }
 
+          // Show the card
           card.style.display = 'flex';
+
+          // Store charter data
           card.charterData = charter;
 
-          // Load first 2 immediately, defer rest
+          // Sequential loading: first 2 cards load immediately, rest load with small delays
           if (index < 2) {
+            // Load first 2 immediately for instant feedback
             this.populateFishingCharterCard(card, charter, false);
           } else {
-            this.populateFishingCharterCard(card, charter, true);
+            // Load the rest sequentially with small delays
+            this.populateFishingCharterCard(card, charter, true); // Defer carousel initially
 
+            // Load carousel after a small delay (50ms per card after the first 2)
             setTimeout(() => {
               const photosContainer = card.querySelector('[data-element="addFishingCharterModal_selectFishingCharter_card_photos"]');
               if (photosContainer && charter.images && charter.images.length > 0) {
                 this.setupFishingCharterCardImagesCarousel(photosContainer, charter, card);
               }
-            }, (index - 2) * 50);
+            }, (index - 2) * 50); // Stagger by 50ms each
           }
         });
       }
@@ -18212,8 +18159,8 @@ document.addEventListener('DOMContentLoaded', () => {
               selectFilterContainer.scrollLeft = 0;
             }
 
-            // Always re-fetch and render to ensure fresh results with current filters
-            await this.fetchAndRenderFishingCharters();
+            // Re-render with current filters using cached data
+            await this.fetchAndRenderFishingCharters(false);
           });
         }
       }
@@ -18658,10 +18605,8 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       setupFishingCharterCardImagesCarousel(photosContainer, charter, card) {
-        // Check if carousel already exists - reuse it
-        if (photosContainer.querySelector('.charter-card-carousel-wrapper')) {
-          return; // Already set up
-        }
+        // Clear any existing content
+        photosContainer.innerHTML = '';
 
         // Check if charter has images
         if (!charter.images || charter.images.length === 0) {
@@ -18677,7 +18622,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Create carousel structure
         const carouselWrapper = document.createElement('div');
-        carouselWrapper.className = 'charter-card-carousel-wrapper'; // Mark for reuse detection
         carouselWrapper.style.cssText = `
           position: relative;
           width: 100%;
