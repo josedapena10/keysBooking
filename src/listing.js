@@ -3484,11 +3484,20 @@ document.addEventListener('DOMContentLoaded', () => {
       let meetsMinNights = false;
       let nightsFromParams = 0;
 
+      if (checkinParam === '2026-03-18' && checkoutParam === '2026-03-19') {
+        console.log('[getAvailabilityColor] Starting validation:');
+        console.log('  - effectiveMinNights:', effectiveMinNights);
+        console.log('  - propertyCalendarRange length:', propertyCalendarRange.length);
+      }
+
       for (let i = 0; i < propertyCalendarRange.length; i++) {
         if (propertyCalendarRange[i].status === "available") {
           consecutiveAvailableDays++; // Count consecutive available days
           if (consecutiveAvailableDays >= effectiveMinNights) {
             meetsMinNights = true; // If consecutive days meet min nights at any point
+            if (checkinParam === '2026-03-18' && checkoutParam === '2026-03-19') {
+              console.log(`[getAvailabilityColor] Day ${i}: consecutiveAvailableDays (${consecutiveAvailableDays}) >= effectiveMinNights (${effectiveMinNights}) - meetsMinNights = TRUE`);
+            }
           }
         } else {
           consecutiveAvailableDays = 0; // Reset if a day is not available
@@ -3515,6 +3524,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Determine color based on availability and minimum night conditions
       const color = !allAvailable || !meetsMinNights ? "#ffd4d2" : "";
+
+      if (checkinParam === '2026-03-18' && checkoutParam === '2026-03-19') {
+        console.log('[getAvailabilityColor] FINAL RESULT:');
+        console.log('  - allAvailable:', allAvailable);
+        console.log('  - meetsMinNights:', meetsMinNights);
+        console.log('  - consecutiveAvailableDays:', consecutiveAvailableDays);
+        console.log('  - effectiveMinNights:', effectiveMinNights);
+        console.log('  - nightsFromParams:', nightsFromParams);
+        console.log('  - color:', color);
+      }
 
       return color;
     }
@@ -4381,6 +4400,18 @@ document.addEventListener('DOMContentLoaded', () => {
         && (currentGuests <= maxGuests)
         && (currentGuests != 0)
         && !extrasInfo.hasAnyExtrasNeedingDates;
+
+      if (ci === '2026-03-18' && co === '2026-03-19') {
+        console.log('[updateListingQueryPriceDetailsVisibility] FINAL VALIDATION:');
+        console.log('  - minNights (from getEffective):', minNights);
+        console.log('  - allAvailable:', allAvailable);
+        console.log('  - meetsMinNights:', meetsMinNights);
+        console.log('  - consecutiveAvailableDays:', consecutiveAvailableDays);
+        console.log('  - currentGuests:', currentGuests, 'maxGuests:', maxGuests);
+        console.log('  - extrasNeedDates:', extrasInfo.hasAnyExtrasNeedingDates);
+        console.log('  - shouldShow:', shouldShow);
+        console.log('  - Setting display to:', shouldShow ? 'block' : 'none');
+      }
 
       priceDetailsElement.style.display = shouldShow ? 'block' : 'none';
     }
