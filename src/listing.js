@@ -1275,7 +1275,7 @@ document.addEventListener('DOMContentLoaded', function () {
       return result;
     }
 
-    // Helper: effective min nights for currently selected range (uses custom overrides and URL length)
+    // Helper: effective min nights for currently selected range (uses custom overrides and URL/Wized length)
     function getEffectiveMinNightsForSelection(r) {
       const baseMin = r?.Load_Property_Details?.data?.property?.min_nights || minNights;
       const queryMin = Number(r?.Load_Property_Calendar_Query?.data?.dateRange_minNights);
@@ -1283,6 +1283,9 @@ document.addEventListener('DOMContentLoaded', function () {
       const params = new URLSearchParams(window.location.search);
       const ci = params.get('checkin');
       const co = params.get('checkout');
+      // Fallback to Wized data if URL params not yet present
+      const wCheckin = r?.Load_Property_Calendar_Query?.data?.dateRange_checkIn || r?.Load_Property_Calendar_Query?.data?.dateRange_checkin || (Wized?.data?.n?.parameter?.checkin);
+      const wCheckout = r?.Load_Property_Calendar_Query?.data?.dateRange_checkOut || r?.Load_Property_Calendar_Query?.data?.dateRange_checkout || (Wized?.data?.n?.parameter?.checkout);
 
       let effective = baseMin;
       let nightsFromParams = 0;
@@ -1291,17 +1294,21 @@ document.addEventListener('DOMContentLoaded', function () {
         effective = Math.min(effective, queryMin);
       }
 
-      if (ci && co) {
+      function applyRange(strStart, strEnd) {
+        if (!strStart || !strEnd) return;
         try {
-          const checkinDate = createDateFromString(ci);
-          const checkoutDate = createDateFromString(co);
-          nightsFromParams = Math.max(0, Math.round((checkoutDate - checkinDate) / (1000 * 60 * 60 * 24)));
-          // custom per-day overrides
+          const checkinDate = createDateFromString(strStart);
+          const checkoutDate = createDateFromString(strEnd);
+          const nights = Math.max(0, Math.round((checkoutDate - checkinDate) / (1000 * 60 * 60 * 24)));
+          nightsFromParams = Math.max(nightsFromParams, nights);
           effective = Math.min(effective, getLowestMinNightsBetween(checkinDate, checkoutDate));
         } catch (_) {
-          nightsFromParams = 0;
+          // ignore parse errors
         }
       }
+
+      applyRange(ci, co);
+      applyRange(wCheckin, wCheckout);
 
       if (nightsFromParams > 0) {
         effective = Math.min(effective, nightsFromParams);
@@ -3202,8 +3209,21 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
 
-      // Update error message display
-      updateErrorDisplay(color === "#ffd4d2", hasGuestError, r);
+      // Update error message display; if dates are selected and price containers show, suppress date error
+      const hasDatesSelected = urlParams.has('checkin') && urlParams.get('checkin') !== "" &&
+        urlParams.has('checkout') && urlParams.get('checkout') !== "";
+      // Derive price visibility from existing DOM if helper not present
+      let priceVisible = false;
+      if (typeof window.getLatestPriceVisibility === 'function') {
+        priceVisible = window.getLatestPriceVisibility();
+      } else {
+        const priceDetails = document.querySelector('[data-element="Listing_Query_Price_Details"]');
+        const totalContainer = document.querySelector('[data-element="Listing_Reservation_Amount_Total_Container"]');
+        priceVisible = !!((priceDetails && priceDetails.style.display !== 'none') ||
+          (totalContainer && totalContainer.style.display !== 'none'));
+      }
+      const suppressDateError = hasDatesSelected && priceVisible;
+      updateErrorDisplay(!suppressDateError && color === "#ffd4d2", hasGuestError, r);
 
       // Update add dates heading
       updateAddDatesHeading();
