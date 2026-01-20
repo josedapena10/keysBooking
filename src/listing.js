@@ -3020,6 +3020,47 @@ document.addEventListener('DOMContentLoaded', () => {
   // Default: hide "Won't be charged" until validation explicitly shows it
   wontBeChargedElements.forEach(el => { if (el) el.style.display = 'none'; });
 
+  // Prefetch missing extras data (boat and charters) to speed up modal display when adding dates
+  async function prefetchMissingExtrasData() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const hasStayDates = urlParams.get('checkin') && urlParams.get('checkout');
+    if (!hasStayDates) return;
+
+    // Boat
+    const boatId = urlParams.get('boatId');
+    const boatDates = urlParams.get('boatDates');
+    if (boatId && (!boatDates || boatDates.trim() === '') && !window.prefetchedBoatData) {
+      try {
+        const res = await fetch(`https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/boats/${boatId}`);
+        if (res.ok) {
+          window.prefetchedBoatData = await res.json();
+        }
+      } catch (e) {
+      }
+    }
+
+    // Fishing charters
+    for (const [key, value] of urlParams.entries()) {
+      const match = key.match(/^fishingCharterId(\d+)$/);
+      if (match) {
+        const num = match[1];
+        const charterId = value;
+        const charterDates = urlParams.get(`fishingCharterDates${num}`);
+        if (charterId && (!charterDates || charterDates.trim() === '')) {
+          if (!window.prefetchedCharterData[charterId]) {
+            try {
+              const res = await fetch(`https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/fishingcharters/${charterId}`);
+              if (res.ok) {
+                window.prefetchedCharterData[charterId] = await res.json();
+              }
+            } catch (e) {
+            }
+          }
+        }
+      }
+    }
+  }
+
   // Quick guard: immediately hide price/total and show add-dates heading if extras need dates on load
   (function quickHideForExtrasNeedingDates() {
     const urlParams = new URLSearchParams(window.location.search);
@@ -5015,47 +5056,6 @@ async function updatePricingDisplayForExtras() {
       }
     }
     return false;
-  }
-
-  // Prefetch missing extras data (boat and charters) to speed up modal display when adding dates
-  async function prefetchMissingExtrasData() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const hasStayDates = urlParams.get('checkin') && urlParams.get('checkout');
-    if (!hasStayDates) return;
-
-    // Boat
-    const boatId = urlParams.get('boatId');
-    const boatDates = urlParams.get('boatDates');
-    if (boatId && (!boatDates || boatDates.trim() === '') && !window.prefetchedBoatData) {
-      try {
-        const res = await fetch(`https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/boats/${boatId}`);
-        if (res.ok) {
-          window.prefetchedBoatData = await res.json();
-        }
-      } catch (e) {
-      }
-    }
-
-    // Fishing charters
-    for (const [key, value] of urlParams.entries()) {
-      const match = key.match(/^fishingCharterId(\d+)$/);
-      if (match) {
-        const num = match[1];
-        const charterId = value;
-        const charterDates = urlParams.get(`fishingCharterDates${num}`);
-        if (charterId && (!charterDates || charterDates.trim() === '')) {
-          if (!window.prefetchedCharterData[charterId]) {
-            try {
-              const res = await fetch(`https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/fishingcharters/${charterId}`);
-              if (res.ok) {
-                window.prefetchedCharterData[charterId] = await res.json();
-              }
-            } catch (e) {
-            }
-          }
-        }
-      }
-    }
   }
 
   // Extras are selected - show extras pricing
