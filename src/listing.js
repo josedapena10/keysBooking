@@ -160,6 +160,14 @@ function truncateToFit(element) {
       Wized.requests.waitFor('Load_Property_Details')
         .then(() => {
 
+          // Check if the listing is active
+          const propertyData = Wized.data.r.Load_Property_Details?.data?.property;
+          if (propertyData && propertyData.is_active === false) {
+            // Redirect to home page if listing is not active
+            window.location.href = '/';
+            return;
+          }
+
           // Check if dates are in URL (calendar query might be needed)
           const urlParams = new URLSearchParams(window.location.search);
           const hasCheckin = urlParams.has('checkin') && urlParams.get('checkin') !== '';
