@@ -16055,7 +16055,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       // Handle editing a specific fishing charter
-      handleEditSpecificFishingCharter(trip) {
+      async handleEditSpecificFishingCharter(trip) {
         // Store the charter number being edited
         this.editingCharterNumber = trip.number;
         this.editingCharterId = trip.charterId;
@@ -16143,9 +16143,12 @@ document.addEventListener('DOMContentLoaded', () => {
         document.body.classList.add('no-scroll');
 
         // Fetch and show the charter details for editing
-        this.fetchAndShowCharterForEdit(trip.charterId, trip.tripId);
+        // Skip scroll reset if we're going to scroll to dates popup to avoid interference
+        const shouldSkipScrollReset = needsDates && hasStayDates;
+        await this.fetchAndShowCharterForEdit(trip.charterId, trip.tripId, shouldSkipScrollReset);
 
         // If charter needs dates, queue the dates popup to open once details are ready
+        // IMPORTANT: This happens AFTER fetchAndShowCharterForEdit completes to avoid race condition
         if (needsDates) {
           if (hasStayDates) {
             this.autoOpenDetailsDatesAfterShow = true;
@@ -16161,7 +16164,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       // Fetch charter data and show details for editing
-      async fetchAndShowCharterForEdit(charterId, tripId) {
+      async fetchAndShowCharterForEdit(charterId, tripId, skipScrollReset = false) {
         try {
           let charter = window.prefetchedCharterData && window.prefetchedCharterData[charterId];
           if (!charter) {
@@ -16178,7 +16181,7 @@ document.addEventListener('DOMContentLoaded', () => {
           this.editingTripId = tripId;
 
           // Show the fishing charter details
-          this.showFishingCharterDetails(charter);
+          this.showFishingCharterDetails(charter, skipScrollReset);
 
         } catch (error) {
 
@@ -18177,7 +18180,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return `From $${Math.round(minPrice).toLocaleString()}`;
       }
 
-      async showFishingCharterDetails(charter) {
+      async showFishingCharterDetails(charter, skipScrollReset = false) {
         // Close all popups when entering charter details view
         this.closeAllPopups();
 
@@ -18185,8 +18188,8 @@ document.addEventListener('DOMContentLoaded', () => {
         this.selectWrapper.style.display = 'none';
         this.detailsWrapper.style.display = 'flex';
 
-        // Scroll details content container to top
-        if (this.detailsContentContainer) {
+        // Scroll details content container to top (unless we're about to scroll to dates popup)
+        if (!skipScrollReset && this.detailsContentContainer) {
           this.detailsContentContainer.scrollTop = 0;
         }
 
