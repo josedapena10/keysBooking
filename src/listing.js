@@ -21925,20 +21925,27 @@ document.addEventListener('DOMContentLoaded', () => {
           }
 
           // Add click handler to the new button
-          // Store trip data directly on the button element for debugging
+          // Store trip data directly on the button element to avoid closure issues
           newButton.dataset.tripId = trip.id;
           newButton.dataset.tripName = trip.name;
+          newButton.dataset.charterId = charter.id;
           newButton.dataset.handlerAttached = Date.now();
+
+          // IMPORTANT: Create a copy of the trip object to avoid closure issues
+          const tripCopy = JSON.parse(JSON.stringify(trip));
+          const charterIdCopy = charter.id;
 
           newButton.addEventListener('click', (event) => {
             console.log(`🔥 BUTTON CLICKED:`, {
-              clickedTripId: trip.id,
-              clickedTripName: trip.name,
-              charterId: charter.id,
-              buttonDataset: event.currentTarget.dataset,
+              clickedTripIdFromClosure: tripCopy.id,
+              clickedTripNameFromClosure: tripCopy.name,
+              clickedTripIdFromDataset: event.currentTarget.dataset.tripId,
+              clickedTripNameFromDataset: event.currentTarget.dataset.tripName,
+              charterIdFromClosure: charterIdCopy,
+              charterIdFromDataset: event.currentTarget.dataset.charterId,
               buttonElement: event.currentTarget
             });
-            this.handleAddToReservation(charter.id, trip);
+            this.handleAddToReservation(charterIdCopy, tripCopy);
           });
         }
       }
