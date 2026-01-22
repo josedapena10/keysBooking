@@ -21655,8 +21655,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Clear existing trip type cards except template
         const existingCards = this.tripTypeWrapper.querySelectorAll('[data-element="fishingCharterDetails_tripType_card"]');
+        console.log(`🧹 Clearing cards: found ${existingCards.length} existing cards`);
         existingCards.forEach((card, index) => {
-          if (index > 0) card.remove();
+          if (index > 0) {
+            console.log(`🧹 Removing card at index ${index}`);
+            card.remove();
+          } else {
+            console.log(`🧹 Keeping template card at index 0`);
+          }
         });
 
         // Filter trip options based on season and dates if selected
@@ -21685,6 +21691,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
           card.style.display = 'flex';
           this.populateTripTypeCard(card, trip, charter);
+        });
+
+        // Count total buttons after rendering
+        const allButtons = document.querySelectorAll('[data-element="fishingCharterDetails_tripType_addToReservationButton"]');
+        console.log(`🎪 After rendering, total buttons on page: ${allButtons.length}`);
+        allButtons.forEach((btn, idx) => {
+          console.log(`  Button ${idx}: tripId=${btn.dataset.tripId}, text="${btn.textContent.trim()}"`);
         });
       }
 
@@ -21855,10 +21868,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Add to reservation button
         const addToReservationButton = card.querySelector('[data-element="fishingCharterDetails_tripType_addToReservationButton"]');
+        console.log(`🔍 Found button for trip ${trip.id}:`, {
+          buttonExists: !!addToReservationButton,
+          buttonElement: addToReservationButton,
+          cardElement: card
+        });
         if (addToReservationButton) {
           // Remove any existing event listeners to prevent duplicates
           const newButton = addToReservationButton.cloneNode(true);
           addToReservationButton.parentNode.replaceChild(newButton, addToReservationButton);
+          console.log(`🔄 Replaced button for trip ${trip.id}, attaching new handler`);
 
           // Check if this specific trip is the one being edited
           // Only show "Confirm Selection" for the exact trip being edited, not all trips
@@ -21906,8 +21925,19 @@ document.addEventListener('DOMContentLoaded', () => {
           }
 
           // Add click handler to the new button
-          newButton.addEventListener('click', () => {
-            console.log(`🔥 BUTTON CLICKED for trip:`, { tripId: trip.id, tripName: trip.name, charterId: charter.id });
+          // Store trip data directly on the button element for debugging
+          newButton.dataset.tripId = trip.id;
+          newButton.dataset.tripName = trip.name;
+          newButton.dataset.handlerAttached = Date.now();
+
+          newButton.addEventListener('click', (event) => {
+            console.log(`🔥 BUTTON CLICKED:`, {
+              clickedTripId: trip.id,
+              clickedTripName: trip.name,
+              charterId: charter.id,
+              buttonDataset: event.currentTarget.dataset,
+              buttonElement: event.currentTarget
+            });
             this.handleAddToReservation(charter.id, trip);
           });
         }
