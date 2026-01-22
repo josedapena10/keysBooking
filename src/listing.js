@@ -11133,9 +11133,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // Store the current boat data
         this.currentBoatData = boat;
 
-        // Hide the select wrapper and show details wrapper
+        // Hide the select wrapper (but keep details wrapper hidden until populated)
         this.selectWrapper.style.display = 'none';
-        this.detailsWrapper.style.display = 'flex';
 
         // Reset details content container scroll position
         const detailsContent = document.querySelector('[data-element="boatDetails_contentContainer"]');
@@ -11222,6 +11221,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Update reservation block visibility
         this.updateReservationBlockVisibility();
+
+        // Show details wrapper only after everything is populated (prevents flash of unstyled content)
+        this.detailsWrapper.style.display = 'flex';
       }
 
       hideBoatDetails() {
