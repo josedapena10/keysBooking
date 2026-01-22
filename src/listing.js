@@ -22878,17 +22878,6 @@ document.addEventListener('DOMContentLoaded', () => {
         noErrors: datesSelected && datesValid && guestsValid && !extrasNeedDates
       };
 
-      // Debug log for validation state
-      console.log('[StayValidation]', {
-        datesSelected,
-        datesValid,
-        allAvailable,
-        meetsMinNights,
-        minNightsUsed,
-        nightsFromParams,
-        guestsValid,
-        extrasNeedDates
-      });
     }
 
     // Update reserve button visibility
