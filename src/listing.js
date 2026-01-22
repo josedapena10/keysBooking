@@ -16585,19 +16585,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Only load existing charter data if we're editing (not adding new)
         if (this.editingCharterNumber) {
-          // Get current fishing charter data (from first charter for UI compatibility)
-          const currentData = this.getCurrentFishingCharterData();
+          // Get fishing charter data for the specific charter being edited
+          const urlParams = new URLSearchParams(window.location.search);
+          const guests = urlParams.get(`fishingCharterGuests${this.editingCharterNumber}`);
+          const dates = urlParams.get(`fishingCharterDates${this.editingCharterNumber}`);
+          const pickup = urlParams.get(`fishingCharterPickup${this.editingCharterNumber}`);
 
           // Set guests
-          this.selectedGuests = currentData.guests;
+          this.selectedGuests = guests ? parseInt(guests) : 0;
           if (this.guestNumber) this.guestNumber.textContent = this.selectedGuests;
           this.updateGuestsFilterText();
 
           // Set dates
-          this.selectedDates = currentData.dates;
+          this.selectedDates = dates ? dates.split(',').filter(Boolean) : [];
 
           // Set pickup
-          this.selectedPickupTime = currentData.pickup;
+          this.selectedPickupTime = pickup === 'true' ? '' : (pickup || '');
         } else if (!hasCharters) {
           // Clear all filters when adding a new charter (not editing) and no charters exist
           this.selectedGuests = 0;
