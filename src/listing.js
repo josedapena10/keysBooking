@@ -21020,8 +21020,43 @@ document.addEventListener('DOMContentLoaded', () => {
 
               // If popup was auto-opened due to missing dates, auto-save and close modal
               if (this.autoOpenedFromMissingDates) {
-                const addButton = document.querySelector('[data-element="fishingCharterDetails_tripType_addToReservationButton"]');
-                if (addButton) addButton.click();
+                console.log('🎯 Auto-saving after dates selected:', {
+                  editingTripId: this.editingTripId,
+                  editingCharterId: this.editingCharterId,
+                  editingCharterNumber: this.editingCharterNumber,
+                  isEditMode: this.isEditMode
+                });
+
+                // Find ALL buttons
+                const allButtons = document.querySelectorAll('[data-element="fishingCharterDetails_tripType_addToReservationButton"]');
+                console.log(`🔍 Found ${allButtons.length} total buttons`);
+
+                // Find the button for the trip being edited
+                let correctButton = null;
+                allButtons.forEach((btn, idx) => {
+                  // Check if this button belongs to a card for the trip being edited
+                  const card = btn.closest('[data-element="fishingCharterDetails_tripType_card"]');
+                  const tripNameInCard = card?.querySelector('[data-element="fishingCharterDetails_tripType_name"]')?.textContent;
+                  const buttonText = btn.textContent?.trim();
+
+                  console.log(`  Button ${idx}: text="${buttonText}", tripName in card="${tripNameInCard}"`);
+
+                  // The button with "Confirm Selection" is the one for the trip being edited
+                  if (buttonText === 'Confirm Selection') {
+                    correctButton = btn;
+                    console.log(`  ✅ Found "Confirm Selection" button at index ${idx}`);
+                  }
+                });
+
+                if (correctButton) {
+                  console.log('🖱️ Clicking "Confirm Selection" button');
+                  correctButton.click();
+                } else {
+                  console.log('❌ No "Confirm Selection" button found, clicking first button as fallback');
+                  const addButton = document.querySelector('[data-element="fishingCharterDetails_tripType_addToReservationButton"]');
+                  if (addButton) addButton.click();
+                }
+
                 this.autoOpenedFromMissingDates = false;
                 this.closeModal(true);
               }
@@ -21644,33 +21679,16 @@ document.addEventListener('DOMContentLoaded', () => {
           return;
         }
 
-        console.log('🎪 renderTripTypes called', {
-          charterId: charter.id,
-          charterName: charter.name,
-          editingTripId: this.editingTripId,
-          editingCharterId: this.editingCharterId,
-          isEditMode: this.isEditMode,
-          allTripOptions: charter.tripOptions.map(t => ({ id: t.id, name: t.name }))
-        });
-
         // Clear existing trip type cards except template
         const existingCards = this.tripTypeWrapper.querySelectorAll('[data-element="fishingCharterDetails_tripType_card"]');
-        console.log(`🧹 Clearing cards: found ${existingCards.length} existing cards`);
         existingCards.forEach((card, index) => {
-          if (index > 0) {
-            console.log(`🧹 Removing card at index ${index}`);
-            card.remove();
-          } else {
-            console.log(`🧹 Keeping template card at index 0`);
-          }
+          if (index > 0) card.remove();
         });
 
         // Filter trip options based on season and dates if selected
         let filteredTripOptions = charter.tripOptions.filter(trip => {
           return this.isTripSeasonValid(trip);
         });
-
-        console.log('🎪 After filtering, showing trips:', filteredTripOptions.map(t => ({ id: t.id, name: t.name })));
 
         // Hide template if no valid trips
         if (filteredTripOptions.length === 0) {
@@ -21680,7 +21698,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Render trip type cards
         filteredTripOptions.forEach((trip, index) => {
-          console.log(`🎪 Rendering trip card ${index}:`, { tripId: trip.id, tripName: trip.name });
           let card;
           if (index === 0) {
             card = this.tripTypeTemplate;
@@ -21691,13 +21708,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
           card.style.display = 'flex';
           this.populateTripTypeCard(card, trip, charter);
-        });
-
-        // Count total buttons after rendering
-        const allButtons = document.querySelectorAll('[data-element="fishingCharterDetails_tripType_addToReservationButton"]');
-        console.log(`🎪 After rendering, total buttons on page: ${allButtons.length}`);
-        allButtons.forEach((btn, idx) => {
-          console.log(`  Button ${idx}: tripId=${btn.dataset.tripId}, text="${btn.textContent.trim()}"`);
         });
       }
 
@@ -21868,16 +21878,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Add to reservation button
         const addToReservationButton = card.querySelector('[data-element="fishingCharterDetails_tripType_addToReservationButton"]');
-        console.log(`🔍 Found button for trip ${trip.id}:`, {
-          buttonExists: !!addToReservationButton,
-          buttonElement: addToReservationButton,
-          cardElement: card
-        });
         if (addToReservationButton) {
           // Remove any existing event listeners to prevent duplicates
           const newButton = addToReservationButton.cloneNode(true);
           addToReservationButton.parentNode.replaceChild(newButton, addToReservationButton);
-          console.log(`🔄 Replaced button for trip ${trip.id}, attaching new handler`);
 
           // Check if this specific trip is the one being edited
           // Only show "Confirm Selection" for the exact trip being edited, not all trips
@@ -21885,15 +21889,6 @@ document.addEventListener('DOMContentLoaded', () => {
             this.isEditMode &&
             String(this.editingTripId) === String(trip.id) &&
             String(this.editingCharterId) === String(charter.id);
-
-          console.log(`🎪 Button for trip ${trip.id} "${trip.name}":`, {
-            isThisTripBeingEdited,
-            editingTripId: this.editingTripId,
-            tripId: trip.id,
-            editingCharterId: this.editingCharterId,
-            charterId: charter.id,
-            isEditMode: this.isEditMode
-          });
 
           // Update button text and style based on edit mode
           const buttonTextElement = newButton.querySelector('[data-element="fishingCharterDetails_tripType_addToReservationButtonText"]');
@@ -21925,27 +21920,8 @@ document.addEventListener('DOMContentLoaded', () => {
           }
 
           // Add click handler to the new button
-          // Store trip data directly on the button element to avoid closure issues
-          newButton.dataset.tripId = trip.id;
-          newButton.dataset.tripName = trip.name;
-          newButton.dataset.charterId = charter.id;
-          newButton.dataset.handlerAttached = Date.now();
-
-          // IMPORTANT: Create a copy of the trip object to avoid closure issues
-          const tripCopy = JSON.parse(JSON.stringify(trip));
-          const charterIdCopy = charter.id;
-
-          newButton.addEventListener('click', (event) => {
-            console.log(`🔥 BUTTON CLICKED:`, {
-              clickedTripIdFromClosure: tripCopy.id,
-              clickedTripNameFromClosure: tripCopy.name,
-              clickedTripIdFromDataset: event.currentTarget.dataset.tripId,
-              clickedTripNameFromDataset: event.currentTarget.dataset.tripName,
-              charterIdFromClosure: charterIdCopy,
-              charterIdFromDataset: event.currentTarget.dataset.charterId,
-              buttonElement: event.currentTarget
-            });
-            this.handleAddToReservation(charterIdCopy, tripCopy);
+          newButton.addEventListener('click', () => {
+            this.handleAddToReservation(charter.id, trip);
           });
         }
       }
@@ -22127,16 +22103,6 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       async handleAddToReservation(charterId, trip) {
-        console.log('🚀 handleAddToReservation called:', {
-          charterId,
-          tripId: trip.id,
-          tripName: trip.name,
-          editingCharterNumber: this.editingCharterNumber,
-          editingTripId: this.editingTripId,
-          detailsSelectedDates: this.detailsSelectedDates,
-          detailsSelectedGuests: this.detailsSelectedGuests
-        });
-
         // Prevent multiple rapid calls
         if (this.isAddingToReservation) {
 
@@ -22182,15 +22148,6 @@ document.addEventListener('DOMContentLoaded', () => {
             this.migrateLegacyParameters();
             charterNumber = this.getNextFishingCharterNumber();
           }
-
-          console.log('💾 About to save to URL:', {
-            charterNumber,
-            charterId,
-            tripId: trip.id,
-            tripName: trip.name,
-            guests: this.detailsSelectedGuests,
-            dates: this.detailsSelectedDates
-          });
 
           // Add/update numbered parameters to URL
           url.searchParams.set(`fishingCharterId${charterNumber}`, charterId);
