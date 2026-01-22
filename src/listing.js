@@ -21644,6 +21644,15 @@ document.addEventListener('DOMContentLoaded', () => {
           return;
         }
 
+        console.log('🎪 renderTripTypes called', {
+          charterId: charter.id,
+          charterName: charter.name,
+          editingTripId: this.editingTripId,
+          editingCharterId: this.editingCharterId,
+          isEditMode: this.isEditMode,
+          allTripOptions: charter.tripOptions.map(t => ({ id: t.id, name: t.name }))
+        });
+
         // Clear existing trip type cards except template
         const existingCards = this.tripTypeWrapper.querySelectorAll('[data-element="fishingCharterDetails_tripType_card"]');
         existingCards.forEach((card, index) => {
@@ -21655,6 +21664,8 @@ document.addEventListener('DOMContentLoaded', () => {
           return this.isTripSeasonValid(trip);
         });
 
+        console.log('🎪 After filtering, showing trips:', filteredTripOptions.map(t => ({ id: t.id, name: t.name })));
+
         // Hide template if no valid trips
         if (filteredTripOptions.length === 0) {
           this.tripTypeTemplate.style.display = 'none';
@@ -21663,6 +21674,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Render trip type cards
         filteredTripOptions.forEach((trip, index) => {
+          console.log(`🎪 Rendering trip card ${index}:`, { tripId: trip.id, tripName: trip.name });
           let card;
           if (index === 0) {
             card = this.tripTypeTemplate;
@@ -21855,6 +21867,15 @@ document.addEventListener('DOMContentLoaded', () => {
             String(this.editingTripId) === String(trip.id) &&
             String(this.editingCharterId) === String(charter.id);
 
+          console.log(`🎪 Button for trip ${trip.id} "${trip.name}":`, {
+            isThisTripBeingEdited,
+            editingTripId: this.editingTripId,
+            tripId: trip.id,
+            editingCharterId: this.editingCharterId,
+            charterId: charter.id,
+            isEditMode: this.isEditMode
+          });
+
           // Update button text and style based on edit mode
           const buttonTextElement = newButton.querySelector('[data-element="fishingCharterDetails_tripType_addToReservationButtonText"]');
           if (buttonTextElement) {
@@ -21886,6 +21907,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
           // Add click handler to the new button
           newButton.addEventListener('click', () => {
+            console.log(`🔥 BUTTON CLICKED for trip:`, { tripId: trip.id, tripName: trip.name, charterId: charter.id });
             this.handleAddToReservation(charter.id, trip);
           });
         }
@@ -22068,6 +22090,16 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       async handleAddToReservation(charterId, trip) {
+        console.log('🚀 handleAddToReservation called:', {
+          charterId,
+          tripId: trip.id,
+          tripName: trip.name,
+          editingCharterNumber: this.editingCharterNumber,
+          editingTripId: this.editingTripId,
+          detailsSelectedDates: this.detailsSelectedDates,
+          detailsSelectedGuests: this.detailsSelectedGuests
+        });
+
         // Prevent multiple rapid calls
         if (this.isAddingToReservation) {
 
@@ -22113,6 +22145,15 @@ document.addEventListener('DOMContentLoaded', () => {
             this.migrateLegacyParameters();
             charterNumber = this.getNextFishingCharterNumber();
           }
+
+          console.log('💾 About to save to URL:', {
+            charterNumber,
+            charterId,
+            tripId: trip.id,
+            tripName: trip.name,
+            guests: this.detailsSelectedGuests,
+            dates: this.detailsSelectedDates
+          });
 
           // Add/update numbered parameters to URL
           url.searchParams.set(`fishingCharterId${charterNumber}`, charterId);
