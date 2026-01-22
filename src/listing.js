@@ -11732,12 +11732,23 @@ document.addEventListener('DOMContentLoaded', () => {
             if (window.google && window.google.maps) {
               createMap();
             } else {
-              // Load Google Maps script if not already loaded
-              const script = document.createElement('script');
-              script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}`;
-              script.async = true;
-              script.onload = createMap;
-              document.head.appendChild(script);
+              // Check if script is already being loaded
+              const existingScript = document.querySelector(`script[src*="maps.googleapis.com/maps/api/js"]`);
+              if (existingScript) {
+                // Script already exists, wait for it to load
+                if (window.google && window.google.maps) {
+                  createMap();
+                } else {
+                  existingScript.addEventListener('load', createMap);
+                }
+              } else {
+                // Load Google Maps script if not already loaded
+                const script = document.createElement('script');
+                script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}`;
+                script.async = true;
+                script.onload = createMap;
+                document.head.appendChild(script);
+              }
             }
 
             function createMap() {
@@ -11792,12 +11803,23 @@ document.addEventListener('DOMContentLoaded', () => {
           if (window.google && window.google.maps) {
             geocodeAddress();
           } else {
-            // Load Google Maps script first
-            const script = document.createElement('script');
-            script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}`;
-            script.async = true;
-            script.onload = geocodeAddress;
-            document.head.appendChild(script);
+            // Check if script is already being loaded
+            const existingScript = document.querySelector(`script[src*="maps.googleapis.com/maps/api/js"]`);
+            if (existingScript) {
+              // Script already exists, wait for it to load
+              if (window.google && window.google.maps) {
+                geocodeAddress();
+              } else {
+                existingScript.addEventListener('load', geocodeAddress);
+              }
+            } else {
+              // Load Google Maps script first
+              const script = document.createElement('script');
+              script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}`;
+              script.async = true;
+              script.onload = geocodeAddress;
+              document.head.appendChild(script);
+            }
           }
 
           function geocodeAddress() {
