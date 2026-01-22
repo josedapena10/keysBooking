@@ -15713,6 +15713,8 @@ document.addEventListener('DOMContentLoaded', () => {
           const dates = urlParams.get(`fishingCharterDates${number}`);
           const pickup = urlParams.get(`fishingCharterPickup${number}`);
 
+          console.log(`🐟 [Charter ${number}] Reading from URL:`, { charterId, tripId, guests, dates, pickup });
+
           if (!charterId) continue;
 
           try {
@@ -15723,10 +15725,20 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             const charter = await res.json();
 
+            console.log(`🐟 [Charter ${number}] Fetched charter data:`, {
+              charterId: charter.id,
+              charterName: charter.name,
+              tripOptionsCount: charter?.tripOptions?.length,
+              tripOptions: charter?.tripOptions?.map(t => ({ id: t.id, name: t.name }))
+            });
+
             // Find the selected trip for this numbered group
             const selectedTrip = Array.isArray(charter?.tripOptions)
               ? charter.tripOptions.find(t => String(t?.id) === String(tripId)) || null
               : null;
+
+            console.log(`🐟 [Charter ${number}] Looking for tripId "${tripId}" (type: ${typeof tripId})`);
+            console.log(`🐟 [Charter ${number}] Found trip:`, selectedTrip ? { id: selectedTrip.id, name: selectedTrip.name } : 'NOT FOUND');
 
             const mainImage = charter.images?.find(image => image.order === 1);
 
@@ -15755,10 +15767,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 needsDates: needsDates,
               };
 
+              console.log(`🐟 [Charter ${number}] Final tripData:`, tripData);
+
               selectedTrips.push(tripData);
             } else {
+              console.log(`🐟 [Charter ${number}] ❌ selectedTrip is null - trip not found!`);
             }
           } catch (error) {
+            console.log(`🐟 [Charter ${number}] ❌ Error fetching charter:`, error);
             // skip failures
           }
         }
@@ -15883,7 +15899,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Populate the selected fishing charter block with data
       async populateSelectedFishingCharterBlock() {
+        console.log('📊 populateSelectedFishingCharterBlock called');
         const selectedTrips = await this.getSelectedFishingCharterData();
+        console.log('📊 selectedTrips retrieved:', selectedTrips.map(t => ({ number: t.number, tripId: t.tripId, tripName: t.tripName })));
         this.renderSelectedFishingCharterBlocks(selectedTrips);
 
         // Update visual state for extras that need dates (after blocks are rendered)
@@ -15997,6 +16015,12 @@ document.addEventListener('DOMContentLoaded', () => {
         // Update selectedFishingCharterBlock_tripName
         const tripNameElement = block.querySelector('[data-element="selectedFishingCharterBlock_tripName"]');
         if (tripNameElement) {
+          console.log(`🎯 Setting tripName in DOM for charter ${trip.number}:`, {
+            tripId: trip.tripId,
+            tripName: trip.tripName,
+            charterId: trip.charterId,
+            fullTripObject: trip
+          });
           // Clear any stored full text to use new name
           delete tripNameElement.dataset.fullText;
           tripNameElement.textContent = trip.tripName;
@@ -16585,22 +16609,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Only load existing charter data if we're editing (not adding new)
         if (this.editingCharterNumber) {
-          // Get fishing charter data for the specific charter being edited
-          const urlParams = new URLSearchParams(window.location.search);
-          const guests = urlParams.get(`fishingCharterGuests${this.editingCharterNumber}`);
-          const dates = urlParams.get(`fishingCharterDates${this.editingCharterNumber}`);
-          const pickup = urlParams.get(`fishingCharterPickup${this.editingCharterNumber}`);
+          // Get current fishing charter data (from first charter for UI compatibility)
+          const currentData = this.getCurrentFishingCharterData();
 
           // Set guests
-          this.selectedGuests = guests ? parseInt(guests) : 0;
+          this.selectedGuests = currentData.guests;
           if (this.guestNumber) this.guestNumber.textContent = this.selectedGuests;
           this.updateGuestsFilterText();
 
           // Set dates
-          this.selectedDates = dates ? dates.split(',').filter(Boolean) : [];
+          this.selectedDates = currentData.dates;
 
           // Set pickup
-          this.selectedPickupTime = pickup === 'true' ? '' : (pickup || '');
+          this.selectedPickupTime = currentData.pickup;
         } else if (!hasCharters) {
           // Clear all filters when adding a new charter (not editing) and no charters exist
           this.selectedGuests = 0;
