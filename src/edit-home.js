@@ -2994,7 +2994,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
             // Handle Enter key for proper line breaks
             descriptionInput.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') {
+                if (e.key === 'Enter' || e.keyCode === 13) {
                     // Check if field is NOT editable (only block if explicitly false)
                     const contentEditableAttr = descriptionInput.getAttribute('contentEditable');
                     if (contentEditableAttr === 'false') {
@@ -3002,6 +3002,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
 
                     e.preventDefault();
+                    e.stopPropagation();
 
                     // Insert a line break at cursor position
                     const selection = window.getSelection();
@@ -3010,13 +3011,16 @@ document.addEventListener('DOMContentLoaded', function () {
                     const range = selection.getRangeAt(0);
                     range.deleteContents();
 
-                    // Insert newline character
-                    const textNode = document.createTextNode('\n');
-                    range.insertNode(textNode);
+                    // Insert <br> elements for visual line break
+                    const br = document.createElement('br');
+                    range.insertNode(br);
 
-                    // Move cursor after the newline
-                    range.setStartAfter(textNode);
-                    range.setEndAfter(textNode);
+                    const br2 = document.createElement('br');
+                    range.insertNode(br2);
+
+                    // Move cursor after the line breaks
+                    range.setStartAfter(br2);
+                    range.setEndAfter(br2);
                     selection.removeAllRanges();
                     selection.addRange(range);
 
@@ -4206,7 +4210,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const locationError = document.getElementById('location-error');
         const locationSubText = document.getElementById('location-subText');
         const locationText = document.querySelector('[data-element="edit_location_text"]');
-        const locationDescriptionInput = document.getElementById('locationDescription_input');
+        const locationDescriptionInput = document.querySelector('[data-element="locationDescription_input"]');
         const characterCount = document.getElementById('locationDescriptionInputField_characterCount');
         const maxChars = 4000; // Maximum characters for location description
         const editLocationElement = document.querySelector('[data-element="edit_location"]');
@@ -4449,38 +4453,36 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (e.key === 'Enter' || e.keyCode === 13) {
                     // Only handle if contentEditable is explicitly set to "true"
                     const contentEditableAttr = locationDescriptionInput.getAttribute('contentEditable');
-                    console.log('Location Description Enter pressed, contentEditable:', contentEditableAttr);
 
                     if (contentEditableAttr !== 'true') {
-                        console.log('Location Description not editable, ignoring Enter');
                         return; // Don't handle if not explicitly editable
                     }
 
-                    console.log('Location Description handling Enter key');
                     e.preventDefault();
                     e.stopPropagation();
 
                     // Insert a line break at cursor position
                     const selection = window.getSelection();
                     if (!selection || selection.rangeCount === 0) {
-                        console.log('Location Description no selection');
                         return;
                     }
 
                     const range = selection.getRangeAt(0);
                     range.deleteContents();
 
-                    // Insert newline character
-                    const textNode = document.createTextNode('\n');
-                    range.insertNode(textNode);
+                    // Insert a <br> element for visual line break
+                    const br = document.createElement('br');
+                    range.insertNode(br);
 
-                    // Move cursor after the newline
-                    range.setStartAfter(textNode);
-                    range.setEndAfter(textNode);
+                    // Insert a second <br> to ensure proper spacing
+                    const br2 = document.createElement('br');
+                    range.insertNode(br2);
+
+                    // Move cursor after the line breaks
+                    range.setStartAfter(br2);
+                    range.setEndAfter(br2);
                     selection.removeAllRanges();
                     selection.addRange(range);
-
-                    console.log('Location Description newline inserted');
 
                     // Trigger input event to update character count
                     locationDescriptionInput.dispatchEvent(new Event('input'));
@@ -5044,7 +5046,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
             // Handle Enter key for proper line breaks
             hostInput.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') {
+                if (e.key === 'Enter' || e.keyCode === 13) {
                     // Check if field is NOT editable (only block if explicitly false)
                     const contentEditableAttr = hostInput.getAttribute('contentEditable');
                     if (contentEditableAttr === 'false') {
@@ -5052,6 +5054,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
 
                     e.preventDefault();
+                    e.stopPropagation();
 
                     // Insert a line break at cursor position
                     const selection = window.getSelection();
@@ -5060,13 +5063,16 @@ document.addEventListener('DOMContentLoaded', function () {
                     const range = selection.getRangeAt(0);
                     range.deleteContents();
 
-                    // Insert newline character
-                    const textNode = document.createTextNode('\n');
-                    range.insertNode(textNode);
+                    // Insert <br> elements for visual line break
+                    const br = document.createElement('br');
+                    range.insertNode(br);
 
-                    // Move cursor after the newline
-                    range.setStartAfter(textNode);
-                    range.setEndAfter(textNode);
+                    const br2 = document.createElement('br');
+                    range.insertNode(br2);
+
+                    // Move cursor after the line breaks
+                    range.setStartAfter(br2);
+                    range.setEndAfter(br2);
                     selection.removeAllRanges();
                     selection.addRange(range);
 
