@@ -369,14 +369,17 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Update color status based on errors, approval status and listing status
                 const isApprovedForColorStatus = currentData.keysBookingApprovedListing === true;
 
-                if (!currentData.is_active) {
-                    colorStatusElement.style.backgroundColor = 'rgba(255, 0, 0, 0.18)';
-                } else if (!isApprovedForColorStatus) {
-                    colorStatusElement.style.backgroundColor = 'rgba(255, 0, 0, 0.18)';
-                } else if (hasSuggestedSectionErrors) {
-                    colorStatusElement.style.backgroundColor = 'rgba(255, 0, 0, 0.18)';
-                } else {
-                    colorStatusElement.style.backgroundColor = 'rgba(0, 255, 0, 0.18)';
+                // Check if element still exists in DOM before updating
+                if (colorStatusElement && document.body.contains(colorStatusElement)) {
+                    if (!currentData.is_active) {
+                        colorStatusElement.style.backgroundColor = 'rgba(255, 0, 0, 0.18)';
+                    } else if (!isApprovedForColorStatus) {
+                        colorStatusElement.style.backgroundColor = 'rgba(255, 0, 0, 0.18)';
+                    } else if (hasSuggestedSectionErrors) {
+                        colorStatusElement.style.backgroundColor = 'rgba(255, 0, 0, 0.18)';
+                    } else {
+                        colorStatusElement.style.backgroundColor = 'rgba(0, 255, 0, 0.18)';
+                    }
                 }
 
                 // Update tooltip content regardless of visibility
@@ -2743,11 +2746,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
             // Prevent Enter key in title (no multi-line titles)
             titleInput.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') {
+                if (e.key === 'Enter' || e.keyCode === 13) {
                     e.preventDefault();
+                    e.stopPropagation();
                     return false;
                 }
-            });
+            }, true); // Use capture phase to catch it early
 
             // Handle input changes
             titleInput.addEventListener('input', () => {
@@ -2990,16 +2994,18 @@ document.addEventListener('DOMContentLoaded', function () {
 
             // Handle Enter key for proper line breaks
             descriptionInput.addEventListener('keydown', (e) => {
-                // Check if field is editable
-                const isEditable = descriptionInput.contentEditable === 'true' ||
-                    descriptionInput.contentEditable === true;
+                if (e.key === 'Enter') {
+                    // Check if field is NOT editable (only block if explicitly false)
+                    const contentEditableAttr = descriptionInput.getAttribute('contentEditable');
+                    if (contentEditableAttr === 'false') {
+                        return; // Don't handle if not editable
+                    }
 
-                if (e.key === 'Enter' && isEditable) {
                     e.preventDefault();
 
                     // Insert a line break at cursor position
                     const selection = window.getSelection();
-                    if (selection.rangeCount === 0) return;
+                    if (!selection || selection.rangeCount === 0) return;
 
                     const range = selection.getRangeAt(0);
                     range.deleteContents();
@@ -4440,18 +4446,18 @@ document.addEventListener('DOMContentLoaded', function () {
         if (locationDescriptionInput) {
             // Handle Enter key for proper line breaks
             locationDescriptionInput.addEventListener('keydown', (e) => {
-                // Check if field is editable (contentEditable can be 'true' or true)
-                const isEditable = locationDescriptionInput.contentEditable === 'true' ||
-                    locationDescriptionInput.contentEditable === true ||
-                    !locationDescriptionInput.hasAttribute('contentEditable') ||
-                    locationDescriptionInput.getAttribute('contentEditable') === 'true';
+                if (e.key === 'Enter') {
+                    // Check if field is NOT editable (only block if explicitly false)
+                    const contentEditableAttr = locationDescriptionInput.getAttribute('contentEditable');
+                    if (contentEditableAttr === 'false') {
+                        return; // Don't handle if not editable
+                    }
 
-                if (e.key === 'Enter' && isEditable) {
                     e.preventDefault();
 
                     // Insert a line break at cursor position
                     const selection = window.getSelection();
-                    if (selection.rangeCount === 0) return;
+                    if (!selection || selection.rangeCount === 0) return;
 
                     const range = selection.getRangeAt(0);
                     range.deleteContents();
@@ -5028,16 +5034,18 @@ document.addEventListener('DOMContentLoaded', function () {
 
             // Handle Enter key for proper line breaks
             hostInput.addEventListener('keydown', (e) => {
-                // Check if field is editable
-                const isEditable = hostInput.contentEditable === 'true' ||
-                    hostInput.contentEditable === true;
+                if (e.key === 'Enter') {
+                    // Check if field is NOT editable (only block if explicitly false)
+                    const contentEditableAttr = hostInput.getAttribute('contentEditable');
+                    if (contentEditableAttr === 'false') {
+                        return; // Don't handle if not editable
+                    }
 
-                if (e.key === 'Enter' && isEditable) {
                     e.preventDefault();
 
                     // Insert a line break at cursor position
                     const selection = window.getSelection();
-                    if (selection.rangeCount === 0) return;
+                    if (!selection || selection.rangeCount === 0) return;
 
                     const range = selection.getRangeAt(0);
                     range.deleteContents();
