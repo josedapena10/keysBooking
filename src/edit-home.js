@@ -4446,18 +4446,26 @@ document.addEventListener('DOMContentLoaded', function () {
         if (locationDescriptionInput) {
             // Handle Enter key for proper line breaks
             locationDescriptionInput.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') {
-                    // Check if field is NOT editable (only block if explicitly false)
+                if (e.key === 'Enter' || e.keyCode === 13) {
+                    // Only handle if contentEditable is explicitly set to "true"
                     const contentEditableAttr = locationDescriptionInput.getAttribute('contentEditable');
-                    if (contentEditableAttr === 'false') {
-                        return; // Don't handle if not editable
+                    console.log('Location Description Enter pressed, contentEditable:', contentEditableAttr);
+
+                    if (contentEditableAttr !== 'true') {
+                        console.log('Location Description not editable, ignoring Enter');
+                        return; // Don't handle if not explicitly editable
                     }
 
+                    console.log('Location Description handling Enter key');
                     e.preventDefault();
+                    e.stopPropagation();
 
                     // Insert a line break at cursor position
                     const selection = window.getSelection();
-                    if (!selection || selection.rangeCount === 0) return;
+                    if (!selection || selection.rangeCount === 0) {
+                        console.log('Location Description no selection');
+                        return;
+                    }
 
                     const range = selection.getRangeAt(0);
                     range.deleteContents();
@@ -4471,6 +4479,8 @@ document.addEventListener('DOMContentLoaded', function () {
                     range.setEndAfter(textNode);
                     selection.removeAllRanges();
                     selection.addRange(range);
+
+                    console.log('Location Description newline inserted');
 
                     // Trigger input event to update character count
                     locationDescriptionInput.dispatchEvent(new Event('input'));
