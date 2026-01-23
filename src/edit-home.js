@@ -1501,6 +1501,16 @@ document.addEventListener('DOMContentLoaded', function () {
                 modalHeaderText.textContent = `Bedroom ${bedroomNumber}`;
             }
 
+            // Initialize tempBedroomSelections with existing selection if any
+            const existingPhoto = localPhotos.find(p => p.isBedroomPhoto && p.bedroomOrder === bedroomNumber);
+            if (existingPhoto && !tempBedroomSelections[bedroomNumber]) {
+                tempBedroomSelections[bedroomNumber] = {
+                    photoId: existingPhoto.id,
+                    isBedroomPhoto: true,
+                    bedroomOrder: bedroomNumber
+                };
+            }
+
             // Clear existing photo containers
             modalContainer.querySelectorAll('[data-element="bedroomPhotos_photoContainer"]').forEach(container => {
                 if (container !== photoContainer) {
@@ -1816,7 +1826,13 @@ document.addEventListener('DOMContentLoaded', function () {
                 try {
                     // Check if a photo is selected and beds are configured
                     const tempSelection = tempBedroomSelections[currentBedroomNumber];
-                    const selectedPhoto = tempSelection ? localPhotos.find(p => p.id === tempSelection.photoId) : null;
+                    // If no temp selection, check if there's already a photo assigned to this bedroom
+                    let selectedPhoto = tempSelection ? localPhotos.find(p => p.id === tempSelection.photoId) : null;
+                    if (!selectedPhoto) {
+                        // Check if there's already a photo assigned to this bedroom in localPhotos
+                        selectedPhoto = localPhotos.find(p => p.isBedroomPhoto && p.bedroomOrder === currentBedroomNumber);
+                    }
+
                     const hasBeds = Object.values(bedroomBeds[currentBedroomNumber] || {})
                         .some(count => count > 0);
 
@@ -2725,6 +2741,31 @@ document.addEventListener('DOMContentLoaded', function () {
                 });
             }
 
+            // Handle Enter key for proper line breaks
+            titleInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && titleInput.contentEditable === 'true') {
+                    e.preventDefault();
+
+                    // Insert a line break at cursor position
+                    const selection = window.getSelection();
+                    const range = selection.getRangeAt(0);
+                    range.deleteContents();
+
+                    // Insert newline character
+                    const textNode = document.createTextNode('\n');
+                    range.insertNode(textNode);
+
+                    // Move cursor after the newline
+                    range.setStartAfter(textNode);
+                    range.setEndAfter(textNode);
+                    selection.removeAllRanges();
+                    selection.addRange(range);
+
+                    // Trigger input event to update character count
+                    titleInput.dispatchEvent(new Event('input'));
+                }
+            });
+
             // Handle input changes
             titleInput.addEventListener('input', () => {
                 const text = titleInput.innerText;
@@ -2963,6 +3004,31 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
                 });
             }
+
+            // Handle Enter key for proper line breaks
+            descriptionInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && descriptionInput.contentEditable === 'true') {
+                    e.preventDefault();
+
+                    // Insert a line break at cursor position
+                    const selection = window.getSelection();
+                    const range = selection.getRangeAt(0);
+                    range.deleteContents();
+
+                    // Insert newline character
+                    const textNode = document.createTextNode('\n');
+                    range.insertNode(textNode);
+
+                    // Move cursor after the newline
+                    range.setStartAfter(textNode);
+                    range.setEndAfter(textNode);
+                    selection.removeAllRanges();
+                    selection.addRange(range);
+
+                    // Trigger input event to update character count
+                    descriptionInput.dispatchEvent(new Event('input'));
+                }
+            });
 
             // Handle input changes
             descriptionInput.addEventListener('input', () => {
@@ -4383,6 +4449,31 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Add input event listener for location description
         if (locationDescriptionInput) {
+            // Handle Enter key for proper line breaks
+            locationDescriptionInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && locationDescriptionInput.contentEditable === 'true') {
+                    e.preventDefault();
+
+                    // Insert a line break at cursor position
+                    const selection = window.getSelection();
+                    const range = selection.getRangeAt(0);
+                    range.deleteContents();
+
+                    // Insert newline character
+                    const textNode = document.createTextNode('\n');
+                    range.insertNode(textNode);
+
+                    // Move cursor after the newline
+                    range.setStartAfter(textNode);
+                    range.setEndAfter(textNode);
+                    selection.removeAllRanges();
+                    selection.addRange(range);
+
+                    // Trigger input event to update character count
+                    locationDescriptionInput.dispatchEvent(new Event('input'));
+                }
+            });
+
             locationDescriptionInput.addEventListener('input', () => {
                 updateCharacterCount();
                 validateLocationDescription();
@@ -4937,6 +5028,31 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
                 });
             }
+
+            // Handle Enter key for proper line breaks
+            hostInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && hostInput.contentEditable === 'true') {
+                    e.preventDefault();
+
+                    // Insert a line break at cursor position
+                    const selection = window.getSelection();
+                    const range = selection.getRangeAt(0);
+                    range.deleteContents();
+
+                    // Insert newline character
+                    const textNode = document.createTextNode('\n');
+                    range.insertNode(textNode);
+
+                    // Move cursor after the newline
+                    range.setStartAfter(textNode);
+                    range.setEndAfter(textNode);
+                    selection.removeAllRanges();
+                    selection.addRange(range);
+
+                    // Trigger input event to update character count
+                    hostInput.dispatchEvent(new Event('input'));
+                }
+            });
 
             // Handle input changes
             hostInput.addEventListener('input', () => {
@@ -5906,6 +6022,19 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Limit to maximum of 99 days
                 if (parseInt(this.value) > 99) {
                     this.value = '99';
+                }
+            });
+        }
+
+        // Add event listener for min nights input to limit to 999
+        if (minNightsInput) {
+            minNightsInput.addEventListener('input', function () {
+                // Allow only numbers
+                this.value = this.value.replace(/[^0-9]/g, '');
+
+                // Limit to maximum of 999 nights
+                if (parseInt(this.value) > 999) {
+                    this.value = '999';
                 }
             });
         }
