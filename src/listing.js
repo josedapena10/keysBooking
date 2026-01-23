@@ -6386,10 +6386,6 @@ document.addEventListener('DOMContentLoaded', () => {
         // Flag to prevent multiple rapid calls to handleAddToReservation
         this.isAddingToReservation = false;
 
-        // Preload tracking - to prevent flash when opening modal
-        this.isPreloaded = false;
-        this.preloadedBoatData = null;
-
         this.initialize();
       }
 
@@ -6863,104 +6859,6 @@ document.addEventListener('DOMContentLoaded', () => {
           // Update reservation block visibility on resize
           this.updateReservationBlockVisibility();
         });
-
-        // Preload boat details if boatId exists in URL (prevents flash when opening modal)
-        this.preloadBoatDetailsIfNeeded();
-      }
-
-      async preloadBoatDetailsIfNeeded() {
-        // Check if boatId exists in URL
-        const urlParams = new URLSearchParams(window.location.search);
-        const boatId = urlParams.get('boatId');
-
-        if (!boatId) return;
-
-        try {
-          // Load boat parameters from URL
-          const boatGuests = urlParams.get('boatGuests');
-          const boatDates = urlParams.get('boatDates');
-          const boatPickupTime = urlParams.get('boatPickupTime');
-          const boatLengthType = urlParams.get('boatLengthType');
-          const boatPrivateDock = urlParams.get('boatPrivateDock');
-          const boatDelivery = urlParams.get('boatDelivery');
-
-          // Set the service's internal state
-          this.selectedGuests = boatGuests ? parseInt(boatGuests) : 0;
-          this.selectedDates = boatDates ? boatDates.split(',') : [];
-          this.selectedPickupTime = boatPickupTime || '';
-          this.selectedLengthType = boatLengthType || 'full';
-          this.selectedPrivateDock = boatPrivateDock === 'true';
-          this.deliverySelected = boatDelivery === 'true';
-
-          // Update guest number displays
-          if (this.guestNumber) {
-            this.guestNumber.textContent = this.selectedGuests;
-          }
-          if (this.boatDetailsGuestNumber) {
-            this.boatDetailsGuestNumber.textContent = this.selectedGuests;
-          }
-
-          // Fetch boat data
-          const allBoats = await this.fetchBoatOptions();
-          const boat = allBoats.find(b => b.id == boatId);
-
-          if (!boat) return;
-
-          // Store the boat data
-          this.currentBoatData = boat;
-          this.preloadedBoatData = boat;
-
-          // Sync pickup time visual state
-          Object.values(this.boatDetailsPickupTimePills).forEach(pill => {
-            if (pill) {
-              pill.style.borderColor = '';
-              pill.style.borderWidth = '';
-            }
-          });
-
-          if (this.selectedPickupTime && this.boatDetailsPickupTimePills[this.selectedPickupTime]) {
-            this.boatDetailsPickupTimePills[this.selectedPickupTime].style.borderColor = '#000000';
-            this.boatDetailsPickupTimePills[this.selectedPickupTime].style.borderWidth = '2px';
-          }
-
-          // Apply pickup time gating
-          this.applyPickupTimeGating(this.pickupTimePills, false);
-          this.applyPickupTimeGating(this.boatDetailsPickupTimePills, true);
-
-          // Populate the boat details (but keep modal hidden)
-          await this.populateBoatDetails(boat);
-
-          // Handle min days requirement
-          const publicDockDetails = this.getPublicDockDeliveryDetails(boat);
-          const publicDockMinDays = publicDockDetails?.minDays ? Number(publicDockDetails.minDays) : 0;
-          const boatMinDays = boat.minReservationLength || 0;
-
-          let privateDockMinDays = 0;
-          if (this.selectedPrivateDock) {
-            const privateDockDetails = this.getPrivateDockDeliveryDetails(boat);
-            privateDockMinDays = privateDockDetails?.minDays ? Number(privateDockDetails.minDays) : 0;
-          }
-
-          const effectiveMinDays = Math.max(publicDockMinDays, privateDockMinDays, boatMinDays);
-
-          // Hide half-day option if minimum days > 0.5
-          if (effectiveMinDays > 0.5 && this.boatDetailsFullHalfDaysContainer) {
-            this.boatDetailsFullHalfDaysContainer.style.display = 'none';
-            this.selectedLengthType = 'full';
-          } else if (this.boatDetailsFullHalfDaysContainer) {
-            this.boatDetailsFullHalfDaysContainer.style.display = 'flex';
-          }
-
-          // Update mobile footer and other UI elements
-          this.updateMobileFooter(boat);
-          this.updateDatesDoneButtonText();
-          this.updateReservationBlockVisibility();
-
-          // Mark as preloaded
-          this.isPreloaded = true;
-        } catch (error) {
-          // Silently fail - edit button will fetch on demand if preload fails
-        }
       }
 
       setupPropertyDetailsMonitoring() {
@@ -11280,11 +11178,8 @@ document.addEventListener('DOMContentLoaded', () => {
           this.updateBoatDetailsPickupTimeFilterText();
         });
 
-        // Populate the boat details (skip if already preloaded for this boat)
-        const skipPopulation = this.isPreloaded && this.preloadedBoatData && this.preloadedBoatData.id === boat.id;
-        if (!skipPopulation) {
-          await this.populateBoatDetails(boat);
-        }
+        // Populate the boat details
+        await this.populateBoatDetails(boat);
 
         // Handle min days requirement (public dock, private dock if selected, or boat minimum)
         const publicDockDetails = this.getPublicDockDeliveryDetails(boat);
@@ -11327,8 +11222,11 @@ document.addEventListener('DOMContentLoaded', () => {
         // Update reservation block visibility
         this.updateReservationBlockVisibility();
 
-        // Show details wrapper only after everything is populated (prevents flash of unstyled content)
-        this.detailsWrapper.style.display = 'flex';
+        // Use requestAnimationFrame to ensure DOM updates are painted before showing modal
+        // This prevents flash of unstyled content
+        requestAnimationFrame(() => {
+          this.detailsWrapper.style.display = 'flex';
+        });
       }
 
       hideBoatDetails() {
@@ -11732,22 +11630,25 @@ document.addEventListener('DOMContentLoaded', () => {
             if (window.google && window.google.maps) {
               createMap();
             } else {
-              // Check if script is already being loaded
+              // Check if script already exists to avoid duplicates
               const existingScript = document.querySelector(`script[src*="maps.googleapis.com/maps/api/js"]`);
-              if (existingScript) {
-                // Script already exists, wait for it to load
-                if (window.google && window.google.maps) {
-                  createMap();
-                } else {
-                  existingScript.addEventListener('load', createMap);
-                }
-              } else {
+              if (!existingScript) {
                 // Load Google Maps script if not already loaded
                 const script = document.createElement('script');
                 script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}`;
                 script.async = true;
                 script.onload = createMap;
                 document.head.appendChild(script);
+              } else {
+                // Script exists but not loaded yet, wait for it
+                const checkInterval = setInterval(() => {
+                  if (window.google && window.google.maps) {
+                    clearInterval(checkInterval);
+                    createMap();
+                  }
+                }, 100);
+                // Timeout after 10 seconds
+                setTimeout(() => clearInterval(checkInterval), 10000);
               }
             }
 
@@ -11803,22 +11704,25 @@ document.addEventListener('DOMContentLoaded', () => {
           if (window.google && window.google.maps) {
             geocodeAddress();
           } else {
-            // Check if script is already being loaded
+            // Check if script already exists to avoid duplicates
             const existingScript = document.querySelector(`script[src*="maps.googleapis.com/maps/api/js"]`);
-            if (existingScript) {
-              // Script already exists, wait for it to load
-              if (window.google && window.google.maps) {
-                geocodeAddress();
-              } else {
-                existingScript.addEventListener('load', geocodeAddress);
-              }
-            } else {
+            if (!existingScript) {
               // Load Google Maps script first
               const script = document.createElement('script');
               script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}`;
               script.async = true;
               script.onload = geocodeAddress;
               document.head.appendChild(script);
+            } else {
+              // Script exists but not loaded yet, wait for it
+              const checkInterval = setInterval(() => {
+                if (window.google && window.google.maps) {
+                  clearInterval(checkInterval);
+                  geocodeAddress();
+                }
+              }, 100);
+              // Timeout after 10 seconds
+              setTimeout(() => clearInterval(checkInterval), 10000);
             }
           }
 
@@ -15201,17 +15105,9 @@ document.addEventListener('DOMContentLoaded', () => {
             this.boatDetailsGuestNumber.textContent = this.selectedGuests;
           }
 
-          // Check if boat is already preloaded
-          let boatToEdit;
-          if (this.isPreloaded && this.preloadedBoatData && this.preloadedBoatData.id == boatId) {
-            // Use preloaded data
-            boatToEdit = this.preloadedBoatData;
-          } else {
-            // Fetch all boat options to get the complete boat data
-            const allBoats = await this.fetchBoatOptions();
-            // Find the specific boat being edited
-            boatToEdit = allBoats.find(boat => boat.id == boatId);
-          }
+          // Fetch all boat options to get the complete boat data
+          const allBoats = await this.fetchBoatOptions();
+          const boatToEdit = allBoats.find(boat => boat.id == boatId);
 
           if (boatToEdit) {
             // Show modal
