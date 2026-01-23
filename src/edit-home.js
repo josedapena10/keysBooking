@@ -6274,11 +6274,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
             // Check if host taxes data exists and has at least one entry
             const hasTaxData = data._host_taxes && data._host_taxes.length > 0;
-            console.log(hasTaxData);
 
             // Check if listing is approved by keysBooking
             const isApproved = data.keysBookingApprovedListing === true;
-            console.log('Listing approved:', isApproved);
 
             // Check if there are any blocking issues (independent checks, no hierarchy)
             const canPublish = hasTaxData && isApproved;
@@ -6476,8 +6474,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 })
                 .then(response => response.json())
                 .then(data => {
-                    console.log('Property Data:', data);
-
                     const userId = window.Wized.data.r.Load_user.data.id;
 
                     // Check if user is authorized to edit this property
