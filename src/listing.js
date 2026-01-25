@@ -6294,6 +6294,9 @@ document.addEventListener('DOMContentLoaded', () => {
         // Public dock address element
         this.publicDockAddressElement = document.querySelector('[data-element="boatDetails_publicDockAddress"]');
 
+        // No dock text element
+        this.noDockTextElement = document.querySelector('[data-element="boatDetails_noDockText"]');
+
         this.guestsFilter = document.querySelector('[data-element="addBoatModal_selectBoat_guests"]');
         this.guestsFilterText = document.querySelector('[data-element="addBoatModal_selectBoat_guestsText"]');
         this.guestsPopup = document.querySelector('[data-element="addBoatModal_selectBoat_guestsPopup"]');
@@ -6779,6 +6782,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Initially hide private dock filter - will be shown only if conditions are met
         if (this.privateDockFilter) this.privateDockFilter.style.display = 'none';
+
+        // Initially hide no dock text - will be shown only if property has no private dock
+        if (this.noDockTextElement) this.noDockTextElement.style.display = 'none';
 
         // Add click handlers for all buttons
         this.buttons.forEach(button => {
@@ -13353,7 +13359,16 @@ document.addEventListener('DOMContentLoaded', () => {
           if (blockElement) {
             blockElement.style.display = 'none';
           }
+          // Show no dock text when property has no private dock
+          if (this.noDockTextElement) {
+            this.noDockTextElement.style.display = 'flex';
+          }
           return;
+        }
+
+        // Property has private dock - hide no dock text
+        if (this.noDockTextElement) {
+          this.noDockTextElement.style.display = 'none';
         }
 
         // If property stay doesn't meet minimum, hide completely
