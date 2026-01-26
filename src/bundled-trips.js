@@ -318,6 +318,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Show container and set up elements
                 detailsContainer.style.display = 'flex';
                 detailsText.style.display = 'none';
+                detailsText.style.whiteSpace = 'pre-wrap'; // Preserve line breaks and spaces
                 detailsText.textContent = trip.details_text;
                 detailsButton.textContent = 'Show Trip Details';
 
