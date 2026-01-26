@@ -309,6 +309,36 @@ document.addEventListener('DOMContentLoaded', () => {
             // visit page button
             setButtonLink(card.querySelector('[data-element="card_visitPage_button"]'), trip?.trip_link, trip?.trip_name || '');
 
+            // trip details toggle
+            const detailsContainer = card.querySelector('[data-element="detailsText_container"]');
+            const detailsButton = card.querySelector('[data-element="detailsText_button"]');
+            const detailsText = card.querySelector('[data-element="detailsText_text"]');
+
+            if (trip?.details_text && detailsContainer && detailsButton && detailsText) {
+                // Show container and set up elements
+                detailsContainer.style.display = 'flex';
+                detailsText.style.display = 'none';
+                detailsText.textContent = trip.details_text;
+                detailsButton.textContent = 'Show Trip Details';
+
+                // Add click handler for toggle
+                detailsButton.style.cursor = 'pointer';
+                detailsButton.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const isHidden = detailsText.style.display === 'none';
+                    if (isHidden) {
+                        detailsText.style.display = 'block';
+                        detailsButton.textContent = 'Hide Trip Details';
+                    } else {
+                        detailsText.style.display = 'none';
+                        detailsButton.textContent = 'Show Trip Details';
+                    }
+                });
+            } else if (detailsContainer) {
+                // Hide container if no details_text
+                detailsContainer.style.display = 'none';
+            }
+
             cardsContainer.appendChild(card);
 
             // defer truncation until after layout
