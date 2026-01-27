@@ -320,7 +320,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 detailsText.style.display = 'none';
                 detailsText.style.whiteSpace = 'pre-wrap'; // Preserve line breaks and spaces
                 detailsText.textContent = trip.details_text;
-                detailsButton.textContent = 'Show Trip Details';
+                detailsButton.textContent = 'Show Trip Details ▼';
 
                 // Add click handler for toggle
                 detailsButton.style.cursor = 'pointer';
@@ -329,10 +329,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     const isHidden = detailsText.style.display === 'none';
                     if (isHidden) {
                         detailsText.style.display = 'block';
-                        detailsButton.textContent = 'Hide Trip Details';
+                        detailsButton.textContent = 'Hide Trip Details ▲';
                     } else {
                         detailsText.style.display = 'none';
-                        detailsButton.textContent = 'Show Trip Details';
+                        detailsButton.textContent = 'Show Trip Details ▼';
                     }
                 });
             } else if (detailsContainer) {
