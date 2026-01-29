@@ -397,6 +397,20 @@ document.addEventListener('DOMContentLoaded', () => {
             setLoading(false);
             console.error('Failed to load bundled trips', err);
         });
+
+    // Learn More button click handler
+    const learnMoreButton = document.querySelector('[data-element="learnMore_button"]');
+    if (learnMoreButton) {
+        learnMoreButton.addEventListener('click', (e) => {
+            e.preventDefault();
+            logEvent({
+                on_link_click: true,
+                link_clicked: '/help',
+                link_clicked_trip_name: 'Learn More'
+            });
+            window.open('/help', '_blank', 'noopener');
+        });
+    }
 });
 
 
