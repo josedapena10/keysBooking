@@ -1204,10 +1204,6 @@ document.addEventListener('DOMContentLoaded', function () {
   window.Wized = window.Wized || [];
   window.Wized.push((async (Wized) => {
     // Wait for required data
-    console.log('[StayCalendar DEBUG] Waiting for Load_Property_Calendar_Disabled...');
-    console.log('[StayCalendar DEBUG] Current URL:', window.location.href);
-    console.log('[StayCalendar DEBUG] URL has extras?', window.location.search.includes('boatId') || window.location.search.includes('fishingCharterId'));
-
     await Wized.requests.waitFor('Load_Property_Calendar_Disabled');
     await Wized.requests.waitFor('Load_Property_Details');
 
@@ -1216,14 +1212,6 @@ document.addEventListener('DOMContentLoaded', function () {
     let propertyData = Wized.data.r.Load_Property_Details.data.property;
     const CUSTOM_MIN_NIGHTS_ENDPOINT = 'https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/property_calendar_customMinNights';
 
-    // DEBUG: Log the calendar data received
-    console.log('[StayCalendar DEBUG] Calendar data received:', {
-      hasData: !!calendarData,
-      hasDataArray: !!(calendarData && calendarData.data),
-      dataLength: calendarData?.data?.length || 0,
-      firstFewItems: calendarData?.data?.slice(0, 5),
-      allDates: calendarData?.data?.map(item => item.date).slice(0, 20)
-    });
 
     // Get DOM elements
     const checkInInput = document.querySelector('[data-element="checkInInput"]');
@@ -1260,11 +1248,6 @@ document.addEventListener('DOMContentLoaded', function () {
         customMinNightsByDate.set(item.date, item.custom_minNights);
       }
     });
-
-    // DEBUG: Log disabled dates after initial population
-    console.log('[StayCalendar DEBUG] Initial disabledDates count:', disabledDates.size);
-    console.log('[StayCalendar DEBUG] Initial disabled dates (first 20):', Array.from(disabledDates).slice(0, 20));
-    console.log('[StayCalendar DEBUG] checkoutOnlyDates count:', checkoutOnlyDates.size);
 
     async function hydrateCustomMinNights(currentPropertyData) {
       const propertyId = currentPropertyData?.id || currentPropertyData?.property_id;
@@ -1549,13 +1532,8 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // Mark small gaps as unavailable
-    console.log('[StayCalendar DEBUG] About to call hydrateCustomMinNights');
     await hydrateCustomMinNights(propertyData);
-    console.log('[StayCalendar DEBUG] After hydrateCustomMinNights - disabledDates count:', disabledDates.size);
-    console.log('[StayCalendar DEBUG] About to call markSmallGapsAsUnavailable');
     markSmallGapsAsUnavailable();
-    console.log('[StayCalendar DEBUG] After markSmallGapsAsUnavailable - disabledDates count:', disabledDates.size);
-    console.log('[StayCalendar DEBUG] disabledDates after processing (first 30):', Array.from(disabledDates).sort().slice(0, 30));
 
     // Helper function to check if a date has valid checkout options
     function getEffectiveMinNightsForDate(date) {
@@ -1625,12 +1603,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Ensure latest availability data is applied before rendering calendars
     async function refreshStayCalendarData(resetViewToSelectedDate = false) {
-      console.log('[StayCalendar DEBUG] refreshStayCalendarData called, resetViewToSelectedDate:', resetViewToSelectedDate);
-
-      if (isRefreshingCalendarData) {
-        console.log('[StayCalendar DEBUG] refreshStayCalendarData - already refreshing, returning early');
-        return;
-      }
+      if (isRefreshingCalendarData) return;
       isRefreshingCalendarData = true;
 
       try {
@@ -1642,11 +1615,8 @@ document.addEventListener('DOMContentLoaded', function () {
           Wized.data.r.Load_Property_Details &&
           Wized.data.r.Load_Property_Details.data;
 
-        console.log('[StayCalendar DEBUG] refreshStayCalendarData - hasDisabledData:', hasDisabledData, 'hasPropertyDetails:', hasPropertyDetails);
-
         // If disabled dates aren't loaded (or were cleared by another flow), fetch them again
         if (!hasDisabledData && Wized.requests && typeof Wized.requests.execute === 'function') {
-          console.log('[StayCalendar DEBUG] refreshStayCalendarData - executing Load_Property_Calendar_Disabled');
           Wized.requests.execute('Load_Property_Calendar_Disabled');
         }
 
@@ -1667,9 +1637,6 @@ document.addEventListener('DOMContentLoaded', function () {
           Wized.data.r.Load_Property_Details.data.property) {
           propertyData = Wized.data.r.Load_Property_Details.data.property;
         }
-
-        console.log('[StayCalendar DEBUG] refreshStayCalendarData - calendarData.data.length:', calendarData?.data?.length);
-        console.log('[StayCalendar DEBUG] refreshStayCalendarData - first 10 dates from data:', calendarData?.data?.slice(0, 10).map(d => d.date));
 
         // Mark custom min nights as loading to prevent validation from using stale data
         window.customMinNightsLoaded = false;
@@ -1692,9 +1659,6 @@ document.addEventListener('DOMContentLoaded', function () {
           });
         }
 
-        console.log('[StayCalendar DEBUG] refreshStayCalendarData - disabledDates count after rebuild:', disabledDates.size);
-        console.log('[StayCalendar DEBUG] refreshStayCalendarData - disabledDates (first 20):', Array.from(disabledDates).slice(0, 20));
-
         // Fetch custom min nights from availability endpoint as well
         await hydrateCustomMinNights(propertyData);
 
@@ -1703,8 +1667,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Recompute derived state and re-render calendars
         markSmallGapsAsUnavailable();
-        console.log('[StayCalendar DEBUG] refreshStayCalendarData - disabledDates count after markSmallGapsAsUnavailable:', disabledDates.size);
-
         markUnclickableCheckInDates();
         createCalendar(resetViewToSelectedDate);
         createMobileCalendar();
