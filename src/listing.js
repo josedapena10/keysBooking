@@ -481,10 +481,13 @@ document.addEventListener('DOMContentLoaded', () => {
       let max_guests = Wized.data.v.max_guests;
       let max_infants = 5;
       let max_pets = 2;
-      let pet_policy = Wized.data.v.pets_allowed; // Retrieve pet policy
+
+      // Get pet_policy from propertyData instead of Wized.data.v
+      const propertyData = Wized.data.r.Load_Property_Details?.data?.property;
+      let pet_policy = propertyData?.pets_allowed;
       console.log('🐾 DEBUG pet_policy value:', pet_policy);
       console.log('🐾 DEBUG pet_policy type:', typeof pet_policy);
-      console.log('🐾 DEBUG Wized.data.v.pets_allowed raw:', Wized.data.v.pets_allowed);
+      console.log('🐾 DEBUG propertyData.pets_allowed:', propertyData?.pets_allowed);
 
       // Add guest count display elements
       let guestCountDisplays = {
