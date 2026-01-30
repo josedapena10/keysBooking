@@ -482,12 +482,9 @@ document.addEventListener('DOMContentLoaded', () => {
       let max_infants = 5;
       let max_pets = 2;
 
-      // Get pet_policy from propertyData instead of Wized.data.v
+      // Get pet_policy from propertyData
       const propertyData = Wized.data.r.Load_Property_Details?.data?.property;
       let pet_policy = propertyData?.pets_allowed;
-      console.log('🐾 DEBUG pet_policy value:', pet_policy);
-      console.log('🐾 DEBUG pet_policy type:', typeof pet_policy);
-      console.log('🐾 DEBUG propertyData.pets_allowed:', propertyData?.pets_allowed);
 
       // Add guest count display elements
       let guestCountDisplays = {
@@ -524,12 +521,8 @@ document.addEventListener('DOMContentLoaded', () => {
       updateAllButtonStates();
       updateGuestsParameter();
 
-      console.log('🐾 DEBUG checking !pet_policy:', !pet_policy);
       if (!pet_policy) {
-        console.log('🐾 DEBUG: Entering disablePetButtons because pet_policy is falsy');
         disablePetButtons(); // Disable pet buttons if pets are not allowed
-      } else {
-        console.log('🐾 DEBUG: pet_policy is truthy, NOT disabling buttons');
       }
 
       // Add event listeners for both desktop and phone buttons
@@ -630,13 +623,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Ensure pet buttons remain disabled and at reduced opacity if pets are not allowed
         if (!pet_policy) {
-          console.log('🐾 DEBUG updateAllButtonStates: pet_policy still falsy, calling disablePetButtons');
           disablePetButtons();
         }
       }
 
       function disablePetButtons() {
-        console.log('🐾 DEBUG: disablePetButtons() CALLED - disabling all pet buttons');
         plusButtons.petsDesktop.disabled = true;
         minusButtons.petsDesktop.disabled = true;
         plusButtons.petsPhone.disabled = true;
