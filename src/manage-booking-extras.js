@@ -2,6 +2,10 @@
 // API Base URL
 const API_BASE = 'https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX';
 
+// Track terms checkbox state
+let termsCheckboxClicked = false;
+let termsAlreadyAccepted = false;
+
 // =============================================================================
 // 1) URL PARSING
 // =============================================================================
@@ -475,6 +479,86 @@ async function postHostEdits(params) {
     return result;
 }
 
+async function postBoatAcceptedTerms(boatCompanyId) {
+    const url = `${API_BASE}/boat_rental_accepted_terms`;
+    const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ boat_company_id: boatCompanyId })
+    });
+
+    if (!response.ok) {
+        throw new Error('Failed to accept terms');
+    }
+
+    return await response.json();
+}
+
+async function postCharterAcceptedTerms(fishingCharterId) {
+    const url = `${API_BASE}/fishing_charter_accepted_terms`;
+    const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ fishing_charter_id: fishingCharterId })
+    });
+
+    if (!response.ok) {
+        throw new Error('Failed to accept terms');
+    }
+
+    return await response.json();
+}
+
+// =============================================================================
+// TERMS ACCEPTANCE HANDLING
+// =============================================================================
+
+function setupTermsContainer(accepted) {
+    // Reset checkbox state for each page load
+    termsCheckboxClicked = false;
+    termsAlreadyAccepted = accepted;
+
+    const termsContainer = document.querySelector('[data-element="terms_container"]');
+    const termsCheckbox = document.querySelector('[data-element="terms_checkbox"]');
+
+    if (!termsContainer) return;
+
+    if (accepted) {
+        termsContainer.style.display = 'none';
+    } else {
+        termsContainer.style.display = 'flex';
+
+        // Setup checkbox click handler
+        if (termsCheckbox) {
+            // Reset checkbox visual state
+            termsCheckbox.style.backgroundColor = '';
+
+            termsCheckbox.onclick = () => {
+                termsCheckboxClicked = !termsCheckboxClicked;
+                termsCheckbox.style.backgroundColor = termsCheckboxClicked ? 'black' : '';
+            };
+        }
+    }
+}
+
+function canProceedWithAction() {
+    // If terms already accepted by company, allow action
+    if (termsAlreadyAccepted) {
+        return true;
+    }
+    // If terms not accepted, check if checkbox was clicked
+    if (termsCheckboxClicked) {
+        return true;
+    }
+    // Show alert and prevent action
+    alert('Please accept the terms and conditions before proceeding.');
+    return false;
+}
+
 // =============================================================================
 // 4) STATE DETERMINATION
 // =============================================================================
@@ -625,6 +709,10 @@ function renderBoatRental(piData, resCodeData, linkState) {
     // Show boat sections
     showFlex('manageBooking_requestDetails_boat');
     showFlex('manageBooking_customerDetails_boat');
+
+    // Setup terms container based on accepted_terms
+    const boatCompanyTermsAccepted = piData._boat?.__boatcompany?.accepted_terms || false;
+    setupTermsContainer(boatCompanyTermsAccepted);
 
     // Render summary
     renderBoatSummary(piData, resCodeData, statusVariant);
@@ -1092,6 +1180,7 @@ function renderBoatCustomerDetails(piData, resCodeData, statusVariant, linkState
 
 function renderBoatManageActions(piData, statusVariant) {
     const { paymentIntentId } = window.currentPageData || {};
+    const boatCompanyId = piData._boat?.__boatcompany?.id;
 
     // Hide all by default
     hide('manageBooking_acceptButton');
@@ -1109,8 +1198,19 @@ function renderBoatManageActions(piData, statusVariant) {
         const acceptBtn = document.querySelector('[data-element="manageBooking_acceptButton"]');
         if (acceptBtn) {
             acceptBtn.onclick = async () => {
+                // Check if terms can proceed
+                if (!canProceedWithAction()) {
+                    return;
+                }
+
                 try {
                     showLoader('Accepting reservation...');
+
+                    // If terms weren't already accepted, send POST to accept them
+                    if (!termsAlreadyAccepted && boatCompanyId) {
+                        await postBoatAcceptedTerms(boatCompanyId);
+                    }
+
                     await postHostEdits({
                         boatRental: true,
                         extras_paymentIntentId: piData.id,
@@ -1130,6 +1230,11 @@ function renderBoatManageActions(piData, statusVariant) {
         const declineBtn = document.querySelector('[data-element="manageBooking_declineButton"]');
         if (declineBtn) {
             declineBtn.onclick = () => {
+                // Check if terms can proceed
+                if (!canProceedWithAction()) {
+                    return;
+                }
+
                 showFlex('manageBooking_declineCancelTextBox');
                 showFlex('manageBooking_confirmDeclineCancelButton');
                 showFlex('manageBooking_confirmDeclineCancelButton_text');
@@ -1149,6 +1254,12 @@ function renderBoatManageActions(piData, statusVariant) {
             confirmBtn.onclick = async () => {
                 try {
                     showLoader('Declining reservation...');
+
+                    // If terms weren't already accepted, send POST to accept them
+                    if (!termsAlreadyAccepted && boatCompanyId) {
+                        await postBoatAcceptedTerms(boatCompanyId);
+                    }
+
                     // Get the textbox value
                     const textBox = document.querySelector('[data-element="manageBooking_declineCancelTextBox"]');
                     const textBoxValue = textBox ? textBox.value : '';
@@ -1425,6 +1536,10 @@ function renderFishingCharter(piData, resCodeData, linkState, charterId, tripId,
     // Show charter sections
     showFlex('manageBooking_requestDetails_charter');
     showFlex('manageBooking_customerDetails_fishingCharter');
+
+    // Setup terms container based on accepted_terms
+    const charterTermsAccepted = charterEntry._fishingcharter?.accepted_terms || false;
+    setupTermsContainer(charterTermsAccepted);
 
     // Render summary
     renderCharterSummary(piData, resCodeData, charterEntry, statusVariant);
@@ -1789,6 +1904,7 @@ function renderCharterManageActions(piData, charterEntry, statusVariant) {
     hide('manageBooking_confirmDeclineCancelButton');
 
     const { allCharters, charterId, tripId, firstDate } = window.currentPageData || {};
+    const fishingCharterId = charterEntry._fishingcharter?.id;
 
     if (statusVariant === 'request') {
         // Show Accept and Decline
@@ -1799,8 +1915,18 @@ function renderCharterManageActions(piData, charterEntry, statusVariant) {
         const acceptBtn = document.querySelector('[data-element="manageBooking_acceptButton"]');
         if (acceptBtn) {
             acceptBtn.onclick = async () => {
+                // Check if terms can proceed
+                if (!canProceedWithAction()) {
+                    return;
+                }
+
                 try {
                     showLoader('Accepting reservation...');
+
+                    // If terms weren't already accepted, send POST to accept them
+                    if (!termsAlreadyAccepted && fishingCharterId) {
+                        await postCharterAcceptedTerms(fishingCharterId);
+                    }
 
                     const updatedCharters = allCharters.map(c => {
                         // Get first date from this charter's dates
@@ -1844,6 +1970,11 @@ function renderCharterManageActions(piData, charterEntry, statusVariant) {
         const declineBtn = document.querySelector('[data-element="manageBooking_declineButton"]');
         if (declineBtn) {
             declineBtn.onclick = () => {
+                // Check if terms can proceed
+                if (!canProceedWithAction()) {
+                    return;
+                }
+
                 showFlex('manageBooking_declineCancelTextBox');
                 showFlex('manageBooking_confirmDeclineCancelButton');
                 showFlex('manageBooking_confirmDeclineCancelButton_text');
@@ -1863,6 +1994,12 @@ function renderCharterManageActions(piData, charterEntry, statusVariant) {
             confirmBtn.onclick = async () => {
                 try {
                     showLoader('Declining reservation...');
+
+                    // If terms weren't already accepted, send POST to accept them
+                    if (!termsAlreadyAccepted && fishingCharterId) {
+                        await postCharterAcceptedTerms(fishingCharterId);
+                    }
+
                     // Get the textbox value
                     const textBox = document.querySelector('[data-element="manageBooking_declineCancelTextBox"]');
                     const textBoxValue = textBox ? textBox.value : '';
@@ -2076,7 +2213,11 @@ function hideAllContent() {
         'manageBooking_cancelReservationButton',
         'manageBooking_declineCancelTextBox',
         'manageBooking_confirmDeclineCancelButton',
-        'manageBooking_confirmDeclineCancelButton_text'
+        'manageBooking_confirmDeclineCancelButton_text',
+
+        // Terms section
+        'terms_container',
+        'terms_checkbox'
     ];
 
     allElements.forEach(hide);
