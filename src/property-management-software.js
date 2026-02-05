@@ -70,6 +70,35 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // PMS Integrations functionality
 document.addEventListener('DOMContentLoaded', async function () {
+    // Check if user is signed in via Wized
+    window.Wized = window.Wized || [];
+    window.Wized.push((async (Wized) => {
+        // Check if user is signed in via c.token
+        const hasToken = Wized.data?.c?.token;
+
+        if (!hasToken) {
+            // User is not signed in, redirect to host home
+            window.location.href = '/host/home';
+            return;
+        }
+
+        // Wait for Load_user to verify auth
+        try {
+            await Wized.requests.waitFor('Load_user');
+            const userLoadStatus = Wized.data.r.Load_user?.status;
+
+            if (userLoadStatus !== 200) {
+                // User auth failed, redirect to host home
+                window.location.href = '/host/home';
+                return;
+            }
+        } catch (error) {
+            console.error('Error loading user:', error);
+            window.location.href = '/host/home';
+            return;
+        }
+    }));
+
     const loader = document.querySelector('[data-element="loader"]');
     const pmsModal = document.querySelector('[data-element="PMS_modal"]');
     const pmsCloseButton = document.querySelector('[data-element="PMS_closeButton"]');
