@@ -371,11 +371,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const referenceRaw = params.get('reference') || '';
             const referenceNormalized = normalizeForMatch(referenceRaw);
 
-            // baseline order: soonest publish_date first
+            // baseline order: most recent publish_date first
             const sorted = [...activeTrips].sort((a, b) => {
-                const da = a?.publish_date ? new Date(a.publish_date).getTime() : Infinity;
-                const db = b?.publish_date ? new Date(b.publish_date).getTime() : Infinity;
-                return da - db;
+                const da = a?.publish_date ? new Date(a.publish_date).getTime() : -Infinity;
+                const db = b?.publish_date ? new Date(b.publish_date).getTime() : -Infinity;
+                return db - da;
             });
 
             let tripsToRender = sorted;
