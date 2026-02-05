@@ -364,12 +364,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
+            // Filter to only include active trips
+            const activeTrips = data.filter(trip => trip?.active === true);
+
             const params = new URLSearchParams(window.location.search);
             const referenceRaw = params.get('reference') || '';
             const referenceNormalized = normalizeForMatch(referenceRaw);
 
             // baseline order: soonest publish_date first
-            const sorted = [...data].sort((a, b) => {
+            const sorted = [...activeTrips].sort((a, b) => {
                 const da = a?.publish_date ? new Date(a.publish_date).getTime() : Infinity;
                 const db = b?.publish_date ? new Date(b.publish_date).getTime() : Infinity;
                 return da - db;
