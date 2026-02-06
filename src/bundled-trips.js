@@ -356,6 +356,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     setLoading(true);
 
+    // Parse reference from URL (used for on-load and button click events)
+    const params = new URLSearchParams(window.location.search);
+    const referenceRaw = params.get('reference') || '';
+    const referenceNormalized = normalizeForMatch(referenceRaw);
+
     fetch(apiUrl)
         .then((res) => res.json())
         .then((data) => {
@@ -366,10 +371,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Filter to only include active trips
             const activeTrips = data.filter(trip => trip?.active === true);
-
-            const params = new URLSearchParams(window.location.search);
-            const referenceRaw = params.get('reference') || '';
-            const referenceNormalized = normalizeForMatch(referenceRaw);
 
             // baseline order: most recent publish_date first
             const sorted = [...activeTrips].sort((a, b) => {
@@ -409,9 +410,27 @@ document.addEventListener('DOMContentLoaded', () => {
             logEvent({
                 on_link_click: true,
                 link_clicked: '/help',
-                link_clicked_trip_name: 'Learn More'
+                link_clicked_trip_name: 'Learn More',
+                link_used: referenceRaw,
+                linked_used_name: referenceNormalized ? toTitleLike(referenceRaw) : ''
             });
             window.open('/help', '_blank', 'noopener');
+        });
+    }
+
+    // Browse Stays button click handler
+    const browseStaysButton = document.querySelector('[data-element="browseStays_button"]');
+    if (browseStaysButton) {
+        browseStaysButton.addEventListener('click', (e) => {
+            e.preventDefault();
+            logEvent({
+                on_link_click: true,
+                link_clicked: '/',
+                link_clicked_trip_name: 'Browse Stays',
+                link_used: referenceRaw,
+                linked_used_name: referenceNormalized ? toTitleLike(referenceRaw) : ''
+            });
+            window.location.href = '/';
         });
     }
 });
