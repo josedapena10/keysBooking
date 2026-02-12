@@ -4399,10 +4399,15 @@ document.addEventListener('DOMContentLoaded', function () {
 
         if (endDateContainer) {
             endDateContainer.addEventListener('click', function () {
-                // If user just typed start date and clicked end without blur, sync from start input first
-                const startInput = document.getElementById('start-date-input');
-                const hadStartValue = startInput && startInput.isConnected && startInput.value.trim() !== '';
-                if (hadStartValue) {
+                // Find start input from the visible container (more reliable than getElementById after re-open)
+                const startDateContainerEl = document.querySelector('[data-element="toolbarEdit_customDates_editDates_startDateContainer"]');
+                const startInput = startDateContainerEl
+                    ? startDateContainerEl.querySelector('#start-date-input') || startDateContainerEl.querySelector('input.date-input') || startDateContainerEl.querySelector('input')
+                    : document.getElementById('start-date-input');
+                const startValue = (startInput && startInput.value && startInput.value.trim()) || '';
+                const hadStartValue = startValue !== '';
+
+                if (hadStartValue && startInput) {
                     // Clear previous end so validation doesn't reject the new start (e.g. when adding a second range)
                     const previousEnd = selectedEndDate;
                     selectedEndDate = null;
@@ -4413,7 +4418,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
 
                 // Only create input if not already present and start date is selected
-                if (!document.getElementById('end-date-input') && selectedStartDate) {
+                const endDateContainerEl = document.querySelector('[data-element="toolbarEdit_customDates_editDates_endDateContainer"]');
+                const existingEndInput = endDateContainerEl ? endDateContainerEl.querySelector('#end-date-input, input.date-input, input') : document.getElementById('end-date-input');
+                if (!existingEndInput && selectedStartDate) {
                     createDateInput(endDateContainer, false);
                 } else if (!selectedStartDate) {
                     if (hadStartValue) {
