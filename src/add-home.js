@@ -2069,6 +2069,27 @@ function validatePhotos() {
 // Initial step on page load
 document.addEventListener('DOMContentLoaded', () => {
 
+    // Ensure contentEditable inputs (title, description) use proper line breaks and stack vertically
+    if (!document.getElementById('contenteditable-linebreak-styles')) {
+        const style = document.createElement('style');
+        style.id = 'contenteditable-linebreak-styles';
+        style.textContent = `
+            [data-element="title_input"],
+            [data-element="description_input"] {
+                display: block !important;
+            }
+            [data-element="title_input"] div,
+            [data-element="title_input"] p,
+            [data-element="description_input"] div,
+            [data-element="description_input"] p {
+                display: block !important;
+                width: 100% !important;
+                margin: 0 0 0.35em 0;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
     // Hide the error elements initially
     const basicsError = document.getElementById('basics-error');
     const locationError = document.getElementById('location-error');
@@ -3540,6 +3561,24 @@ function initializeTitleStep() {
         descriptionInputField.style.padding = '10px';
         descriptionInputField.style.outline = 'none';
         descriptionInputField.style.caretColor = 'auto'; // Ensure cursor is always visible
+        descriptionInputField.style.display = 'block';
+
+        // Enter key: insert line break instead of default block (avoids inline-like divs)
+        descriptionInputField.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                document.execCommand('insertLineBreak');
+            }
+        });
+
+        // Paste: normalize to plain text with newlines as line breaks
+        descriptionInputField.addEventListener('paste', (e) => {
+            e.preventDefault();
+            const text = (e.clipboardData?.getData('text/plain') || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+            const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+            const html = escaped.replace(/\n/g, '<br>');
+            document.execCommand('insertHTML', false, html);
+        });
 
         // Initialize character count display with existing text if any
         const existingText = listingData.title || '';
@@ -3623,6 +3662,24 @@ function initializeDescriptionStep() {
         descriptionInputField.style.padding = '10px';
         descriptionInputField.style.outline = 'none';
         descriptionInputField.style.caretColor = 'auto'; // Ensure cursor is always visible
+        descriptionInputField.style.display = 'block';
+
+        // Enter key: insert line break instead of default block (avoids inline-like divs)
+        descriptionInputField.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                document.execCommand('insertLineBreak');
+            }
+        });
+
+        // Paste: normalize to plain text with newlines as line breaks
+        descriptionInputField.addEventListener('paste', (e) => {
+            e.preventDefault();
+            const text = (e.clipboardData?.getData('text/plain') || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+            const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+            const html = escaped.replace(/\n/g, '<br>');
+            document.execCommand('insertHTML', false, html);
+        });
 
         // Initialize character count display with existing text if any
         const existingText = listingData.description || '';
