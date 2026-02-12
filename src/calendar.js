@@ -247,6 +247,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
     let calendarEvents = [];
     let calendar = null;
+
+    // Request cancellation and debouncing for fetchCalendarData
+    let fetchCalendarDataAbortController = null;
+    let fetchCalendarDataDebounceTimer = null;
+    let fetchCalendarDataInProgress = false;
     let lastAvailableDate = null; // Track the last available date from API
     let propertiesData = []; // Store all properties data
     let hostReservations = []; // Store host reservations data
@@ -349,6 +354,18 @@ document.addEventListener('DOMContentLoaded', function () {
             return;
         }
 
+        // Cancel any pending request
+        if (fetchCalendarDataAbortController) {
+            fetchCalendarDataAbortController.abort();
+        }
+
+        // Create new AbortController for this request
+        fetchCalendarDataAbortController = new AbortController();
+        const signal = fetchCalendarDataAbortController.signal;
+
+        // Set in-progress flag
+        fetchCalendarDataInProgress = true;
+
         // Clear any selected dates when switching properties
         if (selectedPropertyId) {
             // Check if we're coming from a calendar connection save
@@ -370,8 +387,14 @@ document.addEventListener('DOMContentLoaded', function () {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json'
-                }
+                },
+                signal: signal
             });
+
+            // Check if request was aborted
+            if (signal.aborted) {
+                return;
+            }
 
             if (!response.ok) {
                 window.location.href = '/host/dashboard';
@@ -379,6 +402,11 @@ document.addEventListener('DOMContentLoaded', function () {
             }
 
             const data = await response.json();
+
+            // Check again if request was aborted after async operation
+            if (signal.aborted) {
+                return;
+            }
 
             // Store properties data
             if (data.properties && data.properties.length > 0) {
@@ -423,10 +451,64 @@ document.addEventListener('DOMContentLoaded', function () {
             // After calendar data is loaded, hide months beyond 2 years
             setTimeout(hideMonthsBeyondTwoYears, 100);
         } catch (error) {
-            console.error('Error fetching calendar data:', error);
-            initializeCalendar(); // Initialize calendar even if there's an error
-            hideLoaderIfReady();
+            // Don't log errors for aborted requests
+            if (error.name !== 'AbortError') {
+                console.error('Error fetching calendar data:', error);
+            }
+            // Only initialize calendar if request wasn't aborted
+            if (!signal.aborted) {
+                initializeCalendar(); // Initialize calendar even if there's an error
+                hideLoaderIfReady();
+            }
+        } finally {
+            // Clear in-progress flag and abort controller if this was the active request
+            if (fetchCalendarDataAbortController === signal) {
+                fetchCalendarDataInProgress = false;
+                fetchCalendarDataAbortController = null;
+            }
         }
+    }
+
+    // Debounced version of fetchCalendarData for property switching
+    // Stores the latest callback to execute after the fetch completes
+    let fetchCalendarDataPendingCallback = null;
+    
+    function fetchCalendarDataDebounced(selectedPropertyId, delay = 300, callback = null) {
+        // Clear existing debounce timer
+        if (fetchCalendarDataDebounceTimer) {
+            clearTimeout(fetchCalendarDataDebounceTimer);
+        }
+
+        // Cancel any pending request
+        if (fetchCalendarDataAbortController) {
+            fetchCalendarDataAbortController.abort();
+        }
+
+        // Store the latest callback
+        if (callback) {
+            fetchCalendarDataPendingCallback = callback;
+        }
+
+        // Set new debounce timer
+        fetchCalendarDataDebounceTimer = setTimeout(async () => {
+            fetchCalendarDataDebounceTimer = null;
+            try {
+                await fetchCalendarData(selectedPropertyId);
+                // Execute the pending callback if it exists
+                if (fetchCalendarDataPendingCallback) {
+                    const cb = fetchCalendarDataPendingCallback;
+                    fetchCalendarDataPendingCallback = null;
+                    cb();
+                }
+            } catch (error) {
+                // Execute callback even on error (but clear it)
+                if (fetchCalendarDataPendingCallback) {
+                    const cb = fetchCalendarDataPendingCallback;
+                    fetchCalendarDataPendingCallback = null;
+                    cb();
+                }
+            }
+        }, delay);
     }
 
     // Function to merge adjacent or overlapping date ranges
@@ -6868,8 +6950,8 @@ document.addEventListener('DOMContentLoaded', function () {
                                 url.searchParams.set('property_id', selectedPropertyId);
                                 window.history.pushState({}, '', url);
 
-                                // Fetch calendar data with the selected property ID
-                                fetchCalendarData(selectedPropertyId).then(() => {
+                                // Fetch calendar data with the selected property ID (debounced to prevent rapid-fire requests)
+                                fetchCalendarDataDebounced(selectedPropertyId, 300, () => {
                                     // Update the name again after data is loaded to ensure it stays
                                     updateCurrentListingName(selectedPropertyName);
 
@@ -6892,8 +6974,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
 
                             } else {
-                                // Fallback if property not found
-                                fetchCalendarData(selectedPropertyId).then(() => {
+                                // Fallback if property not found (debounced to prevent rapid-fire requests)
+                                fetchCalendarDataDebounced(selectedPropertyId, 300, () => {
                                     // Re-setup the listing block handler
                                     setupListingBlockHandler();
                                 });
