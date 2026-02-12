@@ -3578,6 +3578,11 @@ function initializeTitleStep() {
 
             // Store the title in listingData
             listingData.title = text.trim();
+
+            // Clear error in real-time if text becomes valid
+            if (hasAttemptedToLeave.title && currentLength > 0 && currentLength <= maxChars) {
+                validateTitle();
+            }
         });
 
         // Always set initial focus to make cursor visible
@@ -3655,6 +3660,11 @@ function initializeDescriptionStep() {
 
             // Store the description in listingData
             listingData.description = text.trim();
+
+            // Clear error in real-time if text becomes valid
+            if (hasAttemptedToLeave.description && currentLength > 0 && currentLength <= maxChars) {
+                validateDescription();
+            }
         });
 
         // Always set initial focus to make cursor visible
@@ -4522,7 +4532,7 @@ function validateTitle() {
     const titleInput = document.querySelector('[data-element="title_input"]');
     const titleError = document.getElementById('title-error');
     const titleSubText = document.getElementById('title-subText');
-    const maxChars = 35;
+    const maxChars = 70; // Match the maxChars in initializeTitleStep
 
     if (!titleInput || !titleError || !titleSubText) return true;
 
@@ -4548,6 +4558,7 @@ function validateTitle() {
             scrollToErrorOnMobile(titleError, 'Title');
         }
     } else {
+        // Always clear error and reset styles when valid, regardless of hasAttemptedToLeave
         if (titleError && titleSubText) {
             titleError.style.display = 'none';
             titleSubText.style.display = 'block';
@@ -4589,6 +4600,7 @@ function validateDescription() {
             scrollToErrorOnMobile(descriptionError, 'Description');
         }
     } else {
+        // Always clear error and reset styles when valid, regardless of hasAttemptedToLeave
         if (descriptionError && descriptionSubText) {
             descriptionError.style.display = 'none';
             descriptionSubText.style.display = 'block';
