@@ -4403,7 +4403,13 @@ document.addEventListener('DOMContentLoaded', function () {
                 const startInput = document.getElementById('start-date-input');
                 const hadStartValue = startInput && startInput.isConnected && startInput.value.trim() !== '';
                 if (hadStartValue) {
+                    // Clear previous end so validation doesn't reject the new start (e.g. when adding a second range)
+                    const previousEnd = selectedEndDate;
+                    selectedEndDate = null;
                     validateDateInput(startInput, true);
+                    if (!selectedStartDate) {
+                        selectedEndDate = previousEnd; // restore so UI state isn't lost if validation failed
+                    }
                 }
 
                 // Only create input if not already present and start date is selected
