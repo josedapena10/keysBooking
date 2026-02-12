@@ -318,7 +318,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Function to fetch calendar data from API
     async function fetchCalendarData(selectedPropertyId = null, options = {}) {
+        console.log('[fetchCalendarData] Called with:', { selectedPropertyId, currentPropertyId: propertyId, userId });
+        
         if (!userId) {
+            console.log('[fetchCalendarData] No userId, exiting early');
             dataFetchingComplete = true;
             initializeCalendar();
             hideLoaderIfReady();
@@ -327,6 +330,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Clear any selected dates when switching properties
         if (selectedPropertyId) {
+            console.log('[fetchCalendarData] Clearing date selections for property switch');
             // Check if we're coming from a calendar connection save
             const isCalendarConnection = sessionStorage.getItem('calendarConnectionInProgress') === 'true';
             clearDateSelections({ showMainToolbar: !isCalendarConnection });
@@ -335,11 +339,17 @@ document.addEventListener('DOMContentLoaded', function () {
         let apiUrl = `https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/host_property_calendar?user_id=${userId}`;
 
         if (selectedPropertyId) {
+            console.log('[fetchCalendarData] Setting propertyId to:', selectedPropertyId);
             propertyId = selectedPropertyId;
             apiUrl += `&property_id=${propertyId}`;
         } else if (propertyId) {
+            console.log('[fetchCalendarData] Using existing propertyId:', propertyId);
             apiUrl += `&property_id=${propertyId}`;
+        } else {
+            console.log('[fetchCalendarData] No propertyId specified, will use default');
         }
+        
+        console.log('[fetchCalendarData] API URL:', apiUrl);
 
         try {
             const response = await fetch(apiUrl, {
@@ -355,6 +365,11 @@ document.addEventListener('DOMContentLoaded', function () {
             }
 
             const data = await response.json();
+            console.log('[fetchCalendarData] Received data:', { 
+                propertiesCount: data.properties?.length, 
+                propertyIds: data.properties?.map(p => p.id),
+                currentPropertyId: propertyId 
+            });
 
             // Store properties data
             if (data.properties && data.properties.length > 0) {
@@ -365,15 +380,31 @@ document.addEventListener('DOMContentLoaded', function () {
                     property.id.toString() === propertyId?.toString()
                 ) || data.properties[0];
 
+                console.log('[fetchCalendarData] Selected property:', {
+                    propertyId,
+                    foundProperty: currentProperty ? { id: currentProperty.id, name: currentProperty.property_name } : null,
+                    isDefault: !data.properties.find(p => p.id.toString() === propertyId?.toString())
+                });
+
                 // Update propertyId to match the current property (in case we defaulted to first property)
                 if (!propertyId && currentProperty) {
+                    console.log('[fetchCalendarData] No propertyId set, using first property:', currentProperty.id);
                     propertyId = currentProperty.id.toString();
 
                     // Update URL with the current property ID so it persists on reload
                     const url = new URL(window.location);
                     url.searchParams.set('property_id', propertyId);
                     window.history.replaceState({}, '', url);
+                } else if (propertyId && currentProperty) {
+                    // Ensure propertyId matches the found property
+                    const matchedPropertyId = currentProperty.id.toString();
+                    if (propertyId !== matchedPropertyId) {
+                        console.warn('[fetchCalendarData] PropertyId mismatch! Expected:', propertyId, 'Got:', matchedPropertyId);
+                        propertyId = matchedPropertyId;
+                    }
                 }
+
+                console.log('[fetchCalendarData] Final propertyId:', propertyId, 'Property name:', currentProperty?.property_name);
 
                 // Update the current listing name in the UI
                 updateCurrentListingName(currentProperty.property_name);
@@ -382,6 +413,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 setupListingBlockHandler();
 
                 // Setup toolbar with property data
+                console.log('[fetchCalendarData] Setting up toolbar for property:', currentProperty.id);
                 setupToolbar(currentProperty);
 
 
@@ -1158,6 +1190,23 @@ document.addEventListener('DOMContentLoaded', function () {
     let selectedDates = [];
     let selectedDateTypes = {}; // Map of date strings to their types (e.g., "available", "blocked")
     let propertiesDataRef = null; // Add a global reference to property data
+    
+    // Helper function to get current propertyId with validation
+    function getCurrentPropertyId() {
+        if (!propertyId) {
+            console.error('[getCurrentPropertyId] propertyId is null or undefined!');
+            // Try to get from URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlPropertyId = urlParams.get('property_id');
+            if (urlPropertyId) {
+                console.log('[getCurrentPropertyId] Recovered propertyId from URL:', urlPropertyId);
+                propertyId = urlPropertyId;
+                return urlPropertyId;
+            }
+        }
+        console.log('[getCurrentPropertyId] Returning propertyId:', propertyId);
+        return propertyId;
+    }
 
     // Replace the existing showExternalBlockNotification function with this more flexible version
     function showCalendarNotification(message) {
@@ -1227,11 +1276,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 setTimeout(checkAllLoaded, 100);
             });
 
-            calendar.on('_eventsPositioned', function () {
-                // Events have been positioned in the calendar
-                eventsPositioned = true;
-                setTimeout(checkAllLoaded, 100);
-            });
+            // Removed '_eventsPositioned' listener as it's not a valid FullCalendar event
+            // calendar.on('_eventsPositioned', function () {
+            //     // Events have been positioned in the calendar
+            //     eventsPositioned = true;
+            //     setTimeout(checkAllLoaded, 100);
+            // });
 
             calendar.on('datesSet', function () {
                 // Date range has been set and rendered
@@ -3518,14 +3568,24 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (saveButtonText) saveButtonText.style.display = 'none';
                     if (saveButtonLoader) saveButtonLoader.style.display = 'flex';
 
-                    if (isNaN(propertyId) || !propertyId) {
+                    const currentPropertyId = getCurrentPropertyId();
+                    console.log('[setupEditDatesFeature] Saving custom price:', {
+                        propertyId: currentPropertyId,
+                        propertyIdType: typeof currentPropertyId,
+                        closurePropertyId: propertyId, // Log what closure captured
+                        priceValue,
+                        datesCount: datesArray.length,
+                        selectedDates: selectedDates.slice(0, 5) // Log first 5 dates
+                    });
+                    
+                    if (!currentPropertyId) {
                         alert('Property ID not found. Please refresh the page and try again.');
                         // Hide loader and show text again
                         if (saveButtonText) saveButtonText.style.display = 'block';
                         if (saveButtonLoader) saveButtonLoader.style.display = 'none';
                         return;
                     }
-
+                    
                     // Send the API request to update custom prices
                     fetch('https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/edit_property_customPrice', {
                         method: 'POST',
@@ -3533,7 +3593,7 @@ document.addEventListener('DOMContentLoaded', function () {
                             'Content-Type': 'application/json'
                         },
                         body: JSON.stringify({
-                            property_id: propertyId,
+                            property_id: currentPropertyId,
                             customPrice: priceValue,
                             dates: datesArray
                         })
@@ -3609,6 +3669,19 @@ document.addEventListener('DOMContentLoaded', function () {
                             });
 
 
+                            const currentPropertyId = getCurrentPropertyId();
+                            console.log('[setupEditDatesFeature] Saving availability:', {
+                                propertyId: currentPropertyId,
+                                propertyIdType: typeof currentPropertyId,
+                                closurePropertyId: propertyId, // Log what closure captured
+                                openDatesCount: openDates.length,
+                                blockedDatesCount: blockedDates.length
+                            });
+                            
+                            if (!currentPropertyId) {
+                                throw new Error('Property ID not found');
+                            }
+                            
                             // First API call - update availability
                             if (openDates.length > 0 || blockedDates.length > 0) {
                                 const availabilityResponse = await fetch('https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/edit_property_customAvailability', {
@@ -3617,7 +3690,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                         'Content-Type': 'application/json'
                                     },
                                     body: JSON.stringify({
-                                        property_id: propertyId,
+                                        property_id: currentPropertyId,
                                         openDates: openDates,
                                         blockedDates: blockedDates
                                     })
@@ -3713,6 +3786,18 @@ document.addEventListener('DOMContentLoaded', function () {
                             // Call blocked_dates API if we're opening dates (to update remaining ranges)
                             // or if we're blocking new dates
                             if (window.checkedOpenRanges.length > 0 || window.checkedBlockedRanges.length > 0) {
+                                const currentPropertyIdForBlocked = getCurrentPropertyId();
+                                console.log('[setupEditDatesFeature] Saving blocked dates:', {
+                                    propertyId: currentPropertyIdForBlocked,
+                                    propertyIdType: typeof currentPropertyIdForBlocked,
+                                    closurePropertyId: propertyId, // Log what closure captured
+                                    blockedDateRangesCount: blockedDateRanges.length
+                                });
+                                
+                                if (!currentPropertyIdForBlocked) {
+                                    throw new Error('Property ID not found');
+                                }
+                                
                                 // Second API call - update blocked dates
                                 const blockedResponse = await fetch('https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/blocked_dates', {
                                     method: 'POST',
@@ -3720,7 +3805,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                         'Content-Type': 'application/json'
                                     },
                                     body: JSON.stringify({
-                                        property_id: propertyId,
+                                        property_id: currentPropertyIdForBlocked,
                                         dateRanges: blockedDateRanges
                                     })
                                 });
@@ -4851,9 +4936,25 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Function to setup the toolbar with property data
     function setupToolbar(propertyData) {
-        if (!propertyData) return;
+        console.log('[setupToolbar] Called with:', { 
+            propertyId: propertyData?.id, 
+            propertyName: propertyData?.property_name,
+            currentGlobalPropertyId: propertyId 
+        });
+        
+        if (!propertyData) {
+            console.error('[setupToolbar] No propertyData provided!');
+            return;
+        }
 
-        propertyId = propertyData.id;
+        const newPropertyId = propertyData.id.toString();
+        console.log('[setupToolbar] Setting propertyId from', propertyId, 'to', newPropertyId);
+        propertyId = newPropertyId;
+        
+        // Store propertyId in a way that's accessible to all nested functions
+        // This ensures closures capture the correct propertyId
+        const currentPropertyId = propertyId;
+        console.log('[setupToolbar] Current propertyId for this setup:', currentPropertyId);
 
         // Setup base price display
         updateToolbarBasePrice(propertyData.nightlyPrice);
@@ -5001,6 +5102,19 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (updatedBasePriceSaveButtonText) updatedBasePriceSaveButtonText.style.display = 'none';
 
                     try {
+                        const currentPropertyId = getCurrentPropertyId();
+                    console.log('[setupBasePriceEdit] Saving base price:', { 
+                            newPrice, 
+                            propertyId: currentPropertyId, 
+                            propertyIdType: typeof currentPropertyId,
+                            closurePropertyId: propertyId // Log what closure captured
+                        });
+                        
+                        if (!currentPropertyId) {
+                            alert('Property ID not found. Please refresh the page and try again.');
+                            return;
+                        }
+                        
                         // Make API call to save the new price
                         const response = await fetch('https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/edit_property_basePrice', {
                             method: 'POST',
@@ -5009,7 +5123,7 @@ document.addEventListener('DOMContentLoaded', function () {
                             },
                             body: JSON.stringify({
                                 basePrice: newPrice,
-                                property_id: propertyId
+                                property_id: currentPropertyId
                             })
                         });
 
@@ -6560,6 +6674,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Function to close all edit toolbars
     function closeAllEditToolbars(options = {}) {
+        console.log('[closeAllEditToolbars] Called with options:', options);
+        
         const toolbar = document.querySelector('[data-element="toolbar"]');
         const editToolbars = [
             document.querySelector('[data-element="toolbarEdit_basePrice"]'),
@@ -6572,8 +6688,12 @@ document.addEventListener('DOMContentLoaded', function () {
         ];
 
         // Hide all edit toolbars
-        editToolbars.forEach(editToolbar => {
-            if (editToolbar) editToolbar.style.display = 'none';
+        editToolbars.forEach((editToolbar, index) => {
+            if (editToolbar && editToolbar.style) {
+                editToolbar.style.display = 'none';
+            } else {
+                console.warn('[closeAllEditToolbars] Edit toolbar at index', index, 'is null or missing style');
+            }
         });
 
         // Reset connect calendar edit container to show body and hide sub-views
@@ -6581,13 +6701,23 @@ document.addEventListener('DOMContentLoaded', function () {
         const connectCalendarAddSync = document.querySelector('[data-element="toolbarEdit_connectCalender_addSync"]');
         const connectCalendarEditSync = document.querySelector('[data-element="toolbarEdit_connectCalender_editSync"]');
 
-        if (connectCalendarBody) connectCalendarBody.style.display = 'flex';
-        if (connectCalendarAddSync) connectCalendarAddSync.style.display = 'none';
-        if (connectCalendarEditSync) connectCalendarEditSync.style.display = 'none';
+        if (connectCalendarBody && connectCalendarBody.style) {
+            connectCalendarBody.style.display = 'flex';
+        }
+        if (connectCalendarAddSync && connectCalendarAddSync.style) {
+            connectCalendarAddSync.style.display = 'none';
+        }
+        if (connectCalendarEditSync && connectCalendarEditSync.style) {
+            connectCalendarEditSync.style.display = 'none';
+        }
 
         // Only show the main toolbar if not explicitly prevented
         if (toolbar && options.showMainToolbar !== false) {
-            toolbar.style.display = 'flex';
+            if (toolbar.style) {
+                toolbar.style.display = 'flex';
+            } else {
+                console.warn('[closeAllEditToolbars] Toolbar exists but has no style property');
+            }
         }
     }
 
@@ -6748,21 +6878,34 @@ document.addEventListener('DOMContentLoaded', function () {
             // Handle submit button click
             if (submitButton) {
                 submitButton.addEventListener('click', function () {
+                    console.log('[setupListingBlockHandler] Submit button clicked');
                     const selectedBlock = document.querySelector('[data-element="hostCalendar_listingsPopUp_listingBlock"].clicked');
                     if (selectedBlock) {
                         const selectedPropertyId = selectedBlock.getAttribute('data-property-id');
+                        console.log('[setupListingBlockHandler] Selected property ID:', selectedPropertyId, 'Current propertyId:', propertyId);
+                        
                         if (selectedPropertyId) {
                             // Find the property name for the selected property
                             const selectedProperty = propertiesData.find(property => property.id.toString() === selectedPropertyId.toString());
+                            console.log('[setupListingBlockHandler] Found property:', selectedProperty ? { id: selectedProperty.id, name: selectedProperty.property_name } : null);
+                            
                             if (selectedProperty) {
                                 // Store the selected property name to ensure it persists
                                 const selectedPropertyName = selectedProperty.property_name;
+
+                                console.log('[setupListingBlockHandler] Switching to property:', {
+                                    oldPropertyId: propertyId,
+                                    newPropertyId: selectedPropertyId,
+                                    propertyName: selectedPropertyName
+                                });
 
                                 // Update the listing name in the UI immediately
                                 updateCurrentListingName(selectedPropertyName);
 
                                 // Store the selected property ID to maintain selection
-                                propertyId = selectedPropertyId;
+                                const previousPropertyId = propertyId;
+                                propertyId = selectedPropertyId.toString();
+                                console.log('[setupListingBlockHandler] Updated propertyId from', previousPropertyId, 'to', propertyId);
 
                                 // Update URL with the selected property ID so it persists on reload
                                 const url = new URL(window.location);
@@ -6770,7 +6913,10 @@ document.addEventListener('DOMContentLoaded', function () {
                                 window.history.pushState({}, '', url);
 
                                 // Fetch calendar data with the selected property ID
+                                console.log('[setupListingBlockHandler] Calling fetchCalendarData with:', selectedPropertyId);
                                 fetchCalendarData(selectedPropertyId).then(() => {
+                                    console.log('[setupListingBlockHandler] fetchCalendarData completed, propertyId is now:', propertyId);
+                                    
                                     // Update the name again after data is loaded to ensure it stays
                                     updateCurrentListingName(selectedPropertyName);
 
@@ -6778,6 +6924,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                     setupListingBlockHandler();
 
                                     // Re-setup the toolbar with the selected property data
+                                    console.log('[setupListingBlockHandler] Re-setting up toolbar with property:', selectedProperty.id);
                                     setupToolbar(selectedProperty);
 
                                     closeAllEditToolbars();
@@ -6786,6 +6933,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                 });
 
                                 // Re-setup the toolbar with the selected property data
+                                console.log('[setupListingBlockHandler] Setting up toolbar immediately with property:', selectedProperty.id);
                                 setupToolbar(selectedProperty);
 
 
@@ -6990,6 +7138,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Function to clear all date selections
     function clearDateSelections(options = {}) {
+        console.log('[clearDateSelections] Called with options:', options);
+        
         // Clear the selectedDates array
         selectedDates = [];
         selectedDateTypes = {}; // Also clear date types
@@ -6997,13 +7147,17 @@ document.addEventListener('DOMContentLoaded', function () {
         // Remove selected-day class from all date elements
         const selectedDayElements = document.querySelectorAll('.selected-day');
         selectedDayElements.forEach(el => {
-            el.classList.remove('selected-day');
+            if (el) {
+                el.classList.remove('selected-day');
+            }
         });
 
         // Reset toolbar UI state
         const toolbar = document.querySelector('[data-element="toolbar"]');
         const customDates = document.querySelector('[data-element="toolbarEdit_customDates"]');
         const isMobileView = window.innerWidth <= 991;
+
+        console.log('[clearDateSelections] Toolbar elements:', { toolbar: !!toolbar, customDates: !!customDates });
 
         if (toolbar && customDates) {
             if (isMobileView) {
@@ -7014,10 +7168,16 @@ document.addEventListener('DOMContentLoaded', function () {
             } else {
                 // On desktop, only show the toolbar if not explicitly prevented
                 if (options.showMainToolbar !== false) {
-                    toolbar.style.display = 'flex';
+                    if (toolbar) {
+                        toolbar.style.display = 'flex';
+                    }
                 }
-                customDates.style.display = 'none';
+                if (customDates) {
+                    customDates.style.display = 'none';
+                }
             }
+        } else {
+            console.warn('[clearDateSelections] Missing toolbar elements:', { toolbar: !!toolbar, customDates: !!customDates });
         }
 
         // Reset edit dates UI if it exists
@@ -7027,6 +7187,8 @@ document.addEventListener('DOMContentLoaded', function () {
         if (bodyContainer && editDatesContainer) {
             bodyContainer.style.display = 'flex';
             editDatesContainer.style.display = 'none';
+        } else {
+            console.log('[clearDateSelections] Edit dates containers:', { bodyContainer: !!bodyContainer, editDatesContainer: !!editDatesContainer });
         }
     }
 
