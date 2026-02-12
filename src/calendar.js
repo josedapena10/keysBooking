@@ -4387,20 +4387,34 @@ document.addEventListener('DOMContentLoaded', function () {
 
         if (startDateContainer) {
             startDateContainer.addEventListener('click', function () {
-                // Only create input if not already present
-                if (!document.getElementById('start-date-input')) {
-                    createDateInput(startDateContainer, true);
+                // Use live container so we always target the visible one (e.g. after re-opening edit dates)
+                const currentStartContainer = document.querySelector('[data-element="toolbarEdit_customDates_editDates_startDateContainer"]');
+                const existingStartInput = document.getElementById('start-date-input');
+                const inputInCurrentContainer = currentStartContainer && existingStartInput && currentStartContainer.contains(existingStartInput);
+                if (currentStartContainer && (!existingStartInput || !inputInCurrentContainer)) {
+                    createDateInput(currentStartContainer, true);
                 }
             });
         }
 
         if (endDateContainer) {
             endDateContainer.addEventListener('click', function () {
+                // If user just typed start date and clicked end without blur, sync from start input first
+                const startInput = document.getElementById('start-date-input');
+                const hadStartValue = startInput && startInput.isConnected && startInput.value.trim() !== '';
+                if (hadStartValue) {
+                    validateDateInput(startInput, true);
+                }
+
                 // Only create input if not already present and start date is selected
                 if (!document.getElementById('end-date-input') && selectedStartDate) {
                     createDateInput(endDateContainer, false);
                 } else if (!selectedStartDate) {
-                    alert('Please select a start date first');
+                    if (hadStartValue) {
+                        alert('Please enter a valid start date (MM/DD/YYYY) and try again');
+                    } else {
+                        alert('Please select a start date first');
+                    }
                 }
             });
         }
