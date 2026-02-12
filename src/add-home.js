@@ -3563,22 +3563,23 @@ function initializeTitleStep() {
         descriptionInputField.style.caretColor = 'auto'; // Ensure cursor is always visible
         descriptionInputField.style.display = 'block';
 
-        // Enter key: insert line break instead of default block (avoids inline-like divs)
-        descriptionInputField.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
+        // Attach Enter/paste handlers only once to avoid multiple insertions
+        if (!descriptionInputField.dataset.linebreakHandlers) {
+            descriptionInputField.dataset.linebreakHandlers = 'true';
+            descriptionInputField.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    document.execCommand('insertLineBreak');
+                }
+            });
+            descriptionInputField.addEventListener('paste', (e) => {
                 e.preventDefault();
-                document.execCommand('insertLineBreak');
-            }
-        });
-
-        // Paste: normalize to plain text with newlines as line breaks
-        descriptionInputField.addEventListener('paste', (e) => {
-            e.preventDefault();
-            const text = (e.clipboardData?.getData('text/plain') || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-            const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-            const html = escaped.replace(/\n/g, '<br>');
-            document.execCommand('insertHTML', false, html);
-        });
+                const text = (e.clipboardData?.getData('text/plain') || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+                const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+                const html = escaped.replace(/\n/g, '<br>');
+                document.execCommand('insertHTML', false, html);
+            });
+        }
 
         // Initialize character count display with existing text if any
         const existingText = listingData.title || '';
@@ -3664,22 +3665,23 @@ function initializeDescriptionStep() {
         descriptionInputField.style.caretColor = 'auto'; // Ensure cursor is always visible
         descriptionInputField.style.display = 'block';
 
-        // Enter key: insert line break instead of default block (avoids inline-like divs)
-        descriptionInputField.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
+        // Attach Enter/paste handlers only once to avoid multiple insertions
+        if (!descriptionInputField.dataset.linebreakHandlers) {
+            descriptionInputField.dataset.linebreakHandlers = 'true';
+            descriptionInputField.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    document.execCommand('insertLineBreak');
+                }
+            });
+            descriptionInputField.addEventListener('paste', (e) => {
                 e.preventDefault();
-                document.execCommand('insertLineBreak');
-            }
-        });
-
-        // Paste: normalize to plain text with newlines as line breaks
-        descriptionInputField.addEventListener('paste', (e) => {
-            e.preventDefault();
-            const text = (e.clipboardData?.getData('text/plain') || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-            const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-            const html = escaped.replace(/\n/g, '<br>');
-            document.execCommand('insertHTML', false, html);
-        });
+                const text = (e.clipboardData?.getData('text/plain') || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+                const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+                const html = escaped.replace(/\n/g, '<br>');
+                document.execCommand('insertHTML', false, html);
+            });
+        }
 
         // Initialize character count display with existing text if any
         const existingText = listingData.description || '';
