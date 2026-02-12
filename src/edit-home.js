@@ -225,6 +225,33 @@ document.body.appendChild(script);
 
 document.addEventListener('DOMContentLoaded', function () {
 
+    // Ensure contentEditable inputs (description, host, location description) use proper line breaks and stack vertically
+    if (!document.getElementById('edit-contenteditable-linebreak-styles')) {
+        const style = document.createElement('style');
+        style.id = 'edit-contenteditable-linebreak-styles';
+        style.textContent = `
+            [data-element="title_input"],
+            [data-element="description_input"],
+            [data-element="host_input"],
+            [data-element="locationDescription_input"] {
+                display: block !important;
+            }
+            [data-element="title_input"] div,
+            [data-element="title_input"] p,
+            [data-element="description_input"] div,
+            [data-element="description_input"] p,
+            [data-element="host_input"] div,
+            [data-element="host_input"] p,
+            [data-element="locationDescription_input"] div,
+            [data-element="locationDescription_input"] p {
+                display: block !important;
+                width: 100% !important;
+                margin: 0 0 0.35em 0;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
     // Get property ID from URL parameters
     const urlParams = new URLSearchParams(window.location.search);
     const propertyId = urlParams.get('id');
@@ -2864,6 +2891,29 @@ document.addEventListener('DOMContentLoaded', function () {
             descriptionInput.style.caretColor = 'auto';
             descriptionInput.style.backgroundColor = '';
             descriptionInput.style.border = '';
+            descriptionInput.style.display = 'block';
+
+            // Attach Enter/paste handlers only once to avoid multiple insertions and fix line breaks
+            if (!descriptionInput.dataset.linebreakHandlers) {
+                descriptionInput.dataset.linebreakHandlers = 'true';
+                descriptionInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' || e.keyCode === 13) {
+                        const contentEditableAttr = descriptionInput.getAttribute('contentEditable');
+                        if (contentEditableAttr !== 'true') return;
+                        e.preventDefault();
+                        document.execCommand('insertLineBreak');
+                        descriptionInput.dispatchEvent(new Event('input'));
+                    }
+                });
+                descriptionInput.addEventListener('paste', (e) => {
+                    e.preventDefault();
+                    const text = (e.clipboardData?.getData('text/plain') || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+                    const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+                    const html = escaped.replace(/\n/g, '<br>');
+                    document.execCommand('insertHTML', false, html);
+                    descriptionInput.dispatchEvent(new Event('input'));
+                });
+            }
 
             // Initialize with existing description if any
             const existingText = data.listing_description || '';
@@ -2991,43 +3041,6 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
                 });
             }
-
-            // Handle Enter key for proper line breaks
-            descriptionInput.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter' || e.keyCode === 13) {
-                    // Check if field is NOT editable (only block if explicitly false)
-                    const contentEditableAttr = descriptionInput.getAttribute('contentEditable');
-                    if (contentEditableAttr === 'false') {
-                        return; // Don't handle if not editable
-                    }
-
-                    e.preventDefault();
-                    e.stopPropagation();
-
-                    // Insert a line break at cursor position
-                    const selection = window.getSelection();
-                    if (!selection || selection.rangeCount === 0) return;
-
-                    const range = selection.getRangeAt(0);
-                    range.deleteContents();
-
-                    // Insert <br> elements for visual line break
-                    const br = document.createElement('br');
-                    range.insertNode(br);
-
-                    const br2 = document.createElement('br');
-                    range.insertNode(br2);
-
-                    // Move cursor after the line breaks
-                    range.setStartAfter(br2);
-                    range.setEndAfter(br2);
-                    selection.removeAllRanges();
-                    selection.addRange(range);
-
-                    // Trigger input event to update character count
-                    descriptionInput.dispatchEvent(new Event('input'));
-                }
-            });
 
             // Handle input changes
             descriptionInput.addEventListener('input', () => {
@@ -4448,46 +4461,29 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Add input event listener for location description
         if (locationDescriptionInput) {
-            // Handle Enter key for proper line breaks
-            locationDescriptionInput.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter' || e.keyCode === 13) {
-                    // Only handle if contentEditable is explicitly set to "true"
-                    const contentEditableAttr = locationDescriptionInput.getAttribute('contentEditable');
+            locationDescriptionInput.style.display = 'block';
 
-                    if (contentEditableAttr !== 'true') {
-                        return; // Don't handle if not explicitly editable
+            // Attach Enter/paste handlers only once
+            if (!locationDescriptionInput.dataset.linebreakHandlers) {
+                locationDescriptionInput.dataset.linebreakHandlers = 'true';
+                locationDescriptionInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' || e.keyCode === 13) {
+                        const contentEditableAttr = locationDescriptionInput.getAttribute('contentEditable');
+                        if (contentEditableAttr !== 'true') return;
+                        e.preventDefault();
+                        document.execCommand('insertLineBreak');
+                        locationDescriptionInput.dispatchEvent(new Event('input'));
                     }
-
+                });
+                locationDescriptionInput.addEventListener('paste', (e) => {
                     e.preventDefault();
-                    e.stopPropagation();
-
-                    // Insert a line break at cursor position
-                    const selection = window.getSelection();
-                    if (!selection || selection.rangeCount === 0) {
-                        return;
-                    }
-
-                    const range = selection.getRangeAt(0);
-                    range.deleteContents();
-
-                    // Insert a <br> element for visual line break
-                    const br = document.createElement('br');
-                    range.insertNode(br);
-
-                    // Insert a second <br> to ensure proper spacing
-                    const br2 = document.createElement('br');
-                    range.insertNode(br2);
-
-                    // Move cursor after the line breaks
-                    range.setStartAfter(br2);
-                    range.setEndAfter(br2);
-                    selection.removeAllRanges();
-                    selection.addRange(range);
-
-                    // Trigger input event to update character count
+                    const text = (e.clipboardData?.getData('text/plain') || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+                    const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+                    const html = escaped.replace(/\n/g, '<br>');
+                    document.execCommand('insertHTML', false, html);
                     locationDescriptionInput.dispatchEvent(new Event('input'));
-                }
-            });
+                });
+            }
 
             locationDescriptionInput.addEventListener('input', () => {
                 updateCharacterCount();
@@ -4858,6 +4854,29 @@ document.addEventListener('DOMContentLoaded', function () {
             hostInput.style.caretColor = 'auto';
             hostInput.style.backgroundColor = initialHostState.backgroundColor;
             hostInput.style.border = initialHostState.border;
+            hostInput.style.display = 'block';
+
+            // Attach Enter/paste handlers only once
+            if (!hostInput.dataset.linebreakHandlers) {
+                hostInput.dataset.linebreakHandlers = 'true';
+                hostInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' || e.keyCode === 13) {
+                        const contentEditableAttr = hostInput.getAttribute('contentEditable');
+                        if (contentEditableAttr === 'false') return;
+                        e.preventDefault();
+                        document.execCommand('insertLineBreak');
+                        hostInput.dispatchEvent(new Event('input'));
+                    }
+                });
+                hostInput.addEventListener('paste', (e) => {
+                    e.preventDefault();
+                    const text = (e.clipboardData?.getData('text/plain') || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+                    const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+                    const html = escaped.replace(/\n/g, '<br>');
+                    document.execCommand('insertHTML', false, html);
+                    hostInput.dispatchEvent(new Event('input'));
+                });
+            }
 
             // Initialize with existing description if any
             if (characterCount) {
@@ -5043,43 +5062,6 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
                 });
             }
-
-            // Handle Enter key for proper line breaks
-            hostInput.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter' || e.keyCode === 13) {
-                    // Check if field is NOT editable (only block if explicitly false)
-                    const contentEditableAttr = hostInput.getAttribute('contentEditable');
-                    if (contentEditableAttr === 'false') {
-                        return; // Don't handle if not editable
-                    }
-
-                    e.preventDefault();
-                    e.stopPropagation();
-
-                    // Insert a line break at cursor position
-                    const selection = window.getSelection();
-                    if (!selection || selection.rangeCount === 0) return;
-
-                    const range = selection.getRangeAt(0);
-                    range.deleteContents();
-
-                    // Insert <br> elements for visual line break
-                    const br = document.createElement('br');
-                    range.insertNode(br);
-
-                    const br2 = document.createElement('br');
-                    range.insertNode(br2);
-
-                    // Move cursor after the line breaks
-                    range.setStartAfter(br2);
-                    range.setEndAfter(br2);
-                    selection.removeAllRanges();
-                    selection.addRange(range);
-
-                    // Trigger input event to update character count
-                    hostInput.dispatchEvent(new Event('input'));
-                }
-            });
 
             // Handle input changes
             hostInput.addEventListener('input', () => {
