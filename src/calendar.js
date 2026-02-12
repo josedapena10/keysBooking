@@ -4121,7 +4121,10 @@ document.addEventListener('DOMContentLoaded', function () {
             const dateValue = inputElement.value;
             const dateRegex = /^(\d{2})\/(\d{2})\/(\d{4})$/;
 
+            console.log('[EditDates validateDateInput] isStartDate:', isStartDate, 'dateValue:', JSON.stringify(dateValue), 'inputElement:', !!inputElement);
+
             if (!dateRegex.test(dateValue)) {
+                console.log('[EditDates validateDateInput] FAIL: regex did not match (expected MM/DD/YYYY)');
                 // Don't show alert on blur, only when submitting
                 if (textElement = isStartDate ? startDateText : endDateText) {
                     textElement.style.display = 'block';
@@ -4141,6 +4144,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
             // Basic validation
             if (selectedDate < today) {
+                console.log('[EditDates validateDateInput] FAIL: date is in the past');
                 // Don't show alert on blur, only when submitting
                 if (textElement = isStartDate ? startDateText : endDateText) {
                     textElement.style.display = 'block';
@@ -4152,6 +4156,7 @@ document.addEventListener('DOMContentLoaded', function () {
             if (isStartDate) {
                 // For start date
                 if (selectedEndDate && selectedDate >= selectedEndDate) {
+                    console.log('[EditDates validateDateInput] FAIL: start >= selectedEndDate', selectedEndDate);
                     // Don't show alert on blur, only when submitting
                     if (startDateText) {
                         startDateText.style.display = 'block';
@@ -4160,6 +4165,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     return false;
                 }
 
+                console.log('[EditDates validateDateInput] OK: setting selectedStartDate');
                 selectedStartDate = selectedDate;
                 if (startDateText) {
                     startDateText.textContent = formatDateForDisplay(selectedDate);
@@ -4399,6 +4405,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
         if (endDateContainer) {
             endDateContainer.addEventListener('click', function () {
+                // DEBUG: end-date container clicked
+                console.log('[EditDates] End date container clicked');
+                console.log('[EditDates] selectedStartDate (before):', selectedStartDate);
+                console.log('[EditDates] selectedEndDate (before):', selectedEndDate);
+
                 // Find start input from the visible container (more reliable than getElementById after re-open)
                 const startDateContainerEl = document.querySelector('[data-element="toolbarEdit_customDates_editDates_startDateContainer"]');
                 const startInput = startDateContainerEl
@@ -4407,11 +4418,18 @@ document.addEventListener('DOMContentLoaded', function () {
                 const startValue = (startInput && startInput.value && startInput.value.trim()) || '';
                 const hadStartValue = startValue !== '';
 
+                console.log('[EditDates] startDateContainerEl:', !!startDateContainerEl, startDateContainerEl);
+                console.log('[EditDates] startInput:', !!startInput, startInput);
+                console.log('[EditDates] startValue:', JSON.stringify(startValue));
+                console.log('[EditDates] hadStartValue:', hadStartValue);
+
                 if (hadStartValue && startInput) {
                     // Clear previous end so validation doesn't reject the new start (e.g. when adding a second range)
                     const previousEnd = selectedEndDate;
                     selectedEndDate = null;
+                    console.log('[EditDates] Calling validateDateInput(startInput, true)');
                     validateDateInput(startInput, true);
+                    console.log('[EditDates] selectedStartDate (after validate):', selectedStartDate);
                     if (!selectedStartDate) {
                         selectedEndDate = previousEnd; // restore so UI state isn't lost if validation failed
                     }
@@ -4420,12 +4438,18 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Only create input if not already present and start date is selected
                 const endDateContainerEl = document.querySelector('[data-element="toolbarEdit_customDates_editDates_endDateContainer"]');
                 const existingEndInput = endDateContainerEl ? endDateContainerEl.querySelector('#end-date-input, input.date-input, input') : document.getElementById('end-date-input');
+                console.log('[EditDates] existingEndInput:', !!existingEndInput);
+                console.log('[EditDates] selectedStartDate (final):', selectedStartDate);
+                console.log('[EditDates] Decision: createEndInput=', !existingEndInput && !!selectedStartDate, ', showAlert=', !selectedStartDate);
+
                 if (!existingEndInput && selectedStartDate) {
                     createDateInput(endDateContainer, false);
                 } else if (!selectedStartDate) {
                     if (hadStartValue) {
+                        console.log('[EditDates] Showing: valid start date message');
                         alert('Please enter a valid start date (MM/DD/YYYY) and try again');
                     } else {
+                        console.log('[EditDates] Showing: select start date first');
                         alert('Please select a start date first');
                     }
                 }
