@@ -257,6 +257,9 @@ document.addEventListener('DOMContentLoaded', function () {
     let hostReservations = []; // Store host reservations data
     let blockedDateRanges = []; // Move this to a higher scope
 
+    // Shared state for edit-dates (survives multiple setupEditDatesFeature calls / duplicate handlers)
+    var editDatesState = { selectedStartDate: null, selectedEndDate: null };
+
     // Initialize all toolbar elements to be hidden by default
     const initializeToolbar = document.querySelector('[data-element="toolbar"]');
     if (initializeToolbar) {
@@ -3924,11 +3927,8 @@ document.addEventListener('DOMContentLoaded', function () {
             });
         }
 
-        // Variables to store selected dates
-        let selectedStartDate = null;
-        let selectedEndDate = null;
-
-
+        // Use shared state so duplicate handlers (from multiple setupEditDatesFeature calls) see same dates
+        var state = editDatesState;
 
         // Create input fields for date entry
         function createDateInput(container, isStartDate) {
@@ -3961,10 +3961,10 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (dateInput.value.trim() !== '') {
                         // When validating start date, clear selectedEndDate so previous range doesn't block (e.g. user clicked end date)
                         if (isStartDate) {
-                            const prevEnd = selectedEndDate;
-                            selectedEndDate = null;
+                            const prevEnd = state.selectedEndDate;
+                            state.selectedEndDate = null;
                             const ok = validateDateInput(dateInput, isStartDate);
-                            if (!ok && prevEnd !== null) selectedEndDate = prevEnd;
+                            if (!ok && prevEnd !== null) state.selectedEndDate = prevEnd;
                         } else {
                             validateDateInput(dateInput, isStartDate);
                         }
@@ -3979,10 +3979,10 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (e.key === 'Enter') {
                         if (dateInput.value.trim() !== '') {
                             if (isStartDate) {
-                                const prevEnd = selectedEndDate;
-                                selectedEndDate = null;
+                                const prevEnd = state.selectedEndDate;
+                                state.selectedEndDate = null;
                                 const ok = validateDateInput(dateInput, isStartDate);
-                                if (!ok && prevEnd !== null) selectedEndDate = prevEnd;
+                                if (!ok && prevEnd !== null) state.selectedEndDate = prevEnd;
                             } else {
                                 validateDateInput(dateInput, isStartDate);
                             }
@@ -4159,13 +4159,13 @@ document.addEventListener('DOMContentLoaded', function () {
 
             if (isStartDate) {
                 // For start date
-                if (selectedEndDate && selectedDate >= selectedEndDate) {
+                if (state.selectedEndDate && selectedDate >= state.selectedEndDate) {
                     if (startDateText && startDateText.style) startDateText.style.display = 'block';
                     inputElement.remove();
                     return false;
                 }
 
-                selectedStartDate = selectedDate;
+                state.selectedStartDate = selectedDate;
                 if (startDateText) {
                     startDateText.textContent = formatDateForDisplay(selectedDate);
                     if (startDateText.style) startDateText.style.display = 'block';
@@ -4176,19 +4176,19 @@ document.addEventListener('DOMContentLoaded', function () {
                 return true;
             } else {
                 // For end date
-                if (!selectedStartDate) {
+                if (!state.selectedStartDate) {
                     if (endDateText && endDateText.style) endDateText.style.display = 'block';
                     inputElement.remove();
                     return false;
                 }
 
-                if (selectedDate <= selectedStartDate) {
+                if (selectedDate <= state.selectedStartDate) {
                     if (endDateText && endDateText.style) endDateText.style.display = 'block';
                     inputElement.remove();
                     return false;
                 }
 
-                selectedEndDate = selectedDate;
+                state.selectedEndDate = selectedDate;
                 if (endDateText) {
                     endDateText.textContent = formatDateForDisplay(selectedDate);
                     if (endDateText.style) endDateText.style.display = 'block';
@@ -4246,13 +4246,13 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Function to apply the selected date range
         function applyDateRange() {
-            if (!selectedStartDate || !selectedEndDate) {
+            if (!state.selectedStartDate || !state.selectedEndDate) {
                 alert('Please select both start and end dates');
                 return;
             }
 
             // Validate the date range
-            const validation = validateDateRange(selectedStartDate, selectedEndDate);
+            const validation = validateDateRange(state.selectedStartDate, state.selectedEndDate);
             if (!validation.valid) {
                 alert(validation.message);
                 return;
@@ -4268,8 +4268,8 @@ document.addEventListener('DOMContentLoaded', function () {
             });
 
             // Add all dates in the range to selectedDates
-            const currentDate = new Date(selectedStartDate);
-            while (currentDate <= selectedEndDate) {
+            const currentDate = new Date(state.selectedStartDate);
+            while (currentDate <= state.selectedEndDate) {
                 const dateStr = currentDate.toISOString().split('T')[0];
                 selectedDates.push(dateStr);
 
@@ -4364,8 +4364,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
 
                 // Reset date selections
-                selectedStartDate = null;
-                selectedEndDate = null;
+                state.selectedStartDate = null;
+                state.selectedEndDate = null;
                 if (startDateText) startDateText.textContent = 'Select Start Date';
                 if (endDateText) endDateText.textContent = 'Select End Date';
 
@@ -4407,17 +4407,17 @@ document.addEventListener('DOMContentLoaded', function () {
                 const hadStartValue = startValue !== '';
 
                 if (hadStartValue && startInput) {
-                    const previousEnd = selectedEndDate;
-                    selectedEndDate = null;
+                    const previousEnd = state.selectedEndDate;
+                    state.selectedEndDate = null;
                     validateDateInput(startInput, true);
-                    if (!selectedStartDate && previousEnd !== null) selectedEndDate = previousEnd;
+                    if (!state.selectedStartDate && previousEnd !== null) state.selectedEndDate = previousEnd;
                 }
 
                 const endDateContainerEl = document.querySelector('[data-element="toolbarEdit_customDates_editDates_endDateContainer"]');
                 const existingEndInput = endDateContainerEl ? endDateContainerEl.querySelector('#end-date-input, input.date-input, input') : document.getElementById('end-date-input');
-                if (!existingEndInput && selectedStartDate) {
+                if (!existingEndInput && state.selectedStartDate) {
                     createDateInput(endDateContainer, false);
-                } else if (!selectedStartDate) {
+                } else if (!state.selectedStartDate) {
                     if (hadStartValue) {
                         alert('Please enter a valid start date (MM/DD/YYYY) and try again');
                     } else {
@@ -4451,7 +4451,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
                             if (selectedDate < today) {
                                 alert('Start date cannot be in the past');
-                            } else if (selectedEndDate && selectedDate >= selectedEndDate) {
+                            } else if (state.selectedEndDate && selectedDate >= state.selectedEndDate) {
                                 alert('Start date must be before the end date');
                             }
                         }
@@ -4477,9 +4477,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
                             if (selectedDate < today) {
                                 alert('End date cannot be in the past');
-                            } else if (!selectedStartDate) {
+                            } else if (!state.selectedStartDate) {
                                 alert('Please select a start date first');
-                            } else if (selectedDate <= selectedStartDate) {
+                            } else if (selectedDate <= state.selectedStartDate) {
                                 alert('End date must be after the start date');
                             }
                         }
@@ -4488,8 +4488,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
 
                 // Check if the selected date range contains any reservation or reserved dates
-                if (selectedStartDate && selectedEndDate) {
-                    const validation = validateDateRange(selectedStartDate, selectedEndDate);
+                if (state.selectedStartDate && state.selectedEndDate) {
+                    const validation = validateDateRange(state.selectedStartDate, state.selectedEndDate);
                     if (!validation.valid) {
                         alert(validation.message);
                         return;
