@@ -319,7 +319,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // Function to fetch calendar data from API
     async function fetchCalendarData(selectedPropertyId = null, options = {}) {
         console.log('[fetchCalendarData] Called with:', { selectedPropertyId, currentPropertyId: propertyId, userId });
-        
+
         if (!userId) {
             console.log('[fetchCalendarData] No userId, exiting early');
             dataFetchingComplete = true;
@@ -348,7 +348,7 @@ document.addEventListener('DOMContentLoaded', function () {
         } else {
             console.log('[fetchCalendarData] No propertyId specified, will use default');
         }
-        
+
         console.log('[fetchCalendarData] API URL:', apiUrl);
 
         try {
@@ -365,10 +365,10 @@ document.addEventListener('DOMContentLoaded', function () {
             }
 
             const data = await response.json();
-            console.log('[fetchCalendarData] Received data:', { 
-                propertiesCount: data.properties?.length, 
+            console.log('[fetchCalendarData] Received data:', {
+                propertiesCount: data.properties?.length,
                 propertyIds: data.properties?.map(p => p.id),
-                currentPropertyId: propertyId 
+                currentPropertyId: propertyId
             });
 
             // Store properties data
@@ -1190,7 +1190,7 @@ document.addEventListener('DOMContentLoaded', function () {
     let selectedDates = [];
     let selectedDateTypes = {}; // Map of date strings to their types (e.g., "available", "blocked")
     let propertiesDataRef = null; // Add a global reference to property data
-    
+
     // Helper function to get current propertyId with validation
     function getCurrentPropertyId() {
         if (!propertyId) {
@@ -1206,6 +1206,25 @@ document.addEventListener('DOMContentLoaded', function () {
         }
         console.log('[getCurrentPropertyId] Returning propertyId:', propertyId);
         return propertyId;
+    }
+    
+    // Helper function to safely set display style
+    function safeSetDisplay(element, displayValue) {
+        if (!element) {
+            console.warn('[safeSetDisplay] Element is null, cannot set display to:', displayValue);
+            return false;
+        }
+        if (!element.style) {
+            console.warn('[safeSetDisplay] Element has no style property:', element);
+            return false;
+        }
+        try {
+            element.style.display = displayValue;
+            return true;
+        } catch (error) {
+            console.error('[safeSetDisplay] Error setting display:', error, element);
+            return false;
+        }
     }
 
     // Replace the existing showExternalBlockNotification function with this more flexible version
@@ -3426,9 +3445,16 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // Setup edit dates functionality
-    function setupEditDatesFeature(propertyId, propertiesData) {
+    function setupEditDatesFeature(propertyIdParam, propertiesData) {
+        console.log('[setupEditDatesFeature] Called with propertyId:', propertyIdParam, 'Current global propertyId:', propertyId);
+        
         // Store property data in global reference for use in other functions
         propertiesDataRef = propertiesData;
+        
+        // Use the current propertyId from global scope, not the parameter (which might be stale)
+        // But log both for debugging
+        const currentPropertyIdForSetup = getCurrentPropertyId();
+        console.log('[setupEditDatesFeature] Using propertyId:', currentPropertyIdForSetup, 'Parameter was:', propertyIdParam);
 
         const editDatesLink = document.querySelector('[data-element="toolbarEdit_customDates_headerText_editDates"]');
         const bodyContainer = document.querySelector('[data-element="toolbarEdit_customDates_bodyContainer"]');
@@ -3450,13 +3476,17 @@ document.addEventListener('DOMContentLoaded', function () {
         const priceContainer = document.querySelector('[data-element="toolbarEdit_customDates_priceContainer"]');
         const availabilityContainer = document.querySelector('[data-element="toolbarEdit_customDates_availabilityContainer"]');
 
-        // Hide edit dates container by default
-        if (editDatesContainer) {
+        // Hide edit dates container by default with null check
+        if (editDatesContainer && editDatesContainer.style) {
             editDatesContainer.style.display = 'none';
+        } else if (editDatesContainer) {
+            console.warn('[setupEditDatesFeature] editDatesContainer found but has no style property');
         }
 
-        if (saveButtonLoader) {
+        if (saveButtonLoader && saveButtonLoader.style) {
             saveButtonLoader.style.display = 'none';
+        } else if (saveButtonLoader) {
+            console.warn('[setupEditDatesFeature] saveButtonLoader found but has no style property');
         }
 
         // Set pricing toggle as default selected and initialize view
@@ -3577,7 +3607,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         datesCount: datesArray.length,
                         selectedDates: selectedDates.slice(0, 5) // Log first 5 dates
                     });
-                    
+
                     if (!currentPropertyId) {
                         alert('Property ID not found. Please refresh the page and try again.');
                         // Hide loader and show text again
@@ -3585,7 +3615,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         if (saveButtonLoader) saveButtonLoader.style.display = 'none';
                         return;
                     }
-                    
+
                     // Send the API request to update custom prices
                     fetch('https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/edit_property_customPrice', {
                         method: 'POST',
@@ -3611,7 +3641,9 @@ document.addEventListener('DOMContentLoaded', function () {
                             exitCustomDatesToolbar();
 
                             // Refresh calendar data after successful update
-                            fetchCalendarData(propertyId);
+                            const currentPropertyIdForPriceRefresh = getCurrentPropertyId();
+                            console.log('[setupEditDatesFeature] Refreshing calendar data after price update with propertyId:', currentPropertyIdForPriceRefresh);
+                            fetchCalendarData(currentPropertyIdForPriceRefresh);
                         })
                         .catch(error => {
                             console.error('Error:', error);
@@ -3677,11 +3709,11 @@ document.addEventListener('DOMContentLoaded', function () {
                                 openDatesCount: openDates.length,
                                 blockedDatesCount: blockedDates.length
                             });
-                            
+
                             if (!currentPropertyId) {
                                 throw new Error('Property ID not found');
                             }
-                            
+
                             // First API call - update availability
                             if (openDates.length > 0 || blockedDates.length > 0) {
                                 const availabilityResponse = await fetch('https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/edit_property_customAvailability', {
@@ -3793,11 +3825,11 @@ document.addEventListener('DOMContentLoaded', function () {
                                     closurePropertyId: propertyId, // Log what closure captured
                                     blockedDateRangesCount: blockedDateRanges.length
                                 });
-                                
+
                                 if (!currentPropertyIdForBlocked) {
                                     throw new Error('Property ID not found');
                                 }
-                                
+
                                 // Second API call - update blocked dates
                                 const blockedResponse = await fetch('https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/blocked_dates', {
                                     method: 'POST',
@@ -3821,7 +3853,9 @@ document.addEventListener('DOMContentLoaded', function () {
                         }
 
                         // Refresh calendar data only once after all API calls
-                        await fetchCalendarData(propertyId);
+                        const currentPropertyIdForRefresh = getCurrentPropertyId();
+                        console.log('[setupEditDatesFeature] Refreshing calendar data with propertyId:', currentPropertyIdForRefresh);
+                        await fetchCalendarData(currentPropertyIdForRefresh);
 
                         // Hide loader and show text again
                         if (saveButtonText) saveButtonText.style.display = 'block';
@@ -4936,12 +4970,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Function to setup the toolbar with property data
     function setupToolbar(propertyData) {
-        console.log('[setupToolbar] Called with:', { 
-            propertyId: propertyData?.id, 
+        console.log('[setupToolbar] Called with:', {
+            propertyId: propertyData?.id,
             propertyName: propertyData?.property_name,
-            currentGlobalPropertyId: propertyId 
+            currentGlobalPropertyId: propertyId
         });
-        
+
         if (!propertyData) {
             console.error('[setupToolbar] No propertyData provided!');
             return;
@@ -4950,7 +4984,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const newPropertyId = propertyData.id.toString();
         console.log('[setupToolbar] Setting propertyId from', propertyId, 'to', newPropertyId);
         propertyId = newPropertyId;
-        
+
         // Store propertyId in a way that's accessible to all nested functions
         // This ensures closures capture the correct propertyId
         const currentPropertyId = propertyId;
@@ -5103,18 +5137,18 @@ document.addEventListener('DOMContentLoaded', function () {
 
                     try {
                         const currentPropertyId = getCurrentPropertyId();
-                    console.log('[setupBasePriceEdit] Saving base price:', { 
-                            newPrice, 
-                            propertyId: currentPropertyId, 
+                        console.log('[setupBasePriceEdit] Saving base price:', {
+                            newPrice,
+                            propertyId: currentPropertyId,
                             propertyIdType: typeof currentPropertyId,
                             closurePropertyId: propertyId // Log what closure captured
                         });
-                        
+
                         if (!currentPropertyId) {
                             alert('Property ID not found. Please refresh the page and try again.');
                             return;
                         }
-                        
+
                         // Make API call to save the new price
                         const response = await fetch('https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/edit_property_basePrice', {
                             method: 'POST',
@@ -5143,7 +5177,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
                         // Re-fetch calendar data for the currently selected property
                         // This ensures we stay on the same property after updating
-                        fetchCalendarData(propertyId);
+                        const currentPropertyIdForBasePriceRefresh = getCurrentPropertyId();
+                        console.log('[setupBasePriceEdit] Refreshing calendar data with propertyId:', currentPropertyIdForBasePriceRefresh);
+                        fetchCalendarData(currentPropertyIdForBasePriceRefresh);
 
                     } catch (error) {
                         console.error('Error saving base price:', error);
@@ -5320,7 +5356,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
                         // Re-fetch calendar data for the currently selected property
                         // This ensures we stay on the same property after updating
-                        fetchCalendarData(propertyId);
+                        const refreshPropertyId = getCurrentPropertyId();
+                        console.log('[Toolbar] Refreshing calendar data with propertyId:', refreshPropertyId);
+                        fetchCalendarData(refreshPropertyId);
 
                     } catch (error) {
                         console.error('Error saving cleaning fee:', error);
@@ -5515,7 +5553,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
                         // Re-fetch calendar data for the currently selected property
                         // This ensures we stay on the same property after updating
-                        fetchCalendarData(propertyId);
+                        const refreshPropertyId = getCurrentPropertyId();
+                        console.log('[Toolbar] Refreshing calendar data with propertyId:', refreshPropertyId);
+                        fetchCalendarData(refreshPropertyId);
 
                     } catch (error) {
                         console.error('Error saving trip length:', error);
@@ -5706,7 +5746,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
                         // Re-fetch calendar data for the currently selected property
                         // This ensures we stay on the same property after updating
-                        fetchCalendarData(propertyId);
+                        const refreshPropertyId = getCurrentPropertyId();
+                        console.log('[Toolbar] Refreshing calendar data with propertyId:', refreshPropertyId);
+                        fetchCalendarData(refreshPropertyId);
 
                     } catch (error) {
                         alert('Failed to save the new advance notice. Please try again.');
@@ -6630,7 +6672,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
                         // Re-fetch calendar data for the currently selected property
                         // This ensures we stay on the same property after updating
-                        fetchCalendarData(propertyId);
+                        const refreshPropertyId = getCurrentPropertyId();
+                        console.log('[Toolbar] Refreshing calendar data with propertyId:', refreshPropertyId);
+                        fetchCalendarData(refreshPropertyId);
 
                     } catch (error) {
                         alert('Failed to save the new availability window. Please try again.');
@@ -6675,7 +6719,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // Function to close all edit toolbars
     function closeAllEditToolbars(options = {}) {
         console.log('[closeAllEditToolbars] Called with options:', options);
-        
+
         const toolbar = document.querySelector('[data-element="toolbar"]');
         const editToolbars = [
             document.querySelector('[data-element="toolbarEdit_basePrice"]'),
@@ -6689,10 +6733,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Hide all edit toolbars
         editToolbars.forEach((editToolbar, index) => {
-            if (editToolbar && editToolbar.style) {
-                editToolbar.style.display = 'none';
-            } else {
-                console.warn('[closeAllEditToolbars] Edit toolbar at index', index, 'is null or missing style');
+            if (!safeSetDisplay(editToolbar, 'none')) {
+                console.warn('[closeAllEditToolbars] Failed to hide edit toolbar at index', index);
             }
         });
 
@@ -6701,23 +6743,13 @@ document.addEventListener('DOMContentLoaded', function () {
         const connectCalendarAddSync = document.querySelector('[data-element="toolbarEdit_connectCalender_addSync"]');
         const connectCalendarEditSync = document.querySelector('[data-element="toolbarEdit_connectCalender_editSync"]');
 
-        if (connectCalendarBody && connectCalendarBody.style) {
-            connectCalendarBody.style.display = 'flex';
-        }
-        if (connectCalendarAddSync && connectCalendarAddSync.style) {
-            connectCalendarAddSync.style.display = 'none';
-        }
-        if (connectCalendarEditSync && connectCalendarEditSync.style) {
-            connectCalendarEditSync.style.display = 'none';
-        }
+        safeSetDisplay(connectCalendarBody, 'flex');
+        safeSetDisplay(connectCalendarAddSync, 'none');
+        safeSetDisplay(connectCalendarEditSync, 'none');
 
         // Only show the main toolbar if not explicitly prevented
         if (toolbar && options.showMainToolbar !== false) {
-            if (toolbar.style) {
-                toolbar.style.display = 'flex';
-            } else {
-                console.warn('[closeAllEditToolbars] Toolbar exists but has no style property');
-            }
+            safeSetDisplay(toolbar, 'flex');
         }
     }
 
@@ -6883,12 +6915,12 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (selectedBlock) {
                         const selectedPropertyId = selectedBlock.getAttribute('data-property-id');
                         console.log('[setupListingBlockHandler] Selected property ID:', selectedPropertyId, 'Current propertyId:', propertyId);
-                        
+
                         if (selectedPropertyId) {
                             // Find the property name for the selected property
                             const selectedProperty = propertiesData.find(property => property.id.toString() === selectedPropertyId.toString());
                             console.log('[setupListingBlockHandler] Found property:', selectedProperty ? { id: selectedProperty.id, name: selectedProperty.property_name } : null);
-                            
+
                             if (selectedProperty) {
                                 // Store the selected property name to ensure it persists
                                 const selectedPropertyName = selectedProperty.property_name;
@@ -6916,7 +6948,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                 console.log('[setupListingBlockHandler] Calling fetchCalendarData with:', selectedPropertyId);
                                 fetchCalendarData(selectedPropertyId).then(() => {
                                     console.log('[setupListingBlockHandler] fetchCalendarData completed, propertyId is now:', propertyId);
-                                    
+
                                     // Update the name again after data is loaded to ensure it stays
                                     updateCurrentListingName(selectedPropertyName);
 
@@ -7139,7 +7171,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // Function to clear all date selections
     function clearDateSelections(options = {}) {
         console.log('[clearDateSelections] Called with options:', options);
-        
+
         // Clear the selectedDates array
         selectedDates = [];
         selectedDateTypes = {}; // Also clear date types
@@ -7168,13 +7200,9 @@ document.addEventListener('DOMContentLoaded', function () {
             } else {
                 // On desktop, only show the toolbar if not explicitly prevented
                 if (options.showMainToolbar !== false) {
-                    if (toolbar) {
-                        toolbar.style.display = 'flex';
-                    }
+                    safeSetDisplay(toolbar, 'flex');
                 }
-                if (customDates) {
-                    customDates.style.display = 'none';
-                }
+                safeSetDisplay(customDates, 'none');
             }
         } else {
             console.warn('[clearDateSelections] Missing toolbar elements:', { toolbar: !!toolbar, customDates: !!customDates });
@@ -7185,8 +7213,8 @@ document.addEventListener('DOMContentLoaded', function () {
         const editDatesContainer = document.querySelector('[data-element="toolbarEdit_customDates_editDates"]');
 
         if (bodyContainer && editDatesContainer) {
-            bodyContainer.style.display = 'flex';
-            editDatesContainer.style.display = 'none';
+            safeSetDisplay(bodyContainer, 'flex');
+            safeSetDisplay(editDatesContainer, 'none');
         } else {
             console.log('[clearDateSelections] Edit dates containers:', { bodyContainer: !!bodyContainer, editDatesContainer: !!editDatesContainer });
         }
