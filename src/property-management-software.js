@@ -538,7 +538,21 @@ document.addEventListener('DOMContentLoaded', async function () {
     // Poll for import progress
     function pollImportProgress(jobId) {
         let pollCount = 0;
+        let consecutiveErrors = 0;
         const maxPolls = 600; // 20 minutes max (600 * 2 seconds)
+        const maxConsecutiveErrors = 5; // Stop after 5 errors in a row
+
+        const stopPolling = (errorMessage) => {
+            clearInterval(pollInterval);
+            window.onbeforeunload = null;
+            if (errorMessage) {
+                updateProgressOverlay({
+                    status: 'failed',
+                    error: errorMessage,
+                    progress: { percentage: 0, completed: 0, total: 0 }
+                });
+            }
+        };
 
         const pollInterval = setInterval(async () => {
             pollCount++;
@@ -547,33 +561,42 @@ document.addEventListener('DOMContentLoaded', async function () {
                 const response = await fetch(`${API_BASE_URL}/integrations/import_progress/${jobId}`);
 
                 if (!response.ok) {
+                    consecutiveErrors++;
+                    // 404 = endpoint missing or job not found; stop immediately
+                    if (response.status === 404) {
+                        stopPolling('Import progress unavailable. The import may still be running — check your listings page.');
+                        return;
+                    }
+                    // Other HTTP errors: stop after max consecutive errors
+                    if (consecutiveErrors >= maxConsecutiveErrors) {
+                        stopPolling('Unable to load import progress. Please check your listings page.');
+                        return;
+                    }
                     throw new Error('Failed to fetch progress');
                 }
+
+                // Success: reset error count
+                consecutiveErrors = 0;
 
                 const data = await response.json();
                 updateProgressOverlay(data);
 
                 // Check if complete or failed
                 if (data.status === 'success' || data.status === 'failed') {
-                    clearInterval(pollInterval);
-                    // Re-enable page close
-                    window.onbeforeunload = null;
+                    stopPolling(null);
                 }
 
                 // Safety timeout
                 if (pollCount >= maxPolls) {
-                    clearInterval(pollInterval);
-                    window.onbeforeunload = null;
-                    updateProgressOverlay({
-                        status: 'failed',
-                        error: 'Import is taking longer than expected. Please check your listings page.',
-                        progress: { percentage: 0, completed: 0, total: 0 }
-                    });
+                    stopPolling('Import is taking longer than expected. Please check your listings page.');
                 }
 
             } catch (error) {
+                consecutiveErrors++;
                 console.error('Progress poll error:', error);
-                // Don't stop polling on temporary network errors
+                if (consecutiveErrors >= maxConsecutiveErrors) {
+                    stopPolling('Connection problem while checking progress. Please check your listings page.');
+                }
             }
         }, 2000); // Poll every 2 seconds
     }
