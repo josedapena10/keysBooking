@@ -558,7 +558,11 @@ document.addEventListener('DOMContentLoaded', async function () {
             pollCount++;
 
             try {
-                const response = await fetch(`${API_BASE_URL}/integrations/import_progress/${jobId}`);
+                const url = `${API_BASE_URL}/integrations/import_progress`;
+                const params = new URLSearchParams({ job_id: jobId });
+                const response = await fetch(`${url}?${params.toString()}`, {
+                    method: 'GET'
+                });
 
                 if (!response.ok) {
                     consecutiveErrors++;
