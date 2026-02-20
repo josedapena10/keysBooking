@@ -647,7 +647,33 @@ document.addEventListener('DOMContentLoaded', async function () {
                     throw new Error(connectData.message || connectData.error || 'Invalid API key');
                 }
 
-                // STEP 2: Start import
+                // STEP 2: Close modal and show progress overlay as soon as API key is validated
+                if (pmsModal) {
+                    pmsModal.style.display = 'none';
+                    document.body.classList.remove('no-scroll');
+                }
+
+                const providerName = selectedIntegration?.display_name || 'PMS';
+                createProgressOverlay(providerName);
+
+                // Show "Starting import..." until we have a job_id and start polling
+                updateProgressOverlay({
+                    status: 'running',
+                    progress: { percentage: 0, completed: 0, total: 0 },
+                    current_property: null
+                });
+                const progressTextEl = document.getElementById('pms-progress-text');
+                const progressCurrentEl = document.getElementById('pms-progress-current');
+                if (progressTextEl) progressTextEl.textContent = `Starting import from ${providerName}...`;
+                if (progressCurrentEl) progressCurrentEl.textContent = 'Please wait';
+
+                window.onbeforeunload = function (e) {
+                    e.preventDefault();
+                    e.returnValue = 'Import in progress. Are you sure you want to leave?';
+                    return e.returnValue;
+                };
+
+                // STEP 3: Start import (may take a moment; overlay is already visible)
                 const importResponse = await fetch(`${API_BASE_URL}/integrations/start_import`, {
                     method: 'POST',
                     headers: {
@@ -661,25 +687,30 @@ document.addEventListener('DOMContentLoaded', async function () {
                 const importData = await importResponse.json();
 
                 if (!importResponse.ok || !importData.success) {
-                    throw new Error(importData.message || importData.error || 'Failed to start import');
+                    updateProgressOverlay({
+                        status: 'failed',
+                        error: importData.message || importData.error || 'Failed to start import',
+                        progress: { percentage: 0, completed: 0, total: 0 }
+                    });
+                    const completeBtn = document.getElementById('pms-complete-button');
+                    if (completeBtn) {
+                        completeBtn.textContent = 'Try Again';
+                        completeBtn.style.display = 'inline-block';
+                        completeBtn.style.background = 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)';
+                        completeBtn.onclick = () => {
+                            document.getElementById('pms-import-overlay')?.remove();
+                            window.onbeforeunload = null;
+                            if (pmsModal) {
+                                pmsModal.style.display = 'flex';
+                                document.body.classList.add('no-scroll');
+                            }
+                            if (pmsSubmitButtonText) pmsSubmitButtonText.style.display = 'block';
+                            if (pmsSubmitButtonLoader) pmsSubmitButtonLoader.style.display = 'none';
+                            pmsSubmitButton.disabled = false;
+                        };
+                    }
+                    return;
                 }
-
-                // STEP 3: Close modal and show progress overlay
-                if (pmsModal) {
-                    pmsModal.style.display = 'none';
-                    document.body.classList.remove('no-scroll');
-                }
-
-                // Create and show progress overlay with provider name
-                const providerName = selectedIntegration?.display_name || 'PMS';
-                createProgressOverlay(providerName);
-
-                // Prevent page close/refresh
-                window.onbeforeunload = function (e) {
-                    e.preventDefault();
-                    e.returnValue = 'Import in progress. Are you sure you want to leave?';
-                    return e.returnValue;
-                };
 
                 // STEP 4: Start polling for progress
                 pollImportProgress(importData.job_id);
