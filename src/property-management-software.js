@@ -402,24 +402,26 @@ document.addEventListener('DOMContentLoaded', async function () {
         return overlay;
     }
 
-    // Human-readable labels for import steps (from job metadata current_step)
+    // Human-readable labels for import steps (from job metadata or API calls endpoint; also accepts full label from API)
     const STEP_LABELS = {
         fetching_properties: 'Fetching properties...',
-        processing_properties: 'Loading property list...',
-        processing_rooms: 'Loading rooms...',
+        loading_property_list: 'Loading property list...',
+        loading_property: 'Loading property details...',
+        loading_rooms: 'Loading rooms...',
+        loading_rates: 'Loading rates...',
+        syncing_calendar: 'Syncing calendar...',
+        syncing_rates: 'Syncing rates...',
         creating_listing: 'Creating listing...',
         adding_photos: 'Adding photos...',
         adding_amenities: 'Adding amenities...',
         saving_snapshot: 'Saving snapshot...',
         linking_listing: 'Linking listing...',
-        syncing_calendar: 'Syncing calendar...',
-        syncing_rates: 'Syncing rates...',
         imported: 'Listing complete'
     };
 
     function getStepLabel(stepKey) {
         if (!stepKey) return '';
-        return STEP_LABELS[stepKey] || stepKey.replace(/_/g, ' ');
+        return STEP_LABELS[stepKey] || (typeof stepKey === 'string' && stepKey.indexOf(' ') >= 0 ? stepKey : stepKey.replace(/_/g, ' '));
     }
 
     // Update progress overlay
@@ -451,14 +453,15 @@ document.addEventListener('DOMContentLoaded', async function () {
         const importing = progress?.importing || 0;
         const errors = progress?.errors || 0;
         const stepLabel = getStepLabel(current_step);
+        const effectivePercentage = (status === 'running' && total > 0 && completed === 0 && percentage === 0) ? 5 : percentage;
 
-        // Update progress bar
-        progressBar.style.width = `${percentage}%`;
+        // Update progress bar (show at least 5% when one listing is in progress so it's not stuck at 0)
+        progressBar.style.width = `${effectivePercentage}%`;
 
         // Update stats
         if (statCompleted) statCompleted.textContent = completed;
         if (statTotal) statTotal.textContent = total;
-        if (statPercentage) statPercentage.textContent = `${percentage}%`;
+        if (statPercentage) statPercentage.textContent = `${effectivePercentage}%`;
 
         // Elapsed: live timer runs on 1s interval; only set final label when job ends
         if (elapsedTime && overlay?.dataset?.elapsedIntervalId) {
