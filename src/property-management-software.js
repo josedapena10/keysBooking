@@ -382,7 +382,44 @@ document.addEventListener('DOMContentLoaded', async function () {
         // Store start time for elapsed calculation
         overlay.dataset.startTime = Date.now().toString();
 
+        // Live elapsed timer: update every second so time is always visible
+        const elapsedEl = document.getElementById('pms-elapsed-time');
+        const startTs = Date.now();
+        const elapsedInterval = setInterval(() => {
+            const el = document.getElementById('pms-elapsed-time');
+            if (!el || !document.getElementById('pms-import-overlay')) {
+                clearInterval(elapsedInterval);
+                return;
+            }
+            const elapsed = Math.floor((Date.now() - startTs) / 1000);
+            const minutes = Math.floor(elapsed / 60);
+            const seconds = elapsed % 60;
+            const label = el.dataset.finalLabel || 'Elapsed';
+            el.textContent = `${label}: ${minutes}m ${seconds}s`;
+        }, 1000);
+        overlay.dataset.elapsedIntervalId = String(elapsedInterval);
+
         return overlay;
+    }
+
+    // Human-readable labels for import steps (from job metadata current_step)
+    const STEP_LABELS = {
+        fetching_properties: 'Fetching properties...',
+        processing_properties: 'Loading property list...',
+        processing_rooms: 'Loading rooms...',
+        creating_listing: 'Creating listing...',
+        adding_photos: 'Adding photos...',
+        adding_amenities: 'Adding amenities...',
+        saving_snapshot: 'Saving snapshot...',
+        linking_listing: 'Linking listing...',
+        syncing_calendar: 'Syncing calendar...',
+        syncing_rates: 'Syncing rates...',
+        imported: 'Listing complete'
+    };
+
+    function getStepLabel(stepKey) {
+        if (!stepKey) return '';
+        return STEP_LABELS[stepKey] || stepKey.replace(/_/g, ' ');
     }
 
     // Update progress overlay
@@ -407,12 +444,13 @@ document.addEventListener('DOMContentLoaded', async function () {
 
         if (!progressBar) return;
 
-        const { status, progress, error, started_at, finished_at } = data;
+        const { status, progress, error, starting_at, current_step, current_property_name } = data;
         const percentage = Math.round(progress?.percentage || 0);
         const completed = progress?.completed || 0;
         const total = progress?.total || 0;
         const importing = progress?.importing || 0;
         const errors = progress?.errors || 0;
+        const stepLabel = getStepLabel(current_step);
 
         // Update progress bar
         progressBar.style.width = `${percentage}%`;
@@ -422,13 +460,9 @@ document.addEventListener('DOMContentLoaded', async function () {
         if (statTotal) statTotal.textContent = total;
         if (statPercentage) statPercentage.textContent = `${percentage}%`;
 
-        // Update elapsed time
-        if (elapsedTime && overlay?.dataset?.startTime) {
-            const startTime = parseInt(overlay.dataset.startTime);
-            const elapsed = Math.floor((Date.now() - startTime) / 1000);
-            const minutes = Math.floor(elapsed / 60);
-            const seconds = elapsed % 60;
-            elapsedTime.textContent = `Elapsed: ${minutes}m ${seconds}s`;
+        // Elapsed: live timer runs on 1s interval; only set final label when job ends
+        if (elapsedTime && overlay?.dataset?.elapsedIntervalId) {
+            elapsedTime.dataset.finalLabel = 'Elapsed';
         }
 
         // Show breakdown when we have data
@@ -444,11 +478,13 @@ document.addEventListener('DOMContentLoaded', async function () {
                 detailStatus.textContent = 'Running';
                 detailStatus.style.color = '#8BC34A';
             }
-            progressText.textContent = `Importing ${completed} of ${total} ${total === 1 ? 'property' : 'properties'}...`;
-            if (data.current_property) {
-                progressCurrent.textContent = `Currently processing: Property #${data.current_property}`;
+            progressText.textContent = stepLabel || `Importing ${completed} of ${total} ${total === 1 ? 'listing' : 'listings'}...`;
+            if (current_property_name) {
+                progressCurrent.textContent = current_property_name;
+            } else if (data.current_property) {
+                progressCurrent.textContent = `Listing #${data.current_property.id || data.current_property}`;
             } else {
-                progressCurrent.textContent = 'Processing your listings...';
+                progressCurrent.textContent = stepLabel ? 'Please wait' : 'Processing your listings...';
             }
         } else if (status === 'success') {
             progressBar.style.width = '100%';
@@ -479,9 +515,13 @@ document.addEventListener('DOMContentLoaded', async function () {
                 window.location.href = '/host/listings';
             };
 
-            // Update elapsed to show total time
+            // Stop live elapsed timer and show final time
+            if (overlay?.dataset?.elapsedIntervalId) {
+                clearInterval(parseInt(overlay.dataset.elapsedIntervalId, 10));
+                delete overlay.dataset.elapsedIntervalId;
+            }
             if (elapsedTime && overlay?.dataset?.startTime) {
-                const startTime = parseInt(overlay.dataset.startTime);
+                const startTime = parseInt(overlay.dataset.startTime, 10);
                 const elapsed = Math.floor((Date.now() - startTime) / 1000);
                 const minutes = Math.floor(elapsed / 60);
                 const seconds = elapsed % 60;
@@ -525,6 +565,12 @@ document.addEventListener('DOMContentLoaded', async function () {
                 document.getElementById('pms-import-overlay')?.remove();
                 window.onbeforeunload = null;
             };
+
+            // Stop live elapsed timer
+            if (overlay?.dataset?.elapsedIntervalId) {
+                clearInterval(parseInt(overlay.dataset.elapsedIntervalId, 10));
+                delete overlay.dataset.elapsedIntervalId;
+            }
         } else if (status === 'queued') {
             if (detailStatus) {
                 detailStatus.textContent = 'Queued';
