@@ -585,15 +585,22 @@ document.addEventListener('DOMContentLoaded', async function () {
         }
     }
 
-    // Poll for import progress
-    function pollImportProgress(jobId) {
+    // Poll for import progress (every 5s, with an immediate first call)
+    const POLL_INTERVAL_MS = 5000;
+    const MAX_POLLS = 240; // 20 minutes max (240 * 5 seconds)
+    const MAX_CONSECUTIVE_ERRORS = 5;
+
+    function pollImportProgress(connectionId, jobIdOrNull) {
         let pollCount = 0;
         let consecutiveErrors = 0;
-        const maxPolls = 600; // 20 minutes max (600 * 2 seconds)
-        const maxConsecutiveErrors = 5; // Stop after 5 errors in a row
+        let intervalId = null;
+        let currentJobId = jobIdOrNull ?? null;
 
         const stopPolling = (errorMessage) => {
-            clearInterval(pollInterval);
+            if (intervalId != null) {
+                clearInterval(intervalId);
+                intervalId = null;
+            }
             window.onbeforeunload = null;
             if (errorMessage) {
                 updateProgressOverlay({
@@ -604,12 +611,13 @@ document.addEventListener('DOMContentLoaded', async function () {
             }
         };
 
-        const pollInterval = setInterval(async () => {
+        const doPoll = async () => {
             pollCount++;
 
             try {
                 const url = `${API_BASE_URL}/integrations/import_progress`;
-                const params = new URLSearchParams({ job_id: jobId });
+                const params = new URLSearchParams({ connection_id: connectionId });
+                if (currentJobId != null) params.set('job_id', String(currentJobId));
                 const response = await fetch(`${url}?${params.toString()}`, {
                     method: 'GET'
                 });
@@ -618,24 +626,22 @@ document.addEventListener('DOMContentLoaded', async function () {
                     consecutiveErrors++;
                     const errBody = await response.text();
                     console.warn('[PMS Import Progress] HTTP error', response.status, response.statusText, errBody);
-                    // 404 = endpoint missing or job not found; stop immediately
                     if (response.status === 404) {
                         stopPolling('Import progress unavailable. The import may still be running — check your listings page.');
                         return;
                     }
-                    // Other HTTP errors: stop after max consecutive errors
-                    if (consecutiveErrors >= maxConsecutiveErrors) {
+                    if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
                         stopPolling('Unable to load import progress. Please check your listings page.');
                         return;
                     }
                     throw new Error('Failed to fetch progress');
                 }
 
-                // Success: reset error count
                 consecutiveErrors = 0;
 
                 const data = await response.json();
                 console.log('[PMS Import Progress]', {
+                    poll: pollCount,
                     status: data.status,
                     progress: data.progress,
                     current_step: data.current_step,
@@ -644,25 +650,39 @@ document.addEventListener('DOMContentLoaded', async function () {
                 });
                 updateProgressOverlay(data);
 
-                // Check if complete or failed
                 if (data.status === 'success' || data.status === 'failed') {
                     console.log('[PMS Import Progress] Job finished:', data.status);
                     stopPolling(null);
+                    return;
                 }
+                if (data.job_id != null) currentJobId = data.job_id;
 
-                // Safety timeout
-                if (pollCount >= maxPolls) {
+                if (pollCount >= MAX_POLLS) {
                     stopPolling('Import is taking longer than expected. Please check your listings page.');
                 }
-
             } catch (error) {
                 consecutiveErrors++;
                 console.error('[PMS Import Progress] Poll error:', error);
-                if (consecutiveErrors >= maxConsecutiveErrors) {
+                if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
                     stopPolling('Connection problem while checking progress. Please check your listings page.');
                 }
             }
-        }, 2000); // Poll every 2 seconds
+        };
+
+        // First poll immediately so we see progress right away
+        doPoll();
+        // Then poll every 5 seconds
+        intervalId = setInterval(doPoll, POLL_INTERVAL_MS);
+
+        return {
+            stop() {
+                if (intervalId != null) {
+                    clearInterval(intervalId);
+                    intervalId = null;
+                }
+                window.onbeforeunload = null;
+            }
+        };
     }
 
     // Submit button click handler
@@ -720,7 +740,7 @@ document.addEventListener('DOMContentLoaded', async function () {
                 const providerName = selectedIntegration?.display_name || 'PMS';
                 createProgressOverlay(providerName);
 
-                // Show "Starting import..." until we have a job_id and start polling
+                // Show "Starting import..." and begin polling immediately so progress updates during import
                 updateProgressOverlay({
                     status: 'running',
                     progress: { percentage: 0, completed: 0, total: 0 },
@@ -737,8 +757,11 @@ document.addEventListener('DOMContentLoaded', async function () {
                     return e.returnValue;
                 };
 
-                // STEP 3: Start import (may take a moment; overlay is already visible)
-                const importResponse = await fetch(`${API_BASE_URL}/integrations/start_import`, {
+                // STEP 3: Start polling by connection_id immediately (progress shows while import runs)
+                const progressController = pollImportProgress(connectData.connection_id, null);
+
+                // STEP 4: Start import in the background (do not await — when it returns, import is already done)
+                fetch(`${API_BASE_URL}/integrations/start_import`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -746,38 +769,64 @@ document.addEventListener('DOMContentLoaded', async function () {
                     body: JSON.stringify({
                         connection_id: connectData.connection_id
                     })
-                });
-
-                const importData = await importResponse.json();
-
-                if (!importResponse.ok || !importData.success) {
-                    updateProgressOverlay({
-                        status: 'failed',
-                        error: importData.message || importData.error || 'Failed to start import',
-                        progress: { percentage: 0, completed: 0, total: 0 }
-                    });
-                    const completeBtn = document.getElementById('pms-complete-button');
-                    if (completeBtn) {
-                        completeBtn.textContent = 'Try Again';
-                        completeBtn.style.display = 'inline-block';
-                        completeBtn.style.background = 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)';
-                        completeBtn.onclick = () => {
-                            document.getElementById('pms-import-overlay')?.remove();
-                            window.onbeforeunload = null;
-                            if (pmsModal) {
-                                pmsModal.style.display = 'flex';
-                                document.body.classList.add('no-scroll');
+                })
+                    .then(async (res) => {
+                        const importData = await res.json().catch(() => ({}));
+                        return { ok: res.ok, importData };
+                    })
+                    .then(({ ok, importData }) => {
+                        if (!ok || !importData.success) {
+                            progressController.stop();
+                            updateProgressOverlay({
+                                status: 'failed',
+                                error: importData.message || importData.error || 'Failed to start import',
+                                progress: { percentage: 0, completed: 0, total: 0 }
+                            });
+                            const completeBtn = document.getElementById('pms-complete-button');
+                            if (completeBtn) {
+                                completeBtn.textContent = 'Try Again';
+                                completeBtn.style.display = 'inline-block';
+                                completeBtn.style.background = 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)';
+                                completeBtn.onclick = () => {
+                                    document.getElementById('pms-import-overlay')?.remove();
+                                    window.onbeforeunload = null;
+                                    if (pmsModal) {
+                                        pmsModal.style.display = 'flex';
+                                        document.body.classList.add('no-scroll');
+                                    }
+                                    if (pmsSubmitButtonText) pmsSubmitButtonText.style.display = 'block';
+                                    if (pmsSubmitButtonLoader) pmsSubmitButtonLoader.style.display = 'none';
+                                    pmsSubmitButton.disabled = false;
+                                };
                             }
-                            if (pmsSubmitButtonText) pmsSubmitButtonText.style.display = 'block';
-                            if (pmsSubmitButtonLoader) pmsSubmitButtonLoader.style.display = 'none';
-                            pmsSubmitButton.disabled = false;
-                        };
-                    }
-                    return;
-                }
-
-                // STEP 4: Start polling for progress
-                pollImportProgress(importData.job_id);
+                            return;
+                        }
+                    })
+                    .catch((err) => {
+                        progressController.stop();
+                        updateProgressOverlay({
+                            status: 'failed',
+                            error: err.message || 'Failed to start import',
+                            progress: { percentage: 0, completed: 0, total: 0 }
+                        });
+                        const completeBtn = document.getElementById('pms-complete-button');
+                        if (completeBtn) {
+                            completeBtn.textContent = 'Try Again';
+                            completeBtn.style.display = 'inline-block';
+                            completeBtn.style.background = 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)';
+                            completeBtn.onclick = () => {
+                                document.getElementById('pms-import-overlay')?.remove();
+                                window.onbeforeunload = null;
+                                if (pmsModal) {
+                                    pmsModal.style.display = 'flex';
+                                    document.body.classList.add('no-scroll');
+                                }
+                                if (pmsSubmitButtonText) pmsSubmitButtonText.style.display = 'block';
+                                if (pmsSubmitButtonLoader) pmsSubmitButtonLoader.style.display = 'none';
+                                pmsSubmitButton.disabled = false;
+                            };
+                        }
+                    });
 
             } catch (error) {
                 console.error('PMS connection error:', error);
