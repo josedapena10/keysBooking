@@ -453,9 +453,10 @@ document.addEventListener('DOMContentLoaded', async function () {
         const importing = progress?.importing || 0;
         const errors = progress?.errors || 0;
         const stepLabel = getStepLabel(current_step);
-        const effectivePercentage = (status === 'running' && total > 0 && completed === 0 && percentage === 0) ? 5 : percentage;
+        // Backend sends 5% when running and total=0; show at least 5% when running so bar isn't stuck at 0
+        const effectivePercentage = status === 'running' ? Math.max(percentage, 5) : percentage;
 
-        // Update progress bar (show at least 5% when one listing is in progress so it's not stuck at 0)
+        // Update progress bar (show at least 5% when running so it's not stuck at 0)
         progressBar.style.width = `${effectivePercentage}%`;
 
         // Update stats
@@ -468,8 +469,8 @@ document.addEventListener('DOMContentLoaded', async function () {
             elapsedTime.dataset.finalLabel = 'Elapsed';
         }
 
-        // Show breakdown when we have data
-        if (total > 0 && progressBreakdown) {
+        // Show breakdown when we have data or when running (so user sees step even when total is 0)
+        if ((total > 0 || status === 'running') && progressBreakdown) {
             progressBreakdown.style.display = 'block';
             if (detailImporting) detailImporting.textContent = importing;
             if (detailCompleted) detailCompleted.textContent = completed;
@@ -615,6 +616,8 @@ document.addEventListener('DOMContentLoaded', async function () {
 
                 if (!response.ok) {
                     consecutiveErrors++;
+                    const errBody = await response.text();
+                    console.warn('[PMS Import Progress] HTTP error', response.status, response.statusText, errBody);
                     // 404 = endpoint missing or job not found; stop immediately
                     if (response.status === 404) {
                         stopPolling('Import progress unavailable. The import may still be running — check your listings page.');
@@ -632,10 +635,18 @@ document.addEventListener('DOMContentLoaded', async function () {
                 consecutiveErrors = 0;
 
                 const data = await response.json();
+                console.log('[PMS Import Progress]', {
+                    status: data.status,
+                    progress: data.progress,
+                    current_step: data.current_step,
+                    current_property_name: data.current_property_name,
+                    job_id: data.job_id
+                });
                 updateProgressOverlay(data);
 
                 // Check if complete or failed
                 if (data.status === 'success' || data.status === 'failed') {
+                    console.log('[PMS Import Progress] Job finished:', data.status);
                     stopPolling(null);
                 }
 
@@ -646,7 +657,7 @@ document.addEventListener('DOMContentLoaded', async function () {
 
             } catch (error) {
                 consecutiveErrors++;
-                console.error('Progress poll error:', error);
+                console.error('[PMS Import Progress] Poll error:', error);
                 if (consecutiveErrors >= maxConsecutiveErrors) {
                     stopPolling('Connection problem while checking progress. Please check your listings page.');
                 }
