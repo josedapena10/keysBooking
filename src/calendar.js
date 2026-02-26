@@ -1273,6 +1273,7 @@ document.addEventListener('DOMContentLoaded', function () {
     let selectedDates = [];
     let selectedDateTypes = {}; // Map of date strings to their types (e.g., "available", "blocked")
     let propertiesDataRef = null; // Add a global reference to property data
+    let isCurrentPropertyPmsSynced = false; // true when current listing has is_pms_synced - disables calendar/day edits
 
     // Helper function to get current propertyId with validation
     function getCurrentPropertyId() {
@@ -2067,6 +2068,11 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
                 } // In the eventClick handler
                 else if (['unavailablePeriod', 'short_gap', 'blocked', 'available', 'reserved'].includes(info.event.extendedProps.type)) {
+                    // PMS-synced listing: all calendar edits must be done in PMS
+                    if (isCurrentPropertyPmsSynced) {
+                        showCalendarNotification('Any edits to calendar must be done in your PMS.');
+                        return;
+                    }
                     // Check for reserved dates
                     if (info.event.extendedProps.type === 'reserved') {
                         showCalendarNotification('This date is reserved by an external calendar. Please edit it in the source calendar.');
@@ -2177,6 +2183,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
                     // In the dateClick handler where we check for non-reservation events
                     if (nonReservationEvent) {
+                        // PMS-synced listing: all calendar edits must be done in PMS
+                        if (isCurrentPropertyPmsSynced) {
+                            showCalendarNotification('Any edits to calendar must be done in your PMS.');
+                            return;
+                        }
                         // Check if it's a reserved date
                         if (nonReservationEvent.extendedProps.type === 'reserved') {
                             showCalendarNotification('This date is reserved by an external calendar. Please edit it in the source calendar.');
@@ -5038,6 +5049,8 @@ document.addEventListener('DOMContentLoaded', function () {
             return;
         }
 
+        isCurrentPropertyPmsSynced = Boolean(propertyData.is_pms_synced);
+
         const newPropertyId = propertyData.id.toString();
         propertyId = newPropertyId;
 
@@ -5131,6 +5144,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Show edit container when base price is clicked
         newBasePriceContainer.addEventListener('click', function () {
+            if (isCurrentPropertyPmsSynced) {
+                showCalendarNotification('Any edits to calendar must be done in your PMS.');
+                return;
+            }
             toolbar.style.display = 'none';
             basePriceEditContainer.style.display = 'flex';
 
@@ -5316,6 +5333,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Show edit container when cleaning fee is clicked
         newCleaningFeeContainer.addEventListener('click', function () {
+            if (isCurrentPropertyPmsSynced) {
+                showCalendarNotification('Any edits to calendar must be done in your PMS.');
+                return;
+            }
             toolbar.style.display = 'none';
             cleaningFeeEditContainer.style.display = 'flex';
 
@@ -5499,6 +5520,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Show edit container when trip length is clicked
         newTripLengthContainer.addEventListener('click', function () {
+            if (isCurrentPropertyPmsSynced) {
+                showCalendarNotification('Any edits to calendar must be done in your PMS.');
+                return;
+            }
             toolbar.style.display = 'none';
             tripLengthEditContainer.style.display = 'flex';
 
@@ -5701,6 +5726,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Show edit container when advance notice is clicked
         newAdvanceNoticeContainer.addEventListener('click', function () {
+            if (isCurrentPropertyPmsSynced) {
+                showCalendarNotification('Any edits to calendar must be done in your PMS.');
+                return;
+            }
             toolbar.style.display = 'none';
             advanceNoticeEditContainer.style.display = 'flex';
 
@@ -6628,6 +6657,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Show edit container when availability window is clicked
         newAvailabilityWindowContainer.addEventListener('click', function () {
+            if (isCurrentPropertyPmsSynced) {
+                showCalendarNotification('Any edits to calendar must be done in your PMS.');
+                return;
+            }
             toolbar.style.display = 'none';
             availabilityWindowEditContainer.style.display = 'flex';
 
