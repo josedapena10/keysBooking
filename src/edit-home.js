@@ -3564,10 +3564,11 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!sectionRow) return;
         let nudge = sectionRow.querySelector('[data-pms-verify-nudge]');
         if (!nudge) {
+            sectionRow.style.position = 'relative';
             nudge = document.createElement('span');
             nudge.setAttribute('data-pms-verify-nudge', 'true');
-            nudge.style.cssText = 'margin-left: auto; font-size: 11px; color: #666; white-space: nowrap;';
-            nudge.textContent = 'Not imported from PMS - please verify';
+            nudge.style.cssText = 'position: absolute; top: 15px; right: 15px; font-size: 11px; color: #000000; white-space: nowrap; font-family: "TT Fors", sans-serif;';
+            nudge.textContent = 'Please verify';
             sectionRow.appendChild(nudge);
         }
         nudge.style.display = show ? 'inline' : 'none';
