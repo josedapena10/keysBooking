@@ -741,21 +741,33 @@ document.addEventListener('DOMContentLoaded', async function () {
             });
 
             if (!response.ok) {
-                window.location.href = '/host/dashboarx';
+                window.location.href = '/host/dashboard';
                 return;
             }
 
             const unfinishedListings = await response.json();
 
-            if (unfinishedListings && unfinishedListings.length > 0) {
-                // Show manageAddHome step
-                const manageAddHomeStep = document.getElementById('manageAddHome');
-                const listingBlockTemplate = document.querySelector('[data-element="manageAddHome_continueListingBlock"]');
-                const listingContainer = listingBlockTemplate.parentElement;
-                const addListingBlock = document.querySelector('[data-element="manageAddHome_addListingBlock"]');
-                const connectLodgifyBlock = document.querySelector('[data-element="manageAddHome_connectLodgify"]');
+            // Common elements for manageAddHome state
+            const manageAddHomeStep = document.getElementById('manageAddHome');
+            const listingBlockTemplate = document.querySelector('[data-element="manageAddHome_continueListingBlock"]');
+            const listingContainer = listingBlockTemplate ? listingBlockTemplate.parentElement : null;
+            const addListingBlock = document.querySelector('[data-element="manageAddHome_addListingBlock"]');
+            const connectLodgifyBlock = document.querySelector('[data-element="manageAddHome_connectLodgify"]');
+            const continueProgressContainer = document.getElementById('manageAddHome-continueProgressContainer');
+            const headerTextElement = document.getElementById('manageAddHome-headerText');
 
-                // Clear existing blocks
+            const hasUnfinished = Array.isArray(unfinishedListings) && unfinishedListings.length > 0;
+
+            // Update header text and continue-progress container visibility based on unfinished listings
+            if (headerTextElement) {
+                headerTextElement.textContent = hasUnfinished ? 'Welcome back!' : 'Welcome!';
+            }
+            if (continueProgressContainer) {
+                continueProgressContainer.style.display = hasUnfinished ? 'flex' : 'none';
+            }
+
+            if (hasUnfinished && listingBlockTemplate && listingContainer) {
+                // Clear existing blocks inside the continue-progress container
                 listingContainer.innerHTML = '';
 
                 // Create blocks for each unfinished listing
@@ -1265,48 +1277,29 @@ document.addEventListener('DOMContentLoaded', async function () {
 
                     listingContainer.appendChild(newBlock);
                 });
-
-                // Add click handler for new listing block
-                if (addListingBlock) {
-                    addListingBlock.addEventListener('click', () => {
-                        goToStep(steps.indexOf('get-started') + 1);
-                    });
-                }
-
-                // Add click handler for Lodgify connect block
-                if (connectLodgifyBlock) {
-                    connectLodgifyBlock.style.cursor = 'pointer';
-                    connectLodgifyBlock.addEventListener('click', () => {
-                        window.location.href = '/property-management-software';
-                    });
-                }
-
-                showStep('manageAddHome');
-
-
-
-                // Hide next step button when on manageAddHome step
-                const nextStepButton = document.getElementById('nextStep');
-                if (nextStepButton) {
-                    nextStepButton.style.display = 'none';
-                }
-
-            } else {
-                // Go directly to get-started step if no unfinished listings
-                const hash = window.location.hash.substring(1);
-
-                // If user reloads on a step other than get-started without an unfinished listing,
-                // redirect to get-started to prevent empty forms
-                if (hash && hash !== 'get-started' && hash !== 'manageAddHome') {
-                    // Clear the hash and redirect to get-started
-                    window.location.hash = 'get-started';
-                    goToStep(1);
-                } else {
-                    const initialStepId = hash || 'get-started';
-                    const initialStepNumber = steps.indexOf(initialStepId) !== -1 ? steps.indexOf(initialStepId) + 1 : 1;
-                    goToStep(initialStepNumber);
-                }
             }
+
+            // Add click handler for new listing block (always available)
+            if (addListingBlock) {
+                addListingBlock.addEventListener('click', () => {
+                    const getStartedIndex = steps.indexOf('get-started');
+                    const targetStep = getStartedIndex !== -1 ? getStartedIndex + 1 : 1;
+                    goToStep(targetStep);
+                });
+            }
+
+            // Add click handler for Lodgify connect block (always available)
+            if (connectLodgifyBlock) {
+                connectLodgifyBlock.style.cursor = 'pointer';
+                connectLodgifyBlock.addEventListener('click', () => {
+                    window.location.href = '/property-management-software';
+                });
+            }
+
+            // Always start on manageAddHome step, regardless of unfinished listings
+            const manageAddHomeIndex = steps.indexOf('manageAddHome');
+            const initialStepNumber = manageAddHomeIndex !== -1 ? manageAddHomeIndex + 1 : 1;
+            goToStep(initialStepNumber);
         } catch (error) {
             window.location.href = '/host/dashboard';
         }
@@ -2160,7 +2153,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // Array defining the ordered steps by their element IDs
-const steps = ["get-started", "basics", "location", "confirmLocation", "amenities", "dock", "photos", "coverPhotos", "dockPhotos", "title", "description", "pricing", "cleaningFee", "minNights", "rules", "safety", "cancellationPolicy", "reviewInfo"];
+const steps = ["manageAddHome", "get-started", "basics", "location", "confirmLocation", "amenities", "dock", "photos", "coverPhotos", "dockPhotos", "title", "description", "pricing", "cleaningFee", "minNights", "rules", "safety", "cancellationPolicy", "reviewInfo"];
 // Variable to track the current step
 let currentStepNumber = 1;
 
