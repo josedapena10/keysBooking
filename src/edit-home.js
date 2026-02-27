@@ -3565,13 +3565,13 @@ document.addEventListener('DOMContentLoaded', function () {
         let nudge = sectionRow.querySelector('[data-pms-verify-nudge]');
         if (!nudge) {
             sectionRow.style.position = 'relative';
-            nudge = document.createElement('span');
+            nudge = document.createElement('div');
             nudge.setAttribute('data-pms-verify-nudge', 'true');
-            nudge.style.cssText = 'position: absolute; top: 15px; right: 15px; font-size: 15px; color: #FFFDED; white-space: nowrap; font-family: "TT Fors", sans-serif;';
+            nudge.style.cssText = 'position: absolute; top: 15px; right: 15px; font-size: 15px; color: #000000; white-space: nowrap; font-family: "TT Fors", sans-serif; background: #FFFDED; border: 1px solid #e2e2e2; border-radius: 9999px; padding: 6px 12px;';
             nudge.textContent = 'Please verify';
             sectionRow.appendChild(nudge);
         }
-        nudge.style.display = show ? 'inline' : 'none';
+        nudge.style.display = show ? 'block' : 'none';
     }
 
     // Helper: true if listing was created 2 weeks ago or less
