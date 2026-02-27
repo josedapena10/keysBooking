@@ -3559,6 +3559,36 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
+    // Helper: show "Not imported from PMS - please verify" nudge in section row (top right)
+    function ensurePmsVerifyNudge(sectionRow, show) {
+        if (!sectionRow) return;
+        let nudge = sectionRow.querySelector('[data-pms-verify-nudge]');
+        if (!nudge) {
+            nudge = document.createElement('span');
+            nudge.setAttribute('data-pms-verify-nudge', 'true');
+            nudge.style.cssText = 'margin-left: auto; font-size: 11px; color: #666; white-space: nowrap;';
+            nudge.textContent = 'Not imported from PMS - please verify';
+            sectionRow.appendChild(nudge);
+        }
+        nudge.style.display = show ? 'inline' : 'none';
+    }
+
+    // Helper: true if listing was created 2 weeks ago or less
+    function isCreatedWithinTwoWeeks(createdAt) {
+        if (!createdAt) return false;
+        const created = new Date(createdAt);
+        const twoWeeksAgo = new Date();
+        twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+        return created >= twoWeeksAgo;
+    }
+
+    // Helper: true if rules are default (only guests max + no parties, both category 2, none category 3)
+    function isDefaultRulesState(rules) {
+        if (!rules || rules.length !== 2) return false;
+        const ids = rules.map(r => r.rules_id);
+        return rules.every(r => r.rules_category_id === 2) && ids.includes(4) && ids.includes(6);
+    }
+
     // Function to initialize dock section
     function initializeDockSection(data) {
         const dockOptions = {
@@ -3571,6 +3601,11 @@ document.addEventListener('DOMContentLoaded', function () {
         const dockError = document.getElementById('dock-error');
         const dockSubText = document.getElementById('dock-subText');
         const dockText = document.querySelector('[data-element="edit_dock_text"]');
+
+        // PMS import nudge: show when is_pms_synced, created ≤2 weeks ago, and private_dock is false (default)
+        const dockSectionRow = document.querySelector('[data-element="edit_dock"]');
+        const showDockNudge = Boolean(data.is_pms_synced) && isCreatedWithinTwoWeeks(data.created_at) && data.private_dock === false;
+        ensurePmsVerifyNudge(dockSectionRow, showDockNudge);
 
         // Update dock text based on data
         if (dockText) {
@@ -3968,6 +4003,11 @@ document.addEventListener('DOMContentLoaded', function () {
         const amenitiesText = document.querySelector('[data-element="edit_amenities_text"]');
         const amenitiesError = document.getElementById('amenities-error');
         const amenitiesSubText = document.getElementById('amenities-subText');
+
+        // PMS import nudge: show when is_pms_synced and created ≤2 weeks ago (default varies, so time-based only)
+        const amenitiesSectionRow = document.querySelector('[data-element="edit_amenities"]');
+        const showAmenitiesNudge = Boolean(data.is_pms_synced) && isCreatedWithinTwoWeeks(data.created_at);
+        ensurePmsVerifyNudge(amenitiesSectionRow, showAmenitiesNudge);
 
         // Initially hide error text
         if (amenitiesError) {
@@ -5186,6 +5226,11 @@ document.addEventListener('DOMContentLoaded', function () {
         const rulesText = document.querySelector('[data-element="edit_rules_text"]');
         const rulesError = document.getElementById('rules-error');
         const rulesSubText = document.getElementById('rules-subText');
+
+        // PMS import nudge: show when is_pms_synced, created ≤2 weeks ago, and only default rules (guests max + no parties, category 2 only)
+        const rulesSectionRow = document.querySelector('[data-element="edit_rules"]');
+        const showRulesNudge = Boolean(data.is_pms_synced) && isCreatedWithinTwoWeeks(data.created_at) && isDefaultRulesState(data._property_rules);
+        ensurePmsVerifyNudge(rulesSectionRow, showRulesNudge);
 
         // Hide error and show subtext initially
         if (rulesError) {
