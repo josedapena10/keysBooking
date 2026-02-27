@@ -3520,6 +3520,9 @@ document.addEventListener('DOMContentLoaded', function () {
             if (!editCheckingInOutElement) return;
             const hasValidData = Boolean(currentCheckInMethod);
             editCheckingInOutElement.style.backgroundColor = hasValidData ? '' : '#FFE5E5';
+            if (methodText) {
+                methodText.textContent = hasValidData ? currentCheckInMethod : 'Please select a check-in method';
+            }
             if (errorElement) {
                 errorElement.style.display = hasValidData ? 'none' : 'block';
                 if (!hasValidData) errorElement.textContent = 'Please select a check-in method';
@@ -5743,6 +5746,9 @@ document.addEventListener('DOMContentLoaded', function () {
             if (!editCancellationPolicyElement) return;
             const hasValidData = Boolean(currentCancellationPolicyType);
             editCancellationPolicyElement.style.backgroundColor = hasValidData ? '' : '#FFE5E5';
+            if (policyText) {
+                policyText.textContent = hasValidData ? currentCancellationPolicyType : 'Please select a cancellation policy';
+            }
             if (policyError) {
                 policyError.style.display = hasValidData ? 'none' : 'block';
                 if (!hasValidData) policyError.textContent = 'Please select a cancellation policy';
