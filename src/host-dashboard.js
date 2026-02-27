@@ -1176,6 +1176,12 @@ function hasListingIssues(listing) {
     // Check for missing location description
     const missingLocationDescription = !listing.location_description;
 
+    // Check for missing check-in method
+    const missingCheckInMethod = !listing.check_in_method;
+
+    // Check for missing cancellation policy
+    const missingCancellationPolicy = !listing.cancellationPolicy_type;
+
     // Check bedroom photos
     const bedroomPhotos = listing._host_property_pictures.filter(pic => pic.inBedroomSection === true);
     const insufficientBedroomPhotos = bedroomPhotos.length < listing.num_bedrooms;
@@ -1183,7 +1189,13 @@ function hasListingIssues(listing) {
     // Check dock photos if property has private dock
     const dockPhotos = listing._host_property_pictures.filter(pic => pic.in_dock_section === true);
     const insufficientDockPhotos = listing.private_dock && dockPhotos.length < 2;
-    const hasIssues = missingHostInfo || missingLocationDescription || insufficientBedroomPhotos || insufficientDockPhotos;
+    const hasIssues =
+        missingHostInfo ||
+        missingLocationDescription ||
+        missingCheckInMethod ||
+        missingCancellationPolicy ||
+        insufficientBedroomPhotos ||
+        insufficientDockPhotos;
     return hasIssues;
 }
 
