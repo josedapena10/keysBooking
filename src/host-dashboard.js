@@ -1177,10 +1177,10 @@ function hasListingIssues(listing) {
     const missingLocationDescription = !listing.location_description;
 
     // Check for missing check-in method
-    const missingCheckInMethod = !listing.check_in_method;
+    const missingCheckInMethod = listing.check_in_method === null;
 
     // Check for missing cancellation policy
-    const missingCancellationPolicy = !listing.cancellationPolicy_type;
+    const missingCancellationPolicy = listing.cancellationPolicy_type === null;
 
     // Check bedroom photos
     const bedroomPhotos = listing._host_property_pictures.filter(pic => pic.inBedroomSection === true);
