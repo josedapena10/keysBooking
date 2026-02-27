@@ -170,7 +170,6 @@ document.addEventListener('DOMContentLoaded', () => {
         setupNavigationHandler('hostNavBar_reservations', '/host/reservations');
 
     } catch (err) {
-        console.error('Host navigation dropdown error:', err);
     }
 })();
 
@@ -181,19 +180,11 @@ window.Wized.push((async (Wized) => {
         await window.Wized.requests.waitFor('Load_Host_Properties');
         await window.Wized.requests.waitFor('Load_Host_Properties_inProgress');
 
-        console.log('Requests completed successfully');
-
         const hostProperties = window.Wized.data.r.Load_Host_Properties.data;
         const hostPropertiesInProgress = window.Wized.data.r.Load_Host_Properties_inProgress.data;
 
-        console.log('Host properties data:', hostProperties);
-        console.log('Host properties in progress data:', hostPropertiesInProgress);
-
         const hostPropertiesSection = document.querySelector('[data-element="hostListing_section"]');
         const hostPropertiesInProgressSection = document.querySelector('[data-element="hostListing_section_inProgress"]');
-
-        console.log('Host properties section element:', hostPropertiesSection);
-        console.log('Host properties in progress section element:', hostPropertiesInProgressSection);
 
         const calendarNavItem = document.querySelector('[data-element="hostDashboardNavBar_Calendar"]');
 
@@ -218,10 +209,8 @@ window.Wized.push((async (Wized) => {
 
             }
         } else {
-            console.error('Could not find element with data-element="hostListing_section"');
         }
     } catch (error) {
-        console.error('Error in host listings script:', error);
     }
 }));
 

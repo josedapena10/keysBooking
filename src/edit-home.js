@@ -353,10 +353,12 @@ document.addEventListener('DOMContentLoaded', function () {
             hasSuggestedSectionErrors = false;
             errorSections = [];
 
-            // Get relevant sections
+            // Get relevant sections (same pattern for all missing-information sections)
             const photosSection = document.querySelector('[data-element="edit_photos"]');
             const hostSection = document.querySelector('[data-element="edit_host"]');
             const locationSection = document.querySelector('[data-element="edit_location"]');
+            const checkingInOutSection = document.querySelector('[data-element="edit_checkingInOut"]');
+            const cancellationPolicySection = document.querySelector('[data-element="edit_cancellationPolicy"]');
 
             // Setup interval to continuously check background colors
             setInterval(() => {
@@ -389,6 +391,28 @@ document.addEventListener('DOMContentLoaded', function () {
                         hasSuggestedSectionErrors = true;
                         if (!errorSections.includes('Location')) {
                             errorSections.push('Location');
+                        }
+                    }
+                }
+
+                // Check checking in & out section
+                if (checkingInOutSection) {
+                    const checkingInOutColor = window.getComputedStyle(checkingInOutSection).backgroundColor;
+                    if (checkingInOutColor === 'rgb(255, 229, 229)') { // #FFE5E5
+                        hasSuggestedSectionErrors = true;
+                        if (!errorSections.includes('Checking In & Out')) {
+                            errorSections.push('Checking In & Out');
+                        }
+                    }
+                }
+
+                // Check cancellation policy section
+                if (cancellationPolicySection) {
+                    const cancellationPolicyColor = window.getComputedStyle(cancellationPolicySection).backgroundColor;
+                    if (cancellationPolicyColor === 'rgb(255, 229, 229)') { // #FFE5E5
+                        hasSuggestedSectionErrors = true;
+                        if (!errorSections.includes('Cancellation Policy')) {
+                            errorSections.push('Cancellation Policy');
                         }
                     }
                 }
@@ -3089,6 +3113,7 @@ document.addEventListener('DOMContentLoaded', function () {
         };
         const methodText = document.querySelector('[data-element="edit_checkingInOut_methodText"]');
         const timeText = document.querySelector('[data-element="edit_checkingInOut_timeText"]');
+        const editCheckingInOutElement = document.querySelector('[data-element="edit_checkingInOut"]');
 
         const editButton = document.getElementById('editListing_editButton_checkInAndOut');
         const cancelSaveContainer = document.getElementById('editListing_cancelAndSaveButtonContainer_checkInAndOut');
@@ -3110,6 +3135,9 @@ document.addEventListener('DOMContentLoaded', function () {
             checkOutPeriod: '',
             checkInMethod: ''
         };
+
+        // Track current check-in method for section background state (same pattern as host)
+        let currentCheckInMethod = data.check_in_method || null;
 
         // Initially disable inputs and buttons
         function disableAllInputs() {
@@ -3347,6 +3375,9 @@ document.addEventListener('DOMContentLoaded', function () {
                         methodText.textContent = checkInMethod;
                     }
 
+                    currentCheckInMethod = checkInMethod;
+                    updateCheckInOutBackgroundState();
+
                     // Reset UI state after successful save
                     editButton.style.display = 'flex';
                     cancelSaveContainer.style.display = 'none';
@@ -3484,6 +3515,18 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         }
 
+        // Function to update section background and error state (same pattern as host/location/photos)
+        function updateCheckInOutBackgroundState() {
+            if (!editCheckingInOutElement) return;
+            const hasValidData = Boolean(currentCheckInMethod);
+            editCheckingInOutElement.style.backgroundColor = hasValidData ? '' : '#FFE5E5';
+            if (errorElement) {
+                errorElement.style.display = hasValidData ? 'none' : 'block';
+                if (!hasValidData) errorElement.textContent = 'Please select a check-in method';
+            }
+            if (subTextElement) subTextElement.style.display = hasValidData ? 'block' : 'none';
+        }
+
         if (data.check_in_method) {
             const methodMap = {
                 'Self Check-In with Keypad': 'keypad',
@@ -3504,6 +3547,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
             }
         }
+
+        updateCheckInOutBackgroundState();
 
         // Initialize time text display
         if (timeText) {
@@ -5687,10 +5732,23 @@ document.addEventListener('DOMContentLoaded', function () {
         const policyText = document.querySelector('[data-element="edit_cancellationPolicy_text"]');
         const policyError = document.getElementById('cancellationPolicy-error');
         const policySubText = document.getElementById('cancellationPolicy-subText');
+        const editCancellationPolicyElement = document.querySelector('[data-element="edit_cancellationPolicy"]');
 
         // Hide error and show subtext initially
         if (policyError) policyError.style.display = 'none';
         if (policySubText) policySubText.style.display = 'block';
+
+        // Function to update section background and error state (same pattern as host/location/photos)
+        function updateCancellationPolicyBackgroundState() {
+            if (!editCancellationPolicyElement) return;
+            const hasValidData = Boolean(currentCancellationPolicyType);
+            editCancellationPolicyElement.style.backgroundColor = hasValidData ? '' : '#FFE5E5';
+            if (policyError) {
+                policyError.style.display = hasValidData ? 'none' : 'block';
+                if (!hasValidData) policyError.textContent = 'Please select a cancellation policy';
+            }
+            if (policySubText) policySubText.style.display = hasValidData ? 'block' : 'none';
+        }
 
         // Get all cancellation policy buttons
         const cancellationPolicies = {
@@ -5707,8 +5765,12 @@ document.addEventListener('DOMContentLoaded', function () {
         let strictPolicy = false;
         let strictPolicyOption = null;
 
+        // Track current policy for section background state (same pattern as host)
+        let currentCancellationPolicyType = data.cancellationPolicy_type || null;
+
         // Apply selected policy from data
         if (data.cancellationPolicy_type) {
+            currentCancellationPolicyType = data.cancellationPolicy_type;
             selectedPolicy = data.cancellationPolicy_type;
             policyOption = data.cancellation_policy_option || null;
             strictPolicy = data.strict_cancellation_policy || false;
@@ -5733,6 +5795,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 cancellationPolicies[policyKey].style.outlineOffset = '-1px';
             }
         }
+
+        updateCancellationPolicyBackgroundState();
 
         // Store initial state for comparison
         const initialState = {
@@ -5906,6 +5970,8 @@ document.addEventListener('DOMContentLoaded', function () {
                             initialState.policyOption = policyOption;
                             initialState.strictPolicy = strictPolicy;
                             initialState.strictPolicyOption = strictPolicyOption;
+                            currentCancellationPolicyType = selectedPolicy;
+                            updateCancellationPolicyBackgroundState();
 
                             // Update policy text display after successful save
                             if (policyText) {
