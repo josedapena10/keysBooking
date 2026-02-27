@@ -55,7 +55,7 @@ document.addEventListener('DOMContentLoaded', async function () {
             return;
         }
 
-        const url = `${API_BASE_URL}/integrations/manage_connection?host_id=${encodeURIComponent(hostId)}`;
+        const url = `${API_BASE_URL}/integrations/manage_connection?user_id=${encodeURIComponent(hostId)}`;
         const response = await fetch(url, { method: 'GET' });
 
         if (!response.ok) {
