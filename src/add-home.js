@@ -753,6 +753,7 @@ document.addEventListener('DOMContentLoaded', async function () {
                 const listingBlockTemplate = document.querySelector('[data-element="manageAddHome_continueListingBlock"]');
                 const listingContainer = listingBlockTemplate.parentElement;
                 const addListingBlock = document.querySelector('[data-element="manageAddHome_addListingBlock"]');
+                const connectLodgifyBlock = document.querySelector('[data-element="manageAddHome_connectLodgify"]');
 
                 // Clear existing blocks
                 listingContainer.innerHTML = '';
@@ -1269,6 +1270,14 @@ document.addEventListener('DOMContentLoaded', async function () {
                 if (addListingBlock) {
                     addListingBlock.addEventListener('click', () => {
                         goToStep(steps.indexOf('get-started') + 1);
+                    });
+                }
+
+                // Add click handler for Lodgify connect block
+                if (connectLodgifyBlock) {
+                    connectLodgifyBlock.style.cursor = 'pointer';
+                    connectLodgifyBlock.addEventListener('click', () => {
+                        window.location.href = '/property-management-software';
                     });
                 }
 
