@@ -3567,7 +3567,7 @@ document.addEventListener('DOMContentLoaded', function () {
             sectionRow.style.position = 'relative';
             nudge = document.createElement('span');
             nudge.setAttribute('data-pms-verify-nudge', 'true');
-            nudge.style.cssText = 'position: absolute; top: 15px; right: 15px; font-size: 11px; color: #000000; white-space: nowrap; font-family: "TT Fors", sans-serif;';
+            nudge.style.cssText = 'position: absolute; top: 15px; right: 15px; font-size: 15px; color: #000000; white-space: nowrap; font-family: "TT Fors", sans-serif;';
             nudge.textContent = 'Please verify';
             sectionRow.appendChild(nudge);
         }
