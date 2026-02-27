@@ -46,9 +46,10 @@ document.addEventListener('DOMContentLoaded', async function () {
     const providerNameEl = document.querySelector('[data-element="PMS_Card_ProviderName"]');
     const deleteButton = document.querySelector('[data-element="PMS_Card_DeleteButton"]');
 
-    try {
-        if (loader) loader.style.display = 'flex';
+    // Show loader immediately on load while we run the GET request
+    if (loader) loader.style.display = 'flex';
 
+    try {
         const hostId = await getHostId();
         if (hostId == null) {
             window.location.href = REDIRECT_ON_ERROR;
