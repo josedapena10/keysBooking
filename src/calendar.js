@@ -57,7 +57,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Event listener for body click to close the dropdown
         document.body.addEventListener('click', function (evt) {
-            if (profileButton && profileButtonDropdown && 
+            if (profileButton && profileButtonDropdown &&
                 !profileButton.contains(evt.target) && !profileButtonDropdown.contains(evt.target)) {
                 isPopupOpen = false;
                 if (profileButtonDropdown.style) {
@@ -475,7 +475,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // Debounced version of fetchCalendarData for property switching
     // Stores the latest callback to execute after the fetch completes
     let fetchCalendarDataPendingCallback = null;
-    
+
     function fetchCalendarDataDebounced(selectedPropertyId, delay = 300, callback = null) {
         // Clear existing debounce timer
         if (fetchCalendarDataDebounceTimer) {
@@ -1288,7 +1288,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
         return propertyId;
     }
-    
+
     // Helper function to safely set display style
     function safeSetDisplay(element, displayValue) {
         if (!element) {
@@ -3772,7 +3772,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
 
                             const currentPropertyId = getCurrentPropertyId();
-                            
+
                             if (!currentPropertyId) {
                                 throw new Error('Property ID not found');
                             }
@@ -3882,7 +3882,7 @@ document.addEventListener('DOMContentLoaded', function () {
                             // or if we're blocking new dates
                             if (window.checkedOpenRanges.length > 0 || window.checkedBlockedRanges.length > 0) {
                                 const currentPropertyIdForBlocked = getCurrentPropertyId();
-                                
+
                                 if (!currentPropertyIdForBlocked) {
                                     throw new Error('Property ID not found');
                                 }
@@ -5084,8 +5084,8 @@ document.addEventListener('DOMContentLoaded', function () {
         // Setup availability window edit functionality
         setupAvailabilityWindowEdit(propertyData.availabilityWindow_months, propertyData.id);
 
-        // Setup connect calendar display
-        updateToolbarConnectCalendar(propertyData.is_synced, propertyData.calendar_url);
+        // Setup connect calendar display (connected = iCal sync or PMS sync)
+        updateToolbarConnectCalendar(propertyData.is_synced || propertyData.is_pms_synced, propertyData.calendar_url);
 
         // Setup connect calendar edit functionality
         setupConnectCalendarEdit(propertyData.is_synced, propertyData.calendar_sync_endpoint, propertyData.id, propertyData._property_icals);
@@ -5205,7 +5205,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
                     try {
                         const currentPropertyId = getCurrentPropertyId();
-                        
+
                         if (!currentPropertyId) {
                             alert('Property ID not found. Please refresh the page and try again.');
                             return;
@@ -6985,11 +6985,11 @@ document.addEventListener('DOMContentLoaded', function () {
                     const selectedBlock = document.querySelector('[data-element="hostCalendar_listingsPopUp_listingBlock"].clicked');
                     if (selectedBlock) {
                         const selectedPropertyId = selectedBlock.getAttribute('data-property-id');
-                        
+
                         if (selectedPropertyId) {
                             // Find the property name for the selected property
                             const selectedProperty = propertiesData.find(property => property.id.toString() === selectedPropertyId.toString());
-                            
+
                             if (selectedProperty) {
                                 // Store the selected property name to ensure it persists
                                 const selectedPropertyName = selectedProperty.property_name;
