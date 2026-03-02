@@ -65,7 +65,10 @@ document.addEventListener('DOMContentLoaded', async function () {
         }
 
         const data = await response.json();
-        const provider = data._integration_provider;
+        // New structure: { connection: {...}, properties: [...] }
+        const connection = data.connection;
+        const properties = data.properties || [];
+        const provider = connection?._integration_provider;
         if (!provider) {
             window.location.href = REDIRECT_ON_ERROR;
             return;
@@ -80,8 +83,8 @@ document.addEventListener('DOMContentLoaded', async function () {
             providerNameEl.textContent = displayName;
         }
 
-        // Store connection data for delete flow
-        window.__pmsManageConnectionData = data;
+        // Store connection and properties for delete flow
+        window.__pmsManageConnectionData = { connection, properties, _integration_provider: provider };
 
         if (deleteButton) {
             deleteButton.style.cursor = 'pointer';
@@ -122,12 +125,16 @@ document.addEventListener('DOMContentLoaded', async function () {
         modal.addEventListener('click', (e) => e.stopPropagation());
 
         const providerName = (window.__pmsManageConnectionData && window.__pmsManageConnectionData._integration_provider?.display_name) || 'PMS';
+        const properties = window.__pmsManageConnectionData?.properties || [];
+        const hasAnyActive = properties.some(p => p.is_active === true);
 
         modal.innerHTML = `
             <div style="padding:28px 24px 24px;">
                 <h2 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#111;">Delete connection</h2>
-                <p style="margin:0 0 24px;font-size:15px;line-height:1.5;color:#555;">This will remove your ${providerName} integration. Your imported listings will remain, but calendar sync will stop. Choose what happens to those listings:</p>
-                <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:24px;">
+                <p style="margin:0 0 24px;font-size:15px;line-height:1.5;color:#555;" data-pms-delete-desc>${hasAnyActive
+            ? `This will remove your ${providerName} integration. Your imported listings will remain, but calendar sync will stop. Choose what happens to those listings:`
+            : `This will remove your ${providerName} integration. Your imported listings will remain but will stay inactive. Calendar sync will stop.`}</p>
+                <div data-pms-delete-options style="display:${hasAnyActive ? 'flex' : 'none'};flex-direction:column;gap:12px;margin-bottom:24px;">
                     <label style="display:flex;align-items:flex-start;gap:12px;padding:14px 16px;border:2px solid #e5e7eb;border-radius:12px;cursor:pointer;transition:border-color 0.2s, background 0.2s;">
                         <input type="radio" name="pms-delete-listing-option" value="keep" style="margin-top:3px;accent-color:#0f766e;">
                         <div>
@@ -145,7 +152,7 @@ document.addEventListener('DOMContentLoaded', async function () {
                 </div>
                 <div style="display:flex;gap:12px;justify-content:flex-end;">
                     <button type="button" data-pms-delete-cancel style="padding:10px 20px;border:1px solid #d1d5db;border-radius:10px;background:#fff;font-size:15px;font-weight:500;color:#374151;cursor:pointer;">Cancel</button>
-                    <button type="button" data-pms-delete-confirm disabled style="padding:10px 20px;border:none;border-radius:10px;background:#9ca3af;color:#fff;font-size:15px;font-weight:600;cursor:not-allowed;">Confirm deletion</button>
+                    <button type="button" data-pms-delete-confirm style="padding:10px 20px;border:none;border-radius:10px;background:#9ca3af;color:#fff;font-size:15px;font-weight:600;cursor:not-allowed;">Confirm deletion</button>
                 </div>
             </div>
         `;
@@ -159,7 +166,8 @@ document.addEventListener('DOMContentLoaded', async function () {
         const cancelBtn = modal.querySelector('[data-pms-delete-cancel]');
 
         function updateConfirmState() {
-            const chosen = optionKeep?.checked || optionInactive?.checked;
+            // When no listings are active, confirm is always enabled (we always send keepListingActive: false)
+            const chosen = !hasAnyActive || optionKeep?.checked || optionInactive?.checked;
             if (confirmBtn) {
                 confirmBtn.disabled = !chosen;
                 confirmBtn.style.cursor = chosen ? 'pointer' : 'not-allowed';
@@ -202,22 +210,20 @@ document.addEventListener('DOMContentLoaded', async function () {
         deleteConfirmBtn = confirmBtn;
         deleteOptionKeepActive = optionKeep;
         deleteOptionMakeInactive = optionInactive;
+        window.__pmsUpdateDeleteConfirmState = updateConfirmState;
     }
 
     function openDeleteConfirmModal() {
         const data = window.__pmsManageConnectionData;
-        if (!data || !data.id) {
+        const connectionId = data?.connection?.id;
+        if (!data || connectionId == null) {
             console.error('No connection data for delete');
             return;
         }
         createDeleteModal();
         if (deleteOptionKeepActive) deleteOptionKeepActive.checked = false;
         if (deleteOptionMakeInactive) deleteOptionMakeInactive.checked = false;
-        if (deleteConfirmBtn) {
-            deleteConfirmBtn.disabled = true;
-            deleteConfirmBtn.style.cursor = 'not-allowed';
-            deleteConfirmBtn.style.background = '#9ca3af';
-        }
+        window.__pmsUpdateDeleteConfirmState?.();
         if (deleteModalBackdrop) {
             deleteModalBackdrop.style.opacity = '1';
             deleteModalBackdrop.style.pointerEvents = 'auto';
@@ -265,10 +271,14 @@ document.addEventListener('DOMContentLoaded', async function () {
 
     async function submitDelete() {
         const data = window.__pmsManageConnectionData;
-        if (!data || !data.id) return;
-        const keepActive = deleteOptionKeepActive?.checked === true;
-        const makeInactive = deleteOptionMakeInactive?.checked === true;
-        if (!keepActive && !makeInactive) return;
+        const connectionId = data?.connection?.id;
+        if (!data || connectionId == null) return;
+
+        const properties = data.properties || [];
+        const hasAnyActive = properties.some(p => p.is_active === true);
+        // When no listings are active, always send false; otherwise use user's choice
+        const keepActive = hasAnyActive ? (deleteOptionKeepActive?.checked === true) : false;
+        if (hasAnyActive && !deleteOptionKeepActive?.checked && !deleteOptionMakeInactive?.checked) return;
 
         closeDeleteModal();
         showDeleteLoadingOverlay();
@@ -284,7 +294,7 @@ document.addEventListener('DOMContentLoaded', async function () {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    connection_id: parseInt(data.id, 10),
+                    connection_id: parseInt(connectionId, 10),
                     keepListingActive: keepActive
                 })
             });
