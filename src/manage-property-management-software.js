@@ -1,3 +1,73 @@
+// for background 2nd click modal - mirror click
+var script = document.createElement('script');
+script.src = 'https://cdn.jsdelivr.net/npm/@finsweet/attributes-mirrorclick@1/mirrorclick.js';
+document.body.appendChild(script);
+
+
+// for no scroll background when modal is open
+// when DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+    // on .open-modal click
+    document.querySelectorAll('.open_modal').forEach(trigger => {
+        trigger.addEventListener('click', function () {
+            // on every click
+            document.querySelectorAll('body').forEach(target => target.classList.add('no-scroll'));
+        });
+    });
+
+    // on .close-modal click
+    document.querySelectorAll('.close_modal').forEach(trigger => {
+        trigger.addEventListener('click', function () {
+            // on every click
+            document.querySelectorAll('body').forEach(target => target.classList.remove('no-scroll'));
+        });
+    });
+});
+
+
+(async function () {
+    try {
+        const profileButton = document.querySelector('[data-element="profile_button"]');
+        const profileButtonDropdown = document.querySelector('[data-element="profile_button_dropdown"]');
+        let isPopupOpen = false;
+
+        // Close the dropdown initially
+        profileButtonDropdown.style.display = 'none';
+
+        // Function to toggle the dropdown
+        const togglePopup = () => {
+            isPopupOpen = !isPopupOpen;
+            profileButtonDropdown.style.display = isPopupOpen ? 'flex' : 'none';
+        };
+
+        // Event listener for profile button click and toggling the dropdown
+        profileButton.addEventListener('click', function () {
+            togglePopup();
+        });
+
+        // Event listener for body click to close the dropdown
+        document.body.addEventListener('click', function (evt) {
+            if (!profileButton.contains(evt.target) && !profileButtonDropdown.contains(evt.target)) {
+                isPopupOpen = false;
+                profileButtonDropdown.style.display = 'none';
+            }
+        });
+
+        // Event listeners to close the popup when buttons inside are clicked
+        const popupButtons = profileButtonDropdown.querySelectorAll('[data-element*="Button"]');
+        popupButtons.forEach(button => {
+            button.addEventListener('click', function () {
+                isPopupOpen = false;
+                profileButtonDropdown.style.display = 'none';
+            });
+        });
+
+    } catch (err) {
+
+    }
+})();
+
+
 // Manage PMS connection: load connection by host_id, show provider info, delete (handled separately)
 document.addEventListener('DOMContentLoaded', async function () {
     const API_BASE_URL = 'https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX';
@@ -132,8 +202,8 @@ document.addEventListener('DOMContentLoaded', async function () {
             <div style="padding:28px 24px 24px;">
                 <h2 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#111;">Delete connection</h2>
                 <p style="margin:0 0 24px;font-size:15px;line-height:1.5;color:#555;" data-pms-delete-desc>${hasAnyActive
-            ? `This will remove your ${providerName} integration. Your imported listings will remain, but calendar sync will stop. Choose what happens to those listings:`
-            : `This will remove your ${providerName} integration. Your imported listings will remain but will stay inactive. Calendar sync will stop.`}</p>
+                ? `This will remove your ${providerName} integration. Your imported listings will remain, but calendar sync will stop. Choose what happens to those listings:`
+                : `This will remove your ${providerName} integration. Your imported listings will remain but will stay inactive. Calendar sync will stop.`}</p>
                 <div data-pms-delete-options style="display:${hasAnyActive ? 'flex' : 'none'};flex-direction:column;gap:12px;margin-bottom:24px;">
                     <label style="display:flex;align-items:flex-start;gap:12px;padding:14px 16px;border:2px solid #e5e7eb;border-radius:12px;cursor:pointer;transition:border-color 0.2s, background 0.2s;">
                         <input type="radio" name="pms-delete-listing-option" value="keep" style="margin-top:3px;accent-color:#0f766e;">
