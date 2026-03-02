@@ -138,8 +138,8 @@ document.addEventListener('DOMContentLoaded', async function () {
                     <label style="display:flex;align-items:flex-start;gap:12px;padding:14px 16px;border:2px solid #e5e7eb;border-radius:12px;cursor:pointer;transition:border-color 0.2s, background 0.2s;">
                         <input type="radio" name="pms-delete-listing-option" value="keep" style="margin-top:3px;accent-color:#0f766e;">
                         <div>
-                            <span style="font-weight:600;color:#111;">Keep my listings active</span>
-                            <p style="margin:4px 0 0;font-size:13px;color:#6b7280;">Listings stay live; you can manage availability and calendar manually.</p>
+                            <span style="font-weight:600;color:#111;">Keep listings as they are</span>
+                            <p style="margin:4px 0 0;font-size:13px;color:#6b7280;">We will preserve each listing&apos;s current active or inactive status.</p>
                         </div>
                     </label>
                     <label style="display:flex;align-items:flex-start;gap:12px;padding:14px 16px;border:2px solid #e5e7eb;border-radius:12px;cursor:pointer;transition:border-color 0.2s, background 0.2s;">
