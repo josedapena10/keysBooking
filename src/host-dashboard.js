@@ -1169,6 +1169,7 @@ async function initializeNotifications(hostId) {
 }
 
 function hasListingIssues(listing) {
+    console.log('[hasListingIssues] listing:', listing);
     // Check for missing host information
     const missingHostInfo = !listing._host_information?.host_description ||
         !listing._host_information?.Profile_Picture;
