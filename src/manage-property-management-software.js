@@ -371,7 +371,9 @@ document.addEventListener('DOMContentLoaded', async function () {
 
             const result = await response.json().catch(() => ({}));
 
-            if (!response.ok || !result.success) {
+            // Treat HTTP 2xx as success (Xano may not include success: true in the body)
+            const isSuccess = response.ok && result.success !== false;
+            if (!isSuccess) {
                 hideDeleteLoadingOverlay();
                 window.onbeforeunload = null;
                 alert(result.message || result.error || 'Failed to delete connection. Please try again.');
