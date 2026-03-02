@@ -447,14 +447,28 @@ document.addEventListener('DOMContentLoaded', async function () {
         if (!progressBar) return;
 
         const { status, progress, error, starting_at, current_step, current_property_name } = data;
-        const percentage = Math.round(progress?.percentage || 0);
+        const apiPercentage = Math.round(progress?.percentage || 0);
         const completed = progress?.completed || 0;
         const total = progress?.total || 0;
         const importing = progress?.importing || 0;
         const errors = progress?.errors || 0;
         const stepLabel = getStepLabel(current_step);
-        // Backend sends 5% when running and total=0; show at least 5% when running so bar isn't stuck at 0
-        const effectivePercentage = status === 'running' ? Math.max(percentage, 5) : percentage;
+
+        // When we have total listings, derive % from completed/total so the bar reflects overall
+        // progress (e.g. 4 listings: 0→25→50→75→100). Ignore API percentage which may be
+        // per-listing and cause jumps (e.g. 95% then reset when next listing starts).
+        let effectivePercentage;
+        if (status === 'success') {
+            effectivePercentage = 100;
+        } else if (total > 0) {
+            const fromCompleted = Math.round((completed / total) * 100);
+            effectivePercentage = status === 'running'
+                ? Math.max(fromCompleted, completed === 0 ? 5 : 0)  // min 5% when no listing done yet
+                : fromCompleted;
+        } else {
+            // No total: fall back to API percentage, show at least 5% when running
+            effectivePercentage = status === 'running' ? Math.max(apiPercentage, 5) : apiPercentage;
+        }
 
         // Update progress bar (show at least 5% when running so it's not stuck at 0)
         progressBar.style.width = `${effectivePercentage}%`;
