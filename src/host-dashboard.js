@@ -1184,13 +1184,13 @@ function hasListingIssues(listing) {
     });
 
     // Check for missing check-in method
-    const missingCheckInMethod = listing.check_in_method === null;
+    const missingCheckInMethod = listing.check_in_method == null;
     console.log('[hasListingIssues] missingCheckInMethod:', missingCheckInMethod, {
         check_in_method: listing.check_in_method
     });
 
     // Check for missing cancellation policy
-    const missingCancellationPolicy = listing.cancellationPolicy_type === null;
+    const missingCancellationPolicy = listing.cancellationPolicy_type == null;
     console.log('[hasListingIssues] missingCancellationPolicy:', missingCancellationPolicy, {
         cancellationPolicy_type: listing.cancellationPolicy_type
     });
