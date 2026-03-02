@@ -457,17 +457,23 @@ document.addEventListener('DOMContentLoaded', async function () {
         // When we have total listings, derive % from completed/total so the bar reflects overall
         // progress (e.g. 4 listings: 0→25→50→75→100). Ignore API percentage which may be
         // per-listing and cause jumps (e.g. 95% then reset when next listing starts).
+        // Never show 100% until status === 'success'.
         let effectivePercentage;
         if (status === 'success') {
             effectivePercentage = 100;
         } else if (total > 0) {
             const fromCompleted = Math.round((completed / total) * 100);
-            effectivePercentage = status === 'running'
-                ? Math.max(fromCompleted, completed === 0 ? 5 : 0)  // min 5% when no listing done yet
-                : fromCompleted;
+            if (status === 'running') {
+                const minPct = completed === 0 ? 5 : 0;
+                effectivePercentage = Math.min(99, Math.max(fromCompleted, minPct));
+            } else {
+                effectivePercentage = Math.min(99, fromCompleted);
+            }
         } else {
-            // No total: fall back to API percentage, show at least 5% when running
-            effectivePercentage = status === 'running' ? Math.max(apiPercentage, 5) : apiPercentage;
+            // No total: fall back to API percentage, show at least 5% when running, cap at 99%
+            effectivePercentage = status === 'running'
+                ? Math.min(99, Math.max(apiPercentage, 5))
+                : Math.min(99, apiPercentage);
         }
 
         // Update progress bar (show at least 5% when running so it's not stuck at 0)
@@ -609,6 +615,8 @@ document.addEventListener('DOMContentLoaded', async function () {
         let consecutiveErrors = 0;
         let intervalId = null;
         let currentJobId = jobIdOrNull ?? null;
+        // Never decrease total — backend may send inconsistent values (e.g. 2 then 1), which causes bar to jump
+        let maxTotalSeen = Math.max(0, initialTotal);
 
         const stopPolling = (errorMessage) => {
             if (intervalId != null) {
@@ -662,10 +670,11 @@ document.addEventListener('DOMContentLoaded', async function () {
                     current_property_name: data.current_property_name,
                     job_id: data.job_id
                 });
-                // Use initial total from connect when backend hasn't reported total yet, so progress bar doesn't jump
+                // Use max total ever seen — backend may send inconsistent totals (e.g. 2 then 1), causing bar to jump
                 const progress = data.progress || {};
-                const effectiveTotal = (progress.total != null && progress.total > 0) ? progress.total : initialTotal;
-                const dataWithTotal = { ...data, progress: { ...progress, total: effectiveTotal } };
+                const reportedTotal = (progress.total != null && progress.total > 0) ? progress.total : 0;
+                maxTotalSeen = Math.max(maxTotalSeen, reportedTotal, initialTotal);
+                const dataWithTotal = { ...data, progress: { ...progress, total: maxTotalSeen } };
                 updateProgressOverlay(dataWithTotal);
 
                 if (data.status === 'success' || data.status === 'failed') {
