@@ -587,10 +587,10 @@ document.addEventListener('DOMContentLoaded', async function () {
 
     // Poll for import progress (every 5s, with an immediate first call)
     const POLL_INTERVAL_MS = 5000;
-    const MAX_POLLS = 240; // 20 minutes max (240 * 5 seconds)
+    const MAX_POLLS = 480; // 40 minutes max (480 * 5 seconds)
     const MAX_CONSECUTIVE_ERRORS = 5;
 
-    function pollImportProgress(connectionId, jobIdOrNull) {
+    function pollImportProgress(connectionId, jobIdOrNull, initialTotal = 0) {
         let pollCount = 0;
         let consecutiveErrors = 0;
         let intervalId = null;
@@ -648,7 +648,11 @@ document.addEventListener('DOMContentLoaded', async function () {
                     current_property_name: data.current_property_name,
                     job_id: data.job_id
                 });
-                updateProgressOverlay(data);
+                // Use initial total from connect when backend hasn't reported total yet, so progress bar doesn't jump
+                const progress = data.progress || {};
+                const effectiveTotal = (progress.total != null && progress.total > 0) ? progress.total : initialTotal;
+                const dataWithTotal = { ...data, progress: { ...progress, total: effectiveTotal } };
+                updateProgressOverlay(dataWithTotal);
 
                 if (data.status === 'success' || data.status === 'failed') {
                     console.log('[PMS Import Progress] Job finished:', data.status);
@@ -731,6 +735,8 @@ document.addEventListener('DOMContentLoaded', async function () {
                     throw new Error(connectData.message || connectData.error || 'Invalid API key');
                 }
 
+                const initialTotal = connectData.total_listings ?? 0;
+
                 // STEP 2: Close modal and show progress overlay as soon as API key is validated
                 if (pmsModal) {
                     pmsModal.style.display = 'none';
@@ -740,10 +746,10 @@ document.addEventListener('DOMContentLoaded', async function () {
                 const providerName = selectedIntegration?.display_name || 'PMS';
                 createProgressOverlay(providerName);
 
-                // Show "Starting import..." and begin polling immediately so progress updates during import
+                // Show "Starting import..." with known total from connect so progress bar is accurate from the start
                 updateProgressOverlay({
                     status: 'running',
-                    progress: { percentage: 0, completed: 0, total: 0 },
+                    progress: { percentage: 0, completed: 0, total: initialTotal },
                     current_property: null
                 });
                 const progressTextEl = document.getElementById('pms-progress-text');
@@ -758,7 +764,7 @@ document.addEventListener('DOMContentLoaded', async function () {
                 };
 
                 // STEP 3: Start polling by connection_id immediately (progress shows while import runs)
-                const progressController = pollImportProgress(connectData.connection_id, null);
+                const progressController = pollImportProgress(connectData.connection_id, null, initialTotal);
 
                 // STEP 4: Start import in the background (do not await — when it returns, import is already done)
                 fetch(`${API_BASE_URL}/integrations/start_import`, {
