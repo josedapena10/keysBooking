@@ -458,6 +458,16 @@ document.addEventListener('DOMContentLoaded', function () {
                         propertyData.cancellation_policy_option = 2592000;
                         propertyData.cancellationPolicy_type = "Firm";
                         break;
+                    case "Strict":
+                        propertyData.cancellation_policy = true;
+                        propertyData.cancellation_policy_option = 5184000;
+                        propertyData.cancellationPolicy_type = "Strict";
+                        break;
+                    case "Very Strict":
+                        propertyData.cancellation_policy = true;
+                        propertyData.cancellation_policy_option = 7776000;
+                        propertyData.cancellationPolicy_type = "Very Strict";
+                        break;
                     case "Grace window":
                         propertyData.cancellation_policy = true;
                         propertyData.strict_cancellation_policy = true;
@@ -3083,6 +3093,8 @@ function initializeCancellationPolicyStep() {
         relaxed: document.querySelector('[data-element="cancellationPolicy_relaxed"]'),
         standard: document.querySelector('[data-element="cancellationPolicy_standard"]'),
         firm: document.querySelector('[data-element="cancellationPolicy_firm"]'),
+        strict: document.querySelector('[data-element="cancellationPolicy_strict"]'),
+        veryStrict: document.querySelector('[data-element="cancellationPolicy_veryStrict"]'),
         graceWindow: document.querySelector('[data-element="cancellationPolicy_graceWindow"]'),
         noRefund: document.querySelector('[data-element="cancellationPolicy_noRefund"]')
     };
@@ -3091,6 +3103,8 @@ function initializeCancellationPolicyStep() {
         relaxed: "Relaxed",
         standard: "Standard",
         firm: "Firm",
+        strict: "Strict",
+        veryStrict: "Very Strict",
         graceWindow: "Grace window",
         noRefund: "No refund"
     };

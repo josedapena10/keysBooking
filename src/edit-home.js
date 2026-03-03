@@ -5807,6 +5807,8 @@ document.addEventListener('DOMContentLoaded', function () {
             relaxed: document.querySelector('[data-element="cancellationPolicy_relaxed"]'),
             standard: document.querySelector('[data-element="cancellationPolicy_standard"]'),
             firm: document.querySelector('[data-element="cancellationPolicy_firm"]'),
+            strict: document.querySelector('[data-element="cancellationPolicy_strict"]'),
+            veryStrict: document.querySelector('[data-element="cancellationPolicy_veryStrict"]'),
             graceWindow: document.querySelector('[data-element="cancellationPolicy_graceWindow"]'),
             noRefund: document.querySelector('[data-element="cancellationPolicy_noRefund"]')
         };
@@ -5837,6 +5839,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 'Relaxed': 'relaxed',
                 'Standard': 'standard',
                 'Firm': 'firm',
+                'Strict': 'strict',
+                'Very Strict': 'veryStrict',
                 'Grace window': 'graceWindow',
                 'No refund': 'noRefund'
             };
@@ -5906,6 +5910,8 @@ document.addEventListener('DOMContentLoaded', function () {
                                 'relaxed': 'Relaxed',
                                 'standard': 'Standard',
                                 'firm': 'Firm',
+                                'strict': 'Strict',
+                                'veryStrict': 'Very Strict',
                                 'graceWindow': 'Grace window',
                                 'noRefund': 'No refund'
                             };
@@ -5929,6 +5935,8 @@ document.addEventListener('DOMContentLoaded', function () {
                             'Relaxed': 'relaxed',
                             'Standard': 'standard',
                             'Firm': 'firm',
+                            'Strict': 'strict',
+                            'Very Strict': 'veryStrict',
                             'Grace window': 'graceWindow',
                             'No refund': 'noRefund'
                         };
@@ -5984,6 +5992,12 @@ document.addEventListener('DOMContentLoaded', function () {
                                     break;
                                 case "Firm":
                                     policyOption = 2592000;
+                                    break;
+                                case "Strict":
+                                    policyOption = 5184000;
+                                    break;
+                                case "Very Strict":
+                                    policyOption = 7776000;
                                     break;
                                 case "Grace window":
                                     policyOption = null;
