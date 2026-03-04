@@ -12406,6 +12406,7 @@ document.addEventListener('DOMContentLoaded', () => {
           });
 
           [leftButton, rightButton].forEach(btn => {
+            btn.style.touchAction = 'manipulation';
             btn.addEventListener('touchstart', (e) => { e.stopPropagation(); }, { passive: true });
             btn.addEventListener('touchend', (e) => { e.stopPropagation(); }, { passive: true });
           });
@@ -12732,6 +12733,7 @@ document.addEventListener('DOMContentLoaded', () => {
           });
 
           [leftButton, rightButton].forEach(btn => {
+            btn.style.touchAction = 'manipulation';
             btn.addEventListener('touchstart', (e) => { e.stopPropagation(); }, { passive: true });
             btn.addEventListener('touchend', (e) => { e.stopPropagation(); }, { passive: true });
           });
@@ -12912,6 +12914,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (photos.length > 1) {
           prevButton.addEventListener('click', goToPrevious);
           nextButton.addEventListener('click', goToNext);
+
+          [prevButton, nextButton].forEach(btn => {
+            btn.style.touchAction = 'manipulation';
+          });
 
           // Hover effects
           prevButton.addEventListener('mouseenter', () => {
@@ -19111,6 +19117,7 @@ document.addEventListener('DOMContentLoaded', () => {
           });
 
           [leftButton, rightButton].forEach(btn => {
+            btn.style.touchAction = 'manipulation';
             btn.addEventListener('touchstart', (e) => { e.stopPropagation(); }, { passive: true });
             btn.addEventListener('touchend', (e) => { e.stopPropagation(); }, { passive: true });
           });
@@ -19426,6 +19433,7 @@ document.addEventListener('DOMContentLoaded', () => {
           });
 
           [leftButton, rightButton].forEach(btn => {
+            btn.style.touchAction = 'manipulation';
             btn.addEventListener('touchstart', (e) => { e.stopPropagation(); }, { passive: true });
             btn.addEventListener('touchend', (e) => { e.stopPropagation(); }, { passive: true });
           });
@@ -19557,6 +19565,10 @@ document.addEventListener('DOMContentLoaded', () => {
           `;
 
           nextButton.addEventListener('click', goToNext);
+
+          [prevButton, nextButton].forEach(btn => {
+            btn.style.touchAction = 'manipulation';
+          });
 
           // Hover effects
           prevButton.addEventListener('mouseenter', () => {
