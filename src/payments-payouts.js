@@ -181,29 +181,36 @@ function handleUserPayouts(payouts) {
         payoutsBlock.style.display = 'flex';
         noPayoutsBlock.style.display = 'none';
 
-        // Get unique non-null connect account IDs
+        // A payout is "fully connected" if it has a connect_account_id AND setup is complete
+        const isFullyConnected = (payout) =>
+            payout.connect_account_id !== null && payout.payout_connected === true;
+
+        // A payout is "incomplete" if it has an account ID but setup was never finished
+        const isIncompleteSetup = (payout) =>
+            payout.connect_account_id !== null && !payout.payout_connected
+            && !payout.business_name && !payout.method_type && !payout.bank_name && !payout.last4;
+
+        // Get unique fully connected account IDs (exclude incomplete setups)
         const uniqueConnectAccounts = [...new Set(
             payouts
-                .filter(payout => payout.connect_account_id !== null)
+                .filter(payout => isFullyConnected(payout))
                 .map(payout => payout.connect_account_id)
         )];
 
-        // Check if any payout has connected account
         const hasConnectedAccount = uniqueConnectAccounts.length > 0;
-        const hasUnconnectedAccount = payouts.some(payout => payout.connect_account_id === null);
+        const hasUnconnectedAccount = payouts.some(payout => payout.connect_account_id === null || isIncompleteSetup(payout));
 
-        // Handle add payout method button visibility
+        // Show "add payout method" if no fully connected accounts exist
         if (addPayoutMethodButton) {
             addPayoutMethodButton.style.display = hasConnectedAccount ? 'none' : 'flex';
         }
 
         if (hasConnectedAccount && hasUnconnectedAccount) {
-            // Get names of unconnected properties
+            // Get names of properties not fully connected
             const unconnectedProperties = payouts
-                .filter(payout => payout.connect_account_id === null)
+                .filter(payout => payout.connect_account_id === null || isIncompleteSetup(payout))
                 .map(payout => payout._user_property.property_name);
 
-            // Show error text with unconnected property names
             errorText.textContent = `Please link ${unconnectedProperties.join(', ')} to your payout method. To edit click the edit button below.`;
             errorText.style.display = 'flex';
             subText.style.display = 'none';
@@ -236,13 +243,13 @@ function handleUserPayouts(payouts) {
                     }
                     currentBlock.setAttribute('data-connect-account', connectAccountId);
 
-                    // Get all properties linked to this connect account
+                    // Get all properties linked to this fully connected account
                     const linkedProperties = payouts
-                        .filter(payout => payout.connect_account_id !== null && payout.connect_account_id === connectAccountId)
+                        .filter(payout => isFullyConnected(payout) && payout.connect_account_id === connectAccountId)
                         .map(payout => payout._user_property.property_name);
 
                     // Get the first payout for this connect account to display details
-                    const payout = payouts.find(p => p.connect_account_id !== null && p.connect_account_id === connectAccountId);
+                    const payout = payouts.find(p => isFullyConnected(p) && p.connect_account_id === connectAccountId);
 
                     // Find and update the linked listings element
                     const linkedListingsElement = currentBlock.querySelector('[data-element="payoutsBlock_connectedAccountBlock_linkedListing"]');

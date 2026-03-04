@@ -617,7 +617,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 });
 
                 // Format guest information
-                let guestInfo = reservation._user_1.First_Name;
+                let guestInfo = reservation._user_1?.First_Name;
                 // Only show "+ X guests" if there are additional guests (more than 1 total)
                 if (reservation.guests > 1) {
                     const additionalGuests = reservation.guests - 1;
@@ -900,7 +900,8 @@ document.addEventListener('DOMContentLoaded', function () {
         datesWithCustomMinNights.sort((a, b) => a.date.localeCompare(b.date));
 
         datesWithCustomMinNights.forEach(day => {
-            const currentDate = new Date(day.date);
+            const cdParts = day.date.split('-').map(p => parseInt(p));
+            const currentDate = new Date(cdParts[0], cdParts[1] - 1, cdParts[2]);
 
             if (!currentPeriod) {
                 // Start a new period
@@ -911,7 +912,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 };
             } else {
                 // Check if this date is consecutive with current period
-                const prevDate = new Date(currentPeriod.end);
+                const peParts = currentPeriod.end.split('-').map(p => parseInt(p));
+                const prevDate = new Date(peParts[0], peParts[1] - 1, peParts[2]);
                 prevDate.setDate(prevDate.getDate() + 1);
 
                 if (currentDate.getTime() === prevDate.getTime() && day.minNights === currentPeriod.minNights) {
@@ -939,16 +941,17 @@ document.addEventListener('DOMContentLoaded', function () {
             const currentPeriod = customMinNightsPeriods[i];
             const nextPeriod = customMinNightsPeriods[i + 1];
 
-            // Parse end date of current period
-            const currentEndDate = new Date(currentPeriod.end);
-            // Parse start date of next period
-            const nextStartDate = new Date(nextPeriod.start);
+            // Parse dates as local time to avoid UTC timezone shift
+            const ceParts = currentPeriod.end.split('-').map(p => parseInt(p));
+            const currentEndDate = new Date(ceParts[0], ceParts[1] - 1, ceParts[2]);
+            const nsParts = nextPeriod.start.split('-').map(p => parseInt(p));
+            const nextStartDate = new Date(nsParts[0], nsParts[1] - 1, nsParts[2]);
 
             // Add one day to current end date to get the gap start
             currentEndDate.setDate(currentEndDate.getDate() + 1);
 
             // Calculate number of nights in the gap
-            const gapNights = Math.floor((nextStartDate - currentEndDate) / (1000 * 60 * 60 * 24)) + 1;
+            const gapNights = Math.floor((nextStartDate - currentEndDate) / (1000 * 60 * 60 * 24));
 
             // If gap exists and is shorter than either surrounding period's min nights requirement
             if (gapNights > 0 && (gapNights < currentPeriod.minNights || gapNights < nextPeriod.minNights)) {
@@ -1002,24 +1005,47 @@ document.addEventListener('DOMContentLoaded', function () {
                     tempDate.setDate(tempDate.getDate() + 1);
                 }
 
-                // Check if any date in the gap has a custom minimum nights setting
-                let lowestMinNights = minNights; // Default to property-wide setting
-
-                if (data.property_calendar && data.property_calendar.length > 0) {
-                    datesInGap.forEach(gapDateStr => {
-                        const calendarDay = data.property_calendar.find(day => day.date === gapDateStr);
-                        if (calendarDay && calendarDay.custom_minNights !== undefined && calendarDay.custom_minNights !== null) {
-                            // If all dates in gap have the same custom value, use that
-                            lowestMinNights = Math.min(lowestMinNights, calendarDay.custom_minNights);
+                // Iteratively evaluate dates: marking some as short_gap can shrink
+                // the available sub-runs, causing more dates to become short_gap.
+                const shortGapSet = new Set();
+                let changed = true;
+                while (changed) {
+                    changed = false;
+                    // Find contiguous sub-runs of non-short_gap dates within the gap
+                    const subRuns = [];
+                    let runStart = -1;
+                    for (let k = 0; k < datesInGap.length; k++) {
+                        if (!shortGapSet.has(datesInGap[k])) {
+                            if (runStart === -1) runStart = k;
+                        } else {
+                            if (runStart !== -1) {
+                                subRuns.push({ start: runStart, end: k - 1 });
+                                runStart = -1;
+                            }
                         }
-                    });
+                    }
+                    if (runStart !== -1) {
+                        subRuns.push({ start: runStart, end: datesInGap.length - 1 });
+                    }
+
+                    for (const run of subRuns) {
+                        const runLength = run.end - run.start + 1;
+                        for (let k = run.start; k <= run.end; k++) {
+                            const gapDateStr = datesInGap[k];
+                            const calendarDay = calendarDayByDate.get(gapDateStr);
+                            const dateMinNights = (calendarDay && calendarDay.custom_minNights !== undefined && calendarDay.custom_minNights !== null)
+                                ? calendarDay.custom_minNights
+                                : minNights;
+
+                            if (runLength < dateMinNights) {
+                                shortGapSet.add(gapDateStr);
+                                changed = true;
+                            }
+                        }
+                    }
                 }
 
-                // If gap is shorter than the applicable minimum nights, mark as short gap
-                if (nightsBetween < lowestMinNights) {
-                    // Add all dates in this gap to shortGaps array
-                    shortGaps.push(...datesInGap);
-                }
+                shortGapSet.forEach(dateStr => shortGaps.push(dateStr));
             }
         }
 
@@ -1046,113 +1072,67 @@ document.addEventListener('DOMContentLoaded', function () {
             const gapNights = Math.floor((firstUnavailableStart - today) / MS_PER_DAY);
 
             if (gapNights > 0) {
+                const leadingDates = [];
                 const cursor = new Date(today);
                 while (cursor < firstUnavailableStart) {
-                    const cursorStr = formatDateYYYYMMDD(cursor);
-                    const day = calendarDayByDate.get(cursorStr);
-                    const dayMin = (day && day.custom_minNights !== undefined && day.custom_minNights !== null)
-                        ? day.custom_minNights
-                        : minNights;
-
-                    // Mark as short gap per-day if the run length is below that day's min nights
-                    if (gapNights < dayMin &&
-                        day &&
-                        day.isAvailable &&
-                        day.status !== 'blocked' &&
-                        day.status !== 'reserved') {
-                        if (!shortGaps.includes(cursorStr)) {
-                            shortGaps.push(cursorStr);
-                        }
-                    }
-
+                    leadingDates.push(formatDateYYYYMMDD(cursor));
                     cursor.setDate(cursor.getDate() + 1);
                 }
-            }
-        }
 
-        for (let i = 0; i < customMinNightsPeriods.length; i++) {
-            const customPeriod = customMinNightsPeriods[i];
-
-            // Check for gaps between this custom period and all unavailable periods
-            for (let j = 0; j < unavailablePeriods.length; j++) {
-                const unavailablePeriod = unavailablePeriods[j];
-
-                // Extract date strings for comparison
-                const customEndStr = customPeriod.end;
-                const unavailableStartStr = unavailablePeriod.start;
-
-                // Parse dates for comparison
-                const customEndParts = customEndStr.split('-').map(part => parseInt(part));
-                const unavailableStartParts = unavailableStartStr.split('-').map(part => parseInt(part));
-
-                // Create dates for calculation only (not for extracting date strings)
-                const customEndDate = new Date(customEndParts[0], customEndParts[1] - 1, customEndParts[2] + 1); // +1 day after end
-                const unavailableStartDate = new Date(unavailableStartParts[0], unavailableStartParts[1] - 1, unavailableStartParts[2]);
-
-
-
-                if (customEndDate < unavailableStartDate) {
-                    // There's a gap between custom period and unavailable period
-                    const gapNights = Math.floor((unavailableStartDate - customEndDate) / (1000 * 60 * 60 * 24));
-
-                    // If gap is shorter than custom period's min nights requirement
-                    if (gapNights > 0 && gapNights < customPeriod.minNights) {
-
-                        // Generate dates in the gap using string manipulation
-                        const tempDate = new Date(customEndDate);
-                        while (tempDate < unavailableStartDate) {
-                            const year = tempDate.getFullYear();
-                            const month = (tempDate.getMonth() + 1).toString().padStart(2, '0');
-                            const day = tempDate.getDate().toString().padStart(2, '0');
-                            const dateStr = `${year}-${month}-${day}`;
-                            shortGaps.push(dateStr);
-                            tempDate.setDate(tempDate.getDate() + 1);
-                        }
-                    } else {
-
+                const leadingShortGapSet = new Set();
+                for (const dateStr of leadingDates) {
+                    const calDay = calendarDayByDate.get(dateStr);
+                    if (!calDay || !calDay.isAvailable || calDay.status === 'blocked' || calDay.status === 'reserved') {
+                        leadingShortGapSet.add(dateStr);
                     }
-                } else {
-
                 }
 
-                // Extract date strings for the second comparison
-                const unavailableEndStr = unavailablePeriod.end;
-                const customStartStr = customPeriod.start;
-
-                // Parse dates for comparison
-                const unavailableEndParts = unavailableEndStr.split('-').map(part => parseInt(part));
-                const customStartParts = customStartStr.split('-').map(part => parseInt(part));
-
-                // Create dates for calculation only
-                const unavailableEndDate = new Date(unavailableEndParts[0], unavailableEndParts[1] - 1, unavailableEndParts[2] + 1); // +1 day after end
-                const customStartDate = new Date(customStartParts[0], customStartParts[1] - 1, customStartParts[2]);
-
-                if (unavailableEndDate < customStartDate) {
-                    // There's a gap between unavailable period and custom period
-                    const gapNights = Math.floor((customStartDate - unavailableEndDate) / (1000 * 60 * 60 * 24));
-                    if (gapNights > 0 && gapNights < customPeriod.minNights) {
-
-                        // Use the actual unavailable period end date string
-                        const startDateParts = unavailableEndStr.split('-').map(part => parseInt(part));
-                        const tempDate = new Date(startDateParts[0], startDateParts[1] - 1, startDateParts[2]);
-
-                        while (tempDate < customStartDate) {
-                            const year = tempDate.getFullYear();
-                            const month = (tempDate.getMonth() + 1).toString().padStart(2, '0');
-                            const day = tempDate.getDate().toString().padStart(2, '0');
-                            const dateStr = `${year}-${month}-${day}`;
-                            shortGaps.push(dateStr);
-                            tempDate.setDate(tempDate.getDate() + 1);
+                let leadingChanged = true;
+                while (leadingChanged) {
+                    leadingChanged = false;
+                    const subRuns = [];
+                    let runStart = -1;
+                    for (let k = 0; k < leadingDates.length; k++) {
+                        if (!leadingShortGapSet.has(leadingDates[k])) {
+                            if (runStart === -1) runStart = k;
+                        } else {
+                            if (runStart !== -1) {
+                                subRuns.push({ start: runStart, end: k - 1 });
+                                runStart = -1;
+                            }
                         }
-                    } else {
-
                     }
-                } else {
+                    if (runStart !== -1) {
+                        subRuns.push({ start: runStart, end: leadingDates.length - 1 });
+                    }
 
+                    for (const run of subRuns) {
+                        const runLength = run.end - run.start + 1;
+                        for (let k = run.start; k <= run.end; k++) {
+                            const dateStr = leadingDates[k];
+                            const calDay = calendarDayByDate.get(dateStr);
+                            const dateMinNights = (calDay && calDay.custom_minNights !== undefined && calDay.custom_minNights !== null)
+                                ? calDay.custom_minNights
+                                : minNights;
+
+                            if (runLength < dateMinNights) {
+                                leadingShortGapSet.add(dateStr);
+                                leadingChanged = true;
+                            }
+                        }
+                    }
                 }
+
+                leadingShortGapSet.forEach(dateStr => {
+                    const calDay = calendarDayByDate.get(dateStr);
+                    if (calDay && calDay.isAvailable && calDay.status !== 'blocked' && calDay.status !== 'reserved') {
+                        if (!shortGaps.includes(dateStr)) {
+                            shortGaps.push(dateStr);
+                        }
+                    }
+                });
             }
         }
-
 
         // Process property calendar data for available dates
         if (data.property_calendar && data.property_calendar.length > 0) {
@@ -1182,7 +1162,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 });
 
                 // Check if this date is in a short gap between reservations
-                const isInShortGap = shortGaps.includes(dateStr);
+                // Only treat as short_gap if the date is actually available (not blocked/reserved)
+                const isInShortGap = shortGaps.includes(dateStr) && day.isAvailable && day.status !== 'blocked' && day.status !== 'reserved';
 
                 if (!isDateInReservation) {
                     // If date is not in a reservation, add it as available, unavailable, or in a short gap
@@ -2784,7 +2765,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         return eventDateStr === dateStr;
                     });
 
-                    if (event && event.extendedProps.type === 'available' && !selectedDates.includes(dateStr)) {
+                    if (event && (event.extendedProps.type === 'available' || event.extendedProps.type === 'short_gap') && !selectedDates.includes(dateStr)) {
                         availableDaysBefore++;
                         checkDate.setDate(checkDate.getDate() - 1);
                     } else {
@@ -2804,7 +2785,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         return eventDateStr === dateStr;
                     });
 
-                    if (event && event.extendedProps.type === 'available' && !selectedDates.includes(dateStr)) {
+                    if (event && (event.extendedProps.type === 'available' || event.extendedProps.type === 'short_gap') && !selectedDates.includes(dateStr)) {
                         availableDaysAfter++;
                         checkDate.setDate(checkDate.getDate() + 1);
                     } else {
@@ -2821,13 +2802,13 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Set initial value: if enough adjacent days, use property min nights, otherwise cap at range length
                 let initialValue = propertyMinNights;
                 if (initialValue > maxPossibleMinNights) {
-                    initialValue = nightsCount; // Cap at range length if property min nights is too high
+                    initialValue = nightsCount;
                 }
 
                 minNightsInput.value = initialValue;
 
-                // Store max value as a data attribute for validation
-                minNightsInput.setAttribute('data-max-nights', maxPossibleMinNights.toString());
+                // Max matches the default value shown
+                minNightsInput.setAttribute('data-max-nights', initialValue.toString());
 
                 // Update the label next to the input
                 const minNightsLabel = originalOpenBlock.querySelector('[data-element="toolbarEdit_customDates_openNights_minNights_label"]');
@@ -2936,7 +2917,7 @@ document.addEventListener('DOMContentLoaded', function () {
                             return eventDateStr === dateStr;
                         });
 
-                        if (event && event.extendedProps.type === 'available') {
+                        if (event && (event.extendedProps.type === 'available' || event.extendedProps.type === 'short_gap') && !selectedDates.includes(dateStr)) {
                             availableDaysBefore++;
                             checkDate.setDate(checkDate.getDate() - 1);
                         } else {
@@ -2956,7 +2937,7 @@ document.addEventListener('DOMContentLoaded', function () {
                             return eventDateStr === dateStr;
                         });
 
-                        if (event && event.extendedProps.type === 'available') {
+                        if (event && (event.extendedProps.type === 'available' || event.extendedProps.type === 'short_gap') && !selectedDates.includes(dateStr)) {
                             availableDaysAfter++;
                             checkDate.setDate(checkDate.getDate() + 1);
                         } else {
@@ -2973,13 +2954,13 @@ document.addEventListener('DOMContentLoaded', function () {
                     // Set initial value: if enough adjacent days, use property min nights, otherwise cap at range length
                     let initialValue = propertyMinNights;
                     if (initialValue > maxPossibleMinNights) {
-                        initialValue = nightsCount; // Cap at range length if property min nights is too high
+                        initialValue = nightsCount;
                     }
 
                     minNightsInput.value = initialValue;
 
-                    // Store max value as a data attribute for validation
-                    minNightsInput.setAttribute('data-max-nights', maxPossibleMinNights.toString());
+                    // Max matches the default value shown
+                    minNightsInput.setAttribute('data-max-nights', initialValue.toString());
 
                     // Update the label next to the input
                     const minNightsLabel = clonedBlock.querySelector('[data-element="toolbarEdit_customDates_openNights_minNights_label"]');
@@ -3181,7 +3162,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     window.checkedOpenRanges = window.checkedOpenRanges || [];
                     window.checkedOpenRanges.push({
                         dateRange: dateRange,
-                        minNights: getMinNightsForRange(blockElement)
+                        blockElement: blockElement
                     });
                 } else {
                     window.checkedBlockedRanges = window.checkedBlockedRanges || [];
@@ -3739,7 +3720,7 @@ document.addEventListener('DOMContentLoaded', function () {
                             window.checkedOpenRanges.forEach(item => {
                                 const startDate = item.dateRange.startDate;
                                 const endDate = item.dateRange.endDate;
-                                const minNights = item.minNights;
+                                const minNights = getMinNightsForRange(item.blockElement);
 
                                 // Add all dates in this range
                                 const currentDate = new Date(startDate);

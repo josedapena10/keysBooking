@@ -1393,8 +1393,26 @@ document.addEventListener('DOMContentLoaded', function () {
       return lowestMin;
     }
 
+    // Helper to get the highest min-nights requirement within a date range (inclusive start, exclusive end)
+    function getHighestMinNightsBetween(startDate, endDate) {
+      let highestMin = 0;
+      let cursor = new Date(startDate);
+
+      while (cursor < endDate) {
+        const cursorStr = formatDate(cursor);
+        const dateMin = customMinNightsByDate.has(cursorStr)
+          ? customMinNightsByDate.get(cursorStr)
+          : minNights;
+        highestMin = Math.max(highestMin, dateMin);
+        cursor = addDays(cursor, 1);
+      }
+
+      return highestMin || minNights;
+    }
+
     // Expose helpers for other modules that need effective min-night calculations
     window.getLowestMinNightsBetween = getLowestMinNightsBetween;
+    window.getHighestMinNightsBetween = getHighestMinNightsBetween;
     window.createDateFromString = createDateFromString;
     window.getEffectiveMinNightsForSelection = getEffectiveMinNightsForSelection;
 
@@ -1579,6 +1597,9 @@ document.addEventListener('DOMContentLoaded', function () {
           if (!firstBlockedDate || potentialCheckout <= firstBlockedDate) {
             return true;
           }
+        } else if (firstBlockedDate && potentialCheckout.getTime() === firstBlockedDate.getTime()) {
+          // Blocked dates are valid for checkout (guest leaves that morning)
+          return true;
         }
       }
 
@@ -1873,12 +1894,18 @@ document.addEventListener('DOMContentLoaded', function () {
         const isCheckoutOnly = checkoutOnlyDates.has(dateString);
         const isUnclickableCheckIn = unclickableCheckInDates.has(dateString);
 
+        // Check if this blocked date is valid for checkout (first blocked date after check-in)
+        let isBlockedCheckoutValid = false;
+        if (selectedStartDate && !selectedEndDate && isDateDisabled(currentDate)
+            && !isCheckoutOnly && currentDate > selectedStartDate) {
+          const firstBlocked = findFirstBlockedDateAfter(selectedStartDate);
+          isBlockedCheckoutValid = firstBlocked && currentDate.getTime() === firstBlocked.getTime();
+        }
+
         // Apply disabled state for past dates or API disabled dates
         if (isDateDisabled(currentDate)) {
-          // If it's a checkout-only date, handle specially
-          if (isCheckoutOnly) {
+          if (isCheckoutOnly || isBlockedCheckoutValid) {
             dayElement.classList.add('checkout-only');
-            // Make it clickable - the handleDateSelection will validate
             dayElement.addEventListener('click', (e) => {
               e.stopPropagation();
               handleDateSelection(currentDate);
@@ -1919,7 +1946,7 @@ document.addEventListener('DOMContentLoaded', function () {
       const dateString = formatDate(currentDate);
       const isCheckoutOnly = checkoutOnlyDates.has(dateString);
       const effectiveMinNights = selectedStartDate
-        ? getLowestMinNightsBetween(selectedStartDate, addDays(selectedStartDate, 1 + Math.max(0, Math.round((currentDate - selectedStartDate) / (1000 * 60 * 60 * 24)))))
+        ? getHighestMinNightsBetween(selectedStartDate, currentDate)
         : minNights;
 
       // Reset styles first
@@ -1989,7 +2016,10 @@ document.addEventListener('DOMContentLoaded', function () {
         // Check if current date is available (including checkout-only dates when selecting checkout)
         const isAvailableForThisSelection = !isDateDisabled(currentDate, false);
 
-        if (isAvailableForThisSelection) {
+        // First blocked date is valid for checkout (guest checks out that morning)
+        const isFirstBlockedCheckout = firstBlockedDate && currentDate.getTime() === firstBlockedDate.getTime();
+
+        if (isAvailableForThisSelection || isFirstBlockedCheckout) {
           // Dates before selected start date - make unavailable
           if (currentDate < selectedStartDate) {
             dayElement.style.opacity = '0.4';
@@ -2013,29 +2043,12 @@ document.addEventListener('DOMContentLoaded', function () {
             dayElement.classList.add('max-nights-blocked');
           }
 
-          // Dates after first blocked date - make unavailable
-          if (firstBlockedDate) {
-            const firstBlockedDateString = formatDate(firstBlockedDate);
-            const isFirstBlockedCheckoutOnly = checkoutOnlyDates.has(firstBlockedDateString);
-
-            // If the first blocked date is checkout-only, block dates AFTER it
-            // But the blocked date itself is available for checkout
-            if (isFirstBlockedCheckoutOnly) {
-              if (currentDate > firstBlockedDate) {
-                dayElement.style.color = 'grey';
-                dayElement.style.opacity = '0.4';
-                dayElement.style.cursor = 'not-allowed';
-                dayElement.classList.add('blocked-by-unavailable');
-              }
-            } else {
-              // Regular blocked date - block it AND everything after
-              if (currentDate >= firstBlockedDate) {
-                dayElement.style.color = 'grey';
-                dayElement.style.opacity = '0.4';
-                dayElement.style.cursor = 'not-allowed';
-                dayElement.classList.add('blocked-by-unavailable');
-              }
-            }
+          // Block dates after first blocked date (first blocked date itself is valid for checkout)
+          if (firstBlockedDate && currentDate > firstBlockedDate) {
+            dayElement.style.color = 'grey';
+            dayElement.style.opacity = '0.4';
+            dayElement.style.cursor = 'not-allowed';
+            dayElement.classList.add('blocked-by-unavailable');
           }
         }
       }
@@ -2066,7 +2079,7 @@ document.addEventListener('DOMContentLoaded', function () {
       const dateString = formatDate(date);
       const isCheckoutOnly = checkoutOnlyDates.has(dateString);
       const effectiveMinNights = selectedStartDate
-        ? getLowestMinNightsBetween(selectedStartDate, addDays(date, 1))
+        ? getHighestMinNightsBetween(selectedStartDate, date)
         : minNights;
 
       // If no check-in selected yet, select this as check-in
@@ -2140,12 +2153,11 @@ document.addEventListener('DOMContentLoaded', function () {
           return;
         }
 
-        // Check if any dates in range are disabled
+        // Check if any dates in range are disabled (excluding checkout day which can be blocked)
+        const firstBlockedDate = findFirstBlockedDateAfter(selectedStartDate);
         let currentDate = new Date(selectedStartDate);
-        while (currentDate <= date) {
-          const checkingCheckout = (currentDate.getTime() === date.getTime());
-          // For the last date in the range (checkout date), allow checkout-only dates
-          if (isDateDisabled(currentDate, !checkingCheckout)) {
+        while (currentDate < date) {
+          if (isDateDisabled(currentDate, true)) {
             showError('Selected dates include unavailable days');
             return;
           }
@@ -2153,19 +2165,9 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         // Check if date is after first blocked date
-        const firstBlockedDate = findFirstBlockedDateAfter(selectedStartDate);
         if (firstBlockedDate && date > firstBlockedDate) {
           showError('Cannot book past unavailable dates');
           return;
-        }
-
-        // If the selected checkout date IS the first blocked date, it must be checkout-only
-        if (firstBlockedDate && date.getTime() === firstBlockedDate.getTime()) {
-          const firstBlockedDateString = formatDate(firstBlockedDate);
-          if (!checkoutOnlyDates.has(firstBlockedDateString)) {
-            showError('Cannot book past unavailable dates');
-            return;
-          }
         }
 
         // Valid check-out selection
