@@ -12405,6 +12405,11 @@ document.addEventListener('DOMContentLoaded', () => {
             touchEndX = 0;
           });
 
+          [leftButton, rightButton].forEach(btn => {
+            btn.addEventListener('touchstart', (e) => { e.stopPropagation(); }, { passive: true });
+            btn.addEventListener('touchend', (e) => { e.stopPropagation(); }, { passive: true });
+          });
+
           carouselWrapper.appendChild(leftButton);
           carouselWrapper.appendChild(rightButton);
         }
@@ -12724,6 +12729,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             touchStartX = 0;
             touchEndX = 0;
+          });
+
+          [leftButton, rightButton].forEach(btn => {
+            btn.addEventListener('touchstart', (e) => { e.stopPropagation(); }, { passive: true });
+            btn.addEventListener('touchend', (e) => { e.stopPropagation(); }, { passive: true });
           });
 
           carouselWrapper.appendChild(leftButton);
@@ -17185,9 +17195,17 @@ document.addEventListener('DOMContentLoaded', () => {
           if (this.priceScrollBar) {
             const sliderMin = this.priceScrollBar.querySelector('.price-slider-min');
             const sliderMax = this.priceScrollBar.querySelector('.price-slider-max');
+            const range = this.priceScrollBar.querySelector('.price-slider-range');
+            const thumbMin = this.priceScrollBar.querySelector('.price-slider-thumb-min');
+            const thumbMax = this.priceScrollBar.querySelector('.price-slider-thumb-max');
             if (sliderMin) sliderMin.value = 0;
             if (sliderMax) sliderMax.value = 5000;
+            if (range) { range.style.left = '0%'; range.style.width = '100%'; }
+            if (thumbMin) thumbMin.style.left = '0%';
+            if (thumbMax) thumbMax.style.left = '100%';
           }
+          if (this.priceMinInput) this.priceMinInput.value = '$0';
+          if (this.priceMaxInput) this.priceMaxInput.value = '$5,000+';
 
           // Update filter styles
           this.updateFilterStyles();
@@ -17350,9 +17368,17 @@ document.addEventListener('DOMContentLoaded', () => {
           if (this.priceScrollBar) {
             const sliderMin = this.priceScrollBar.querySelector('.price-slider-min');
             const sliderMax = this.priceScrollBar.querySelector('.price-slider-max');
+            const range = this.priceScrollBar.querySelector('.price-slider-range');
+            const thumbMin = this.priceScrollBar.querySelector('.price-slider-thumb-min');
+            const thumbMax = this.priceScrollBar.querySelector('.price-slider-thumb-max');
             if (sliderMin) sliderMin.value = 0;
             if (sliderMax) sliderMax.value = 5000;
+            if (range) { range.style.left = '0%'; range.style.width = '100%'; }
+            if (thumbMin) thumbMin.style.left = '0%';
+            if (thumbMax) thumbMax.style.left = '100%';
           }
+          if (this.priceMinInput) this.priceMinInput.value = '$0';
+          if (this.priceMaxInput) this.priceMaxInput.value = '$5,000+';
 
           // Update filter styles
           this.updateFilterStyles();
@@ -17408,9 +17434,17 @@ document.addEventListener('DOMContentLoaded', () => {
         if (this.priceScrollBar) {
           const sliderMin = this.priceScrollBar.querySelector('.price-slider-min');
           const sliderMax = this.priceScrollBar.querySelector('.price-slider-max');
+          const range = this.priceScrollBar.querySelector('.price-slider-range');
+          const thumbMin = this.priceScrollBar.querySelector('.price-slider-thumb-min');
+          const thumbMax = this.priceScrollBar.querySelector('.price-slider-thumb-max');
           if (sliderMin) sliderMin.value = 0;
           if (sliderMax) sliderMax.value = 5000;
+          if (range) { range.style.left = '0%'; range.style.width = '100%'; }
+          if (thumbMin) thumbMin.style.left = '0%';
+          if (thumbMax) thumbMax.style.left = '100%';
         }
+        if (this.priceMinInput) this.priceMinInput.value = '$0';
+        if (this.priceMaxInput) this.priceMaxInput.value = '$5,000+';
 
         // Update filter styles
         this.updateFilterStyles();
@@ -18568,24 +18602,6 @@ document.addEventListener('DOMContentLoaded', () => {
             // Sync filters from details view back to main before re-rendering list
             this.transferValuesToMain();
 
-            // Only reset filters when adding a brand-new charter. While editing,
-            // keep the current filters so the user can continue editing seamlessly.
-            if (!isEditingCharter) {
-              this.selectedDates = [];
-              this.selectedGuests = 0;
-              this.selectedPrivateDock = false;
-              this.selectedFishingTypes = [];
-              this.priceMin = 0;
-              this.priceMax = 5000;
-              this.updateDatesFilterText();
-              this.updateGuestsFilterText();
-              this.updateFishingTypeFilterText();
-              this.updatePriceFilterText();
-              this.updatePrivateDockFilterText();
-              this.updateFilterStyles();
-              this.renderDateSelection();
-            }
-
             // Show select wrapper
             this.detailsWrapper.style.display = 'none';
             this.selectWrapper.style.display = 'flex';
@@ -19094,6 +19110,11 @@ document.addEventListener('DOMContentLoaded', () => {
             touchEndX = 0;
           });
 
+          [leftButton, rightButton].forEach(btn => {
+            btn.addEventListener('touchstart', (e) => { e.stopPropagation(); }, { passive: true });
+            btn.addEventListener('touchend', (e) => { e.stopPropagation(); }, { passive: true });
+          });
+
           carouselWrapper.appendChild(leftButton);
           carouselWrapper.appendChild(rightButton);
         }
@@ -19402,6 +19423,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             touchStartX = 0;
             touchEndX = 0;
+          });
+
+          [leftButton, rightButton].forEach(btn => {
+            btn.addEventListener('touchstart', (e) => { e.stopPropagation(); }, { passive: true });
+            btn.addEventListener('touchend', (e) => { e.stopPropagation(); }, { passive: true });
           });
 
           carouselWrapper.appendChild(leftButton);
