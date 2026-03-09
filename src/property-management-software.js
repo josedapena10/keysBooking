@@ -185,7 +185,7 @@ document.addEventListener('DOMContentLoaded', async function () {
         }
 
         if (pmsHeaderSubText) {
-            pmsHeaderSubText.textContent = `Enter your ${integration.display_name || ''} API key to import your listing and sync availability.`;
+            pmsHeaderSubText.textContent = `Enter your ${integration.display_name || ''} API key to import your listings. Availability and rates will sync automatically.`;
         }
 
         // Clear input and error text
@@ -408,9 +408,6 @@ document.addEventListener('DOMContentLoaded', async function () {
         loading_property_list: 'Loading property list...',
         loading_property: 'Loading property details...',
         loading_rooms: 'Loading rooms...',
-        loading_rates: 'Loading rates...',
-        syncing_calendar: 'Syncing calendar...',
-        syncing_rates: 'Syncing rates...',
         creating_listing: 'Creating listing...',
         adding_photos: 'Adding photos...',
         adding_amenities: 'Adding amenities...',
@@ -524,8 +521,8 @@ document.addEventListener('DOMContentLoaded', async function () {
             progressTitle.style.color = '#4CAF50';
             progressSubtitle.textContent = `Successfully imported ${completed} ${completed === 1 ? 'property' : 'properties'}`;
             progressSubtitle.style.color = '#e2e8f0';
-            progressText.textContent = 'Your listings are ready to review and publish';
-            progressCurrent.textContent = errors > 0 ? `${errors} ${errors === 1 ? 'property' : 'properties'} had issues - check your listings page` : '';
+            progressText.textContent = 'Calendar and rates will sync automatically within a few minutes';
+            progressCurrent.textContent = errors > 0 ? `${errors} ${errors === 1 ? 'property' : 'properties'} had issues - check your listings page` : 'Your listings are ready to review and publish';
 
             progressIcon.innerHTML = `
                 <svg width="80" height="80" viewBox="0 0 50 50">
