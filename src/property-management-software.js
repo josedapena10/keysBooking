@@ -521,7 +521,7 @@ document.addEventListener('DOMContentLoaded', async function () {
             progressTitle.style.color = '#4CAF50';
             progressSubtitle.textContent = `Successfully imported ${completed} ${completed === 1 ? 'property' : 'properties'}`;
             progressSubtitle.style.color = '#e2e8f0';
-            progressText.textContent = 'Calendar and rates will sync automatically within a few minutes';
+            progressText.textContent = 'Property photos, calendar, and rates will sync automatically within 24 hours. Please add remaining details after full sync.';
             progressCurrent.textContent = errors > 0 ? `${errors} ${errors === 1 ? 'property' : 'properties'} had issues - check your listings page` : 'Your listings are ready to review and publish';
 
             progressIcon.innerHTML = `
