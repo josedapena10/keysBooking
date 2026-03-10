@@ -463,10 +463,10 @@ document.addEventListener('DOMContentLoaded', function () {
                         propertyData.cancellation_policy_option = 5184000;
                         propertyData.cancellationPolicy_type = "Strict";
                         break;
-                    case "Very Strict":
+                    case "Very strict":
                         propertyData.cancellation_policy = true;
                         propertyData.cancellation_policy_option = 7776000;
-                        propertyData.cancellationPolicy_type = "Very Strict";
+                        propertyData.cancellationPolicy_type = "Very strict";
                         break;
                     case "Grace window":
                         propertyData.cancellation_policy = true;
@@ -2979,50 +2979,51 @@ function validateLocation() {
     });
 }
 
-// Function to determine neighborhood based on precise lat/lon coordinates
 function determineNeighborhood(latitude, longitude) {
-    // Parse and truncate to 3 decimal places for consistent matching
-    const lat = Math.floor(parseFloat(latitude) * 1000) / 1000;
-    const lon = Math.floor(Math.abs(parseFloat(longitude)) * 1000) / 1000; // Convert to positive and truncate
+    const lat = parseFloat(latitude);
+    const lon = Math.abs(parseFloat(longitude));
 
     if (!lat || !lon) return '';
 
     // Upper Keys
-    if (lat >= 25.190 && lat <= 25.330 && lon >= 80.280 && lon <= 80.400) return 'North Key Largo';
-    if (lat >= 25.030 && lat <= 25.190 && lon >= 80.350 && lon <= 80.530) return 'Key Largo';
-    if (lat >= 24.970 && lat <= 25.030 && lon >= 80.480 && lon <= 80.560) return 'Tavernier';
-    if (lat >= 24.920 && lat <= 24.970 && lon >= 80.520 && lon <= 80.600) return 'Plantation Key';
-    if (lat >= 24.880 && lat <= 24.920 && lon >= 80.600 && lon <= 80.660) return 'Windley Key';
-    if (lat >= 24.850 && lat <= 24.880 && lon >= 80.660 && lon <= 80.750) return 'Upper Matecumbe Key';
-    if (lat >= 24.800 && lat <= 24.850 && lon >= 80.740 && lon <= 80.820) return 'Lower Matecumbe Key';
+    if (lat >= 25.19 && lat <= 25.34 && lon >= 80.28 && lon <= 80.41) return 'North Key Largo';
+    if (lat >= 25.03 && lat < 25.19 && lon >= 80.35 && lon <= 80.53) return 'Key Largo';
+    if (lat >= 24.97 && lat < 25.03 && lon >= 80.48 && lon <= 80.57) return 'Tavernier';
+    if (lat >= 24.92 && lat < 24.97 && lon >= 80.52 && lon <= 80.63) return 'Plantation Key';
+    if (lat >= 24.88 && lat < 24.92 && lon >= 80.60 && lon <= 80.67) return 'Windley Key';
+    if (lat >= 24.85 && lat < 24.88 && lon >= 80.66 && lon <= 80.76) return 'Upper Matecumbe Key';
+
+    // Layton (check before Lower Matecumbe)
+    if (lat >= 24.82 && lat <= 24.84 && lon >= 80.79 && lon <= 80.82) return 'Layton';
+
+    if (lat >= 24.80 && lat < 24.85 && lon >= 80.74 && lon <= 80.83) return 'Lower Matecumbe Key';
 
     // Middle Keys
-    if (lat >= 24.800 && lat <= 24.850 && lon >= 80.820 && lon <= 80.880) return 'Long Key';
-    if (lat >= 24.780 && lat <= 24.800 && lon >= 80.870 && lon <= 80.900) return 'Conch Key';
-    if (lat >= 24.760 && lat <= 24.780 && lon >= 80.900 && lon <= 80.920) return 'Duck Key';
-    if (lat >= 24.730 && lat <= 24.750 && lon >= 81.020 && lon <= 81.030) return 'Coco Plum Beach';
-    if (lat >= 24.720 && lat <= 24.730 && lon >= 81.000 && lon <= 81.020) return 'Key Colony Beach';
-    if (lat >= 24.685 && lat <= 24.705 && lon >= 81.070 && lon <= 81.095) return 'Sombrero Beach';
-    if (lat >= 24.750 && lat <= 24.780 && lon >= 81.030 && lon <= 81.150) return 'Marathon';
-    if (lat >= 24.705 && lat <= 24.730 && lon >= 81.020 && lon <= 81.150) return 'Marathon';
-    if (lat >= 24.680 && lat <= 24.685 && lon >= 81.070 && lon <= 81.150) return 'Marathon';
+    if (lat >= 24.80 && lat < 24.85 && lon >= 80.83 && lon <= 80.89) return 'Long Key';
+    if (lat >= 24.78 && lat < 24.80 && lon >= 80.87 && lon <= 80.92) return 'Conch Key';
+    if (lat >= 24.76 && lat < 24.78 && lon >= 80.90 && lon <= 80.93) return 'Duck Key';
+
+    // Marathon area sub-neighborhoods (check specific areas before broad Marathon)
+    if (lat >= 24.726 && lat <= 24.736 && lon >= 80.998 && lon <= 81.017) return 'Coco Plum Beach';
+    if (lat >= 24.718 && lat <= 24.732 && lon >= 81.017 && lon <= 81.026) return 'Key Colony Beach';
+    if (lat >= 24.685 && lat <= 24.715 && lon >= 81.068 && lon <= 81.092) return 'Sombrero Beach';
+    if (lat >= 24.68 && lat <= 24.78 && lon >= 80.94 && lon <= 81.16) return 'Marathon';
 
     // Lower Keys
-    if (lat >= 24.650 && lat <= 24.720 && lon >= 81.300 && lon <= 81.380) return 'Big Pine Key';
-    if (lat >= 24.640 && lat <= 24.670 && lon >= 81.370 && lon <= 81.400) return 'Little Torch Key';
-    if (lat >= 24.630 && lat <= 24.650 && lon >= 81.400 && lon <= 81.420) return 'Ramrod Key';
-    if (lat >= 24.630 && lat <= 24.650 && lon >= 81.420 && lon <= 81.450) return 'Summerland Key';
-    if (lat >= 24.640 && lat <= 24.660 && lon >= 81.470 && lon <= 81.490) return 'Cudjoe Key';
-    if (lat >= 24.650 && lat <= 24.670 && lon >= 81.500 && lon <= 81.540) return 'Upper Sugarloaf Key';
-    if (lat >= 24.630 && lat <= 24.650 && lon >= 81.540 && lon <= 81.570) return 'Lower Sugarloaf Key';
-    if (lat >= 24.620 && lat <= 24.640 && lon >= 81.580 && lon <= 81.610) return 'Saddlebunch Keys';
-    if (lat >= 24.600 && lat <= 24.620 && lon >= 81.630 && lon <= 81.650) return 'Shark Key';
-    if (lat >= 24.590 && lat <= 24.600 && lon >= 81.640 && lon <= 81.660) return 'Big Coppitt Key';
-    if (lat >= 24.580 && lat <= 24.590 && lon >= 81.720 && lon <= 81.740) return 'Key Haven';
-    if (lat >= 24.560 && lat <= 24.580 && lon >= 81.740 && lon <= 81.750) return 'Stock Island';
-    if (lat >= 24.520 && lat <= 24.590 && lon >= 81.760 && lon <= 81.820) return 'Key West';
+    if (lat >= 24.63 && lat <= 24.72 && lon >= 81.28 && lon <= 81.40) return 'Big Pine Key';
+    if (lat >= 24.63 && lat <= 24.67 && lon >= 81.37 && lon <= 81.42) return 'Little Torch Key';
+    if (lat >= 24.63 && lat <= 24.65 && lon >= 81.40 && lon <= 81.43) return 'Ramrod Key';
+    if (lat >= 24.63 && lat <= 24.66 && lon >= 81.42 && lon <= 81.46) return 'Summerland Key';
+    if (lat >= 24.64 && lat <= 24.67 && lon >= 81.46 && lon <= 81.50) return 'Cudjoe Key';
+    if (lat >= 24.65 && lat <= 24.68 && lon >= 81.49 && lon <= 81.55) return 'Upper Sugarloaf Key';
+    if (lat >= 24.62 && lat <= 24.66 && lon >= 81.53 && lon <= 81.58) return 'Lower Sugarloaf Key';
+    if (lat >= 24.61 && lat <= 24.64 && lon >= 81.57 && lon <= 81.62) return 'Saddlebunch Keys';
+    if (lat >= 24.59 && lat <= 24.62 && lon >= 81.62 && lon <= 81.66) return 'Shark Key';
+    if (lat >= 24.58 && lat <= 24.60 && lon >= 81.64 && lon <= 81.68) return 'Big Coppitt Key';
+    if (lat >= 24.57 && lat <= 24.59 && lon >= 81.71 && lon <= 81.75) return 'Key Haven';
+    if (lat >= 24.55 && lat <= 24.58 && lon >= 81.73 && lon <= 81.76) return 'Stock Island';
+    if (lat >= 24.52 && lat <= 24.59 && lon >= 81.76 && lon <= 81.83) return 'Key West';
 
-    // Default fallback
     return 'Florida Keys';
 }
 
@@ -3104,7 +3105,7 @@ function initializeCancellationPolicyStep() {
         standard: "Standard",
         firm: "Firm",
         strict: "Strict",
-        veryStrict: "Very Strict",
+        veryStrict: "Very strict",
         graceWindow: "Grace window",
         noRefund: "No refund"
     };
