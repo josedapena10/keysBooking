@@ -3339,7 +3339,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (checkInMethodButtons.keypad.style.outline.includes('2px')) {
                     checkInMethod = 'Self Check-In with Keypad';
                 } else if (checkInMethodButtons.lockbox.style.outline.includes('2px')) {
-                    checkInMethod = 'Key lockbox';
+                    checkInMethod = 'Self Check-In with Key lockbox';
                 } else if (checkInMethodButtons.inPerson.style.outline.includes('2px')) {
                     checkInMethod = 'In-person key handoff';
                 } else if (checkInMethodButtons.digitalCard.style.outline.includes('2px')) {
@@ -3618,15 +3618,18 @@ document.addEventListener('DOMContentLoaded', function () {
         const beamInput = document.querySelector('[data-element="dock_input_beam"]');
         const draftInput = document.querySelector('[data-element="dock_input_draft"]');
 
-        // Add input validation for numeric fields
-        [boatSizeInput, beamInput, draftInput].forEach(input => {
+        [boatSizeInput, beamInput].forEach(input => {
             if (input) {
                 input.addEventListener('input', (e) => {
-                    // Remove any non-numeric characters
                     e.target.value = e.target.value.replace(/[^0-9]/g, '');
                 });
             }
         });
+        if (draftInput) {
+            draftInput.addEventListener('input', (e) => {
+                e.target.value = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
+            });
+        }
 
         // Get dock button options
         const dockButtonOptions = {
