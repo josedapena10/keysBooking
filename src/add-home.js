@@ -2993,13 +2993,10 @@ function determineNeighborhood(latitude, longitude) {
     if (lat >= 24.88 && lat < 24.92 && lon >= 80.60 && lon <= 80.67) return 'Windley Key';
     if (lat >= 24.85 && lat < 24.88 && lon >= 80.66 && lon <= 80.76) return 'Upper Matecumbe Key';
 
-    // Layton (check before Lower Matecumbe)
-    if (lat >= 24.82 && lat <= 24.84 && lon >= 80.79 && lon <= 80.82) return 'Layton';
+    // Layton (covers all of Long Key island)
+    if (lat >= 24.80 && lat <= 24.85 && lon >= 80.79 && lon <= 80.89) return 'Layton';
 
-    if (lat >= 24.80 && lat < 24.85 && lon >= 80.74 && lon <= 80.83) return 'Lower Matecumbe Key';
-
-    // Middle Keys
-    if (lat >= 24.80 && lat < 24.85 && lon >= 80.83 && lon <= 80.89) return 'Long Key';
+    if (lat >= 24.80 && lat < 24.85 && lon >= 80.74 && lon < 80.79) return 'Lower Matecumbe Key';
     if (lat >= 24.78 && lat < 24.80 && lon >= 80.87 && lon <= 80.92) return 'Conch Key';
     if (lat >= 24.76 && lat < 24.78 && lon >= 80.90 && lon <= 80.93) return 'Duck Key';
 

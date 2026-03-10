@@ -5840,7 +5840,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 'Standard': 'standard',
                 'Firm': 'firm',
                 'Strict': 'strict',
-                'Very Strict': 'veryStrict',
+                'Very strict': 'veryStrict',
                 'Grace window': 'graceWindow',
                 'No refund': 'noRefund'
             };
@@ -5911,7 +5911,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                 'standard': 'Standard',
                                 'firm': 'Firm',
                                 'strict': 'Strict',
-                                'veryStrict': 'Very Strict',
+                                'veryStrict': 'Very strict',
                                 'graceWindow': 'Grace window',
                                 'noRefund': 'No refund'
                             };
@@ -5936,7 +5936,7 @@ document.addEventListener('DOMContentLoaded', function () {
                             'Standard': 'standard',
                             'Firm': 'firm',
                             'Strict': 'strict',
-                            'Very Strict': 'veryStrict',
+                            'Very strict': 'veryStrict',
                             'Grace window': 'graceWindow',
                             'No refund': 'noRefund'
                         };
@@ -5996,7 +5996,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                 case "Strict":
                                     policyOption = 5184000;
                                     break;
-                                case "Very Strict":
+                                case "Very strict":
                                     policyOption = 7776000;
                                     break;
                                 case "Grace window":
