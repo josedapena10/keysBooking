@@ -2006,6 +2006,9 @@ document.addEventListener('DOMContentLoaded', function () {
             }
 
             saveButton.addEventListener('click', async () => {
+                if (saveButton.dataset.saving === 'true') return;
+                saveButton.dataset.saving = 'true';
+
                 const addRemovePhotosError = document.getElementById('addRemovePhotos-error');
                 const addRemovePhotosSubText = document.getElementById('addRemovePhotos-subText');
 
@@ -2018,6 +2021,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (addRemovePhotosSubText) {
                         addRemovePhotosSubText.style.display = 'none';
                     }
+                    saveButton.dataset.saving = 'false';
                     return;
                 }
 
@@ -2131,7 +2135,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         addRemovePhotosSubText.style.display = 'none';
                     }
                 } finally {
-                    // Show text and hide loader after request completes
+                    saveButton.dataset.saving = 'false';
                     if (saveButtonLoader && saveButtonText) {
                         saveButtonLoader.style.display = 'none';
                         saveButtonText.style.display = 'block';
