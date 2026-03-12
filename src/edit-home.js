@@ -724,7 +724,7 @@ document.addEventListener('DOMContentLoaded', function () {
         let initialBedroomDescriptions = {};
 
         // Bed types available
-        const bedTypes = ['single', 'double', 'queen', 'king', 'twin', 'bunkBed', 'sofaBed', 'crib'];
+        const bedTypes = ['single', 'full', 'double', 'queen', 'king', 'twin', 'bunkBed', 'sofaBed', 'crib'];
 
         function initializeArrangePhotos() {
             if (arrangePhotosButton && arrangePhotosModal) {
@@ -1230,6 +1230,7 @@ document.addEventListener('DOMContentLoaded', function () {
         function parseBedDescription(description, bedroomNumber) {
             const bedCounts = {
                 single: 0,
+                full: 0,
                 double: 0,
                 queen: 0,
                 king: 0,
@@ -1248,7 +1249,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
                     if (type.includes('king')) bedCounts.king = count;
                     else if (type.includes('queen')) bedCounts.queen = count;
-                    else if (type.includes('full') || type.includes('double')) bedCounts.double = count;
+                    else if (type.includes('full')) bedCounts.full = count;
+                    else if (type.includes('double')) bedCounts.double = count;
                     else if (type.includes('twin')) bedCounts.twin = count;
                     else if (type.includes('single')) bedCounts.single = count;
                     else if (type.includes('bunk')) bedCounts.bunkBed = count;
@@ -1908,6 +1910,9 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
                     if (bedConfig.queen > 0) {
                         bedDescriptions.push(`${bedConfig.queen} Queen ${bedConfig.queen === 1 ? 'bed' : 'beds'}`);
+                    }
+                    if (bedConfig.full > 0) {
+                        bedDescriptions.push(`${bedConfig.full} Full ${bedConfig.full === 1 ? 'bed' : 'beds'}`);
                     }
                     if (bedConfig.double > 0) {
                         bedDescriptions.push(`${bedConfig.double} Double ${bedConfig.double === 1 ? 'bed' : 'beds'}`);
