@@ -1173,9 +1173,6 @@ function hasListingIssues(listing) {
     const missingHostInfo = !listing._host_information?.host_description ||
         !listing._host_information?.Profile_Picture;
 
-    // Check for missing location description
-    const missingLocationDescription = !listing.location_description;
-
     // Check for missing check-in method
     const missingCheckInMethod = listing.check_in_method === null;
 
@@ -1192,7 +1189,6 @@ function hasListingIssues(listing) {
 
     const hasIssues =
         missingHostInfo ||
-        missingLocationDescription ||
         missingCheckInMethod ||
         missingCancellationPolicy ||
         insufficientBedroomPhotos ||

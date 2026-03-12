@@ -4403,21 +4403,9 @@ document.addEventListener('DOMContentLoaded', function () {
             const stateValue = addressStateInput.value.trim().toLowerCase();
             const isFloridaState = stateValue === 'fl' || stateValue === 'florida';
 
-            // Check if location description is filled
-            const hasLocationDescription = locationDescriptionInput && locationDescriptionInput.innerText.trim().length > 0;
-
             if (hasEmptyFields) {
                 if (locationError) {
                     locationError.textContent = "Please fill in all required fields";
-                    locationError.style.display = 'block';
-                    if (locationSubText) locationSubText.style.display = 'none';
-                }
-                return false;
-            }
-
-            if (!hasLocationDescription) {
-                if (locationError) {
-                    locationError.textContent = "Please provide a location description";
                     locationError.style.display = 'block';
                     if (locationSubText) locationSubText.style.display = 'none';
                 }
@@ -4462,25 +4450,13 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         }
 
-        // Function to validate location description
+        // Function to validate location description (max length only)
         function validateLocationDescription() {
             if (locationDescriptionInput) {
                 const currentLength = locationDescriptionInput.innerText.length;
                 if (currentLength > maxChars) {
                     locationDescriptionInput.innerText = locationDescriptionInput.innerText.substring(0, maxChars);
                     updateCharacterCount();
-                }
-
-                // Check if description is empty
-                if (currentLength === 0) {
-                    if (locationError) {
-                        locationError.textContent = "Please provide a location description";
-                        locationError.style.display = 'block';
-                        if (locationSubText) locationSubText.style.display = 'none';
-                    }
-                } else {
-                    if (locationError) locationError.style.display = 'none';
-                    if (locationSubText) locationSubText.style.display = 'block';
                 }
             }
         }
@@ -4511,16 +4487,6 @@ document.addEventListener('DOMContentLoaded', function () {
             } else {
                 locationDescriptionInput.innerText = '';
                 initialState.locationDescription = '';
-
-                // Show error on load if location description is missing
-                if (locationError) {
-                    locationError.textContent = "Please provide a location description";
-                    locationError.style.display = 'block';
-                    if (locationSubText) locationSubText.style.display = 'none';
-                }
-                if (editLocationElement) {
-                    editLocationElement.style.backgroundColor = '#FFE5E5';
-                }
             }
             locationDescriptionInput.contentEditable = "false"; // Make it not editable initially
             updateCharacterCount();
@@ -4647,18 +4613,6 @@ document.addEventListener('DOMContentLoaded', function () {
                     locationDescriptionInput.contentEditable = "false";
                     locationDescriptionInput.style.backgroundColor = '';
                     updateCharacterCount();
-
-                    // Show error if location description is still empty after cancel
-                    if (!initialState.locationDescription.trim()) {
-                        if (locationError) {
-                            locationError.textContent = "Please provide a location description";
-                            locationError.style.display = 'block';
-                            if (locationSubText) locationSubText.style.display = 'none';
-                        }
-                    } else {
-                        if (locationError) locationError.style.display = 'none';
-                        if (locationSubText) locationSubText.style.display = 'block';
-                    }
                 }
 
                 // Reset UI state
@@ -4667,12 +4621,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (container) {
                     container.style.backgroundColor = '';
                     container.style.border = '';
-                }
-                if (locationError && initialState.locationDescription.trim()) {
-                    locationError.style.display = 'none';
-                }
-                if (locationSubText && initialState.locationDescription.trim()) {
-                    locationSubText.style.display = 'block';
                 }
             });
         }
@@ -4749,28 +4697,6 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (container) {
                         container.style.backgroundColor = '';
                         container.style.border = '';
-                    }
-
-                    // Check if there's an error after save (e.g., missing location description)
-                    if (!locationDescriptionValue.trim()) {
-                        if (locationError) {
-                            locationError.textContent = "Please provide a location description";
-                            locationError.style.display = 'block';
-                            if (locationSubText) locationSubText.style.display = 'none';
-                        }
-                        if (editLocationElement) {
-                            editLocationElement.style.backgroundColor = '#FFE5E5';
-                        }
-                    } else {
-                        if (locationError) {
-                            locationError.style.display = 'none';
-                        }
-                        if (locationSubText) {
-                            locationSubText.style.display = 'block';
-                        }
-                        if (editLocationElement) {
-                            editLocationElement.style.backgroundColor = '';
-                        }
                     }
 
                     // Disable inputs
