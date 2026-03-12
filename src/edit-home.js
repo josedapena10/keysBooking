@@ -1475,6 +1475,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 {
                     ...(initialBedroomBeds[bedroomNumber] || {
                         single: 0,
+                        full: 0,
                         double: 0,
                         queen: 0,
                         king: 0,
@@ -1487,6 +1488,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 {
                     ...(bedroomBeds[bedroomNumber] || {
                         single: 0,
+                        full: 0,
                         double: 0,
                         queen: 0,
                         king: 0,
