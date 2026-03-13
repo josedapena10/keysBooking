@@ -5167,6 +5167,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const rulesText = document.querySelector('[data-element="edit_rules_text"]');
         const rulesError = document.getElementById('rules-error');
         const rulesSubText = document.getElementById('rules-subText');
+        const minAgeInput = container ? container.querySelector('[data-element="rulesMinAgeInput"]') : null;
 
         // PMS import nudge: show when is_pms_synced, created ≤2 weeks ago, and only default rules (guests max + no parties, category 2 only)
         const rulesSectionRow = document.querySelector('[data-element="edit_rules"]');
@@ -5264,7 +5265,13 @@ document.addEventListener('DOMContentLoaded', function () {
         // Store initial state
         const initialState = {
             duringVisit: new Set(selectedDuringVisitRules),
-            beforeDeparture: new Set(selectedBeforeDepartureRules)
+            beforeDeparture: new Set(selectedBeforeDepartureRules),
+            minAge: data.minAge || 21
+        };
+
+        const formatMinAge = (value) => {
+            const numValue = parseInt(value) || 21;
+            return `${numValue} Years Old`;
         };
 
         // Update rules text initially
@@ -5286,6 +5293,36 @@ document.addEventListener('DOMContentLoaded', function () {
                 button.style.cursor = 'default';
             }
         });
+
+        if (minAgeInput) {
+            minAgeInput.value = formatMinAge(initialState.minAge);
+            minAgeInput.disabled = true;
+            minAgeInput.style.opacity = '1';
+            minAgeInput.style.color = '#000000';
+
+            minAgeInput.addEventListener('focus', function () {
+                if (!this.disabled) {
+                    const numValue = parseInt(this.value) || 21;
+                    this.value = numValue;
+                }
+            });
+
+            minAgeInput.addEventListener('blur', function () {
+                if (!this.disabled) {
+                    let numValue = parseInt(this.value) || 21;
+                    if (numValue < 21) numValue = 21;
+                    if (numValue > 65) numValue = 65;
+                    this.value = formatMinAge(numValue);
+                }
+            });
+
+            minAgeInput.addEventListener('input', function () {
+                this.value = this.value.replace(/[^0-9]/g, '');
+                if (this.value.length > 2) {
+                    this.value = this.value.slice(0, 2);
+                }
+            });
+        }
 
         // Function to handle rule button clicks
         function handleDuringVisitRuleClick(rule, button) {
@@ -5353,6 +5390,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
                 enableAllRules();
 
+                if (minAgeInput) {
+                    minAgeInput.disabled = false;
+                    const numValue = parseInt(minAgeInput.value) || 21;
+                    minAgeInput.value = numValue;
+                }
+
                 // Set up cancel button click handler (using onclick to prevent duplicate handlers)
                 if (cancelButton) {
                     cancelButton.onclick = () => {
@@ -5394,6 +5437,11 @@ document.addEventListener('DOMContentLoaded', function () {
                                 button.style.cursor = 'default';
                             }
                         });
+
+                        if (minAgeInput) {
+                            minAgeInput.value = formatMinAge(initialState.minAge);
+                            minAgeInput.disabled = true;
+                        }
                     };
                 }
 
@@ -5413,6 +5461,12 @@ document.addEventListener('DOMContentLoaded', function () {
                             rule: rule
                         }));
 
+                        let minAge = initialState.minAge;
+                        if (minAgeInput) {
+                            const parsed = parseInt(minAgeInput.value);
+                            minAge = isNaN(parsed) ? initialState.minAge : Math.min(65, Math.max(21, parsed));
+                        }
+
                         try {
                             const response = await fetch(`https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/edit_property_rules`, {
                                 method: 'POST',
@@ -5424,7 +5478,8 @@ document.addEventListener('DOMContentLoaded', function () {
                                     user_id: data.user_id,
                                     duringStay,
                                     beforeDeparture,
-                                    guestMax
+                                    guestMax,
+                                    minAge
                                 })
                             });
 
@@ -5435,6 +5490,7 @@ document.addEventListener('DOMContentLoaded', function () {
                             // Update initial state after successful save
                             initialState.duringVisit = new Set(selectedDuringVisitRules);
                             initialState.beforeDeparture = new Set(selectedBeforeDepartureRules);
+                            initialState.minAge = minAge;
 
                             // Update rules text after successful save
                             if (rulesText) {
@@ -5467,6 +5523,11 @@ document.addEventListener('DOMContentLoaded', function () {
                                     button.style.cursor = 'default';
                                 }
                             });
+
+                            if (minAgeInput) {
+                                minAgeInput.value = formatMinAge(minAge);
+                                minAgeInput.disabled = true;
+                            }
 
                         } catch (error) {
                             console.error('Error saving rules:', error);
