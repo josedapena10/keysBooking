@@ -1897,7 +1897,7 @@ document.addEventListener('DOMContentLoaded', function () {
         // Check if this blocked date is valid for checkout (first blocked date after check-in)
         let isBlockedCheckoutValid = false;
         if (selectedStartDate && !selectedEndDate && isDateDisabled(currentDate)
-            && !isCheckoutOnly && currentDate > selectedStartDate) {
+          && !isCheckoutOnly && currentDate > selectedStartDate) {
           const firstBlocked = findFirstBlockedDateAfter(selectedStartDate);
           isBlockedCheckoutValid = firstBlocked && currentDate.getTime() === firstBlocked.getTime();
         }
@@ -16043,10 +16043,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Apply warning styling to block if dates need to be selected
         if (trip.needsDates) {
-          block.style.backgroundColor = '#fffbeb'; // Light amber
-          block.style.borderColor = '#f59e0b'; // Amber border
-          block.style.borderWidth = '1px';
-          block.style.borderStyle = 'solid';
+          // block.style.backgroundColor = '#fffbeb'; // Light amber
+          // block.style.borderColor = '#f59e0b'; // Amber border
+          // block.style.borderWidth = '1px';
+          // block.style.borderStyle = 'solid';
         } else {
           // Clear warning styling
           block.style.backgroundColor = '';
