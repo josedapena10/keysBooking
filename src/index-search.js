@@ -4329,21 +4329,12 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
                 }
 
-                // Add public dock delivery fee if listing city requires it
-                if (publicDockDetails && publicDockDetails.fee) {
-                    basePrice += Number(publicDockDetails.fee) || 0;
-                }
-
-                // Add private dock delivery fee ONLY if dock delivery filter is selected
+                // Dock fees are mutually exclusive: public dock OR private dock, never both.
                 if (filters.dockDelivery === true) {
-                    // Add standard delivery fee
+                    // Private dock: fee is the company's deliveryFee
                     basePrice += boat._boatcompany?.deliveryFee || 0;
-
-                    // Add private dock specific fee if applicable
-                    const privateDockDetails = getPrivateDockDeliveryDetails(boat, listingCity);
-                    if (privateDockDetails && privateDockDetails.fee) {
-                        basePrice += Number(privateDockDetails.fee) || 0;
-                    }
+                } else if (publicDockDetails && publicDockDetails.fee) {
+                    basePrice += Number(publicDockDetails.fee) || 0;
                 }
 
                 // Apply service fee if not manual integration (from commented code)

@@ -5181,46 +5181,58 @@ async function calculateBoatPricing() {
   // Calculate base price based on rental duration
   let basePrice = calculateBoatBasePrice(boatData, numDates);
 
-  // Calculate public dock delivery fee if applicable (BEFORE service fee calculation)
+  // Dock fees are mutually exclusive: either public dock OR private dock, never both.
   let publicDockFee = 0;
+  let privateDockFee = 0;
+  let activeDockFee = 0;
+
   try {
     const r = window.Wized?.data?.r;
 
     if (r && r.Load_Property_Details && r.Load_Property_Details.data) {
       const listingCity = r.Load_Property_Details.data.property?.listing_city;
 
-      if (listingCity && Array.isArray(publicDockDetails)) {
+      if (listingCity) {
         const listingCityLower = listingCity.toLowerCase().trim();
 
-        const matchingDockDetails = publicDockDetails.find(
-          detail => (detail.city || '').toLowerCase().trim() === listingCityLower
-        );
-
-        if (matchingDockDetails && matchingDockDetails.fee) {
-          publicDockFee = Number(matchingDockDetails.fee) || 0;
+        // Get public dock fee for this city
+        if (Array.isArray(publicDockDetails)) {
+          const matchingPublicDock = publicDockDetails.find(
+            detail => (detail.city || '').toLowerCase().trim() === listingCityLower
+          );
+          if (matchingPublicDock && matchingPublicDock.fee) {
+            publicDockFee = Number(matchingPublicDock.fee) || 0;
+          }
         }
+
       }
     }
   } catch (error) {
   }
 
-  // Calculate service fee on (basePrice + publicDockFee) - skip if integrationType is 'Manual'
-  let serviceFee = 0;
-  if (integrationType !== 'Manual') {
-    serviceFee = (basePrice + publicDockFee) * serviceFeeRate;
+  // Dock fees are mutually exclusive.
+  // For private dock, the fee is the company's deliveryFee (deliveryFeeAmount).
+  // Service fee applies to whichever dock fee is active.
+  if (boatDelivery) {
+    privateDockFee = deliveryFeeAmount;
+    activeDockFee = privateDockFee;
+  } else {
+    activeDockFee = publicDockFee;
   }
 
-  // Calculate delivery fee if delivery is selected
-  const deliveryFee = boatDelivery ? deliveryFeeAmount : 0;
+  let serviceFee = 0;
+  if (integrationType !== 'Manual') {
+    serviceFee = (basePrice + activeDockFee) * serviceFeeRate;
+  }
 
-  // Calculate total with fees
-  const totalWithFees = basePrice + publicDockFee + serviceFee + deliveryFee;
+  const totalWithFees = basePrice + activeDockFee + serviceFee;
 
   return {
     basePrice: Math.round(basePrice),
     serviceFee: Math.round(serviceFee),
-    deliveryFee: Math.round(deliveryFee),
-    publicDockFee: Math.round(publicDockFee),
+    deliveryFee: 0,
+    publicDockFee: Math.round(boatDelivery ? 0 : publicDockFee),
+    privateDockFee: Math.round(boatDelivery ? privateDockFee : 0),
     totalWithFees: Math.round(totalWithFees)
   };
 }
@@ -10217,45 +10229,42 @@ document.addEventListener('DOMContentLoaded', () => {
           basePrice = this.calculateMultiDayPrice(boat, numDates);
         }
 
-        // Add public dock delivery fee to base price (BEFORE service fee calculation)
+        // Dock fees are mutually exclusive: either public dock OR private dock, never both.
+        // When private dock is selected, the fee is the company's deliveryFee (boat.companyDeliveryFee).
+        // Service fee applies to basePrice + whichever dock fee is active.
         let publicDockFee = 0;
-        if (publicDockDetails && publicDockDetails.fee) {
-          publicDockFee = Number(publicDockDetails.fee) || 0;
-        }
-
-        // Add private dock delivery fee ONLY if private dock is selected
         let privateDockFee = 0;
+        let activeDockFee = 0;
+
+        const rawPublicDockFee = (publicDockDetails && publicDockDetails.fee) ? Number(publicDockDetails.fee) || 0 : 0;
+
         if (currentState.selectedPrivateDock) {
-          const privateDockDetails = this.getPrivateDockDeliveryDetails(boat);
-          if (privateDockDetails && privateDockDetails.fee) {
-            privateDockFee = Number(privateDockDetails.fee) || 0;
-          }
+          privateDockFee = (boat.companyDelivers && boat.companyDeliveryFee) ? boat.companyDeliveryFee : 0;
+          activeDockFee = privateDockFee;
+        } else {
+          publicDockFee = rawPublicDockFee;
+          activeDockFee = publicDockFee;
         }
 
-        // Calculate service fee on (basePrice + publicDockFee + privateDockFee) unless integrationType is "Manual"
+        // Service fee on (basePrice + activeDockFee) — applies to delivery fee for private dock too
         let serviceFee = 0;
         if (boat.integrationType !== "Manual") {
-          serviceFee = (basePrice + publicDockFee + privateDockFee) * (boat.serviceFee || 0);
+          serviceFee = (basePrice + activeDockFee) * (boat.serviceFee || 0);
         }
 
-        // Calculate delivery fee if private dock is selected and boat can deliver
-        let deliveryFee = 0;
-        if (currentState.selectedPrivateDock && boat.companyDelivers && boat.companyDeliveryFee) {
-          deliveryFee = boat.companyDeliveryFee;
-        }
-
-        const total = basePrice + publicDockFee + privateDockFee + serviceFee + deliveryFee;
+        const total = basePrice + activeDockFee + serviceFee;
 
         return {
           base: Math.round(basePrice),
           fees: {
             service: Math.round(serviceFee),
-            delivery: Math.round(deliveryFee),
+            delivery: 0,
             publicDock: Math.round(publicDockFee),
             privateDock: Math.round(privateDockFee)
           },
           total: Math.round(total),
-          effectiveMinDays: effectiveMinDays // Return this for validation
+          effectiveMinDays: effectiveMinDays,
+          rawPublicDockFee: Math.round(rawPublicDockFee)
         };
       }
 
@@ -13534,19 +13543,25 @@ document.addEventListener('DOMContentLoaded', () => {
         // Update public dock address visibility based on initial state
         this.updatePublicDockAddressVisibility(boat);
 
-        // Set delivery text based on delivery fee and minimum days
-        const deliveryFee = boat.companyDeliveryFee || 0;
+        // Set delivery text based on the difference between private and public dock fees.
+        // When both are available for a city, the public dock fee is already included in the
+        // base price, so the user should only see the additional cost to upgrade to private dock.
         const deliveryDockDetails = this.getPrivateDockDeliveryDetails(boat);
         const deliveryMinDays = deliveryDockDetails?.minDays ? Number(deliveryDockDetails.minDays) : 0;
+        const rawPrivateDockFee = deliveryDockDetails?.fee ? Number(deliveryDockDetails.fee) || 0 : 0;
+        const publicDockDetailsForText = this.getPublicDockDeliveryDetails(boat);
+        const rawPublicDockFee = publicDockDetailsForText?.fee ? Number(publicDockDetailsForText.fee) || 0 : 0;
+
+        const companyDeliveryFee = boat.companyDeliveryFee || 0;
+        const totalAdditionalCost = Math.max(0, (rawPrivateDockFee + companyDeliveryFee) - rawPublicDockFee);
 
         let deliveryTextContent = '';
-        if (deliveryFee === 0 || deliveryFee === null) {
+        if (totalAdditionalCost === 0) {
           deliveryTextContent = 'Complimentary boat delivery';
         } else {
-          deliveryTextContent = `Delivered to property ($${deliveryFee})`;
+          deliveryTextContent = `Delivered to property (+$${totalAdditionalCost})`;
         }
 
-        // Add minimum days requirement if applicable
         if (deliveryMinDays > 1) {
           deliveryTextContent += ` (${deliveryMinDays} Day Min)`;
         }
@@ -13704,18 +13719,17 @@ document.addEventListener('DOMContentLoaded', () => {
           selectedGuests: this.selectedGuests
         });
 
-        const priceWithDelivery = quote.base + quote.fees.publicDock + quote.fees.service + quote.fees.delivery;
+        // Dock fees are mutually exclusive (only one of publicDock/privateDock will be non-zero)
+        const activeDockFee = quote.fees.publicDock + quote.fees.privateDock;
+        const priceBeforeTax = quote.base + activeDockFee + quote.fees.service + quote.fees.delivery;
 
-        // Calculate taxes (7.5% of price + public dock fee + delivery fee)
         const taxRate = 0.075;
-        const taxes = priceWithDelivery * taxRate;
+        const taxes = priceBeforeTax * taxRate;
 
-        // Calculate total including taxes
-        const totalPrice = priceWithDelivery + taxes;
+        const totalPrice = priceBeforeTax + taxes;
 
-        // Update price breakdown elements
         if (priceFeeElement) {
-          priceFeeElement.textContent = `$${Math.round(priceWithDelivery).toLocaleString()}`;
+          priceFeeElement.textContent = `$${Math.round(priceBeforeTax).toLocaleString()}`;
         }
 
         if (taxesElement) {
@@ -13781,10 +13795,11 @@ document.addEventListener('DOMContentLoaded', () => {
               selectedGuests: this.selectedGuests
             });
 
-            const priceWithDelivery = quote.base + quote.fees.publicDock + quote.fees.service + quote.fees.delivery;
+            const activeDockFee = quote.fees.publicDock + quote.fees.privateDock;
+            const priceBeforeTax = quote.base + activeDockFee + quote.fees.service + quote.fees.delivery;
             const taxRate = 0.075;
-            const taxes = priceWithDelivery * taxRate;
-            const totalPrice = priceWithDelivery + taxes;
+            const taxes = priceBeforeTax * taxRate;
+            const totalPrice = priceBeforeTax + taxes;
 
             reservationTotal.textContent = `$${Math.round(totalPrice).toLocaleString()}`;
           } else {
