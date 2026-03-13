@@ -389,6 +389,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 propertyData.addHome_complete = true;
                 propertyData.serviceFee = 0.12;
                 propertyData.hostFee = 0.03;
+                propertyData.minAge = 21;
             }
 
             // Only add fields that have been filled out
