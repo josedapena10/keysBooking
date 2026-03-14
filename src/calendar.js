@@ -7446,16 +7446,10 @@ document.addEventListener('DOMContentLoaded', function () {
                                     // Re-setup the listing block handler to ensure it works after data refresh
                                     setupListingBlockHandler();
 
-                                    // Re-setup the toolbar with the selected property data
-                                    setupToolbar(selectedProperty);
-
                                     closeAllEditToolbars();
 
                                     exitCustomDatesToolbar();
                                 });
-
-                                // Re-setup the toolbar with the selected property data
-                                setupToolbar(selectedProperty);
 
 
 
