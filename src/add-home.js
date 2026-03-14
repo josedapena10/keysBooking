@@ -764,6 +764,7 @@ document.addEventListener('DOMContentLoaded', async function () {
             const listingContainer = listingBlockTemplate ? listingBlockTemplate.parentElement : null;
             const addListingBlock = document.querySelector('[data-element="manageAddHome_addListingBlock"]');
             const connectLodgifyBlock = document.querySelector('[data-element="manageAddHome_connectLodgify"]');
+            if (connectLodgifyBlock) connectLodgifyBlock.style.display = 'none';
             const continueProgressContainer = document.getElementById('manageAddHome-continueProgressContainer');
             const headerTextElement = document.getElementById('manageAddHome-headerText');
 
