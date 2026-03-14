@@ -443,7 +443,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 setupListingBlockHandler();
 
                 // Setup toolbar with property data
-                setupToolbar(currentProperty);
+                setupToolbar(currentProperty, data.checkinout_rules || []);
 
 
             }
@@ -5025,7 +5025,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
 
     // Function to setup the toolbar with property data
-    function setupToolbar(propertyData) {
+    function setupToolbar(propertyData, checkinoutRules) {
         if (!propertyData) {
             return;
         }
@@ -5070,6 +5070,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Setup connect calendar edit functionality
         setupConnectCalendarEdit(propertyData.is_synced, propertyData.calendar_sync_endpoint, propertyData.id, propertyData._property_icals);
+
+        // Setup check-in/out days display
+        updateToolbarCheckinoutDays(checkinoutRules || []);
+
+        // Setup check-in/out days edit functionality
+        setupCheckinoutDaysEdit(checkinoutRules || [], propertyData.id);
 
         setupEditDatesFeature(propertyId, propertyData);
 
@@ -5841,6 +5847,451 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
+    // Function to update the check-in/out days display in the toolbar
+    function updateToolbarCheckinoutDays(rules) {
+        const statusElement = document.querySelector('[data-element="toolbar_checkinoutDays_status"]');
+        if (!statusElement) return;
+
+        if (!rules || rules.length === 0) {
+            statusElement.textContent = 'No restrictions';
+            return;
+        }
+
+        const DAY_NAMES_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+        function formatDate(dateStr) {
+            if (!dateStr) return '';
+            const d = new Date(dateStr + 'T00:00:00');
+            return `${MONTH_ABBR[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+        }
+
+        if (rules.length === 1) {
+            const rule = rules[0];
+            const days = Array.isArray(rule.allowed_checkin_days) ? rule.allowed_checkin_days : [];
+            if (days.length === 7) {
+                statusElement.textContent = 'No restrictions';
+            } else {
+                const dayLabels = days.map(d => DAY_NAMES_SHORT[d]).join(', ');
+                const range = `${formatDate(rule.start_date)} – ${formatDate(rule.end_date)}`;
+                statusElement.textContent = `${range}: ${dayLabels} only`;
+            }
+        } else {
+            statusElement.textContent = `${rules.length} seasons active`;
+        }
+    }
+
+    // Function to setup the check-in/out days edit functionality
+    function setupCheckinoutDaysEdit(currentRules, propId) {
+        const checkinoutContainer = document.querySelector('[data-element="toolbar_checkinoutDays"]');
+        const toolbar = document.querySelector('[data-element="toolbar"]');
+        const checkinoutEditContainer = document.querySelector('[data-element="toolbarEdit_checkinoutDays"]');
+        const rulesContainer = document.querySelector('[data-element="toolbarEdit_checkinoutDays_rulesContainer"]');
+        const addRuleButton = document.querySelector('[data-element="toolbarEdit_checkinoutDays_addRule"]');
+        const saveButton = document.querySelector('[data-element="toolbarEdit_checkinoutDays_saveButton"]');
+        const saveButtonText = document.querySelector('[data-element="toolbarEdit_checkinoutDays_saveButtonText"]');
+        const saveButtonLoader = document.querySelector('[data-element="toolbarEdit_checkinoutDays_saveButtonLoader"]');
+        const cancelButton = document.querySelector('[data-element="toolbarEdit_checkinoutDays_cancel"]');
+        const exitButton = document.querySelector('[data-element="toolbarEdit_checkinoutDays_exit"]');
+
+        if (!checkinoutContainer || !toolbar || !checkinoutEditContainer || !rulesContainer) return;
+
+        const DAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+        let workingRules = [];
+
+        // Clone elements to remove old listeners
+        const newCheckinoutContainer = checkinoutContainer.cloneNode(true);
+        checkinoutContainer.parentNode.replaceChild(newCheckinoutContainer, checkinoutContainer);
+
+        const newSaveButton = saveButton ? saveButton.cloneNode(true) : null;
+        if (saveButton && newSaveButton) {
+            saveButton.parentNode.replaceChild(newSaveButton, saveButton);
+        }
+
+        const newCancelButton = cancelButton ? cancelButton.cloneNode(true) : null;
+        if (cancelButton && newCancelButton) {
+            cancelButton.parentNode.replaceChild(newCancelButton, cancelButton);
+        }
+
+        const newExitButton = exitButton ? exitButton.cloneNode(true) : null;
+        if (exitButton && newExitButton) {
+            exitButton.parentNode.replaceChild(newExitButton, exitButton);
+        }
+
+        const newAddRuleButton = addRuleButton ? addRuleButton.cloneNode(true) : null;
+        if (addRuleButton && newAddRuleButton) {
+            addRuleButton.parentNode.replaceChild(newAddRuleButton, addRuleButton);
+        }
+
+        const updatedSaveButtonLoader = document.querySelector('[data-element="toolbarEdit_checkinoutDays_saveButtonLoader"]');
+        const updatedSaveButtonText = document.querySelector('[data-element="toolbarEdit_checkinoutDays_saveButtonText"]');
+
+        if (updatedSaveButtonLoader) updatedSaveButtonLoader.style.display = 'none';
+
+        function createDayToggles(selectedDays, label) {
+            const wrapper = document.createElement('div');
+            wrapper.style.cssText = 'margin-bottom: 12px;';
+
+            const labelEl = document.createElement('div');
+            labelEl.textContent = label;
+            labelEl.style.cssText = "font-family: 'TT Fors', sans-serif; font-size: 13px; font-weight: 500; margin-bottom: 6px; color: #374151;";
+            wrapper.appendChild(labelEl);
+
+            const row = document.createElement('div');
+            row.style.cssText = 'display: flex; gap: 6px; flex-wrap: wrap;';
+
+            const selected = new Set(Array.isArray(selectedDays) ? selectedDays : [0, 1, 2, 3, 4, 5, 6]);
+
+            DAY_LABELS.forEach((dayLabel, dayIndex) => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.textContent = dayLabel;
+                btn.dataset.day = dayIndex;
+                btn.style.cssText = `
+                    font-family: 'TT Fors', sans-serif;
+                    width: 40px; height: 36px; border-radius: 5px; border: 1.5px solid #d1d5db;
+                    font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s ease;
+                    ${selected.has(dayIndex)
+                        ? 'background: #111827; color: #fff; border-color: #111827;'
+                        : 'background: #fff; color: #374151;'}
+                `;
+
+                btn.addEventListener('click', function () {
+                    const isActive = this.style.background.includes('17');
+                    if (isActive) {
+                        this.style.background = '#fff';
+                        this.style.color = '#374151';
+                        this.style.borderColor = '#d1d5db';
+                    } else {
+                        this.style.background = '#111827';
+                        this.style.color = '#fff';
+                        this.style.borderColor = '#111827';
+                    }
+                });
+
+                row.appendChild(btn);
+            });
+
+            wrapper.appendChild(row);
+            return wrapper;
+        }
+
+        function getSelectedDaysFromRow(wrapper) {
+            const days = [];
+            wrapper.querySelectorAll('button[data-day]').forEach(btn => {
+                if (btn.style.background.includes('17')) {
+                    days.push(parseInt(btn.dataset.day));
+                }
+            });
+            return days;
+        }
+
+        function renderRuleCard(rule, index) {
+            const card = document.createElement('div');
+            card.dataset.ruleCard = index;
+            card.style.cssText = `
+                background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 5px;
+                padding: 16px; margin-bottom: 12px; position: relative;
+            `;
+
+            // Delete button
+            const deleteBtn = document.createElement('button');
+            deleteBtn.type = 'button';
+            deleteBtn.innerHTML = '&times;';
+            deleteBtn.style.cssText = `
+                font-family: 'TT Fors', sans-serif;
+                position: absolute; top: 8px; right: 10px; background: none; border: none;
+                font-size: 20px; color: #9ca3af; cursor: pointer; line-height: 1; padding: 4px;
+            `;
+            deleteBtn.addEventListener('click', function () {
+                workingRules.splice(index, 1);
+                renderAllRules();
+            });
+            card.appendChild(deleteBtn);
+
+            // Season label
+            const seasonLabel = document.createElement('div');
+            seasonLabel.textContent = `Season ${index + 1}`;
+            seasonLabel.style.cssText = "font-family: 'TT Fors', sans-serif; font-size: 14px; font-weight: 600; margin-bottom: 12px; color: #111827;";
+            card.appendChild(seasonLabel);
+
+            // Date range inputs
+            const dateRow = document.createElement('div');
+            dateRow.style.cssText = 'display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap;';
+
+            const inputStyle = "font-family: 'TT Fors', sans-serif; width: 100%; padding: 8px 10px; border: 1.5px solid #d1d5db; border-radius: 5px; font-size: 14px;";
+
+            const startGroup = document.createElement('div');
+            startGroup.style.cssText = 'flex: 1; min-width: 140px;';
+            const startLabel = document.createElement('label');
+            startLabel.textContent = 'Start date';
+            startLabel.style.cssText = "font-family: 'TT Fors', sans-serif; font-size: 12px; color: #6b7280; display: block; margin-bottom: 4px;";
+            const startInput = document.createElement('input');
+            startInput.type = 'date';
+            startInput.dataset.ruleStart = '';
+            startInput.value = rule.start_date || '';
+            startInput.style.cssText = inputStyle;
+            startGroup.appendChild(startLabel);
+            startGroup.appendChild(startInput);
+
+            const endGroup = document.createElement('div');
+            endGroup.style.cssText = 'flex: 1; min-width: 140px;';
+            const endLabel = document.createElement('label');
+            endLabel.textContent = 'End date';
+            endLabel.style.cssText = "font-family: 'TT Fors', sans-serif; font-size: 12px; color: #6b7280; display: block; margin-bottom: 4px;";
+            const endInput = document.createElement('input');
+            endInput.type = 'date';
+            endInput.dataset.ruleEnd = '';
+            endInput.value = rule.end_date || '';
+            endInput.style.cssText = inputStyle;
+            endGroup.appendChild(endLabel);
+            endGroup.appendChild(endInput);
+
+            if (rule.start_date) endInput.min = rule.start_date;
+            if (rule.end_date) startInput.max = rule.end_date;
+
+            startInput.addEventListener('change', function () {
+                endInput.min = this.value;
+                if (endInput.value && endInput.value < this.value) {
+                    endInput.value = this.value;
+                }
+            });
+
+            endInput.addEventListener('change', function () {
+                startInput.max = this.value;
+                if (startInput.value && startInput.value > this.value) {
+                    startInput.value = this.value;
+                }
+            });
+
+            dateRow.appendChild(startGroup);
+            dateRow.appendChild(endGroup);
+            card.appendChild(dateRow);
+
+            // Day toggles for check-in
+            const checkinToggles = createDayToggles(rule.allowed_checkin_days, 'Allowed check-in days');
+            checkinToggles.dataset.checkinDays = '';
+            card.appendChild(checkinToggles);
+
+            // Day toggles for check-out
+            const checkoutToggles = createDayToggles(rule.allowed_checkout_days, 'Allowed check-out days');
+            checkoutToggles.dataset.checkoutDays = '';
+            card.appendChild(checkoutToggles);
+
+            return card;
+        }
+
+        function renderAllRules() {
+            rulesContainer.innerHTML = '';
+            if (workingRules.length === 0) {
+                const emptyMsg = document.createElement('div');
+                emptyMsg.style.cssText = "font-family: 'TT Fors', sans-serif; text-align: center; color: #9ca3af; padding: 20px 0; font-size: 14px;";
+                emptyMsg.textContent = 'No check-in/out day restrictions. Guests can check in and out on any day.';
+                rulesContainer.appendChild(emptyMsg);
+            } else {
+                workingRules.forEach((rule, i) => {
+                    rulesContainer.appendChild(renderRuleCard(rule, i));
+                });
+            }
+        }
+
+        function collectRulesFromUI() {
+            const cards = rulesContainer.querySelectorAll('[data-rule-card]');
+            const rules = [];
+            cards.forEach(card => {
+                const startInput = card.querySelector('[data-rule-start]');
+                const endInput = card.querySelector('[data-rule-end]');
+                const checkinWrapper = card.querySelector('[data-checkin-days]');
+                const checkoutWrapper = card.querySelector('[data-checkout-days]');
+
+                if (!startInput || !endInput || !checkinWrapper || !checkoutWrapper) return;
+
+                const checkinDays = getSelectedDaysFromRow(checkinWrapper);
+                const checkoutDays = getSelectedDaysFromRow(checkoutWrapper);
+
+                if (startInput.value && endInput.value && checkinDays.length > 0 && checkoutDays.length > 0) {
+                    rules.push({
+                        start_date: startInput.value,
+                        end_date: endInput.value,
+                        allowed_checkin_days: checkinDays,
+                        allowed_checkout_days: checkoutDays,
+                        source: 'manual'
+                    });
+                }
+            });
+            return rules;
+        }
+
+        function syncWorkingRulesFromUI() {
+            const cards = rulesContainer.querySelectorAll('[data-rule-card]');
+            const synced = [];
+            cards.forEach(card => {
+                const startInput = card.querySelector('[data-rule-start]');
+                const endInput = card.querySelector('[data-rule-end]');
+                const checkinWrapper = card.querySelector('[data-checkin-days]');
+                const checkoutWrapper = card.querySelector('[data-checkout-days]');
+                synced.push({
+                    start_date: startInput ? startInput.value : '',
+                    end_date: endInput ? endInput.value : '',
+                    allowed_checkin_days: checkinWrapper ? getSelectedDaysFromRow(checkinWrapper) : [0, 1, 2, 3, 4, 5, 6],
+                    allowed_checkout_days: checkoutWrapper ? getSelectedDaysFromRow(checkoutWrapper) : [0, 1, 2, 3, 4, 5, 6],
+                    source: 'manual'
+                });
+            });
+            workingRules = synced;
+        }
+
+        // Open edit panel
+        newCheckinoutContainer.addEventListener('click', function () {
+            if (isCurrentPropertyPmsSynced) {
+                showCalendarNotification('Check-in/out day restrictions are managed by your PMS.');
+                return;
+            }
+            toolbar.style.display = 'none';
+            checkinoutEditContainer.style.display = 'flex';
+            scrollToTopOnMobile();
+
+            workingRules = JSON.parse(JSON.stringify(currentRules));
+            renderAllRules();
+        });
+
+        // Add season
+        if (newAddRuleButton) {
+            newAddRuleButton.addEventListener('click', function () {
+                syncWorkingRulesFromUI();
+                workingRules.push({
+                    start_date: '',
+                    end_date: '',
+                    allowed_checkin_days: [6],
+                    allowed_checkout_days: [6],
+                    source: 'manual'
+                });
+                renderAllRules();
+            });
+        }
+
+        // Save
+        if (newSaveButton) {
+            let isSaving = false;
+
+            newSaveButton.addEventListener('click', async function () {
+                if (isSaving) return;
+
+                // Validate every card in the DOM before collecting
+                const cards = rulesContainer.querySelectorAll('[data-rule-card]');
+                for (let i = 0; i < cards.length; i++) {
+                    const card = cards[i];
+                    const startVal = (card.querySelector('[data-rule-start]') || {}).value || '';
+                    const endVal = (card.querySelector('[data-rule-end]') || {}).value || '';
+                    const checkinWrapper = card.querySelector('[data-checkin-days]');
+                    const checkoutWrapper = card.querySelector('[data-checkout-days]');
+                    const ciDays = checkinWrapper ? getSelectedDaysFromRow(checkinWrapper) : [];
+                    const coDays = checkoutWrapper ? getSelectedDaysFromRow(checkoutWrapper) : [];
+
+                    if (!startVal && !endVal) {
+                        alert(`Season ${i + 1}: Please fill in both start and end dates.`);
+                        return;
+                    }
+                    if (!startVal) {
+                        alert(`Season ${i + 1}: Please fill in a start date.`);
+                        return;
+                    }
+                    if (!endVal) {
+                        alert(`Season ${i + 1}: Please fill in an end date.`);
+                        return;
+                    }
+                    if (endVal < startVal) {
+                        alert(`Season ${i + 1}: End date must be after start date.`);
+                        return;
+                    }
+                    if (ciDays.length === 0) {
+                        alert(`Season ${i + 1}: Select at least one check-in day.`);
+                        return;
+                    }
+                    if (coDays.length === 0) {
+                        alert(`Season ${i + 1}: Select at least one check-out day.`);
+                        return;
+                    }
+                }
+
+                const rules = collectRulesFromUI();
+
+                // Check for overlapping date ranges
+                for (let i = 0; i < rules.length; i++) {
+                    for (let j = i + 1; j < rules.length; j++) {
+                        if (rules[i].start_date <= rules[j].end_date && rules[i].end_date >= rules[j].start_date) {
+                            alert(`Season ${i + 1} and Season ${j + 1} have overlapping dates.`);
+                            return;
+                        }
+                    }
+                }
+
+                isSaving = true;
+                if (updatedSaveButtonLoader) updatedSaveButtonLoader.style.display = 'flex';
+                if (updatedSaveButtonText) updatedSaveButtonText.style.display = 'none';
+
+                try {
+                    const currentPropertyId = getCurrentPropertyId();
+                    if (!currentPropertyId) {
+                        alert('Property ID not found. Please refresh the page and try again.');
+                        return;
+                    }
+
+                    const response = await fetch('https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/edit_property_checkinout_rules', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            property_id: currentPropertyId,
+                            rules: JSON.stringify(rules)
+                        })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! Status: ${response.status}`);
+                    }
+
+                    const result = await response.json();
+                    currentRules = result.rules || rules;
+
+                    updateToolbarCheckinoutDays(currentRules);
+
+                    checkinoutEditContainer.style.display = 'none';
+                    toolbar.style.display = 'flex';
+                    scrollToTopOnMobile();
+
+                    const refreshPropertyId = getCurrentPropertyId();
+                    fetchCalendarData(refreshPropertyId);
+
+                } catch (error) {
+                    console.error('Error saving check-in/out day rules:', error);
+                    alert('Failed to save check-in/out day restrictions. Please try again.');
+                } finally {
+                    if (updatedSaveButtonLoader) updatedSaveButtonLoader.style.display = 'none';
+                    if (updatedSaveButtonText) updatedSaveButtonText.style.display = 'flex';
+                    isSaving = false;
+                }
+            });
+        }
+
+        // Cancel
+        if (newCancelButton) {
+            newCancelButton.addEventListener('click', function () {
+                checkinoutEditContainer.style.display = 'none';
+                toolbar.style.display = 'flex';
+                scrollToTopOnMobile();
+            });
+        }
+
+        // Exit
+        if (newExitButton) {
+            newExitButton.addEventListener('click', function () {
+                checkinoutEditContainer.style.display = 'none';
+                toolbar.style.display = 'flex';
+                scrollToTopOnMobile();
+            });
+        }
+    }
+
     // Function to update the connect calendar display in the toolbar
     function updateToolbarConnectCalendar(isSynced, calendarUrl) {
         const connectCalendarElement = document.querySelector('[data-element="toolbar_connectCalendar_text"]');
@@ -5982,6 +6433,7 @@ document.addEventListener('DOMContentLoaded', function () {
                             if (ical.last_updated) {
                                 // Parse the date from the ical data
                                 const lastSyncedDate = new Date(ical.last_updated);
+                                console.log('[DEBUG-0422] lastSyncedDate:', lastSyncedDate);
 
                                 // Format the date as "Oct 18th, 2025 at 8:00 PM"
                                 const month = lastSyncedDate.toLocaleString('en-US', { month: 'short' });

@@ -1234,9 +1234,44 @@ document.addEventListener('DOMContentLoaded', function () {
     let isRefreshingCalendarData = false;
     const customMinNightsByDate = new Map(); // Per-day overrides for minimum nights
     let customMinNightsLoaded = false; // Track if custom min nights have been hydrated
+    let checkinoutRules = []; // Check-in/out day-of-week restrictions from property_checkinout_rules
 
     // Expose globally so other functions can check if custom min nights are loaded
     window.customMinNightsLoaded = false;
+
+    // Load check-in/out day-of-week rules from Load_Property_Details response
+    const detailsResponse = Wized.data.r.Load_Property_Details?.data;
+    if (detailsResponse && Array.isArray(detailsResponse.checkinout_rules)) {
+      checkinoutRules = detailsResponse.checkinout_rules;
+    }
+
+    function getCheckinoutRuleForDate(dateString) {
+      for (let i = 0; i < checkinoutRules.length; i++) {
+        const rule = checkinoutRules[i];
+        const startStr = typeof rule.start_date === 'string' ? rule.start_date.slice(0, 10) : '';
+        const endStr = typeof rule.end_date === 'string' ? rule.end_date.slice(0, 10) : '';
+        if (dateString >= startStr && dateString <= endStr) return rule;
+      }
+      return null;
+    }
+
+    function isCheckinAllowedOnDate(date) {
+      const dateString = formatDate(date);
+      const rule = getCheckinoutRuleForDate(dateString);
+      if (!rule) return true;
+      const dow = date.getDay();
+      const allowed = Array.isArray(rule.allowed_checkin_days) ? rule.allowed_checkin_days : [];
+      return allowed.includes(dow);
+    }
+
+    function isCheckoutAllowedOnDate(date) {
+      const dateString = formatDate(date);
+      const rule = getCheckinoutRuleForDate(dateString);
+      if (!rule) return true;
+      const dow = date.getDay();
+      const allowed = Array.isArray(rule.allowed_checkout_days) ? rule.allowed_checkout_days : [];
+      return allowed.includes(dow);
+    }
 
     // Convert disabled dates from API
     calendarData.data.forEach(item => {
@@ -1415,6 +1450,24 @@ document.addEventListener('DOMContentLoaded', function () {
     window.getHighestMinNightsBetween = getHighestMinNightsBetween;
     window.createDateFromString = createDateFromString;
     window.getEffectiveMinNightsForSelection = getEffectiveMinNightsForSelection;
+    window.isCheckinAllowedOnDate = isCheckinAllowedOnDate;
+    window.isCheckoutAllowedOnDate = isCheckoutAllowedOnDate;
+
+    window.validateCheckinoutDaysFromURL = function () {
+      const params = new URLSearchParams(window.location.search);
+      const ci = params.get('checkin');
+      const co = params.get('checkout');
+      if (!ci || !co) return { valid: true };
+      try {
+        const ciDate = createDateFromString(ci);
+        const coDate = createDateFromString(co);
+        const ciOk = isCheckinAllowedOnDate(ciDate);
+        const coOk = isCheckoutAllowedOnDate(coDate);
+        return { valid: ciOk && coOk, checkinAllowed: ciOk, checkoutAllowed: coOk };
+      } catch (_) {
+        return { valid: true };
+      }
+    };
 
     // Add function to find gaps smaller than min nights and mark them as unavailable
     function markSmallGapsAsUnavailable() {
@@ -1585,21 +1638,16 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // If it's not disabled (or it's checkout-only and that's ok), check if it's before blocked dates
         if (!isPotentialCheckoutDisabled) {
-          // If there's no blocked date after check-in, this checkout is valid
-          if (!firstBlockedDate) return true;
-
-          // If checkout is before or equal to first blocked date, check if valid
-          if (potentialCheckout <= firstBlockedDate) {
-            return true;
+          if (isCheckoutAllowedOnDate(potentialCheckout)) {
+            if (!firstBlockedDate) return true;
+            if (potentialCheckout <= firstBlockedDate) return true;
           }
         } else if (checkoutOnlyDates.has(checkoutDateStr)) {
-          // Checkout-only dates are valid as checkout
-          if (!firstBlockedDate || potentialCheckout <= firstBlockedDate) {
-            return true;
+          if (isCheckoutAllowedOnDate(potentialCheckout)) {
+            if (!firstBlockedDate || potentialCheckout <= firstBlockedDate) return true;
           }
         } else if (firstBlockedDate && potentialCheckout.getTime() === firstBlockedDate.getTime()) {
-          // Blocked dates are valid for checkout (guest leaves that morning)
-          return true;
+          if (isCheckoutAllowedOnDate(potentialCheckout)) return true;
         }
       }
 
@@ -1615,8 +1663,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Only check dates that are not already disabled and not checkout-only
         if (!disabledDates.has(dateStr) && !checkoutOnlyDates.has(dateStr)) {
-          // Check if this date has valid checkout options
-          if (!hasValidCheckoutOptions(currentDate)) {
+          if (!isCheckinAllowedOnDate(currentDate) || !hasValidCheckoutOptions(currentDate)) {
             unclickableCheckInDates.add(dateStr);
           }
         }
@@ -1660,6 +1707,8 @@ document.addEventListener('DOMContentLoaded', function () {
           Wized.data.r.Load_Property_Details.data &&
           Wized.data.r.Load_Property_Details.data.property) {
           propertyData = Wized.data.r.Load_Property_Details.data.property;
+          const refreshedDetails = Wized.data.r.Load_Property_Details.data;
+          checkinoutRules = Array.isArray(refreshedDetails.checkinout_rules) ? refreshedDetails.checkinout_rules : [];
         }
 
         // Mark custom min nights as loading to prevent validation from using stale data
@@ -1902,6 +1951,11 @@ document.addEventListener('DOMContentLoaded', function () {
           isBlockedCheckoutValid = firstBlocked && currentDate.getTime() === firstBlocked.getTime();
         }
 
+        // Check if day-of-week restrictions block this date for check-in or checkout
+        const ciAllowed = isCheckinAllowedOnDate(currentDate);
+        const coAllowed = isCheckoutAllowedOnDate(currentDate);
+        const hasCheckinoutRule = getCheckinoutRuleForDate(dateString) !== null;
+
         // Apply disabled state for past dates or API disabled dates
         if (isDateDisabled(currentDate)) {
           if (isCheckoutOnly || isBlockedCheckoutValid) {
@@ -1917,6 +1971,11 @@ document.addEventListener('DOMContentLoaded', function () {
               dayElement.style.cursor = 'default';
             }
           }
+        } else if (!selectedStartDate && hasCheckinoutRule && !ciAllowed) {
+          dayElement.classList.add('checkinout-restricted');
+          dayElement.style.opacity = '0.4';
+          dayElement.style.color = '#999';
+          dayElement.style.cursor = 'not-allowed';
         } else if (isUnclickableCheckIn && !selectedStartDate) {
           // Available date but can't be used as check-in
           dayElement.classList.add('unclickable-checkin');
@@ -1959,7 +2018,7 @@ document.addEventListener('DOMContentLoaded', function () {
       dayElement.style.cursor = '';
 
       // Remove previous classes
-      dayElement.classList.remove('min-nights-blocked', 'max-nights-blocked', 'blocked-by-unavailable');
+      dayElement.classList.remove('min-nights-blocked', 'max-nights-blocked', 'blocked-by-unavailable', 'checkout-day-restricted', 'checkinout-restricted');
 
       // Style checkout-only dates based on selection state
       if (isCheckoutOnly) {
@@ -1973,6 +2032,17 @@ document.addEventListener('DOMContentLoaded', function () {
           dayElement.style.opacity = '';
           dayElement.style.color = '';
           dayElement.style.cursor = 'pointer';
+        }
+      }
+
+      // Apply check-in day-of-week restriction when no check-in selected
+      if (!selectedStartDate && !isDateDisabled(currentDate) && !isCheckoutOnly) {
+        const hasRule = getCheckinoutRuleForDate(dateString) !== null;
+        if (hasRule && !isCheckinAllowedOnDate(currentDate)) {
+          dayElement.style.opacity = '0.4';
+          dayElement.style.color = '#999';
+          dayElement.style.cursor = 'not-allowed';
+          dayElement.classList.add('checkinout-restricted');
         }
       }
 
@@ -2043,6 +2113,15 @@ document.addEventListener('DOMContentLoaded', function () {
             dayElement.classList.add('max-nights-blocked');
           }
 
+          // Grey out dates where checkout is not allowed by day-of-week rules
+          if (currentDate > selectedStartDate && daysDiff >= effectiveMinNights
+            && daysDiff <= maxNights && !isCheckoutAllowedOnDate(currentDate)) {
+            dayElement.style.opacity = '0.4';
+            dayElement.style.color = 'grey';
+            dayElement.style.cursor = 'not-allowed';
+            dayElement.classList.add('checkout-day-restricted');
+          }
+
           // Block dates after first blocked date (first blocked date itself is valid for checkout)
           if (firstBlockedDate && currentDate > firstBlockedDate) {
             dayElement.style.color = 'grey';
@@ -2090,6 +2169,11 @@ document.addEventListener('DOMContentLoaded', function () {
           return;
         }
 
+        if (!isCheckinAllowedOnDate(date)) {
+          showError('Check-in is not available on this day');
+          return;
+        }
+
         selectedStartDate = date;
         selectedEndDate = null;
         selectingCheckOut = true;
@@ -2117,6 +2201,11 @@ document.addEventListener('DOMContentLoaded', function () {
           // Prevent selecting checkout-only dates as check-in
           if (isCheckoutOnly) {
             showError('This date is only available for checkout');
+            return;
+          }
+
+          if (!isCheckinAllowedOnDate(date)) {
+            showError('Check-in is not available on this day');
             return;
           }
 
@@ -2153,6 +2242,11 @@ document.addEventListener('DOMContentLoaded', function () {
           return;
         }
 
+        if (!isCheckoutAllowedOnDate(date)) {
+          showError('Check-out is not available on this day');
+          return;
+        }
+
         // Check if any dates in range are disabled (excluding checkout day which can be blocked)
         const firstBlockedDate = findFirstBlockedDateAfter(selectedStartDate);
         let currentDate = new Date(selectedStartDate);
@@ -2180,6 +2274,11 @@ document.addEventListener('DOMContentLoaded', function () {
         // Prevent selecting checkout-only dates as check-in
         if (isCheckoutOnly) {
           showError('This date is only available for checkout');
+          return;
+        }
+
+        if (!isCheckinAllowedOnDate(date)) {
+          showError('Check-in is not available on this day');
           return;
         }
 
@@ -2628,6 +2727,18 @@ document.addEventListener('DOMContentLoaded', function () {
         opacity: 0.4;
         cursor: not-allowed;
         color: #999;
+      }
+
+      .calendar-day.checkinout-restricted {
+        opacity: 0.4;
+        cursor: not-allowed;
+        color: #999;
+      }
+
+      .calendar-day.checkout-day-restricted {
+        opacity: 0.4;
+        cursor: not-allowed;
+        color: grey;
       }
 
       .calendar-day.checkout-only {
@@ -3462,6 +3573,17 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         }
 
+        // Check day-of-week restrictions
+        const dowCheck = typeof window.validateCheckinoutDaysFromURL === 'function'
+          ? window.validateCheckinoutDaysFromURL() : { valid: true };
+        if (!dowCheck.valid) {
+          if (!dowCheck.checkinAllowed) {
+            dateErrorMessage = "Check-in is not available on selected day";
+          } else if (!dowCheck.checkoutAllowed) {
+            dateErrorMessage = "Check-out is not available on selected day";
+          }
+        }
+
         errorTexts.forEach(element => {
           if (element) {
             element.textContent = dateErrorMessage;
@@ -3614,8 +3736,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
 
-      // Determine color based on availability and minimum night conditions
-      const color = !allAvailable || !meetsMinNights ? "#ffd4d2" : "";
+      // Check day-of-week restrictions on check-in/checkout dates
+      const dowCheck = typeof window.validateCheckinoutDaysFromURL === 'function'
+        ? window.validateCheckinoutDaysFromURL() : { valid: true };
+
+      const color = !allAvailable || !meetsMinNights || !dowCheck.valid ? "#ffd4d2" : "";
 
       return color;
     }
@@ -3733,7 +3858,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }
           }
 
-          const datesValid = allAvailable && meetsMinNights;
+          const dowCheck = typeof window.validateCheckinoutDaysFromURL === 'function'
+            ? window.validateCheckinoutDaysFromURL() : { valid: true };
+          const datesValid = allAvailable && meetsMinNights && dowCheck.valid;
           // If dates are valid but guests are wrong, show "Change Guests"
           if (datesValid && hasGuestError) {
             shouldBeVisible = true;
@@ -4275,10 +4402,13 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (_) { /* ignore */ }
       }
 
-      // The final return statement checks both conditions
+      // Check day-of-week restrictions
+      const dowCheck = typeof window.validateCheckinoutDaysFromURL === 'function'
+        ? window.validateCheckinoutDaysFromURL() : { valid: true };
+
       const currentGuests = n && n.parameter ? n.parameter.guests : 1;
       const maxGuests = r.Load_Property_Details.data.property.num_guests;
-      const shouldShow = allAvailable && meetsMinNights && (maxGuests >= currentGuests);
+      const shouldShow = allAvailable && meetsMinNights && dowCheck.valid && (maxGuests >= currentGuests);
 
       // Update all container elements (desktop and mobile)
       containerElements.forEach(containerElement => {
@@ -4487,6 +4617,10 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (_) { /* ignore */ }
       }
 
+      // Check day-of-week restrictions
+      const dowCheck = typeof window.validateCheckinoutDaysFromURL === 'function'
+        ? window.validateCheckinoutDaysFromURL() : { valid: true };
+
       // Include extras needing dates to avoid flashing pricing when extras are incomplete
       const extrasInfo = window.getExtrasNeedingDates ? window.getExtrasNeedingDates() : { hasAnyExtrasNeedingDates: false };
 
@@ -4495,6 +4629,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const maxGuests = r.Load_Property_Details.data.property.num_guests;
       const shouldShow = allAvailable
         && meetsMinNights
+        && dowCheck.valid
         && (currentGuests <= maxGuests)
         && (currentGuests != 0)
         && !extrasInfo.hasAnyExtrasNeedingDates;
@@ -4837,9 +4972,13 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         }
 
+        // Check day-of-week restrictions
+        const dowCheck = typeof window.validateCheckinoutDaysFromURL === 'function'
+          ? window.validateCheckinoutDaysFromURL() : { valid: true };
+
         const currentGuests = n && n.parameter ? n.parameter.guests : 1;
         const maxGuests = r.Load_Property_Details.data.property.num_guests;
-        shouldShow = allAvailable && meetsMinNights && (maxGuests >= currentGuests) && (currentGuests >= 1);
+        shouldShow = allAvailable && meetsMinNights && dowCheck.valid && (maxGuests >= currentGuests) && (currentGuests >= 1);
       }
 
       phoneFooterContainer.style.display = shouldShow ? 'flex' : 'none';
@@ -22944,7 +23083,11 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         }
 
-        datesValid = allAvailable && meetsMinNights;
+        // Check day-of-week restrictions on check-in/checkout dates
+        const dowCheck = typeof window.validateCheckinoutDaysFromURL === 'function'
+          ? window.validateCheckinoutDaysFromURL() : { valid: true };
+
+        datesValid = allAvailable && meetsMinNights && dowCheck.valid;
       }
 
       // Check guest validation
