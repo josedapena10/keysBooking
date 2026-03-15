@@ -1973,9 +1973,13 @@ document.addEventListener('DOMContentLoaded', function () {
           }
         } else if (!selectedStartDate && hasCheckinoutRule && !ciAllowed) {
           dayElement.classList.add('checkinout-restricted');
-          dayElement.style.opacity = '0.4';
-          dayElement.style.color = '#999';
+          dayElement.style.opacity = '0.6';
+          dayElement.style.color = 'black';
           dayElement.style.cursor = 'not-allowed';
+          dayElement.addEventListener('click', (e) => {
+            e.stopPropagation();
+            showCheckinoutTooltip(dayElement, 'Host unavailable');
+          });
         } else if (isUnclickableCheckIn && !selectedStartDate) {
           // Available date but can't be used as check-in
           dayElement.classList.add('unclickable-checkin');
@@ -2016,6 +2020,7 @@ document.addEventListener('DOMContentLoaded', function () {
       dayElement.style.margin = '';
       dayElement.style.maxWidth = '';
       dayElement.style.cursor = '';
+      dayElement.style.opacity = '';
 
       // Remove previous classes
       dayElement.classList.remove('min-nights-blocked', 'max-nights-blocked', 'blocked-by-unavailable', 'checkout-day-restricted', 'checkinout-restricted');
@@ -2024,7 +2029,7 @@ document.addEventListener('DOMContentLoaded', function () {
       if (isCheckoutOnly) {
         if (!selectedStartDate) {
           // No check-in selected: show semi-disabled state
-          dayElement.style.opacity = '0.4';
+          dayElement.style.opacity = '0.6';
           dayElement.style.color = 'black';
           dayElement.style.cursor = 'not-allowed';
         } else {
@@ -2039,8 +2044,8 @@ document.addEventListener('DOMContentLoaded', function () {
       if (!selectedStartDate && !isDateDisabled(currentDate) && !isCheckoutOnly) {
         const hasRule = getCheckinoutRuleForDate(dateString) !== null;
         if (hasRule && !isCheckinAllowedOnDate(currentDate)) {
-          dayElement.style.opacity = '0.4';
-          dayElement.style.color = '#999';
+          dayElement.style.opacity = '0.6';
+          dayElement.style.color = 'black';
           dayElement.style.cursor = 'not-allowed';
           dayElement.classList.add('checkinout-restricted');
         }
@@ -2074,6 +2079,21 @@ document.addEventListener('DOMContentLoaded', function () {
         dayElement.style.width = '100%';
         dayElement.style.margin = '0';
         dayElement.style.maxWidth = 'none';
+      }
+
+      // Re-apply checkinout restriction styling when both dates are selected (outside the range)
+      if (selectedStartDate && selectedEndDate && !isDateDisabled(currentDate) && !isCheckoutOnly) {
+        if (currentDate.getTime() !== selectedStartDate.getTime() && currentDate.getTime() !== selectedEndDate.getTime()) {
+          if (!(currentDate > selectedStartDate && currentDate < selectedEndDate)) {
+            const hasRule = getCheckinoutRuleForDate(dateString) !== null;
+            if (hasRule && !isCheckinAllowedOnDate(currentDate)) {
+              dayElement.style.opacity = '0.6';
+              dayElement.style.color = 'black';
+              dayElement.style.cursor = 'not-allowed';
+              dayElement.classList.add('checkinout-restricted');
+            }
+          }
+        }
       }
 
       // Apply restrictions when check-in is selected but not check-out
@@ -2416,6 +2436,27 @@ document.addEventListener('DOMContentLoaded', function () {
       }, 2000);
     }
 
+    function showCheckinoutTooltip(dayElement, message) {
+      const existingTooltips = document.querySelectorAll('.min-nights-tooltip');
+      existingTooltips.forEach(tooltip => tooltip.remove());
+
+      const tooltip = document.createElement('div');
+      tooltip.className = 'min-nights-tooltip';
+      tooltip.textContent = message;
+
+      const rect = dayElement.getBoundingClientRect();
+      tooltip.style.position = 'fixed';
+      tooltip.style.left = `${rect.left + rect.width / 2}px`;
+      tooltip.style.top = `${rect.top - 35}px`;
+      tooltip.style.transform = 'translateX(-50%)';
+
+      document.body.appendChild(tooltip);
+
+      setTimeout(() => {
+        tooltip.remove();
+      }, 2000);
+    }
+
     // Expose calendar function globally for modal observer
     window.resetCalendarView = function () {
       createCalendar(true); // Pass true to reset view to selected date
@@ -2660,6 +2701,12 @@ document.addEventListener('DOMContentLoaded', function () {
         position: relative;
       }
 
+      @media (min-width: 992px) {
+        [data-element="calendarContainer"] {
+          width: 648px;
+        }
+      }
+
       .calendar-month {
         margin: 0px;
         padding: 0;
@@ -2730,9 +2777,9 @@ document.addEventListener('DOMContentLoaded', function () {
       }
 
       .calendar-day.checkinout-restricted {
-        opacity: 0.4;
+        opacity: 0.6;
         cursor: not-allowed;
-        color: #999;
+        color: black;
       }
 
       .calendar-day.checkout-day-restricted {
