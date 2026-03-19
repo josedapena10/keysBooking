@@ -8808,6 +8808,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 const image = card.querySelector('[data-element="listing-card-image"]');
                 // Add review elements
                 const reviewAverage = card.querySelector('[data-element="ListingCardReviewAverage"]');
+                const reviewIcon = card.querySelector('[data-element="ListingCardReviewIcon"]');
                 const reviewCount = card.querySelector('[data-element="ListingCardReviewCount"]');
                 // Add minNights element
                 const minNightsElement = card.querySelector('[data-element="listing-card-minNights"]');
@@ -8826,7 +8827,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Set review info
                 if (reviewAverage && reviewCount) {
                     if (!listing.reviews_amount || !listing.review_average) {
-                        reviewAverage.textContent = 'New';
+                        reviewAverage.textContent = '';
+                        reviewIcon.style.display = 'none';
                         reviewCount.style.display = 'none';
                     } else {
                         reviewAverage.textContent = listing.review_average;
