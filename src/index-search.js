@@ -8806,6 +8806,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 const totalPrice = card.querySelector('[data-element="ListingCardTotalPrice"]');
                 const totalPriceSubText = card.querySelector('[data-element="ListingCardTotalPrice_subText"]');
                 const image = card.querySelector('[data-element="listing-card-image"]');
+                const titleSubtitleSubtextContainer = card.querySelector('[data-element="listing-card-top3text-container"]');
                 // Add review elements
                 const reviewAverage = card.querySelector('[data-element="ListingCardReviewAverage"]');
                 const reviewIcon = card.querySelector('[data-element="ListingCardReviewIcon"]');
@@ -8830,8 +8831,9 @@ document.addEventListener('DOMContentLoaded', function () {
                         reviewAverage.textContent = '';
                         reviewIcon.style.display = 'none';
                         reviewCount.style.display = 'none';
+                        titleSubtitleSubtextContainer.style.width = '100%';
                     } else {
-                        reviewAverage.textContent = listing.review_average;
+                        reviewAverage.textContent = listing.review_average.toFixed(2);
                         reviewCount.textContent = `(${listing.reviews_amount})`;
                         reviewCount.style.display = '';
                     }
@@ -9422,7 +9424,7 @@ document.addEventListener('DOMContentLoaded', function () {
             flex-shrink: 1 !important;
             max-width: 100% !important;
             display: block !important;
-            width: 100% !important;
+            /* width: 100% !important; */
         }
     `;
     document.head.appendChild(truncationStyle);
@@ -10114,6 +10116,10 @@ document.addEventListener('DOMContentLoaded', function () {
             minZoom: 9,
             maxZoom: 15,
             mapTypeId: google.maps.MapTypeId.ROADMAP,
+            zoomControl: true,
+            zoomControlOptions: {
+                position: google.maps.ControlPosition.RIGHT_CENTER
+            },
             mapTypeControl: false,
             streetViewControl: false,
             disableDoubleClickZoom: true,  // Disable double click zoom
