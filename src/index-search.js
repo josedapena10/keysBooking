@@ -572,7 +572,7 @@ document.addEventListener('DOMContentLoaded', function () {
         try {
 
             const googleMapsApiKey = 'AIzaSyBtTdNYqGeF4GHpw0OA-tasMjY2yEO-4BY';
-            const encodedLocation = encodeURIComponent(locationName);
+            const encodedLocation = encodeURIComponent(searchLocation);
 
             const apiUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodedLocation}&key=${googleMapsApiKey}`;
 
@@ -936,9 +936,29 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     // Function to update text and color when a value is selected
+    function truncateLocationLabel(text) {
+        const maxLength = 15;
+        if (!text || typeof text !== 'string') return text;
+        if (text.length > maxLength) {
+            return text.substring(0, 12) + '...';
+        }
+        return text;
+    }
+
+    function formatLocationButtonLabel(value, defaultValue) {
+        if (!value || value === defaultValue || value === "Map area") {
+            return value;
+        }
+        return truncateLocationLabel(value);
+    }
+
     function updateButtonText(textElement, newValue, defaultValue) {
         if (textElement) {
-            textElement.textContent = newValue;
+            let displayValue = newValue;
+            if (textElement === locationButtonText) {
+                displayValue = formatLocationButtonLabel(newValue, defaultValue);
+            }
+            textElement.textContent = displayValue;
             updateTextColor(textElement, defaultValue);
         }
     }
@@ -1242,29 +1262,135 @@ document.addEventListener('DOMContentLoaded', function () {
         `;
         document.head.appendChild(suggestionStyle);
 
-        // Define neighborhood data structure - neighborhoods mapped to their cities
+        // Define neighborhood data structure
+        // Only include neighborhoods / subareas that are commonly used and make sense.
+        // If a place does not really have neighborhoods people search by, leave it out.
         const neighborhoods = {
-            "Key Largo": ["Port Largo", "Rock Harbor", "Sunset Cove", "Sexton Cove", "Garden Cove"],
-            "Islamorada": ["Plantation Key Colony", "Lower Matecumbe", "Venetian Shores", "Port Antigua", "Upper Matecumbe", "Windley Key"],
-            "Marathon": ["Boot Key Harbor", "Sombrero Beach", "Coco Plum", "Key Colony Beach"],
-            "Big Pine Key": ["Eden Pines", "Doctor's Arm", "No Name Key", "Pine Channel Estates"],
-            "Key West": ["Old Town", "New Town", "Bahama Village", "Truman Annex", "Casa Marina"]
+            "Key Largo": [
+                "Port Largo",
+                "Rock Harbor",
+                "Garden Cove",
+                "Sexton Cove",
+                "Sunset Cove",
+                "Cross Key Waterways",
+                "Anglers Park"
+            ],
+            "Islamorada": [
+                "Plantation Key Colony",
+                "Venetian Shores",
+                "Port Antigua",
+                "Safety Harbor",
+                "Lower Matecumbe",
+                "Upper Matecumbe",
+                "Windley Key"
+            ],
+            "Marathon": [
+                "Boot Key Harbor",
+                "Sombrero Beach",
+                "Coco Plum",
+                "Little Venice"
+            ],
+            "Big Pine Key": [
+                "Eden Pines",
+                "Pine Channel Estates",
+                "Doctor's Arm",
+                "No Name Key"
+            ],
+            "Key West": [
+                "Old Town",
+                "New Town",
+                "Bahama Village",
+                "Truman Annex",
+                "Casa Marina",
+                "The Meadows",
+                "Midtown",
+                "Key West Historic Seaport"
+            ]
         };
 
-        // Define regions and their associated cities
+        // Define regions and their associated locations
+        // Grouped by how people commonly think about the Keys geographically.
         const regions = {
-            "Upper Keys": ["Key Largo", "Tavernier", "Islamorada", "Plantation Key"],
-            "Middle Keys": ["Marathon", "Duck Key", "Grassy Key", "Conch Key", "Long Key"],
-            "Lower Keys": ["Big Pine Key", "Little Torch Key", "Ramrod Key", "Cudjoe Key", "Sugarloaf Key", "Big Coppit Key", "Stock Island", "Key West"]
+            "Upper Keys": [
+                "Key Largo",
+                "North Key Largo",
+                "Tavernier",
+                "Islamorada",
+                "Plantation Key",
+                "Windley Key",
+                "Upper Matecumbe Key",
+                "Lower Matecumbe Key"
+            ],
+            "Middle Keys": [
+                "Layton",
+                "Long Key",
+                "Conch Key",
+                "Duck Key",
+                "Grassy Key",
+                "Marathon",
+                "Key Colony Beach"
+            ],
+            "Lower Keys": [
+                "Big Pine Key",
+                "No Name Key",
+                "Little Torch Key",
+                "Middle Torch Key",
+                "Ramrod Key",
+                "Summerland Key",
+                "Cudjoe Key",
+                "Sugarloaf Key",
+                "Big Coppitt Key",
+                "Stock Island",
+                "Key Haven",
+                "Geiger Key",
+                "Boca Chica Key",
+                "Big Coppitt",
+                "Key West"
+            ]
         };
 
         // Define all valid Florida Keys locations for suggestions and validation
+        // Includes regions, municipalities, major communities, and major keys people search by.
         const floridaKeysLocations = [
-            "Key Largo", "Islamorada", "Marathon", "Big Pine Key", "Key West",
-            "Cudjoe Key", "Summerland Key", "Little Torch Key", "Ramrod Key",
-            "Sugarloaf Key", "Big Coppit Key", "Stock Island", "Tavernier",
-            "Plantation Key", "Duck Key", "Grassy Key", "Conch Key", "Long Key",
-            "Upper Keys", "Middle Keys", "Lower Keys", "Florida Keys"
+            "Florida Keys",
+
+            // Regions
+            "Upper Keys",
+            "Middle Keys",
+            "Lower Keys",
+
+            // Incorporated municipalities
+            "Islamorada",
+            "Layton",
+            "Marathon",
+            "Key Colony Beach",
+            "Key West",
+
+            // Major unincorporated communities / places
+            "Key Largo",
+            "North Key Largo",
+            "Tavernier",
+            "Plantation Key",
+            "Windley Key",
+            "Upper Matecumbe Key",
+            "Lower Matecumbe Key",
+            "Long Key",
+            "Conch Key",
+            "Duck Key",
+            "Grassy Key",
+            "Big Pine Key",
+            "No Name Key",
+            "Little Torch Key",
+            "Middle Torch Key",
+            "Ramrod Key",
+            "Summerland Key",
+            "Cudjoe Key",
+            "Sugarloaf Key",
+            "Big Coppitt Key",
+            "Stock Island",
+            "Key Haven",
+            "Geiger Key",
+            "Boca Chica Key"
         ];
 
         // Add all neighborhoods to the list of searchable locations
@@ -1516,17 +1642,6 @@ document.addEventListener('DOMContentLoaded', function () {
             suggestionsContainer.style.display = 'block';
         }
 
-        // Function to truncate text if it's too long (simplified)
-        function truncateLocationText(text) {
-            const maxLength = 15;
-
-            if (text.length > maxLength) {
-                return text.substring(0, 12) + '...';
-            }
-
-            return text;
-        }
-
         // Function to handle location selection
         function selectLocation(formattedLocation) {
             // Reset map area state
@@ -1540,14 +1655,11 @@ document.addEventListener('DOMContentLoaded', function () {
             // Update the input field
             locationInput.value = formattedLocation;
 
-            // Get truncated version if necessary
-            const displayLocation = truncateLocationText(formattedLocation);
-
             // Update pending selection (store full version)
             pendingSelections.location = formattedLocation;
 
-            // But display potentially truncated version
-            updateButtonText(locationButtonText, displayLocation, defaultValues.location);
+            // Display text formatting/truncation is handled centrally in updateButtonText
+            updateButtonText(locationButtonText, formattedLocation, defaultValues.location);
 
             // Update suggestions to highlight the selected one
             showSuggestions(formattedLocation);
@@ -9050,16 +9162,18 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Add review elements
                 const reviewAverage = card.querySelector('[data-element="ListingCardReviewAverage"]');
                 const reviewCount = card.querySelector('[data-element="ListingCardReviewCount"]');
+                const reviewIcon = card.querySelector('[data-element="ListingCardReviewIcon"]');
                 // Add minNights element
                 const minNightsElement = card.querySelector('[data-element="listing-card-minNights"]');
 
                 // Update review info
                 if (reviewAverage && reviewCount) {
                     if (!listing.reviews_amount || !listing.review_average) {
-                        reviewAverage.textContent = 'New';
+                        reviewAverage.textContent = '';
+                        reviewIcon.style.display = 'none';
                         reviewCount.style.display = 'none';
                     } else {
-                        reviewAverage.textContent = listing.review_average;
+                        reviewAverage.textContent = listing.review_average.toFixed(2);
                         reviewCount.textContent = `(${listing.reviews_amount})`;
                         reviewCount.style.display = '';
                     }
@@ -9278,7 +9392,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Function to fit map to contain all markers
     function fitMapToBounds(map, listings) {
-        if (!listings || listings.length === 0) return;
+        if (!map) return;
 
         const bounds = new google.maps.LatLngBounds();
         let hasValidCoordinates = false;
@@ -9311,9 +9425,10 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         // MODIFY THIS: Only include listings on current page for bounds calculation
+        const safeListings = Array.isArray(listings) ? listings : [];
         const startIndex = (currentPage - 1) * listingsPerPage;
         const endIndex = startIndex + listingsPerPage;
-        const paginatedListings = listings.slice(startIndex, endIndex);
+        const paginatedListings = safeListings.slice(startIndex, endIndex);
 
         paginatedListings.forEach(listing => {
             if (listing.latitude && listing.longitude) {
@@ -10215,7 +10330,7 @@ document.addEventListener('DOMContentLoaded', function () {
         window.mapMarkers = {};
 
         // Initialize map bounds tracking variables
-        let searchBounds = null;
+        map.__searchBounds = null;
         let isInitialLoad = true;
         let searchTimeout = null;
         let userHasInteracted = false;
@@ -10313,7 +10428,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
             // On initial load, set the search bounds and exit - don't trigger any updates
             if (isInitialLoad) {
-                searchBounds = currentBounds;
+                map.__searchBounds = currentBounds;
                 isInitialLoad = false;
                 return;
             }
@@ -10369,7 +10484,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 }, 0);
 
                 // Only update listings if we've moved significantly outside search bounds
-                const movedOutside = hasMovedOutsideSearchBounds(currentBounds, searchBounds);
+                const movedOutside = hasMovedOutsideSearchBounds(currentBounds, map.__searchBounds);
 
                 if (movedOutside) {
                     const locationButtonTextElement = document.querySelector('[data-element="navBarSearch_locationButton_text"]');
@@ -10395,7 +10510,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         }
                     }, 500);
 
-                    searchBounds = currentBounds;
+                    map.__searchBounds = currentBounds;
                 } else {
                     // Check if the visible listings are different from current listings
                     const visibleListingIds = new Set(filteredVisibleListings.map(l => l.id));
@@ -10482,6 +10597,13 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!isUserExploring) {
             // Update map bounds to fit new results
             fitMapToBounds(window.currentMap, listings);
+            // Refresh baseline bounds after each search so "Map area" compares against latest search view.
+            google.maps.event.addListenerOnce(window.currentMap, 'idle', () => {
+                const latestBounds = window.currentMap.getBounds();
+                if (latestBounds) {
+                    window.currentMap.__searchBounds = latestBounds;
+                }
+            });
         } else {
             // Reset the exploration flag after a delay to allow normal behavior later
             setTimeout(() => {
@@ -10533,8 +10655,8 @@ document.addEventListener('DOMContentLoaded', function () {
                             const totalPrice = listing.customDatesTotalPrice || 0;
                             priceText = `$${Math.round(totalPrice).toLocaleString()}`;
                         } else {
-                            const nightlyPrice = listing.nightlyPrice || 0;
-                            priceText = `$${nightlyPrice}`;
+                            const nightlyPrice = Number(listing.nightlyPrice || 0);
+                            priceText = `$${Math.round(nightlyPrice).toLocaleString()}`;
                         }
                     } else {
                         // Extras active: compute combined value with trailing +

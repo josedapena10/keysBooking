@@ -16507,11 +16507,22 @@ document.addEventListener('DOMContentLoaded', () => {
           'Key Largo',
           'Tavernier',
           'Islamorada',
+          'Layton',
+          'Conch Key',
           'Duck Key',
+          'Key Colony Beach',
           'Marathon',
+          'Big Pine Key',
+          'Little Torch Key',
+          'Ramrod Key',
           'Summerland Key',
           'Cudjoe Key',
-          'Sugarloaf Key',
+          'Upper Sugarloaf Key',
+          'Lower Sugarloaf Key',
+          'Shark Key',
+          'Big Coppitt Key',
+          'Key Haven',
+          'Stock Island',
           'Key West'
         ];
 
@@ -18626,7 +18637,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       sortChartersByProximity(charters) {
-        // Get listing city from property data
+        // Get listing city from property data (used as fallback tie-breaker)
         let listingCity = '';
         try {
           if (window.Wized && window.Wized.data && window.Wized.data.r &&
@@ -18639,34 +18650,86 @@ document.addEventListener('DOMContentLoaded', () => {
 
         }
 
+        const toNum = (value) => {
+          const n = Number(value);
+          return Number.isFinite(n) ? n : null;
+        };
+
+        const normalizeCity = (value) => (value || '').toLowerCase().replace(/,\s*fl\b/g, '').trim();
+
+        // Prefer Wized location vars first, then property coordinates
+        const listingLat = toNum(
+          window?.Wized?.data?.v?.latitude ??
+          window?.Wized?.data?.r?.Load_Property_Details?.data?.property?.latitude
+        );
+        const listingLng = toNum(
+          window?.Wized?.data?.v?.longitude ??
+          window?.Wized?.data?.r?.Load_Property_Details?.data?.property?.longitude
+        );
+
+        const hasListingCoords = listingLat !== null && listingLng !== null;
+
+        const haversineMiles = (lat1, lng1, lat2, lng2) => {
+          const toRad = (deg) => deg * (Math.PI / 180);
+          const R = 3958.8; // Earth radius in miles
+          const dLat = toRad(lat2 - lat1);
+          const dLng = toRad(lng2 - lng1);
+          const aVal =
+            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+            Math.sin(dLng / 2) * Math.sin(dLng / 2);
+          const c = 2 * Math.atan2(Math.sqrt(aVal), Math.sqrt(1 - aVal));
+          return R * c;
+        };
+
         return charters.sort((a, b) => {
           const cityA = a.city || '';
           const cityB = b.city || '';
 
-          // If one matches the listing city exactly, prioritize it
-          if (cityA.toLowerCase() === listingCity.toLowerCase()) return -1;
-          if (cityB.toLowerCase() === listingCity.toLowerCase()) return 1;
+          // 1) Primary sort by true distance when coordinates are available.
+          if (hasListingCoords) {
+            const aLat = toNum(a.latitude);
+            const aLng = toNum(a.longitude);
+            const bLat = toNum(b.latitude);
+            const bLng = toNum(b.longitude);
 
-          // Otherwise sort by Florida Keys order
-          const indexA = this.floridaKeysOrder.findIndex(key =>
-            cityA.toLowerCase().includes(key.toLowerCase()) || key.toLowerCase().includes(cityA.toLowerCase())
-          );
-          const indexB = this.floridaKeysOrder.findIndex(key =>
-            cityB.toLowerCase().includes(key.toLowerCase()) || key.toLowerCase().includes(cityB.toLowerCase())
-          );
+            const aHasCoords = aLat !== null && aLng !== null;
+            const bHasCoords = bLat !== null && bLng !== null;
 
-          // If both cities are in the Keys order, sort by that order
-          if (indexA !== -1 && indexB !== -1) {
-            return indexA - indexB;
+            if (aHasCoords && bHasCoords) {
+              const distA = haversineMiles(listingLat, listingLng, aLat, aLng);
+              const distB = haversineMiles(listingLat, listingLng, bLat, bLng);
+              if (Math.abs(distA - distB) > 0.001) {
+                return distA - distB;
+              }
+            } else if (aHasCoords !== bHasCoords) {
+              // Prefer entries with usable coordinates
+              return aHasCoords ? -1 : 1;
+            }
           }
 
-          // If only one is in the Keys order, prioritize it
+          // 2) Fallback: normalized city exact match.
+          const normalizedListingCity = normalizeCity(listingCity);
+          const normalizedCityA = normalizeCity(cityA);
+          const normalizedCityB = normalizeCity(cityB);
+          if (normalizedCityA === normalizedListingCity && normalizedCityB !== normalizedListingCity) return -1;
+          if (normalizedCityB === normalizedListingCity && normalizedCityA !== normalizedListingCity) return 1;
+
+          // 3) Fallback: legacy Florida Keys order.
+          const indexA = this.floridaKeysOrder.findIndex(key =>
+            normalizedCityA.includes(key.toLowerCase()) || key.toLowerCase().includes(normalizedCityA)
+          );
+          const indexB = this.floridaKeysOrder.findIndex(key =>
+            normalizedCityB.includes(key.toLowerCase()) || key.toLowerCase().includes(normalizedCityB)
+          );
+          if (indexA !== -1 && indexB !== -1) return indexA - indexB;
           if (indexA !== -1) return -1;
           if (indexB !== -1) return 1;
 
-          // Otherwise, alphabetical order
+          // 4) Final fallback: alphabetical.
           return cityA.localeCompare(cityB);
         });
+
       }
 
       filterFishingCharters(charters) {
