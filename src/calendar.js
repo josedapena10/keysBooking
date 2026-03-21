@@ -1170,7 +1170,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (isInShortGap) {
                         // Treat short gaps as blocked days
                         calendarEvents.push({
-                            title: day.price ? `$${day.price}` : 'Unavailable',
+                            title: day.price ? `$${day.price.round(2)}` : 'Unavailable',
                             start: day.date,
                             allDay: true,
                             display: 'background',
@@ -1187,7 +1187,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         // Process blocked days - Make sure to include the last day of each blocked range
                         blockedDaysCount++;
                         calendarEvents.push({
-                            title: day.price ? `$${day.price}` : 'Blocked',
+                            title: day.price ? `$${day.price.round(2)}` : 'Blocked',
                             start: day.date,
                             allDay: true,
                             display: 'background',
@@ -1203,7 +1203,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     } else if (day.status === 'reserved') {
                         reservedDaysCount++;
                         calendarEvents.push({
-                            title: day.price ? `$${day.price}` : 'Reserved',
+                            title: day.price ? `$${day.price.round(2)}` : 'Reserved',
                             start: day.date,
                             allDay: true,
                             display: 'background',
@@ -1221,7 +1221,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         // Only mark as available if it's not blocked
                         availableDaysCount++;
                         calendarEvents.push({
-                            title: `$${day.price}`,
+                            title: `$${day.price.round(2)}`,
                             start: day.date,
                             allDay: true,
                             backgroundColor: 'transparent',
