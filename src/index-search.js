@@ -5101,28 +5101,6 @@ document.addEventListener('DOMContentLoaded', function () {
                     chartersByListingId.set(listing.id, eligibleCharters);
                 }
 
-                // Debug: inspect raw charter attachment counts before runtime filters.
-                if (listingCity === 'islamorada' || listingCity === 'marathon') {
-                    const byCharterCity = {};
-                    for (const charter of eligibleCharters) {
-                        const cCity = getCity(charter) || 'unknown';
-                        byCharterCity[cCity] = (byCharterCity[cCity] || 0) + 1;
-                    }
-
-                    const sortedCityBreakdown = Object.entries(byCharterCity)
-                        .sort((a, b) => b[1] - a[1])
-                        .map(([city, count]) => `${city}: ${count}`);
-
-                    console.log('[charter-index-debug]', {
-                        listingId: listing.id,
-                        listingName: listing.listing_title || listing.name || '',
-                        listingCity,
-                        totalChartersInDataset: allCharters.length,
-                        matchedCharterCountNoFilters: eligibleCharters.length,
-                        matchedCharterCityBreakdown: sortedCityBreakdown,
-                    });
-                }
-
             }
 
         }
