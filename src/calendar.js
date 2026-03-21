@@ -10,6 +10,12 @@ document.body.appendChild(script);
 // Add this at the top level of the file (outside any function)
 let isSaving = false;
 
+function formatPriceSmart(value) {
+    const num = Number(value);
+    if (!Number.isFinite(num)) return "0";
+    return Number.isInteger(num) ? String(num) : num.toFixed(2);
+}
+
 // for no scroll background when modal is open
 // when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
@@ -1170,7 +1176,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (isInShortGap) {
                         // Treat short gaps as blocked days
                         calendarEvents.push({
-                            title: day.price ? `$${day.price.round(2)}` : 'Unavailable',
+                            title: day.price ? `$${formatPriceSmart(day.price)}` : 'Unavailable',
                             start: day.date,
                             allDay: true,
                             display: 'background',
@@ -1187,7 +1193,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         // Process blocked days - Make sure to include the last day of each blocked range
                         blockedDaysCount++;
                         calendarEvents.push({
-                            title: day.price ? `$${day.price.round(2)}` : 'Blocked',
+                            title: day.price ? `$${formatPriceSmart(day.price)}` : 'Blocked',
                             start: day.date,
                             allDay: true,
                             display: 'background',
@@ -1203,7 +1209,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     } else if (day.status === 'reserved') {
                         reservedDaysCount++;
                         calendarEvents.push({
-                            title: day.price ? `$${day.price.round(2)}` : 'Reserved',
+                            title: day.price ? `$${formatPriceSmart(day.price)}` : 'Reserved',
                             start: day.date,
                             allDay: true,
                             display: 'background',
@@ -1221,7 +1227,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         // Only mark as available if it's not blocked
                         availableDaysCount++;
                         calendarEvents.push({
-                            title: `$${day.price.round(2)}`,
+                            title: `$${formatPriceSmart(day.price)}`,
                             start: day.date,
                             allDay: true,
                             backgroundColor: 'transparent',
@@ -5085,7 +5091,7 @@ document.addEventListener('DOMContentLoaded', function () {
     function updateToolbarBasePrice(price) {
         const basePriceElement = document.querySelector('[data-element="toolbar_basePrice_price"]');
         if (basePriceElement && price !== undefined) {
-            basePriceElement.textContent = `$${price.round(2)}`;
+            basePriceElement.textContent = `$${formatPriceSmart(price)}`;
         }
     }
 
@@ -5274,7 +5280,7 @@ document.addEventListener('DOMContentLoaded', function () {
     function updateToolbarCleaningFee(price) {
         const cleaningFeeElement = document.querySelector('[data-element="toolbar_cleaningFee_price"]');
         if (cleaningFeeElement && price !== undefined) {
-            cleaningFeeElement.textContent = `$${price.round(2)}`;
+            cleaningFeeElement.textContent = `$${formatPriceSmart(price)}`;
         }
     }
 
