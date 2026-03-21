@@ -4089,6 +4089,31 @@ document.addEventListener('DOMContentLoaded', function () {
         };
         const priceNum = v => Number(v || 0);
         const hasArr = a => Array.isArray(a) && a.length > 0;
+        const parseFeetValue = (value) => {
+            if (value === null || value === undefined || value === '') return null;
+            if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+
+            const numeric = parseFloat(String(value).replace(/[^0-9.]/g, ''));
+            return Number.isFinite(numeric) ? numeric : null;
+        };
+
+        // Lenient dock fit check:
+        // if either side is missing/invalid for a dimension, we do not block on that dimension.
+        const canBoatFitPrivateDock = (boat, listing) => {
+            const dockMaxLength = parseFeetValue(listing?.dock_maxBoatLength);
+            const dockMaxBeam = parseFeetValue(listing?.dock_maxBeamLength);
+            const dockMaxDraft = parseFeetValue(listing?.dock_maxDraftLength);
+
+            const boatLength = parseFeetValue(boat?.length);
+            const boatBeam = parseFeetValue(boat?.beam);
+            const boatDraft = parseFeetValue(boat?.draft);
+
+            const lengthFits = dockMaxLength == null || boatLength == null || boatLength <= dockMaxLength;
+            const beamFits = dockMaxBeam == null || boatBeam == null || boatBeam <= dockMaxBeam;
+            const draftFits = dockMaxDraft == null || boatDraft == null || boatDraft <= dockMaxDraft;
+
+            return lengthFits && beamFits && draftFits;
+        };
 
         // Helper function to get all service cities for a boat
         const getBoatServiceCities = (boat) => {
@@ -4253,6 +4278,17 @@ document.addEventListener('DOMContentLoaded', function () {
             const needGuests = Math.max(1, Number(guestCount || filters.passengers || 1));
             const cIn = dates?.checkIn, cOut = dates?.checkOut;
             const listingCity = getCity(listing);
+            const requestedBoatDays = (() => {
+                if (filters.days > 0.5) return Number(filters.days) || 0.5;
+                if (cIn && cOut) {
+                    const checkInDate = new Date(cIn);
+                    const checkOutDate = new Date(cOut);
+                    const nightsDiff = Math.round((checkOutDate - checkInDate) / (1000 * 60 * 60 * 24));
+                    const daysDiff = nightsDiff + 1;
+                    return Number.isFinite(daysDiff) && daysDiff > 0 ? daysDiff : 0.5;
+                }
+                return 0.5;
+            })();
 
             const filteredBoats = options.filter(b => {
 
@@ -4313,6 +4349,16 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 // Calculate the effective minimum days required (max of public dock, private dock if selected, and boat minimum)
                 const effectiveBoatMinDays = Math.max(publicDockMinDays, privateDockMinDays, boatMinDays);
+
+                // Enforce dock dimensions when listing has a private dock and the boat
+                // is expected to stay docked for more than one day, either by user
+                // requested duration or by the boat's minimum required duration.
+                const expectedDockedDays = Math.max(requestedBoatDays, effectiveBoatMinDays || 0);
+                if (listing.private_dock && expectedDockedDays > 1) {
+                    if (!canBoatFitPrivateDock(b, listing)) {
+                        return false;
+                    }
+                }
 
                 // If user has explicitly filtered boat days (not default 0.5)
                 if (filters.days > 0.5) {
@@ -4631,6 +4677,13 @@ document.addEventListener('DOMContentLoaded', function () {
 
             return "";
         };
+        const parseFeetValue = (value) => {
+            if (value === null || value === undefined || value === '') return null;
+            if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+
+            const numeric = parseFloat(String(value).replace(/[^0-9.]/g, ''));
+            return Number.isFinite(numeric) ? numeric : null;
+        };
 
         // Helper function to parse M/D season strings
         function parseMD(md) {
@@ -4891,7 +4944,7 @@ document.addEventListener('DOMContentLoaded', function () {
             return -1; // Unknown city
         }
 
-        // Helper function to check if two cities are within reasonable charter distance
+        // Fallback helper when coordinates are unavailable.
         function isWithinCharterDistance(charterCity, listingCity) {
             const charterPos = getCityPosition(charterCity);
             const listingPos = getCityPosition(listingCity);
@@ -4907,17 +4960,88 @@ document.addEventListener('DOMContentLoaded', function () {
             return distance <= 8;
         }
 
+        function parseCoordinate(value) {
+            if (value === null || value === undefined || value === '') return null;
+            const numeric = Number(value);
+            return Number.isFinite(numeric) ? numeric : null;
+        }
+
+        function getCoordinates(entity) {
+            if (!entity || typeof entity !== 'object') {
+                return { lat: null, lng: null };
+            }
+
+            const lat = parseCoordinate(entity.latitude ?? entity.lat);
+            const lng = parseCoordinate(entity.longitude ?? entity.lng);
+            return { lat, lng };
+        }
+
+        function haversineMiles(lat1, lng1, lat2, lng2) {
+            const toRad = (deg) => (deg * Math.PI) / 180;
+            const R = 3958.8; // Earth radius in miles
+            const dLat = toRad(lat2 - lat1);
+            const dLng = toRad(lng2 - lng1);
+            const a =
+                Math.sin(dLat / 2) ** 2 +
+                Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            return R * c;
+        }
+
+        // Primary charter proximity check: <= 30 miles using coordinates.
+        function isWithinCharterRadiusByCoordinates(company, listing) {
+            const charterCoords = getCoordinates(company);
+            const listingCoords = getCoordinates(listing);
+
+            if (
+                charterCoords.lat == null || charterCoords.lng == null ||
+                listingCoords.lat == null || listingCoords.lng == null
+            ) {
+                return null; // signal fallback to city-based logic
+            }
+
+            const miles = haversineMiles(
+                charterCoords.lat,
+                charterCoords.lng,
+                listingCoords.lat,
+                listingCoords.lng
+            );
+
+            return miles <= 30;
+        }
+
         // Helper function to check if company can serve the listing location
         function companyCanServeListing(company, listing) {
             const listingCity = getCity(listing);
             const charterCity = getCity(company);
 
-            // First check geographic distance
-            if (!isWithinCharterDistance(charterCity, listingCity)) {
-                return false;
+            // Primary check: actual coordinate distance (<= 30 miles)
+            const withinRadius = isWithinCharterRadiusByCoordinates(company, listing);
+            if (withinRadius !== null) {
+                return withinRadius;
             }
 
-            return true;
+            // Fallback: city-order approximation if coordinates are missing
+            return isWithinCharterDistance(charterCity, listingCity);
+        }
+
+        // Lenient dock fit check:
+        // if either side is missing/invalid for a dimension, we do not block on that dimension.
+        function canCharterBoatFitPrivateDock(company, listing) {
+            const dockMaxLength = parseFeetValue(listing?.dock_maxBoatLength);
+            const dockMaxBeam = parseFeetValue(listing?.dock_maxBeamLength);
+            const dockMaxDraft = parseFeetValue(listing?.dock_maxDraftLength);
+
+            const boat = company?.boatInfo?.[0] || {};
+            const charterBoatLength = parseFeetValue(boat?.boatLength);
+            const charterBoatBeam = parseFeetValue(boat?.boatBeam);
+            const charterBoatDraft = parseFeetValue(boat?.boatDraft);
+
+            const lengthFits = dockMaxLength == null || charterBoatLength == null || charterBoatLength <= dockMaxLength;
+            const beamFits = dockMaxBeam == null || charterBoatBeam == null || charterBoatBeam <= dockMaxBeam;
+            const draftFits = dockMaxDraft == null || charterBoatDraft == null || charterBoatDraft <= dockMaxDraft;
+
+            return lengthFits && beamFits && draftFits;
         }
 
         // Helper function to check if company satisfies dock pickup requirements
@@ -4929,6 +5053,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
             // Listing must have a private dock
             if (!listing.private_dock) return false;
+
+            // Charter boat must fit the listing dock dimensions.
+            if (!canCharterBoatFitPrivateDock(company, listing)) {
+                return false;
+            }
 
             const listingNeighborhood = lc(listing.listing_neighborhood || '');
 
@@ -4970,6 +5099,28 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 if (eligibleCharters.length > 0) {
                     chartersByListingId.set(listing.id, eligibleCharters);
+                }
+
+                // Debug: inspect raw charter attachment counts before runtime filters.
+                if (listingCity === 'islamorada' || listingCity === 'marathon') {
+                    const byCharterCity = {};
+                    for (const charter of eligibleCharters) {
+                        const cCity = getCity(charter) || 'unknown';
+                        byCharterCity[cCity] = (byCharterCity[cCity] || 0) + 1;
+                    }
+
+                    const sortedCityBreakdown = Object.entries(byCharterCity)
+                        .sort((a, b) => b[1] - a[1])
+                        .map(([city, count]) => `${city}: ${count}`);
+
+                    console.log('[charter-index-debug]', {
+                        listingId: listing.id,
+                        listingName: listing.listing_title || listing.name || '',
+                        listingCity,
+                        totalChartersInDataset: allCharters.length,
+                        matchedCharterCountNoFilters: eligibleCharters.length,
+                        matchedCharterCityBreakdown: sortedCityBreakdown,
+                    });
                 }
 
             }
@@ -5082,7 +5233,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
             }
 
-            let formatted = `${eligibleTrips.length} ${charterLabel} • $${totalEstimate.toLocaleString()}+${daysText}`;
+            let formatted = `${eligibleTrips.length} ${charterLabel} • $${Math.round(totalEstimate).toLocaleString()}+${daysText}`;
 
 
             return {

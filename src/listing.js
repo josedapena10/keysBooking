@@ -9409,25 +9409,35 @@ document.addEventListener('DOMContentLoaded', () => {
             return false;
           }
 
-          // Filter by dock length restrictions (property-based)
+          // Filter by dock size restrictions (property-based) only when the boat
+          // is expected to remain docked for more than one day.
           const r = Wized.data.r;
           if (r && r.Load_Property_Details && r.Load_Property_Details.data && r.Load_Property_Details.data.property) {
             const property = r.Load_Property_Details.data.property;
+            const effectiveMinDays = this.getEffectiveMinDaysForBoat(boat);
+            const expectedDockedDays = Math.max(availableDays || 0, effectiveMinDays || 0);
 
-            // If property has private dock, apply dock length restrictions
-            if (property.private_dock === true && property.dock_maxBoatLength) {
-              const boatLength = boat.length || 0;
-              // Extract integer value from dock_maxBoatLength (e.g., "55 ft" -> 55)
-              let maxDockLength = 0;
-              if (property.dock_maxBoatLength) {
-                const match = property.dock_maxBoatLength.match(/\d+/);
-                if (match) {
-                  maxDockLength = parseInt(match[0], 10);
-                }
-              }
+            if (property.private_dock === true && expectedDockedDays > 1) {
+              const parseFeetValue = (value) => {
+                if (value === null || value === undefined || value === '') return null;
+                if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+                const numeric = parseFloat(String(value).replace(/[^0-9.]/g, ''));
+                return Number.isFinite(numeric) ? numeric : null;
+              };
 
-              // Filter out boats that are too long for the dock
-              if (boatLength > maxDockLength) {
+              const dockMaxLength = parseFeetValue(property.dock_maxBoatLength);
+              const dockMaxBeam = parseFeetValue(property.dock_maxBeamLength);
+              const dockMaxDraft = parseFeetValue(property.dock_maxDraftLength);
+
+              const boatLength = parseFeetValue(boat.length);
+              const boatBeam = parseFeetValue(boat.beam);
+              const boatDraft = parseFeetValue(boat.draft);
+
+              const lengthFits = dockMaxLength == null || boatLength == null || boatLength <= dockMaxLength;
+              const beamFits = dockMaxBeam == null || boatBeam == null || boatBeam <= dockMaxBeam;
+              const draftFits = dockMaxDraft == null || boatDraft == null || boatDraft <= dockMaxDraft;
+
+              if (!(lengthFits && beamFits && draftFits)) {
                 return false;
               }
             }
@@ -11128,25 +11138,35 @@ document.addEventListener('DOMContentLoaded', () => {
             return false;
           }
 
-          // Filter by dock length restrictions (property-based)
+          // Filter by dock size restrictions (property-based) only when the boat
+          // is expected to remain docked for more than one day.
           const r = Wized.data.r;
           if (r && r.Load_Property_Details && r.Load_Property_Details.data && r.Load_Property_Details.data.property) {
             const property = r.Load_Property_Details.data.property;
+            const effectiveMinDays = this.getEffectiveMinDaysForBoat(boat);
+            const expectedDockedDays = Math.max(availableDays || 0, effectiveMinDays || 0);
 
-            // If property has private dock, apply dock length restrictions
-            if (property.private_dock === true && property.dock_maxBoatLength) {
-              const boatLength = boat.length || 0;
-              // Extract integer value from dock_maxBoatLength (e.g., "55 ft" -> 55)
-              let maxDockLength = 0;
-              if (property.dock_maxBoatLength) {
-                const match = property.dock_maxBoatLength.match(/\d+/);
-                if (match) {
-                  maxDockLength = parseInt(match[0], 10);
-                }
-              }
+            if (property.private_dock === true && expectedDockedDays > 1) {
+              const parseFeetValue = (value) => {
+                if (value === null || value === undefined || value === '') return null;
+                if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+                const numeric = parseFloat(String(value).replace(/[^0-9.]/g, ''));
+                return Number.isFinite(numeric) ? numeric : null;
+              };
 
-              // Filter out boats that are too long for the dock
-              if (boatLength > maxDockLength) {
+              const dockMaxLength = parseFeetValue(property.dock_maxBoatLength);
+              const dockMaxBeam = parseFeetValue(property.dock_maxBeamLength);
+              const dockMaxDraft = parseFeetValue(property.dock_maxDraftLength);
+
+              const boatLength = parseFeetValue(boat.length);
+              const boatBeam = parseFeetValue(boat.beam);
+              const boatDraft = parseFeetValue(boat.draft);
+
+              const lengthFits = dockMaxLength == null || boatLength == null || boatLength <= dockMaxLength;
+              const beamFits = dockMaxBeam == null || boatBeam == null || boatBeam <= dockMaxBeam;
+              const draftFits = dockMaxDraft == null || boatDraft == null || boatDraft <= dockMaxDraft;
+
+              if (!(lengthFits && beamFits && draftFits)) {
                 return false;
               }
             }
@@ -18733,16 +18753,91 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       filterFishingCharters(charters) {
+        const toNum = (value) => {
+          const n = Number(value);
+          return Number.isFinite(n) ? n : null;
+        };
+        const haversineMiles = (lat1, lng1, lat2, lng2) => {
+          const toRad = (deg) => deg * (Math.PI / 180);
+          const R = 3958.8;
+          const dLat = toRad(lat2 - lat1);
+          const dLng = toRad(lng2 - lng1);
+          const aVal =
+            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+            Math.sin(dLng / 2) * Math.sin(dLng / 2);
+          const c = 2 * Math.atan2(Math.sqrt(aVal), Math.sqrt(1 - aVal));
+          return R * c;
+        };
+        const parseFeetValue = (value) => {
+          if (value === null || value === undefined || value === '') return null;
+          if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+          const numeric = parseFloat(String(value).replace(/[^0-9.]/g, ''));
+          return Number.isFinite(numeric) ? numeric : null;
+        };
+        const property = window?.Wized?.data?.r?.Load_Property_Details?.data?.property || null;
+        const listingLat = toNum(property?.latitude ?? window?.Wized?.data?.v?.latitude);
+        const listingLng = toNum(property?.longitude ?? window?.Wized?.data?.v?.longitude);
+        const hasListingCoords = listingLat !== null && listingLng !== null;
+
         const debugReasons = {
+          outOfRadius: 0,
+          missingCoords: 0,
           capacity: 0,
           noTripsMatchFilters: 0,
           priceOutOfRange: 0,
           privateDockMismatch: 0,
           alreadyBooked: 0,
-          calendarUnavailable: 0
+          calendarUnavailable: 0,
+          privateDockNoPickup: 0,
+          privateDockNoProperty: 0,
+          privateDockNoNeighborhood: 0,
+          privateDockNoAreas: 0,
+          privateDockVesselTooLarge: 0
+        };
+        const debugSamples = {
+          outOfRadius: [],
+          missingCoords: [],
+          privateDockMismatch: []
         };
 
         const filtered = charters.filter(charter => {
+          // Hard radius filter: keep only charters within 30 miles when both
+          // listing and charter coordinates are available.
+          if (hasListingCoords) {
+            const charterLat = toNum(charter?.latitude ?? charter?.lat);
+            const charterLng = toNum(charter?.longitude ?? charter?.lng);
+            const hasCharterCoords = charterLat !== null && charterLng !== null;
+
+            if (!hasCharterCoords) {
+              debugReasons.missingCoords++;
+              if (debugSamples.missingCoords.length < 5) {
+                debugSamples.missingCoords.push({
+                  charterId: charter?.id,
+                  charterName: charter?.name || charter?.companyName || '',
+                  latitude: charter?.latitude ?? charter?.lat ?? null,
+                  longitude: charter?.longitude ?? charter?.lng ?? null
+                });
+              }
+              return false;
+            }
+
+            const miles = haversineMiles(listingLat, listingLng, charterLat, charterLng);
+            if (miles > 30) {
+              debugReasons.outOfRadius++;
+              if (debugSamples.outOfRadius.length < 5) {
+                debugSamples.outOfRadius.push({
+                  charterId: charter?.id,
+                  charterName: charter?.name || charter?.companyName || '',
+                  miles: Number(miles.toFixed(2)),
+                  charterLat,
+                  charterLng
+                });
+              }
+              return false;
+            }
+          }
+
           // Filter by calendar availability (completely hide unavailable charters)
           if (this.batchAvailabilityData && this.batchAvailabilityData.charters && this.selectedDates.length > 0) {
             const charterAvail = this.batchAvailabilityData.charters.find(c => c.fishingCharters_id == charter.id);
@@ -18821,11 +18916,15 @@ document.addEventListener('DOMContentLoaded', () => {
           // Private dock filter
           if (this.selectedPrivateDock) {
             // First check if charter offers private dock pickup
-            if (!charter.privateDockPickup) return false;
+            if (!charter.privateDockPickup) {
+              debugReasons.privateDockNoPickup++;
+              return false;
+            }
 
             // Get property data from Wized
             const r = Wized.data.r;
             if (!r || !r.Load_Property_Details || !r.Load_Property_Details.data || !r.Load_Property_Details.data.property) {
+              debugReasons.privateDockNoProperty++;
               return false;
             }
 
@@ -18834,17 +18933,38 @@ document.addEventListener('DOMContentLoaded', () => {
             // Check if property has a private dock
             const hasPrivateDock = property.private_dock;
             if (hasPrivateDock === false) {
+              debugReasons.privateDockNoProperty++;
               return false;
             }
 
             // Check if charter delivers to the property's neighborhood
             if (!property.listing_neighborhood) {
+              debugReasons.privateDockNoNeighborhood++;
+              return false;
+            }
+
+            // Check charter vessel size vs dock limits (lenient by dimension).
+            const dockMaxLength = parseFeetValue(property.dock_maxBoatLength);
+            const dockMaxBeam = parseFeetValue(property.dock_maxBeamLength);
+            const dockMaxDraft = parseFeetValue(property.dock_maxDraftLength);
+            const charterBoat = charter?.boatInfo?.[0] || {};
+            const charterLength = parseFeetValue(charterBoat.boatLength);
+            const charterBeam = parseFeetValue(charterBoat.boatBeam);
+            const charterDraft = parseFeetValue(charterBoat.boatDraft);
+
+            const lengthFits = dockMaxLength == null || charterLength == null || charterLength <= dockMaxLength;
+            const beamFits = dockMaxBeam == null || charterBeam == null || charterBeam <= dockMaxBeam;
+            const draftFits = dockMaxDraft == null || charterDraft == null || charterDraft <= dockMaxDraft;
+
+            if (!(lengthFits && beamFits && draftFits)) {
+              debugReasons.privateDockVesselTooLarge++;
               return false;
             }
 
             const propertyNeighborhood = property.listing_neighborhood;
 
             if (!charter.privateDockPickupAreas || !Array.isArray(charter.privateDockPickupAreas)) {
+              debugReasons.privateDockNoAreas++;
               return false;
             }
 
@@ -18854,6 +18974,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (!canDeliverToProperty) {
               debugReasons.privateDockMismatch++;
+              if (debugSamples.privateDockMismatch.length < 5) {
+                debugSamples.privateDockMismatch.push({
+                  charterId: charter?.id,
+                  charterName: charter?.name || charter?.companyName || '',
+                  propertyNeighborhood,
+                  pickupAreas: (charter.privateDockPickupAreas || []).map(a => a?.region).filter(Boolean)
+                });
+              }
               return false;
             }
           }
