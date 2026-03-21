@@ -5085,7 +5085,7 @@ document.addEventListener('DOMContentLoaded', function () {
     function updateToolbarBasePrice(price) {
         const basePriceElement = document.querySelector('[data-element="toolbar_basePrice_price"]');
         if (basePriceElement && price !== undefined) {
-            basePriceElement.textContent = `$${price}`;
+            basePriceElement.textContent = `$${price.round(2)}`;
         }
     }
 
@@ -5274,7 +5274,7 @@ document.addEventListener('DOMContentLoaded', function () {
     function updateToolbarCleaningFee(price) {
         const cleaningFeeElement = document.querySelector('[data-element="toolbar_cleaningFee_price"]');
         if (cleaningFeeElement && price !== undefined) {
-            cleaningFeeElement.textContent = `$${price}`;
+            cleaningFeeElement.textContent = `$${price.round(2)}`;
         }
     }
 
