@@ -13,7 +13,8 @@ let isSaving = false;
 function formatPriceSmart(value) {
     const num = Number(value);
     if (!Number.isFinite(num)) return "0";
-    return Number.isInteger(num) ? String(num) : num.toFixed(2);
+    const normalized = Math.round((num + Number.EPSILON) * 100) / 100;
+    return Number.isInteger(normalized) ? String(normalized) : normalized.toFixed(2);
 }
 
 // for no scroll background when modal is open
@@ -2243,21 +2244,22 @@ document.addEventListener('DOMContentLoaded', function () {
             },
             eventContent: function (arg) {
                 let innerHtml;
+                const eventPrice = formatPriceSmart(arg.event.extendedProps.price);
 
                 if (arg.event.extendedProps.type === 'reservation') {
                     innerHtml = `<div class="fc-event-title" style="font-family: 'TT Fors', sans-serif;">${arg.event.title}</div>`;
                 } else if (arg.event.extendedProps.type === 'available') {
-                    innerHtml = `<div class="fc-event-title" style="font-family: 'TT Fors', sans-serif;">$${arg.event.extendedProps.price}</div>`;
+                    innerHtml = `<div class="fc-event-title" style="font-family: 'TT Fors', sans-serif;">$${eventPrice}</div>`;
                 } else if (arg.event.extendedProps.type === 'reserved' && arg.event.extendedProps.price) {
-                    innerHtml = `<div class="fc-event-title" style="font-family: 'TT Fors', sans-serif;">$${arg.event.extendedProps.price}</div>`;
+                    innerHtml = `<div class="fc-event-title" style="font-family: 'TT Fors', sans-serif;">$${eventPrice}</div>`;
                 } else if (arg.event.extendedProps.type === 'blocked') {
                     innerHtml = arg.event.extendedProps.price ?
-                        `<div class="fc-event-title" style="font-family: 'TT Fors', sans-serif;">$${arg.event.extendedProps.price}</div>` :
+                        `<div class="fc-event-title" style="font-family: 'TT Fors', sans-serif;">$${eventPrice}</div>` :
                         `<div class="fc-event-title" style="font-family: 'TT Fors', sans-serif;">Blocked</div>`;
                 } else if (arg.event.extendedProps.type === 'short_gap') {
-                    innerHtml = `<div class="fc-event-title" style="font-family: 'TT Fors', sans-serif;">$${arg.event.extendedProps.price}</div>`;
+                    innerHtml = `<div class="fc-event-title" style="font-family: 'TT Fors', sans-serif;">$${eventPrice}</div>`;
                 } else if (arg.event.extendedProps.type === 'unavailablePeriod') {
-                    innerHtml = `<div class="fc-event-title" style="font-family: 'TT Fors', sans-serif;">$${arg.event.extendedProps.price}</div>`;
+                    innerHtml = `<div class="fc-event-title" style="font-family: 'TT Fors', sans-serif;">$${eventPrice}</div>`;
                 } else {
                     innerHtml = `<div class="fc-event-title" style="font-family: 'TT Fors', sans-serif;">${arg.event.title}</div>`;
                 }
