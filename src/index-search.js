@@ -8258,7 +8258,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
             // Make the API request as GET with query parameters
             const apiUrl = `https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/property_search?${params.toString()}`;
-
             const response = await fetch(apiUrl, {
                 method: 'GET'
             });
@@ -9618,6 +9617,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Update the highlightMarker function
     function highlightMarker(listingId) {
+        if (!window.mapMarkers) return;
         const marker = window.mapMarkers[listingId];
         if (!marker) return;
 
@@ -9818,6 +9818,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Function to change marker background color
     function setMarkerBackgroundColor(listingId, color) {
+        if (!window.mapMarkers) return;
         const marker = window.mapMarkers[listingId];
         if (!marker) return;
 
@@ -10807,7 +10808,13 @@ document.addEventListener('DOMContentLoaded', function () {
                         // Home-only: keep current logic exactly
                         if (datesSelected) {
                             const totalPrice = listing.customDatesTotalPrice || 0;
-                            priceText = `$${Math.round(totalPrice).toLocaleString()}`;
+                            if (Number(totalPrice) <= 0) {
+                                // While date-pricing is resolving, keep default nightly marker price.
+                                const nightlyFallback = Number(listing.nightlyPrice || 0);
+                                priceText = `$${Math.round(nightlyFallback).toLocaleString()}`;
+                            } else {
+                                priceText = `$${Math.round(totalPrice).toLocaleString()}`;
+                            }
                         } else {
                             const nightlyPrice = Number(listing.nightlyPrice || 0);
                             priceText = `$${Math.round(nightlyPrice).toLocaleString()}`;
@@ -10829,7 +10836,18 @@ document.addEventListener('DOMContentLoaded', function () {
                             const base = Number(listing.customDatesTotalPrice || 0);
                             const extrasPrice = minBoat(listing) + minChar(listing);
                             const combinedPrice = base + extrasPrice;
-                            priceText = `$${Math.round(combinedPrice).toLocaleString()}+`;
+                            if (combinedPrice <= 0) {
+                                // While date-pricing is resolving, keep default no-dates combined marker price.
+                                const homeStartFallback = computeHomeStartNoDates(listing);
+                                if (homeStartFallback == null) {
+                                    priceText = "Unavailable";
+                                } else {
+                                    const combinedFallback = homeStartFallback + extrasPrice;
+                                    priceText = `$${Math.round(combinedFallback).toLocaleString()}+`;
+                                }
+                            } else {
+                                priceText = `$${Math.round(combinedPrice).toLocaleString()}+`;
+                            }
                         }
                     }
                     // Create custom marker HTML
