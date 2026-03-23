@@ -7971,6 +7971,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Add this at the top of your file with other variables
     let isSearchInProgress = false;
+    let hasPendingSearchRequest = false;
 
     // ADD THIS: Skeleton loading functionality at the top after the existing variables
     let skeletonTimeout = null;
@@ -8191,6 +8192,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Prevent multiple simultaneous searches
         if (isSearchInProgress) {
+            // Queue a single follow-up run so rapid UI changes (e.g. quick extra toggles)
+            // are applied right after the current request finishes.
+            hasPendingSearchRequest = true;
             return;
         }
 
@@ -8337,6 +8341,15 @@ document.addEventListener('DOMContentLoaded', function () {
 
             // Hide skeleton loading
             hideSkeletonLoading();
+
+            // If another search was requested while this one was in flight,
+            // run one more pass with the latest state.
+            if (hasPendingSearchRequest) {
+                hasPendingSearchRequest = false;
+                setTimeout(() => {
+                    fetchPropertySearchResults();
+                }, 0);
+            }
         }
     }
 
@@ -8735,6 +8748,17 @@ document.addEventListener('DOMContentLoaded', function () {
 
 
 
+    function scrollListingsContainerToTop() {
+        const listingsSection = document.querySelector('[data-element="listings-container-wrapper"]');
+        const pageBody = document.querySelector('[data-element="body"]');
+        if (listingsSection && pageBody) {
+            listingsSection.scrollTo({ top: 0, behavior: 'auto' });
+            pageBody.scrollTo({ top: 0, behavior: 'auto' });
+            window.scrollTo({ top: 0, behavior: 'auto' });
+        }
+        return;
+    }
+
     // Function to render pagination controls
     function renderPagination(totalListings) {
         const paginationContainer = document.querySelector('[data-element="pagination-container"]');
@@ -8762,8 +8786,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 renderPagination(totalListings);
                 updateMarkersVisibility(currentPage);
 
-                // Scroll page to top instantly
-                window.scrollTo({ top: 0, behavior: 'auto' });
+                // Keep listings section at top between page changes
+                scrollListingsContainerToTop();
 
                 // Update badges for paginated listings
                 const startIndex = (currentPage - 1) * listingsPerPage;
@@ -8800,8 +8824,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 renderPagination(totalListings);
                 updateMarkersVisibility(currentPage);
 
-                // Scroll page to top instantly
-                window.scrollTo({ top: 0, behavior: 'auto' });
+                // Keep listings section at top between page changes
+                scrollListingsContainerToTop();
 
                 // Update badges for paginated listings
                 const startIndex = (currentPage - 1) * listingsPerPage;
@@ -8837,8 +8861,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 renderPagination(totalListings);
                 updateMarkersVisibility(currentPage);
 
-                // Scroll page to top instantly
-                window.scrollTo({ top: 0, behavior: 'auto' });
+                // Keep listings section at top between page changes
+                scrollListingsContainerToTop();
 
                 // Update badges for paginated listings
                 const startIndex = (currentPage - 1) * listingsPerPage;
@@ -9962,18 +9986,17 @@ document.addEventListener('DOMContentLoaded', function () {
                                 <h3 style="margin: 0; padding: 0; font-size: 14px; color: #000000; font-weight: 500; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 8px; font-family: 'TT Fors', sans-serif; line-height: 1;">
                                     ${this.listing.property_name || 'Property'}
                                 </h3>
+                                ${(this.listing.reviews_amount && this.listing.review_average) ? `
                                 <div style="display: flex; align-items: center; gap: 3px; font-family: 'TT Fors', sans-serif; line-height: 1; margin: 0; padding: 0;">
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="#000000" style="margin: 0; padding: 0; display: block;">
                                         <path d="M12 2l2.59 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l7.41-1.01L12 2z" stroke="#000000" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
                                     </svg>
                                     <span style="font-size: 14px; font-weight: 500; font-family: 'TT Fors', sans-serif; line-height: 1;">
-                                        ${(!this.listing.reviews_amount || !this.listing.review_average) ? 'New' : this.listing.review_average}
+                                        ${this.listing.review_average.toFixed(2)}
                                     </span>
-                                    ${(this.listing.reviews_amount && this.listing.review_average) ?
-                        `<span style="font-size: 14px; color: #000000; font-family: 'TT Fors', sans-serif; line-height: 1;">(${this.listing.reviews_amount})</span>` :
-                        ''
-                    }
+                                    <span style="font-size: 14px; color: #000000; font-family: 'TT Fors', sans-serif; line-height: 1;">(${this.listing.reviews_amount})</span>
                                 </div>
+                                ` : ''}
                             </div>
                             
                             <p style="margin: 0; font-size: 14px; color: #000000; font-family: 'TT Fors', sans-serif;">
@@ -10291,14 +10314,15 @@ document.addEventListener('DOMContentLoaded', function () {
                         <div style="
                             display: inline-flex;
                             align-items: center;
-                            background: #f0f0f0;
-                            border-radius: 20px;
-                            padding: 6px 12px;
+                            background: #e5f2ff;
+                            border: 1px solid #0074ff;
+                            border-radius: 5px;
+                            padding: 5px 9px;
                             margin: 4px 4px 0 0;
                             font-family: 'TT Fors', sans-serif;
                             font-size: 12px;
-                            font-weight: 500;
-                            color: #333;
+                            font-weight: 400;
+                            color: #000000;
                         ">+ Boat Rental</div>
                     `;
                 }
@@ -10308,14 +10332,15 @@ document.addEventListener('DOMContentLoaded', function () {
                         <div style="
                             display: inline-flex;
                             align-items: center;
-                            background: #f0f0f0;
-                            border-radius: 20px;
-                            padding: 6px 12px;
+                            background: #e5f2ff;
+                            border: 1px solid #0074ff;
+                            border-radius: 5px;
+                            padding: 5px 7px;
                             margin: 4px 4px 0 0;
                             font-family: 'TT Fors', sans-serif;
                             font-size: 12px;
-                            font-weight: 500;
-                            color: #333;
+                            font-weight: 400;
+                            color: #000000;
                         ">+ Fishing Charter</div>
                     `;
                 }
