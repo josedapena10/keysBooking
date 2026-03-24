@@ -313,10 +313,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
             }
 
-            // Fix: Use charter module's active guest filter instead of search guest count
-            // This ensures charter filter changes are reflected in listing prices
-            const charterFilters = charterModule.getCurrentFilters();
-            const guestCount = Math.max(1, charterFilters.guests || apiFormats?.guests?.total || 1);
+            const boatFilters = boatModule.getCurrentFilters();
+            const guestCount = Math.max(1, boatFilters.passengers || 1);
 
             const badgeData = boatModule.getBoatBadgeData(listing, datesForBoat, guestCount);
             const result = Number(badgeData?.minPrice || 0);
@@ -345,10 +343,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
             }
 
-            // Fix: Use charter module's active guest filter instead of search guest count
-            // This ensures charter filter changes are reflected in listing prices
             const charterFilters = charterModule.getCurrentFilters();
-            const guestCount = Math.max(1, charterFilters.guests || apiFormats?.guests?.total || 1);
+            const guestCount = Math.max(1, charterFilters.guests || 1);
 
             const badgeData = charterModule.getCharterBadgeData(listing, datesForCharter, guestCount);
             const result = Number(badgeData?.minPrice || 0);
@@ -5403,9 +5399,8 @@ document.addEventListener('DOMContentLoaded', function () {
                     };
                 }
             }
-            // Fix: Use charter module's active guest filter for badge consistency
             const charterFilters = charterModule.getCurrentFilters();
-            const guestCount = Math.max(1, charterFilters.guests || apiFormats?.guests?.total || 1);
+            const guestCount = Math.max(1, charterFilters.guests || 1);
 
             const badge = charterModule.getCharterBadgeData(l, datesForCharter, guestCount);
 
@@ -5443,7 +5438,8 @@ document.addEventListener('DOMContentLoaded', function () {
                     };
                 }
             }
-            const guestCount = Math.max(1, apiFormats?.guests?.total || 1);
+            const boatFilters = boatModule.getCurrentFilters();
+            const guestCount = Math.max(1, boatFilters.passengers || 1);
 
             const badge = boatModule.getBoatBadgeData(l, datesForBoat, guestCount);
 
@@ -6725,17 +6721,18 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (charterEnabled) charterModule.setEnabled(true);
                 else charterModule.setEnabled(false);
 
-                // Check individual gates
+                // Check individual gates (boat/charter capacity uses each module's filters only;
+                // navbar search guests are for stay/property_search, not extras gating)
                 const passesBoatGate = boatModule.listingPassesBoatGate(
                     listing,
                     apiFormats?.dates,
-                    apiFormats?.guests?.total
+                    undefined
                 );
 
                 const passesCharterGate = charterModule.listingPassesCharterGate(
                     listing,
                     apiFormats?.dates,
-                    apiFormats?.guests?.total
+                    undefined
                 );
 
                 // Apply cross-feature gating rules
