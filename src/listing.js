@@ -4978,7 +4978,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const totalTax = salesSurTax + salesTax;
         taxesAmountElements.forEach(element => {
           if (element) {
-            element.textContent = `$${totalTax.toFixed().toLocaleString()}`;
+            element.textContent = `$${Math.round(totalTax).toLocaleString()}`;
           }
         });
       }
@@ -16579,6 +16579,29 @@ document.addEventListener('DOMContentLoaded', () => {
         return this.selectedDates.includes(checkin) || this.selectedDates.includes(checkout);
       }
 
+      parseFeetValue(value) {
+        if (value === null || value === undefined || value === '') return null;
+        if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+        const numeric = parseFloat(String(value).replace(/[^0-9.]/g, ''));
+        return Number.isFinite(numeric) ? numeric : null;
+      }
+
+      // Align with boat rental dock rules: unknown vessel or dock dimension does not block that axis.
+      charterVesselFitsPropertyDock(charter, property) {
+        if (!property) return false;
+        const dockMaxLength = this.parseFeetValue(property.dock_maxBoatLength);
+        const dockMaxBeam = this.parseFeetValue(property.dock_maxBeamLength);
+        const dockMaxDraft = this.parseFeetValue(property.dock_maxDraftLength);
+        const charterBoat = charter?.boatInfo?.[0] || {};
+        const charterLength = this.parseFeetValue(charterBoat.boatLength);
+        const charterBeam = this.parseFeetValue(charterBoat.boatBeam);
+        const charterDraft = this.parseFeetValue(charterBoat.boatDraft);
+        const lengthFits = dockMaxLength == null || charterLength == null || charterLength <= dockMaxLength;
+        const beamFits = dockMaxBeam == null || charterBeam == null || charterBeam <= dockMaxBeam;
+        const draftFits = dockMaxDraft == null || charterDraft == null || charterDraft <= dockMaxDraft;
+        return lengthFits && beamFits && draftFits;
+      }
+
       // Helper: Check if any charter in results offers private dock pickup to property
       anyCharterOffersPrivateDock(charters) {
         if (!charters || charters.length === 0) return false;
@@ -16588,13 +16611,15 @@ document.addEventListener('DOMContentLoaded', () => {
           return false;
         }
 
+        const property = r.Load_Property_Details.data.property;
+
         // First check if property has a private dock
-        const hasPrivateDock = r.Load_Property_Details.data.property.private_dock;
+        const hasPrivateDock = property.private_dock;
         if (hasPrivateDock === false) {
           return false;
         }
 
-        const propertyNeighborhood = r.Load_Property_Details.data.property.listing_neighborhood;
+        const propertyNeighborhood = property.listing_neighborhood;
         if (!propertyNeighborhood) {
           return false;
         }
@@ -16606,9 +16631,12 @@ document.addEventListener('DOMContentLoaded', () => {
             return false;
           }
 
-          return charter.privateDockPickupAreas.some(area =>
+          const regionMatch = charter.privateDockPickupAreas.some(area =>
             area.region && area.region.toLowerCase() === propertyNeighborhood.toLowerCase()
           );
+          if (!regionMatch) return false;
+
+          return this.charterVesselFitsPropertyDock(charter, property);
         });
       }
 
@@ -18768,12 +18796,6 @@ document.addEventListener('DOMContentLoaded', () => {
           const c = 2 * Math.atan2(Math.sqrt(aVal), Math.sqrt(1 - aVal));
           return R * c;
         };
-        const parseFeetValue = (value) => {
-          if (value === null || value === undefined || value === '') return null;
-          if (typeof value === 'number') return Number.isFinite(value) ? value : null;
-          const numeric = parseFloat(String(value).replace(/[^0-9.]/g, ''));
-          return Number.isFinite(numeric) ? numeric : null;
-        };
         const property = window?.Wized?.data?.r?.Load_Property_Details?.data?.property || null;
         const listingLat = toNum(property?.latitude ?? window?.Wized?.data?.v?.latitude);
         const listingLng = toNum(property?.longitude ?? window?.Wized?.data?.v?.longitude);
@@ -18942,20 +18964,7 @@ document.addEventListener('DOMContentLoaded', () => {
               return false;
             }
 
-            // Check charter vessel size vs dock limits (lenient by dimension).
-            const dockMaxLength = parseFeetValue(property.dock_maxBoatLength);
-            const dockMaxBeam = parseFeetValue(property.dock_maxBeamLength);
-            const dockMaxDraft = parseFeetValue(property.dock_maxDraftLength);
-            const charterBoat = charter?.boatInfo?.[0] || {};
-            const charterLength = parseFeetValue(charterBoat.boatLength);
-            const charterBeam = parseFeetValue(charterBoat.boatBeam);
-            const charterDraft = parseFeetValue(charterBoat.boatDraft);
-
-            const lengthFits = dockMaxLength == null || charterLength == null || charterLength <= dockMaxLength;
-            const beamFits = dockMaxBeam == null || charterBeam == null || charterBeam <= dockMaxBeam;
-            const draftFits = dockMaxDraft == null || charterDraft == null || charterDraft <= dockMaxDraft;
-
-            if (!(lengthFits && beamFits && draftFits)) {
+            if (!this.charterVesselFitsPropertyDock(charter, property)) {
               debugReasons.privateDockVesselTooLarge++;
               return false;
             }
@@ -19834,6 +19843,11 @@ document.addEventListener('DOMContentLoaded', () => {
         );
 
         if (!canDeliverToProperty) {
+          this.detailsPrivateDockFilter.style.display = 'none';
+          return;
+        }
+
+        if (!this.charterVesselFitsPropertyDock(charter, property)) {
           this.detailsPrivateDockFilter.style.display = 'none';
           return;
         }
