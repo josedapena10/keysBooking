@@ -7032,6 +7032,7 @@ document.addEventListener('DOMContentLoaded', () => {
         this.allowsHalfDay = false; // Track if any boat allows half day
 
         // Track min days filtering info for no results message
+        // requiredDays = smallest effective min among boats dropped for "not enough days" (not the largest)
         this.lastMinDaysFilterInfo = null; // { requiredDays: number, availableDays: number }
 
         // Calendar availability data from batch API
@@ -9305,7 +9306,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // Reset min days filter tracking before filtering
         this.lastMinDaysFilterInfo = null;
         let minDaysFilteredCount = 0;
-        let maxRequiredDays = 0;
+        // Smallest effective minimum among boats removed for too-few days (for accurate empty-state copy)
+        let minRequiredDaysForAnyBoat = Infinity;
         const availableDays = this.getAvailableDaysForMinCheck();
 
         const filteredBoats = boats.filter(boat => {
@@ -9359,9 +9361,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (effectiveMinDays > 0 && availableDays < effectiveMinDays) {
               // Track min days filtering info
               minDaysFilteredCount++;
-              if (effectiveMinDays > maxRequiredDays) {
-                maxRequiredDays = effectiveMinDays;
-              }
+              minRequiredDaysForAnyBoat = Math.min(minRequiredDaysForAnyBoat, effectiveMinDays);
               return false;
             }
           }
@@ -9509,7 +9509,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Store min days filter info if boats were filtered due to min days
         if (minDaysFilteredCount > 0 && filteredBoats.length === 0 && boats.length > 0) {
           this.lastMinDaysFilterInfo = {
-            requiredDays: maxRequiredDays,
+            requiredDays: minRequiredDaysForAnyBoat,
             availableDays: availableDays,
             filteredCount: minDaysFilteredCount,
             totalBoats: boats.length
@@ -11034,7 +11034,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // Reset min days filter tracking before filtering
         this.lastMinDaysFilterInfo = null;
         let minDaysFilteredCount = 0;
-        let maxRequiredDays = 0;
+        // Smallest effective minimum among boats removed for too-few days (for accurate empty-state copy)
+        let minRequiredDaysForAnyBoat = Infinity;
         const availableDays = this.getAvailableDaysForMinCheck();
 
         const filteredBoats = boats.filter(boat => {
@@ -11088,9 +11089,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (effectiveMinDays > 0 && availableDays < effectiveMinDays) {
               // Track min days filtering info
               minDaysFilteredCount++;
-              if (effectiveMinDays > maxRequiredDays) {
-                maxRequiredDays = effectiveMinDays;
-              }
+              minRequiredDaysForAnyBoat = Math.min(minRequiredDaysForAnyBoat, effectiveMinDays);
               return false;
             }
           }
@@ -11238,7 +11237,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Store min days filter info if boats were filtered due to min days
         if (minDaysFilteredCount > 0 && filteredBoats.length === 0 && boats.length > 0) {
           this.lastMinDaysFilterInfo = {
-            requiredDays: maxRequiredDays,
+            requiredDays: minRequiredDaysForAnyBoat,
             availableDays: availableDays,
             filteredCount: minDaysFilteredCount,
             totalBoats: boats.length
