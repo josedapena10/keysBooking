@@ -117,6 +117,31 @@ document.addEventListener('DOMContentLoaded', function () {
         guests: "Add guests"
     };
 
+    function setSearchButtonLoadingState(isLoading) {
+        // Query live elements each time so mobile Next->Search state swaps are supported.
+        const loaderElements = document.querySelectorAll(
+            '[data-element="navBarSearch_searchButtonLoader"], .navBarSearch_searchButtonLoader, [data-element="navBarSearch_phone_searchButtonLoader"], .navBarSearch_phone_searchButtonLoader, [data-element="navBarSearch_guestsPopup_searchButtonLoader"], .navBarSearch_guestsPopup_searchButtonLoader'
+        );
+        const textElements = document.querySelectorAll(
+            '[data-element="navBarSearch_searchButtonText"], .navBarSearch_searchButtonText, [data-element="navBarSearch_phone_searchButtonText"], .navBarSearch_phone_searchButtonText, [data-element="navBarSearch_guestsPopup_searchButtonText"], .navBarSearch_guestsPopup_searchButtonText'
+        );
+
+        loaderElements.forEach((el) => {
+            el.style.setProperty('display', isLoading ? 'flex' : 'none', 'important');
+        });
+
+        textElements.forEach((el) => {
+            if (isLoading) {
+                el.style.setProperty('display', 'none', 'important');
+            } else {
+                el.style.removeProperty('display');
+            }
+        });
+    }
+
+    // Default state: show text, hide loader
+    setSearchButtonLoadingState(false);
+
     // ADD THIS: Flag to track if map has been initialized
     let isMapInitialized = false;
 
@@ -905,7 +930,7 @@ document.addEventListener('DOMContentLoaded', function () {
             }
 
             // Fetch property search results
-            const searchResults = await fetchPropertySearchResults();
+            const searchResults = await fetchPropertySearchResults({ triggeredBySearchButton: true });
 
             // Handle search results
             if (!searchResults?.error) {
@@ -3828,7 +3853,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
 
                 // Fetch property search results
-                const searchResults = await fetchPropertySearchResults();
+                const searchResults = await fetchPropertySearchResults({ triggeredBySearchButton: true });
 
                 // Handle search results
                 if (!searchResults?.error) {
@@ -3921,7 +3946,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
 
                 // Fetch property search results
-                const searchResults = await fetchPropertySearchResults();
+                const searchResults = await fetchPropertySearchResults({ triggeredBySearchButton: true });
 
                 // Handle search results
                 if (!searchResults?.error) {
@@ -7972,6 +7997,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // Add this at the top of your file with other variables
     let isSearchInProgress = false;
     let hasPendingSearchRequest = false;
+    let pendingSearchTriggeredByButton = false;
 
     // ADD THIS: Skeleton loading functionality at the top after the existing variables
     let skeletonTimeout = null;
@@ -8183,7 +8209,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
 
     // MODIFY the fetchPropertySearchResults function to include skeleton loading
-    async function fetchPropertySearchResults() {
+    async function fetchPropertySearchResults(options = {}) {
+        const { triggeredBySearchButton = false } = options;
 
         // Prevent API calls when centering on marker
         if (isCenteringOnMarker) {
@@ -8192,6 +8219,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Prevent multiple simultaneous searches
         if (isSearchInProgress) {
+            if (triggeredBySearchButton) {
+                // If user explicitly clicked search while a request is running, keep
+                // loader visible and carry that intent into the queued request.
+                pendingSearchTriggeredByButton = true;
+                setSearchButtonLoadingState(true);
+            }
             // Queue a single follow-up run so rapid UI changes (e.g. quick extra toggles)
             // are applied right after the current request finishes.
             hasPendingSearchRequest = true;
@@ -8211,6 +8244,9 @@ document.addEventListener('DOMContentLoaded', function () {
             const searchButton = document.querySelector('[data-element="navBarSearch_searchButton"]');
             if (searchButton) {
                 searchButton.classList.add('loading');
+            }
+            if (triggeredBySearchButton) {
+                setSearchButtonLoadingState(true);
             }
 
             // Convert apiFormats to URL parameters
@@ -8261,11 +8297,6 @@ document.addEventListener('DOMContentLoaded', function () {
             const response = await fetch(apiUrl, {
                 method: 'GET'
             });
-
-            // Remove loading state from search button
-            if (searchButton) {
-                searchButton.classList.remove('loading');
-            }
 
             // Check if the response is ok
             if (!response.ok) {
@@ -8337,6 +8368,9 @@ document.addEventListener('DOMContentLoaded', function () {
             if (searchButton) {
                 searchButton.classList.remove('loading');
             }
+            if (triggeredBySearchButton) {
+                setSearchButtonLoadingState(false);
+            }
 
             // Hide skeleton loading
             hideSkeletonLoading();
@@ -8345,8 +8379,10 @@ document.addEventListener('DOMContentLoaded', function () {
             // run one more pass with the latest state.
             if (hasPendingSearchRequest) {
                 hasPendingSearchRequest = false;
+                const runQueuedAsButtonSearch = pendingSearchTriggeredByButton;
+                pendingSearchTriggeredByButton = false;
                 setTimeout(() => {
-                    fetchPropertySearchResults();
+                    fetchPropertySearchResults({ triggeredBySearchButton: runQueuedAsButtonSearch });
                 }, 0);
             }
         }
@@ -10318,7 +10354,7 @@ document.addEventListener('DOMContentLoaded', function () {
                             background: #e5f2ff;
                             border: 1px solid #0074ff;
                             border-radius: 5px;
-                            padding: 5px 9px;
+                            padding: 3px 7px;
                             margin: 4px 4px 0 0;
                             font-family: 'TT Fors', sans-serif;
                             font-size: 12px;
@@ -10336,7 +10372,7 @@ document.addEventListener('DOMContentLoaded', function () {
                             background: #e5f2ff;
                             border: 1px solid #0074ff;
                             border-radius: 5px;
-                            padding: 5px 7px;
+                            padding: 3px 7px;
                             margin: 4px 4px 0 0;
                             font-family: 'TT Fors', sans-serif;
                             font-size: 12px;
