@@ -8471,12 +8471,108 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    function getListingCarouselSlideUrls(listing) {
+        const urls = [];
+        if (Array.isArray(listing._images)) {
+            for (const imageData of listing._images) {
+                const url = imageData?.property_image?.url;
+                if (url) urls.push(url);
+            }
+        }
+        if (urls.length === 0 && listing.image_url) {
+            urls.push(listing.image_url);
+        }
+        return urls;
+    }
+
+    function getListingHeroPrefetchPool() {
+        let pool = document.getElementById('listing-hero-prefetch-pool');
+        if (!pool) {
+            pool = document.createElement('div');
+            pool.id = 'listing-hero-prefetch-pool';
+            pool.setAttribute('aria-hidden', 'true');
+            pool.style.cssText =
+                'position:absolute;left:-9999px;top:0;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);pointer-events:none;visibility:hidden;';
+            document.body.appendChild(pool);
+        }
+        return pool;
+    }
+
+    /**
+     * Tier 2–3: Warm hero images for listings NOT on the current page using real <img> nodes
+     * (same pipeline as cards). Order: next page, previous, then farther pages — before user paginates.
+     * new Image() + low priority was not reliably populating cache for visible cards.
+     */
+    function schedulePaginationHeroWarmup(listings, page, perPage) {
+        if (!listings || listings.length === 0) return;
+        const totalPages = Math.ceil(listings.length / perPage);
+        if (totalPages <= 1) return;
+
+        const pool = getListingHeroPrefetchPool();
+        while (pool.firstChild) {
+            pool.removeChild(pool.firstChild);
+        }
+
+        const pageOrder = [];
+        for (let d = 1; d <= totalPages; d++) {
+            if (page + d <= totalPages) {
+                pageOrder.push(page + d);
+            }
+            if (page - d >= 1) {
+                pageOrder.push(page - d);
+            }
+        }
+
+        const heroes = [];
+        for (const p of pageOrder) {
+            const s = (p - 1) * perPage;
+            const end = Math.min(s + perPage, listings.length);
+            for (let i = s; i < end; i++) {
+                const h = getListingCarouselSlideUrls(listings[i])[0];
+                if (h) {
+                    heroes.push(h);
+                }
+            }
+        }
+
+        const START_DELAY_MS = 280;
+        const STAGGER_MS = 20;
+        const tierHighThrough = perPage;
+        const tierAutoThrough = perPage * 3;
+
+        heroes.forEach((url, i) => {
+            setTimeout(() => {
+                const img = document.createElement('img');
+                img.alt = '';
+                img.decoding = 'async';
+                img.loading = 'eager';
+                try {
+                    if ('fetchPriority' in img) {
+                        if (i < tierHighThrough) {
+                            img.fetchPriority = 'high';
+                        } else if (i < tierAutoThrough) {
+                            img.fetchPriority = 'auto';
+                        } else {
+                            img.fetchPriority = 'low';
+                        }
+                    }
+                } catch (_) {
+                    /* ignore */
+                }
+                img.src = url;
+                pool.appendChild(img);
+            }, START_DELAY_MS + i * STAGGER_MS);
+        });
+    }
+
     function initializeCustomCarouselForCard(card, listing) {
         // Find the images container within the card
         const imagesContainer = card.querySelector('[data-element="listing-card-images-container"]');
 
-        if (!imagesContainer || !listing._images || listing._images.length === 0) {
-            return; // No container or no images
+        const slideUrls = getListingCarouselSlideUrls(listing);
+
+        if (!imagesContainer || slideUrls.length === 0) {
+            return;
         }
 
         // Check if already initialized
@@ -8484,27 +8580,42 @@ document.addEventListener('DOMContentLoaded', function () {
             return; // Already initialized
         }
 
-        // Create carousel structure
+        const altText = listing.property_name || 'Property Photo';
+        const transparentPixel =
+            'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+
+        // First slide loads immediately (eager + high). Remaining URLs stay in data-pending-src until
+        // the first image finishes, then we assign src in order (slide 2, then 3, …). If the user
+        // navigates ahead, updateCarousel() promotes pending slides for current/next/prev immediately.
         const carouselHTML = `
             <div class="custom-carousel" style="position: relative; width: 100%; height: 100%; border-radius: 5px; overflow: hidden;">
                 <div class="carousel-track" style="display: flex; width: 100%; height: 100%; transition: transform 0.3s ease;">
-                    ${listing._images.map((imageData, index) => {
-            if (imageData && imageData.property_image && imageData.property_image.url) {
-                const loadingStrategy = index < 3 ? 'eager' : 'lazy';
+                    ${slideUrls.map((url, slideIndex) => {
+            if (slideIndex === 0) {
                 return `
                                 <div class="carousel-slide" style="flex: 0 0 100%; height: 100%;">
-                                    <img src="${imageData.property_image.url}" 
-                                         alt="${listing.property_name || 'Property Photo'}"
-                                         loading="${loadingStrategy}"
+                                    <img src="${url}" 
+                                         alt="${altText}"
+                                         loading="eager"
+                                         fetchpriority="high"
+                                         decoding="async"
                                          style="width: 100%; height: 100%; object-fit: cover;">
                                 </div>
                             `;
             }
-            return '';
+            return `
+                                <div class="carousel-slide" style="flex: 0 0 100%; height: 100%;">
+                                    <img src="${transparentPixel}"
+                                         data-pending-src="${url}"
+                                         alt="${altText}"
+                                         loading="eager"
+                                         style="width: 100%; height: 100%; object-fit: cover;">
+                                </div>
+                            `;
         }).join('')}
                 </div>
                 
-                ${listing._images.length > 1 ? `
+                ${slideUrls.length > 1 ? `
                     <button class="image_arrow_prev" style="
                         position: absolute;
                         left: 10px;
@@ -8562,7 +8673,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         gap: 6px;
                         z-index: 100;
                     ">
-                        ${listing._images.slice(0, Math.min(5, listing._images.length)).map((_, index) => `
+                        ${slideUrls.slice(0, Math.min(5, slideUrls.length)).map((_, index) => `
                             <div class="carousel-dot" data-index="${index}" style="
                                 width: 8px;
                                 height: 8px;
@@ -8580,16 +8691,100 @@ document.addEventListener('DOMContentLoaded', function () {
 
         imagesContainer.innerHTML = carouselHTML;
 
-        // Retry each carousel image once if it fails to load.
-        const carouselImages = imagesContainer.querySelectorAll('img');
-        carouselImages.forEach((img) => {
-            attachSingleImageRetry(img);
-        });
-
         // Initialize carousel functionality
         let currentIndex = 0;
-        const totalImages = listing._images.length;
+        const totalImages = slideUrls.length;
         const track = imagesContainer.querySelector('.carousel-track');
+
+        function carouselSlideImg(slideIndex) {
+            if (!track || slideIndex < 0 || slideIndex >= totalImages) return null;
+            const slideEl = track.querySelectorAll('.carousel-slide')[slideIndex];
+            return slideEl ? slideEl.querySelector('img') : null;
+        }
+
+        function promotePendingCarouselSlide(slideIndex) {
+            const img = carouselSlideImg(slideIndex);
+            if (!img) return;
+            const pending = img.getAttribute('data-pending-src');
+            if (!pending) return;
+            img.removeAttribute('data-pending-src');
+            img.loading = 'eager';
+            try {
+                if ('fetchPriority' in img) {
+                    img.fetchPriority = 'auto';
+                }
+            } catch (_) {
+                /* ignore */
+            }
+            img.src = pending;
+            attachSingleImageRetry(img);
+        }
+
+        function loadPendingSlidesSequentiallyFrom(startIndex) {
+            if (!track || totalImages <= 1 || startIndex >= totalImages) return;
+
+            function loadAt(i) {
+                if (i >= totalImages) return;
+                const img = carouselSlideImg(i);
+                const pending = img && img.getAttribute('data-pending-src');
+                if (!pending) {
+                    loadAt(i + 1);
+                    return;
+                }
+                img.removeAttribute('data-pending-src');
+                img.loading = 'eager';
+                try {
+                    if ('fetchPriority' in img) {
+                        img.fetchPriority = 'auto';
+                    }
+                } catch (_) {
+                    /* ignore */
+                }
+                img.src = pending;
+                attachSingleImageRetry(img);
+
+                let proceeded = false;
+                function proceed() {
+                    if (proceeded) return;
+                    proceeded = true;
+                    loadAt(i + 1);
+                }
+                img.addEventListener('load', proceed, { once: true });
+                img.addEventListener('error', proceed, { once: true });
+                if (img.complete) {
+                    requestAnimationFrame(proceed);
+                }
+            }
+
+            loadAt(startIndex);
+        }
+
+        const firstSlideImg = track ? track.querySelector('.carousel-slide img') : null;
+        if (firstSlideImg) {
+            attachSingleImageRetry(firstSlideImg);
+            if (track) {
+                const nudgeFirstSlidePaint = () => {
+                    void track.offsetWidth;
+                    track.style.transform = `translateX(-${currentIndex * 100}%)`;
+                };
+                let afterFirstHandled = false;
+                function afterFirstSlideReady() {
+                    if (afterFirstHandled) return;
+                    afterFirstHandled = true;
+                    nudgeFirstSlidePaint();
+                    loadPendingSlidesSequentiallyFrom(1);
+                }
+                firstSlideImg.addEventListener('load', afterFirstSlideReady, { once: true });
+                firstSlideImg.addEventListener('error', afterFirstSlideReady, { once: true });
+                if (firstSlideImg.complete) {
+                    requestAnimationFrame(afterFirstSlideReady);
+                }
+                if (typeof firstSlideImg.decode === 'function') {
+                    firstSlideImg.decode().then(afterFirstSlideReady).catch(() => { });
+                }
+                setTimeout(afterFirstSlideReady, 4500);
+            }
+        }
         const prevButton = imagesContainer.querySelector('.image_arrow_prev');
         const nextButton = imagesContainer.querySelector('.image_arrow_next');
         const dots = imagesContainer.querySelectorAll('.carousel-dot');
@@ -8628,6 +8823,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 const isActive = index === (currentIndex % Math.min(5, totalImages));
                 dot.style.background = isActive ? 'white' : 'rgba(255, 255, 255, 0.5)';
             });
+
+            promotePendingCarouselSlide(currentIndex);
+            if (totalImages > 1) {
+                promotePendingCarouselSlide((currentIndex + 1) % totalImages);
+                promotePendingCarouselSlide(currentIndex === 0 ? totalImages - 1 : currentIndex - 1);
+            }
         }
 
         function goToNext() {
@@ -8806,6 +9007,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 updateCarousel();
             });
         });
+
+        updateCarousel(true);
 
         // Mark as initialized
         imagesContainer.classList.add('is-initialized');
@@ -9599,6 +9802,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
             }
         });
+
+        schedulePaginationHeroWarmup(currentListings, currentPage, listingsPerPage);
 
         // MODIFY THIS SECTION: Always render pagination, not just when !filteredOnly
         // Remove the if (!filteredOnly) condition
