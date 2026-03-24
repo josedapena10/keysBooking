@@ -7998,6 +7998,9 @@ document.addEventListener('DOMContentLoaded', function () {
     let isSearchInProgress = false;
     let hasPendingSearchRequest = false;
     let pendingSearchTriggeredByButton = false;
+    let shouldDelayPaginationRender = false;
+    let paginationShowTimeout = null;
+    const PAGINATION_SHOW_DELAY_MS = 300;
 
     // ADD THIS: Skeleton loading functionality at the top after the existing variables
     let skeletonTimeout = null;
@@ -8145,6 +8148,10 @@ document.addEventListener('DOMContentLoaded', function () {
             if (paginationContainer) {
                 paginationContainer.style.display = 'none';
             }
+            if (paginationShowTimeout) {
+                clearTimeout(paginationShowTimeout);
+                paginationShowTimeout = null;
+            }
 
             // Show skeleton container
             skeletonContainer.style.display = 'flex';
@@ -8233,6 +8240,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         try {
             isSearchInProgress = true;
+            shouldDelayPaginationRender = true;
 
             // Wait for user data to be loaded (for age-based filtering)
             await waitForUserData();
@@ -8441,6 +8449,28 @@ document.addEventListener('DOMContentLoaded', function () {
         };
     }
 
+    function attachSingleImageRetry(img) {
+        if (!img || img.dataset.retryHandlerBound === '1') {
+            return;
+        }
+
+        img.dataset.retryHandlerBound = '1';
+        img.addEventListener('error', function () {
+            if (img.dataset.retryAttempted === '1') {
+                return;
+            }
+
+            const currentSrc = img.getAttribute('src') || img.src;
+            if (!currentSrc) {
+                return;
+            }
+
+            img.dataset.retryAttempted = '1';
+            const retrySrc = `${currentSrc}${currentSrc.includes('?') ? '&' : '?'}imgRetryTs=${Date.now()}`;
+            img.src = retrySrc;
+        });
+    }
+
     function initializeCustomCarouselForCard(card, listing) {
         // Find the images container within the card
         const imagesContainer = card.querySelector('[data-element="listing-card-images-container"]');
@@ -8549,6 +8579,12 @@ document.addEventListener('DOMContentLoaded', function () {
         `;
 
         imagesContainer.innerHTML = carouselHTML;
+
+        // Retry each carousel image once if it fails to load.
+        const carouselImages = imagesContainer.querySelectorAll('img');
+        carouselImages.forEach((img) => {
+            attachSingleImageRetry(img);
+        });
 
         // Initialize carousel functionality
         let currentIndex = 0;
@@ -8807,8 +8843,8 @@ document.addEventListener('DOMContentLoaded', function () {
             return;
         }
 
-        // Show pagination container
-        paginationContainer.style.display = 'flex';
+        // Build first, then show (optionally delayed) to avoid flash before cards are ready
+        paginationContainer.style.display = 'none';
         paginationContainer.innerHTML = '';
 
         // Previous button
@@ -8921,6 +8957,21 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
             });
             paginationContainer.appendChild(nextBtn);
+        }
+
+        if (paginationShowTimeout) {
+            clearTimeout(paginationShowTimeout);
+            paginationShowTimeout = null;
+        }
+
+        if (shouldDelayPaginationRender) {
+            paginationShowTimeout = setTimeout(() => {
+                paginationContainer.style.display = 'flex';
+                shouldDelayPaginationRender = false;
+                paginationShowTimeout = null;
+            }, PAGINATION_SHOW_DELAY_MS);
+        } else {
+            paginationContainer.style.display = 'flex';
         }
     }
 
@@ -9123,7 +9174,10 @@ document.addEventListener('DOMContentLoaded', function () {
                     });
                 }
                 if (subtitle) subtitle.textContent = listing.listing_city_state || '';
-                if (image && listing.image_url) image.src = listing.image_url;
+                if (image) {
+                    attachSingleImageRetry(image);
+                    if (listing.image_url) image.src = listing.image_url;
+                }
 
                 // Set review info
                 if (reviewAverage && reviewCount) {
