@@ -14180,6 +14180,9 @@ document.addEventListener('DOMContentLoaded', () => {
         this.selectWrapper.style.display = 'flex';
         this.detailsWrapper.style.display = 'none';
 
+        // Reset details scroll again after close + layout (same as back/X/background leave).
+        this.resetBoatDetailsScrollPosition();
+
         // Update boat block UI
         if (window.populateSelectedBoatBlock) {
           window.populateSelectedBoatBlock();
@@ -18372,6 +18375,10 @@ document.addEventListener('DOMContentLoaded', () => {
         this.closeAllPopups();
 
         if (this.modal) this.modal.style.display = 'none';
+
+        // Match boat modal: next open starts on select view with details hidden.
+        if (this.selectWrapper) this.selectWrapper.style.display = 'flex';
+        if (this.detailsWrapper) this.detailsWrapper.style.display = 'none';
 
         // Restore details popups to original parents (mobile fix)
         if (this.detailsDatesPopup && this.detailsDatesPopup._originalParent) {
@@ -23681,6 +23688,9 @@ document.addEventListener('DOMContentLoaded', () => {
           this.clearPriceFilter();
           this.clearFishingTypeFilter();
           this.clearPrivateDockFilter();
+
+          // Reset details scroll after successful save + filter cleanup (modal already closed).
+          this.resetFishingCharterDetailsScrollPosition();
         } finally {
           // Reset the flag after a short delay to prevent legitimate consecutive calls
           setTimeout(() => {
