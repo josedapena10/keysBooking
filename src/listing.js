@@ -4451,10 +4451,8 @@ document.addEventListener('DOMContentLoaded', () => {
               const detailsWrapper = document.querySelector('[data-element="addBoatModal_boatDetailsWrapper"]');
 
               if (modal && selectWrapper && detailsWrapper) {
-                // Show loader overlay on first open while content loads
-                if (!window._boatDetailsContentLoaded) {
-                  window._showDetailsLoader('boat');
-                }
+                // Always show loader when switching/editing boats to prevent stale-photo flash.
+                if (window._showDetailsLoader) window._showDetailsLoader('boat');
 
                 modal.style.display = 'flex';
                 selectWrapper.style.display = 'none';
@@ -6913,6 +6911,9 @@ document.addEventListener('DOMContentLoaded', () => {
         this.detailsBackButton = document.querySelector('[data-element="boatDetails_back"]');
         this.boatDetailsXButton = document.querySelector('[data-element="boatDetails_xButton"]');
         this.currentBoatData = null; // Store current boat being viewed
+
+        // Session counter to prevent stale async boat detail renders.
+        this._showBoatDetailsSeq = 0;
 
         // Filter elements
         this.selectedBoatBlock = document.querySelector('[data-element="selectedBoatBlock"]');
@@ -10266,17 +10267,15 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       closeModal() {
+        // Invalidate any in-flight showBoatDetails calls.
+        this._showBoatDetailsSeq = (this._showBoatDetailsSeq || 0) + 1;
+
         // Close all popups first
         this.closeAllPopups();
+        this.resetBoatDetailsScrollPosition();
 
         this.modal.style.display = 'none';
         this.detailsWrapper.style.display = 'none';
-
-        // Reset scroll positions
-        const detailsContent = document.querySelector('[data-element="boatDetails_contentContainer"]');
-        if (detailsContent) {
-          detailsContent.scrollTop = 0;
-        }
 
         // Show select wrapper for next time modal is opened
         this.selectWrapper.style.display = 'flex';
@@ -10322,6 +10321,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Update reservation block visibility (should show in desktop view)
         this.updateReservationBlockVisibility();
+      }
+
+      resetBoatDetailsScrollPosition() {
+        const resetAll = () => {
+          const detailContents = document.querySelectorAll('[data-element="boatDetails_contentContainer"]');
+          detailContents.forEach((el) => {
+            if (el) el.scrollTop = 0;
+          });
+
+          if (this.detailsWrapper) {
+            this.detailsWrapper.scrollTop = 0;
+          }
+        };
+
+        // Reset immediately and once more on next frame to survive layout/view switches.
+        resetAll();
+        requestAnimationFrame(() => {
+          resetAll();
+        });
       }
 
       resetModalState() {
@@ -11986,9 +12004,16 @@ document.addEventListener('DOMContentLoaded', () => {
       // BOAT DETAILS VIEW METHODS
       // ==========================================
 
-      async showBoatDetails(boat) {
+      async showBoatDetails(boat, sessionSeq) {
+        if (typeof sessionSeq !== 'number') {
+          sessionSeq = (this._showBoatDetailsSeq = (this._showBoatDetailsSeq || 0) + 1);
+        }
+
         // Close all popups when entering boat details view
         this.closeAllPopups();
+
+        // Cover any already-rendered photos while we populate/update.
+        if (window._showDetailsLoader) window._showDetailsLoader('boat');
 
         // Store the current boat data
         this.currentBoatData = boat;
@@ -12006,14 +12031,10 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         }
 
+        if (sessionSeq !== this._showBoatDetailsSeq) return;
+
         // Hide the select wrapper (but keep details wrapper hidden until populated)
         this.selectWrapper.style.display = 'none';
-
-        // Reset details content container scroll position
-        const detailsContent = document.querySelector('[data-element="boatDetails_contentContainer"]');
-        if (detailsContent) {
-          detailsContent.scrollTop = 0;
-        }
 
         // Sync pickup time visual state from add boat wrapper to boat details
         // First, clear all boat details pickup time pill borders
@@ -12053,6 +12074,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Populate the boat details
         await this.populateBoatDetails(boat);
+
+        if (sessionSeq !== this._showBoatDetailsSeq) return;
 
         // Handle min days requirement (public dock, private dock if selected, or boat minimum)
         const publicDockDetails = this.getPublicDockDeliveryDetails(boat);
@@ -12095,18 +12118,24 @@ document.addEventListener('DOMContentLoaded', () => {
         // Update reservation block visibility
         this.updateReservationBlockVisibility();
 
+        if (sessionSeq !== this._showBoatDetailsSeq) return;
+
         // Hide loader and show content now that everything is populated
         if (window._hideDetailsLoader) window._hideDetailsLoader('boat');
 
         // Use requestAnimationFrame to ensure DOM updates are painted before showing modal
         // This prevents flash of unstyled content
         requestAnimationFrame(() => {
-          this.detailsWrapper.style.display = 'flex';
+          if (sessionSeq === this._showBoatDetailsSeq) {
+            this.detailsWrapper.style.display = 'flex';
+          }
         });
       }
 
       hideBoatDetails() {
         // Hide details wrapper and show select wrapper
+        // Reset scroll BEFORE hiding details wrapper to ensure scrollTop sticks.
+        this.resetBoatDetailsScrollPosition();
         this.detailsWrapper.style.display = 'none';
         this.selectWrapper.style.display = 'flex';
 
@@ -16026,7 +16055,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Handle editing an existing boat - fetch data and open to details view
       async handleEditBoat(boatId) {
+        const sessionSeq = (this._showBoatDetailsSeq = (this._showBoatDetailsSeq || 0) + 1);
         try {
+          // Prevent stale-photo flash while we fetch & repopulate details.
+          if (window._showDetailsLoader) window._showDetailsLoader('boat');
+
           // Load existing boat parameters from URL
           const urlParams = new URLSearchParams(window.location.search);
           const boatGuests = urlParams.get('boatGuests');
@@ -16066,26 +16099,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
           // Fetch all boat options to get the complete boat data
           const allBoats = await this.fetchBoatOptions();
+          if (sessionSeq !== this._showBoatDetailsSeq) return;
           const boatToEdit = allBoats.find(boat => boat.id == boatId);
 
           if (boatToEdit) {
-            // Show loader overlay on first open while content loads
-            if (!window._boatDetailsContentLoaded) {
-              window._showDetailsLoader('boat');
-            }
+            if (sessionSeq !== this._showBoatDetailsSeq) return;
 
             // Show modal
             this.modal.style.display = 'flex';
             document.body.classList.add('no-scroll');
 
             // Show boat details with the fetched data
-            await this.showBoatDetails(boatToEdit);
+            await this.showBoatDetails(boatToEdit, sessionSeq);
           } else {
-            this.closeModal();
+            if (sessionSeq === this._showBoatDetailsSeq) this.closeModal();
           }
 
         } catch (error) {
-          this.closeModal();
+          if (sessionSeq === this._showBoatDetailsSeq) this.closeModal();
         }
       }
     }
@@ -16337,10 +16368,8 @@ document.addEventListener('DOMContentLoaded', () => {
           if (detailsWrapper) detailsWrapper.style.display = 'flex';
 
           // Hide footer elements before modal opens to prevent stale content flash
-          // Show loader overlay on first open while content loads
-          if (!window._boatDetailsContentLoaded) {
-            window._showDetailsLoader('boat');
-          }
+          // Always show loader when switching/editing boats to prevent stale-photo flash.
+          if (window._showDetailsLoader) window._showDetailsLoader('boat');
 
           // THEN: Show the modal (now with correct wrapper already visible)
           window.boatRentalService.modal.style.display = 'flex';
@@ -17187,7 +17216,12 @@ document.addEventListener('DOMContentLoaded', () => {
           requestAnimationFrame(() => preflexCharterDatesPopupForAutoOpen());
         }
 
-        // Show modal directly to details view (details loader is shown inside showFishingCharterDetails)
+        // Show loader before opening modal/details to avoid stale-content flash while fetching.
+        if (window._showDetailsLoader) {
+          window._showDetailsLoader('charter');
+        }
+
+        // Show modal directly to details view
         if (this.modal) this.modal.style.display = 'flex';
         this.selectWrapper.style.display = 'none';
         this.detailsWrapper.style.display = 'flex';
@@ -18332,6 +18366,7 @@ document.addEventListener('DOMContentLoaded', () => {
         this._showCharterDetailsSeq = (this._showCharterDetailsSeq || 0) + 1;
         this._detailsTripsFetchSeq = (this._detailsTripsFetchSeq || 0) + 1;
         this._setTripTypesAvailabilityLoading(false);
+        this.resetFishingCharterDetailsScrollPosition();
 
         // Close all popups first
         this.closeAllPopups();
@@ -18440,6 +18475,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Re-enable body scroll
         document.body.classList.remove('no-scroll');
+      }
+
+      resetFishingCharterDetailsScrollPosition() {
+        const resetAll = () => {
+          const detailContents = document.querySelectorAll('[data-element="fishingCharterDetails_contentContainer"]');
+          const first = detailContents[0] || null;
+          detailContents.forEach((el) => {
+            if (el) el.scrollTop = 0;
+          });
+
+          if (this.detailsWrapper) {
+            this.detailsWrapper.scrollTop = 0;
+          }
+
+          if (first) {
+            this.detailsContentContainer = first;
+          }
+        };
+
+        // Reset immediately and once more on next frame to survive layout/view switches.
+        resetAll();
+        requestAnimationFrame(() => {
+          resetAll();
+        });
       }
 
       resetModalState() {
@@ -19499,10 +19558,9 @@ document.addEventListener('DOMContentLoaded', () => {
         this.selectWrapper.style.display = 'none';
         this.detailsWrapper.style.display = 'flex';
 
-        // Scroll details content container to top (unless we're about to scroll to dates popup)
-        if (!skipScrollReset && this.detailsContentContainer) {
-          this.detailsContentContainer.scrollTop = 0;
-        }
+        // Keep an up-to-date reference to the details content container.
+        const detailsContent = this.detailsContentContainer || document.querySelector('[data-element="fishingCharterDetails_contentContainer"]');
+        if (detailsContent) this.detailsContentContainer = detailsContent;
 
         // Scroll details filter container to the left
         const detailsFilterContainer = document.querySelector('[data-element="fishingCharterDetailsModal_selectFishingCharter_container"]');
@@ -19865,12 +19923,13 @@ document.addEventListener('DOMContentLoaded', () => {
           const newBackButton = document.querySelector('[data-element="fishingCharterDetails_back"]');
 
           newBackButton.addEventListener('click', async () => {
-            const isEditingCharter = this.isEditMode || !!this.editingCharterNumber;
 
             // Sync filters from details view back to main before re-rendering list
             this.transferValuesToMain();
 
             // Show select wrapper
+            // Reset scroll BEFORE hiding details wrapper to ensure scrollTop sticks.
+            this.resetFishingCharterDetailsScrollPosition();
             this.detailsWrapper.style.display = 'none';
             this.selectWrapper.style.display = 'flex';
 
