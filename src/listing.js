@@ -14,7 +14,8 @@ window._showDetailsLoader = function (type) {
   container.style.display = 'none';
 
   const loaderId = `_${type}DetailsLoader`;
-  if (document.getElementById(loaderId)) return;
+  const existing = document.getElementById(loaderId);
+  if (existing) existing.remove();
 
   const overlay = document.createElement('div');
   overlay.id = loaderId;
@@ -50,7 +51,6 @@ window._hideDetailsLoader = function (type) {
   if (overlay) overlay.remove();
 
   if (type === 'boat') window._boatDetailsContentLoaded = true;
-  else window._charterDetailsContentLoaded = true;
 };
 
 // Global utility function to truncate text to fit within parent container
@@ -6764,8 +6764,18 @@ document.addEventListener('DOMContentLoaded', () => {
         if (cached) return cached;
         try {
           const data = await this._fetch('fishingCharters_batchAvailability', params);
-          this._setCache(key, data);
-          return data;
+          const normalized = {
+            dates: Array.isArray(data?.dates) ? data.dates : [],
+            charters: Array.isArray(data?.charters)
+              ? data.charters.map(charter => ({
+                  fishingCharters_id: charter?.fishingCharters_id,
+                  charter_name: charter?.charter_name || '',
+                  available: charter?.available === true
+                }))
+              : []
+          };
+          this._setCache(key, normalized);
+          return normalized;
         } catch (e) {
           return { dates: [], charters: [] };
         }
@@ -16520,6 +16530,8 @@ document.addEventListener('DOMContentLoaded', () => {
         this.batchAvailabilityData = null;
         this.charterAvailableTripsCache = {};
         this.charterDisabledDatesCache = {};
+        this._showCharterDetailsSeq = 0;
+        this._detailsTripsFetchSeq = 0;
 
         // Florida Keys order for proximity sorting
         this.floridaKeysOrder = [
@@ -17119,12 +17131,7 @@ document.addEventListener('DOMContentLoaded', () => {
           requestAnimationFrame(() => preflexCharterDatesPopupForAutoOpen());
         }
 
-        // Show loader overlay on first open while content loads
-        if (!window._charterDetailsContentLoaded) {
-          window._showDetailsLoader('charter');
-        }
-
-        // Show modal directly to details view
+        // Show modal directly to details view (details loader is shown inside showFishingCharterDetails)
         if (this.modal) this.modal.style.display = 'flex';
         this.selectWrapper.style.display = 'none';
         this.detailsWrapper.style.display = 'flex';
@@ -18265,6 +18272,11 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       closeModal(skipStyleUpdates = false) {
+        // Invalidate in-flight charter details / trip availability work
+        this._showCharterDetailsSeq = (this._showCharterDetailsSeq || 0) + 1;
+        this._detailsTripsFetchSeq = (this._detailsTripsFetchSeq || 0) + 1;
+        this._setTripTypesAvailabilityLoading(false);
+
         // Close all popups first
         this.closeAllPopups();
 
@@ -19413,6 +19425,17 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       async showFishingCharterDetails(charter, skipScrollReset = false) {
+        this._showCharterDetailsSeq = (this._showCharterDetailsSeq || 0) + 1;
+        this._detailsTripsFetchSeq = (this._detailsTripsFetchSeq || 0) + 1;
+        const sessionSeq = this._showCharterDetailsSeq;
+
+        this._setTripTypesAvailabilityLoading(false);
+
+        if (window._showDetailsLoader) window._showDetailsLoader('charter');
+        if (charter?.id != null) {
+          delete this.charterAvailableTripsCache[charter.id];
+        }
+
         // Close all popups when entering charter details view
         this.closeAllPopups();
 
@@ -19442,6 +19465,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Populate fishing charter details
         await this.populateFishingCharterDetails(charter);
+        if (sessionSeq !== this._showCharterDetailsSeq) return;
 
         // Setup back button
         this.setupFishingCharterDetailsBackButton();
@@ -19456,20 +19480,25 @@ document.addEventListener('DOMContentLoaded', () => {
         if (charterCheckin && charterCheckout && charter.id) {
           try {
             const disabledDates = await CalendarAvailabilityService.fetchCharterDisabledDates(charter.id, charterCheckin, charterCheckout);
+            if (sessionSeq !== this._showCharterDetailsSeq) return;
             this.charterDisabledDatesCache[charter.id] = disabledDates;
           } catch (e) {
+            if (sessionSeq !== this._showCharterDetailsSeq) return;
             this.charterDisabledDatesCache[charter.id] = [];
           }
         }
         if (this.detailsSelectedDates.length > 0 && charter.id) {
           try {
             const availableTrips = await CalendarAvailabilityService.fetchCharterAvailableTrips(charter.id, this.detailsSelectedDates);
+            if (sessionSeq !== this._showCharterDetailsSeq) return;
             this.charterAvailableTripsCache[charter.id] = availableTrips;
           } catch (e) {
+            if (sessionSeq !== this._showCharterDetailsSeq) return;
             this.charterAvailableTripsCache[charter.id] = null;
           }
-        } else {
         }
+
+        if (sessionSeq !== this._showCharterDetailsSeq) return;
 
         // Re-render date selection now that disabled dates are loaded
         this.renderDetailsDateSelection();
@@ -19479,6 +19508,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Setup contact us form
         await this.setupFishingCharterContactUsForm(charter);
+        if (sessionSeq !== this._showCharterDetailsSeq) return;
 
         // Hide loader and show content now that everything is populated
         if (window._hideDetailsLoader) window._hideDetailsLoader('charter');
@@ -22884,21 +22914,69 @@ document.addEventListener('DOMContentLoaded', () => {
         this.updateDetailsDateButtonStyles();
         this.updateDetailsPrivateDockFilterAvailability();
 
-        // Re-fetch available trips for the new date selection
-        if (this.currentCharterData && this.detailsSelectedDates.length > 0) {
+        this._detailsTripsFetchSeq = (this._detailsTripsFetchSeq || 0) + 1;
+        const seq = this._detailsTripsFetchSeq;
+
+        const willFetch = !!(this.currentCharterData && this.detailsSelectedDates.length > 0);
+        if (willFetch) {
+          this._setTripTypesAvailabilityLoading(true);
+        }
+
+        if (this.currentCharterData?.id != null) {
+          delete this.charterAvailableTripsCache[this.currentCharterData.id];
+        }
+
+        if (willFetch) {
           try {
             const availableTrips = await CalendarAvailabilityService.fetchCharterAvailableTrips(
               this.currentCharterData.id, this.detailsSelectedDates
             );
+            if (seq !== this._detailsTripsFetchSeq) return;
             this.charterAvailableTripsCache[this.currentCharterData.id] = availableTrips;
           } catch (e) {
+            if (seq !== this._detailsTripsFetchSeq) return;
             this.charterAvailableTripsCache[this.currentCharterData.id] = null;
           }
         } else if (this.currentCharterData) {
           this.charterAvailableTripsCache[this.currentCharterData.id] = null;
         }
 
+        if (seq !== this._detailsTripsFetchSeq) return;
+
+        this._setTripTypesAvailabilityLoading(false);
         this.renderTripTypes(this.currentCharterData);
+      }
+
+      _setTripTypesAvailabilityLoading(loading) {
+        const container = this.detailsTripTypeContainer || this.tripTypeWrapper;
+        if (!container) return;
+        if (getComputedStyle(container).position === 'static') {
+          container.style.position = 'relative';
+        }
+        if (!document.getElementById('_dlSpinStyle')) {
+          const style = document.createElement('style');
+          style.id = '_dlSpinStyle';
+          style.textContent = '@keyframes _dlSpin{to{transform:rotate(360deg)}}';
+          document.head.appendChild(style);
+        }
+        const loaderId = '_charterTripTypesAvailabilityLoader';
+        let el = document.getElementById(loaderId);
+        if (loading) {
+          if (!el) {
+            el = document.createElement('div');
+            el.id = loaderId;
+            el.setAttribute('aria-busy', 'true');
+            el.style.cssText = 'display:flex;align-items:center;justify-content:center;position:absolute;inset:0;z-index:6;background:rgba(255,255,255,0.92);';
+            const spinner = document.createElement('div');
+            spinner.style.cssText = 'width:28px;height:28px;border:3px solid #e5e7eb;border-top-color:#111;border-radius:50%;animation:_dlSpin .7s linear infinite;';
+            el.appendChild(spinner);
+            container.appendChild(el);
+          } else {
+            el.style.display = 'flex';
+          }
+        } else if (el) {
+          el.remove();
+        }
       }
 
       updateDetailsDateButtonStyles() {
