@@ -3475,6 +3475,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const navBarCloseButton = document.querySelector('[data-element="navBarSearch_closeButton"]');
         const navBarClearButton = document.querySelector('[data-element="navBarSearch_clearButton"]');
         const phoneViewSearchButton = document.querySelector('[data-element="navBarSearch_phone_searchButton"]');
+        const phoneViewMapViewButtonFooter = document.querySelector('[data-element="phoneViewMapViewButtonFooter"]');
 
         // Type popup buttons
         const typePopupCloseButton = document.querySelector('[data-element="navBarSearch_typePopup_closeButton"]');
@@ -3966,6 +3967,14 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 // Update phone view content
                 updatePhoneViewContent();
+            });
+        }
+
+        if (phoneViewMapViewButtonFooter) {
+            phoneViewMapViewButtonFooter.addEventListener('click', () => {
+                if (window.innerWidth <= 991) {
+                    window.scrollTo(0, 0);
+                }
             });
         }
 
