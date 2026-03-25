@@ -4210,6 +4210,58 @@ document.addEventListener('DOMContentLoaded', function () {
             return details || null;
         };
 
+        // Helper function to compute boat base price from dynamic price tiers.
+        // Uses the closest lower/equal tier when no exact day match exists.
+        const computeBoatBasePriceFromTiers = (boat, daysToCalculate) => {
+            const targetDays = Number(daysToCalculate);
+            if (!Number.isFinite(targetDays) || targetDays <= 0) return 0;
+
+            const parseNumeric = (value) => {
+                if (value === null || value === undefined || value === '') return NaN;
+                if (typeof value === 'number') return value;
+                return Number(String(value).replace(/,/g, '').trim());
+            };
+
+            const tiers = Array.isArray(boat?.prices)
+                ? boat.prices
+                    .map(tier => ({
+                        days: parseNumeric(tier?.days),
+                        price: parseNumeric(tier?.price),
+                    }))
+                    .filter(tier =>
+                        Number.isFinite(tier.days) &&
+                        tier.days > 0 &&
+                        Number.isFinite(tier.price) &&
+                        tier.price >= 0
+                    )
+                    .sort((a, b) => a.days - b.days)
+                : [];
+
+            if (!tiers.length) return 0;
+
+            const exactTier = tiers.find(tier => Math.abs(tier.days - targetDays) < 1e-9);
+            if (exactTier) {
+                return Math.round(exactTier.price);
+            }
+
+            let anchorTier = null;
+            for (const tier of tiers) {
+                if (tier.days <= targetDays) {
+                    anchorTier = tier;
+                } else {
+                    break;
+                }
+            }
+
+            // If target is smaller than the smallest tier, use the smallest tier's daily rate.
+            if (!anchorTier) {
+                anchorTier = tiers[0];
+            }
+
+            const dailyRate = anchorTier.price / anchorTier.days;
+            return Math.round(dailyRate * targetDays);
+        };
+
         // Very simple YMD overlap helpers; adapt to your real availability
         const isDateRangeBlocked = (checkInYMD, checkOutYMD, blockedRanges = []) => {
             if (!checkInYMD || !checkOutYMD || !hasArr(blockedRanges)) return false;
@@ -4448,9 +4500,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 const boatMinDays = boat.minReservationLength || 0;
 
                 // Only consider private dock minimum if dock delivery filter is selected
+                let privateDockDetails = null;
                 let privateDockMinDays = 0;
                 if (filters.dockDelivery) {
-                    const privateDockDetails = getPrivateDockDeliveryDetails(boat, listingCity);
+                    privateDockDetails = getPrivateDockDeliveryDetails(boat, listingCity);
                     privateDockMinDays = privateDockDetails?.minDays ? Number(privateDockDetails.minDays) : 0;
                 }
 
@@ -4475,43 +4528,13 @@ document.addEventListener('DOMContentLoaded', function () {
                     daysToCalculate = 1;
                 }
 
-                // Calculate base price based on rental duration (from commented code logic)
-                if (daysToCalculate < 1) {
-                    // Half day rental - use half day price, or fall back to daily price
-                    basePrice = boat.pricePerHalfDay || boat.pricePerDay || 0;
-                } else if (daysToCalculate >= 1 && daysToCalculate <= 6) {
-                    // Daily rental (1-6 days)
-                    basePrice = (boat.pricePerDay || 0) * daysToCalculate;
-                } else if (daysToCalculate >= 7 && daysToCalculate <= 29) {
-                    // Weekly rental (7-29 days)
-                    if (boat.pricePerWeek && boat.pricePerWeek > 0) {
-                        // Calculate based on weekly rate and round to avoid decimals
-                        const dailyWeeklyRate = boat.pricePerWeek / 7;
-                        basePrice = Math.round(dailyWeeklyRate * daysToCalculate);
-                    } else {
-                        // Fall back to daily rate if weekly not available
-                        basePrice = (boat.pricePerDay || 0) * daysToCalculate;
-                    }
-                } else if (daysToCalculate >= 30) {
-                    // Monthly rental (30+ days)
-                    if (boat.pricePerMonth && boat.pricePerMonth > 0) {
-                        // Calculate based on monthly rate and round to avoid decimals
-                        const dailyMonthlyRate = boat.pricePerMonth / 30;
-                        basePrice = Math.round(dailyMonthlyRate * daysToCalculate);
-                    } else if (boat.pricePerWeek && boat.pricePerWeek > 0) {
-                        // Fall back to weekly rate if monthly not available and round to avoid decimals
-                        const dailyWeeklyRate = boat.pricePerWeek / 7;
-                        basePrice = Math.round(dailyWeeklyRate * daysToCalculate);
-                    } else {
-                        // Fall back to daily rate if neither monthly nor weekly available
-                        basePrice = (boat.pricePerDay || 0) * daysToCalculate;
-                    }
-                }
+                // Calculate base price from dynamic pricing tiers in boat.prices
+                basePrice = computeBoatBasePriceFromTiers(boat, daysToCalculate);
 
                 // Dock fees are mutually exclusive: public dock OR private dock, never both.
                 if (filters.dockDelivery === true) {
-                    // Private dock: fee is the company's deliveryFee
-                    basePrice += boat._boatcompany?.deliveryFee || 0;
+                    // Private dock: fee comes from the matched privateDockDeliveryCity city entry
+                    basePrice += Number(privateDockDetails?.fee) || 0;
                 } else if (publicDockDetails && publicDockDetails.fee) {
                     basePrice += Number(publicDockDetails.fee) || 0;
                 }

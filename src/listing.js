@@ -5552,8 +5552,8 @@ async function calculateBoatPricing() {
   const boatCompany = boatData._boat_company || boatData;
   const integrationType = boatCompany.integration_type || boatCompany.integrationType || '';
   const serviceFeeRate = boatCompany.serviceFee || 0;
-  const deliveryFeeAmount = boatCompany.deliveryFee || boatCompany.companyDeliveryFee || 0;
   const publicDockDetails = boatCompany.publicDockDeliveryDetails || [];
+  const privateDockDetails = boatData.deliversTo || boatCompany.privateDockDeliveryCity || [];
 
   // Calculate base price based on rental duration
   let basePrice = calculateBoatBasePrice(boatData, numDates);
@@ -5582,16 +5582,25 @@ async function calculateBoatPricing() {
           }
         }
 
+        // Get private dock fee for this city
+        if (Array.isArray(privateDockDetails)) {
+          const matchingPrivateDock = privateDockDetails.find(
+            detail => (detail.city || '').toLowerCase().trim() === listingCityLower
+          );
+          if (matchingPrivateDock && matchingPrivateDock.fee) {
+            privateDockFee = Number(matchingPrivateDock.fee) || 0;
+          }
+        }
+
       }
     }
   } catch (error) {
   }
 
   // Dock fees are mutually exclusive.
-  // For private dock, the fee is the company's deliveryFee (deliveryFeeAmount).
+  // For private dock, fee is city-based from privateDockDeliveryCity/deliversTo.
   // Service fee applies to whichever dock fee is active.
   if (boatDelivery) {
-    privateDockFee = deliveryFeeAmount;
     activeDockFee = privateDockFee;
   } else {
     activeDockFee = publicDockFee;
@@ -5625,37 +5634,62 @@ function calculateBoatBasePrice(boatData, numDates) {
     const lengthType = urlParams.get('boatLengthType') || 'full';
 
     if (lengthType === 'half') {
-      return boatData.pricePerHalfDay || 0;
+      return computeBoatBasePriceFromTiers(boatData, 0.5);
     } else {
-      return boatData.pricePerDay || 0;
+      return computeBoatBasePriceFromTiers(boatData, 1);
     }
   }
 
-  // Handle weekly pricing (7 days)
-  if (numDates === 7 && boatData.pricePerWeek) {
-    return boatData.pricePerWeek;
+  return computeBoatBasePriceFromTiers(boatData, numDates);
+}
+
+function computeBoatBasePriceFromTiers(boat, daysToCalculate) {
+  const targetDays = Number(daysToCalculate);
+  if (!Number.isFinite(targetDays) || targetDays <= 0) return 0;
+
+  const parseNumeric = (value) => {
+    if (value === null || value === undefined || value === '') return NaN;
+    if (typeof value === 'number') return value;
+    return Number(String(value).replace(/,/g, '').trim());
+  };
+
+  const tiers = Array.isArray(boat?.prices)
+    ? boat.prices
+      .map(tier => ({
+        days: parseNumeric(tier?.days),
+        price: parseNumeric(tier?.price),
+      }))
+      .filter(tier =>
+        Number.isFinite(tier.days) &&
+        tier.days > 0 &&
+        Number.isFinite(tier.price) &&
+        tier.price >= 0
+      )
+      .sort((a, b) => a.days - b.days)
+    : [];
+
+  if (!tiers.length) return 0;
+
+  const exactTier = tiers.find(tier => Math.abs(tier.days - targetDays) < 1e-9);
+  if (exactTier) {
+    return Math.round(exactTier.price);
   }
 
-  // Handle monthly pricing (30+ days)
-  if (numDates >= 30 && boatData.pricePerMonth) {
-    const months = Math.floor(numDates / 30);
-    const remainingDays = numDates % 30;
-    const monthlyPrice = boatData.pricePerMonth * months;
-
-    // Use weekly daily rate for remaining days if available
-    const dailyRate = boatData.pricePerWeek ? (boatData.pricePerWeek / 7) : (boatData.pricePerDay || 0);
-    return Math.round(monthlyPrice + (remainingDays * dailyRate));
+  let anchorTier = null;
+  for (const tier of tiers) {
+    if (tier.days <= targetDays) {
+      anchorTier = tier;
+    } else {
+      break;
+    }
   }
 
-  // Handle multi-day pricing
-  if (numDates > 7 && boatData.pricePerWeek) {
-    // Use weekly daily rate for longer rentals
-    const weeklyDailyRate = boatData.pricePerWeek / 7;
-    return Math.round(numDates * weeklyDailyRate);
+  if (!anchorTier) {
+    anchorTier = tiers[0];
   }
 
-  // Default to daily rate
-  return numDates * (boatData.pricePerDay || 0);
+  const dailyRate = anchorTier.price / anchorTier.days;
+  return Math.round(dailyRate * targetDays);
 }
 
 // Calculate fishing charter pricing based on selected charters
@@ -6768,10 +6802,10 @@ document.addEventListener('DOMContentLoaded', () => {
             dates: Array.isArray(data?.dates) ? data.dates : [],
             charters: Array.isArray(data?.charters)
               ? data.charters.map(charter => ({
-                  fishingCharters_id: charter?.fishingCharters_id,
-                  charter_name: charter?.charter_name || '',
-                  available: charter?.available === true
-                }))
+                fishingCharters_id: charter?.fishingCharters_id,
+                charter_name: charter?.charter_name || '',
+                available: charter?.available === true
+              }))
               : []
           };
           this._setCache(key, normalized);
@@ -10958,28 +10992,18 @@ document.addEventListener('DOMContentLoaded', () => {
         if (numDates === 0) {
           // No dates selected, use effective minimum or boat minimum
           const minLength = effectiveMinDays > 0 ? effectiveMinDays : (boat.minReservationLength || 0);
-          if (minLength <= 0.5) {
-            basePrice = boat.pricePerHalfDay || 0;
-          } else if (minLength < 1) {
-            basePrice = boat.pricePerHalfDay || boat.pricePerDay || 0;
-          } else {
-            // Use minimum days for pricing
-            basePrice = this.calculateMultiDayPrice(boat, minLength);
-          }
+          basePrice = this.computeBoatBasePriceFromTiers(boat, minLength);
         } else if (numDates === 1 && effectiveMinDays <= 1) {
           // Single day reservation (only if no minimum days restriction)
-          if (currentState.selectedLengthType === 'half') {
-            basePrice = boat.pricePerHalfDay || 0;
-          } else {
-            basePrice = boat.pricePerDay || 0;
-          }
+          const daysToCalculate = currentState.selectedLengthType === 'half' ? 0.5 : 1;
+          basePrice = this.computeBoatBasePriceFromTiers(boat, daysToCalculate);
         } else {
           // Multi-day reservation
-          basePrice = this.calculateMultiDayPrice(boat, numDates);
+          basePrice = this.computeBoatBasePriceFromTiers(boat, numDates);
         }
 
         // Dock fees are mutually exclusive: either public dock OR private dock, never both.
-        // When private dock is selected, the fee is the company's deliveryFee (boat.companyDeliveryFee).
+        // When private dock is selected, the fee is city-based from private dock delivery details.
         // Service fee applies to basePrice + whichever dock fee is active.
         let publicDockFee = 0;
         let privateDockFee = 0;
@@ -10988,7 +11012,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const rawPublicDockFee = (publicDockDetails && publicDockDetails.fee) ? Number(publicDockDetails.fee) || 0 : 0;
 
         if (currentState.selectedPrivateDock) {
-          privateDockFee = (boat.companyDelivers && boat.companyDeliveryFee) ? boat.companyDeliveryFee : 0;
+          const privateDockDetails = this.getPrivateDockDeliveryDetails(boat);
+          privateDockFee = privateDockDetails?.fee ? Number(privateDockDetails.fee) || 0 : 0;
           activeDockFee = privateDockFee;
         } else {
           publicDockFee = rawPublicDockFee;
@@ -11017,27 +11042,55 @@ document.addEventListener('DOMContentLoaded', () => {
         };
       }
 
-      // Helper method to calculate multi-day pricing
-      calculateMultiDayPrice(boat, numDates) {
-        if (numDates >= 30 && boat.pricePerMonth) {
-          const months = Math.floor(numDates / 30);
-          const remainingDays = numDates % 30;
-          const monthlyPrice = boat.pricePerMonth * months;
+      // Helper function to compute boat base price from dynamic price tiers.
+      // Uses the closest lower/equal tier when there is no exact day match.
+      computeBoatBasePriceFromTiers(boat, daysToCalculate) {
+        const targetDays = Number(daysToCalculate);
+        if (!Number.isFinite(targetDays) || targetDays <= 0) return 0;
 
-          let dailyRate = boat.pricePerDay || 0;
-          if (boat.pricePerWeek) {
-            dailyRate = boat.pricePerWeek / 7;
-          }
+        const parseNumeric = (value) => {
+          if (value === null || value === undefined || value === '') return NaN;
+          if (typeof value === 'number') return value;
+          return Number(String(value).replace(/,/g, '').trim());
+        };
 
-          return Math.round(monthlyPrice + (remainingDays * dailyRate));
-        } else if (numDates === 7 && boat.pricePerWeek) {
-          return boat.pricePerWeek;
-        } else if (numDates > 7 && boat.pricePerWeek) {
-          const weeklyDailyRate = boat.pricePerWeek / 7;
-          return Math.round(numDates * weeklyDailyRate);
-        } else {
-          return numDates * (boat.pricePerDay || 0);
+        const tiers = Array.isArray(boat?.prices)
+          ? boat.prices
+            .map(tier => ({
+              days: parseNumeric(tier?.days),
+              price: parseNumeric(tier?.price),
+            }))
+            .filter(tier =>
+              Number.isFinite(tier.days) &&
+              tier.days > 0 &&
+              Number.isFinite(tier.price) &&
+              tier.price >= 0
+            )
+            .sort((a, b) => a.days - b.days)
+          : [];
+
+        if (!tiers.length) return 0;
+
+        const exactTier = tiers.find(tier => Math.abs(tier.days - targetDays) < 1e-9);
+        if (exactTier) {
+          return Math.round(exactTier.price);
         }
+
+        let anchorTier = null;
+        for (const tier of tiers) {
+          if (tier.days <= targetDays) {
+            anchorTier = tier;
+          } else {
+            break;
+          }
+        }
+
+        if (!anchorTier) {
+          anchorTier = tiers[0];
+        }
+
+        const dailyRate = anchorTier.price / anchorTier.days;
+        return Math.round(dailyRate * targetDays);
       }
 
       filterBoats(boats) {
@@ -14357,8 +14410,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const publicDockDetailsForText = this.getPublicDockDeliveryDetails(boat);
         const rawPublicDockFee = publicDockDetailsForText?.fee ? Number(publicDockDetailsForText.fee) || 0 : 0;
 
-        const companyDeliveryFee = boat.companyDeliveryFee || 0;
-        const totalAdditionalCost = Math.max(0, (rawPrivateDockFee + companyDeliveryFee) - rawPublicDockFee);
+        const dockFeeDelta = Math.max(0, rawPrivateDockFee - rawPublicDockFee);
+        const integrationType = String(boat.integrationType || boat?._boat_company?.integration_type || '');
+        const serviceFeeRate = Number(boat.serviceFee ?? boat?._boat_company?.serviceFee) || 0;
+        const serviceFeeOnDelta = integrationType !== 'Manual' ? (dockFeeDelta * serviceFeeRate) : 0;
+        const totalAdditionalCost = Math.max(0, Math.round(dockFeeDelta + serviceFeeOnDelta));
 
         let deliveryTextContent = '';
         if (totalAdditionalCost === 0) {
