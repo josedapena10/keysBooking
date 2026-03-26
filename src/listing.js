@@ -15107,6 +15107,9 @@ document.addEventListener('DOMContentLoaded', () => {
           datesGrid.appendChild(emptyCell);
         }
 
+        // Private dock in boat details: filter + delivery checkbox should both count for min-days rules
+        const privateDockDeliveryActive = this.selectedPrivateDock || this.deliverySelected;
+
         // Calculate effective min days for the current boat
         let effectiveMinDays = 0;
         if (this.currentBoatData) {
@@ -15114,9 +15117,8 @@ document.addEventListener('DOMContentLoaded', () => {
           const publicDockMinDays = publicDockDetails?.minDays ? Number(publicDockDetails.minDays) : 0;
           const boatMinDays = this.currentBoatData.minReservationLength || 0;
 
-          // Only consider private dock minimum if private dock delivery is selected
           let privateDockMinDays = 0;
-          if (this.selectedPrivateDock) {
+          if (privateDockDeliveryActive) {
             const privateDockDetails = this.getPrivateDockDeliveryDetails(this.currentBoatData);
             privateDockMinDays = privateDockDetails?.minDays ? Number(privateDockDetails.minDays) : 0;
           }
@@ -15156,7 +15158,7 @@ document.addEventListener('DOMContentLoaded', () => {
               let consecutiveAvailable = 0;
               for (let di = dateIndex; di < dateArray.length; di++) {
                 if (calendarDisabledDates.includes(dateArray[di])) break;
-                if (this.selectedPrivateDock && dateArray[di] === propertyCheckin) break;
+                if (privateDockDeliveryActive && dateArray[di] === propertyCheckin) break;
                 consecutiveAvailable++;
                 if (consecutiveAvailable >= effectiveMinDays) break;
               }
@@ -15167,13 +15169,13 @@ document.addEventListener('DOMContentLoaded', () => {
             }
           }
 
-          // Rule: If private dock is selected, disable check-in date (even before any dates are selected)
-          if (!isDisabled && !isSoftDisabled && this.selectedPrivateDock && isCheckinDate) {
+          // Rule: If private dock delivery is active, disable check-in date (even before any dates are selected)
+          if (!isDisabled && !isSoftDisabled && privateDockDeliveryActive && isCheckinDate) {
             isSoftDisabled = true;
             disabledTooltip = 'Private dock delivery not available on check-in date';
           }
-          // Check minimum days requirement only when private dock is NOT selected
-          else if (!isDisabled && !isSoftDisabled && !this.selectedPrivateDock && this.selectedDates.length === 1 && effectiveMinDays > 1) {
+          // Minimum days (public dock, private dock, or boat): same intermediate-date rules as non–private-dock
+          else if (!isDisabled && !isSoftDisabled && this.selectedDates.length === 1 && effectiveMinDays > 1) {
             const firstSelectedDate = new Date(this.selectedDates[0]);
             const currentDate = new Date(dateStr);
 
@@ -15259,8 +15261,8 @@ document.addEventListener('DOMContentLoaded', () => {
               this.handleBoatDetailsDateSelection(dateStr);
             });
 
-            // Add tooltip for checkout date if private dock is selected
-            if (this.selectedPrivateDock && isCheckoutDate) {
+            // Add tooltip for checkout date if private dock delivery is active
+            if (privateDockDeliveryActive && isCheckoutDate) {
               dateBtn.addEventListener('mouseenter', () => {
                 const r = window.Wized?.data?.r;
                 const checkoutTime = r?.Load_Property_Details?.data?.property?.check_out_time || '10 AM';
@@ -15305,7 +15307,7 @@ document.addEventListener('DOMContentLoaded', () => {
           }
           // If clicking a different date, check min days requirement
           else {
-            // Calculate effective min days for this boat
+            // Calculate effective min days for this boat (include private dock when filter or delivery is on)
             let effectiveMinDays = 0;
             if (this.currentBoatData) {
               const publicDockDetails = this.getPublicDockDeliveryDetails(this.currentBoatData);
@@ -15313,7 +15315,7 @@ document.addEventListener('DOMContentLoaded', () => {
               const boatMinDays = this.currentBoatData.minReservationLength || 0;
 
               let privateDockMinDays = 0;
-              if (this.selectedPrivateDock) {
+              if (this.selectedPrivateDock || this.deliverySelected) {
                 const privateDockDetails = this.getPrivateDockDeliveryDetails(this.currentBoatData);
                 privateDockMinDays = privateDockDetails?.minDays ? Number(privateDockDetails.minDays) : 0;
               }
