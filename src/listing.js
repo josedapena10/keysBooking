@@ -13258,6 +13258,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
           carouselWrapper.addEventListener('touchstart', (e) => {
             touchStartX = e.changedTouches[0].screenX;
+            // Initialize end point to start so simple taps don't register as swipes.
+            touchEndX = touchStartX;
             touchStartY = e.changedTouches[0].screenY;
             isSwiping = true;
           }, { passive: false });
