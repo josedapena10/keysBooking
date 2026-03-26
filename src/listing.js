@@ -6914,6 +6914,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Session counter to prevent stale async boat detail renders.
         this._showBoatDetailsSeq = 0;
+        this._boatAddSectionScrollTop = 0;
+        this._boatAddCardScrollTop = 0;
+        this._resetBoatAddScrollOnBack = true;
 
         // Filter elements
         this.selectedBoatBlock = document.querySelector('[data-element="selectedBoatBlock"]');
@@ -10428,6 +10431,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Show modal
         this.modal.style.display = 'flex';
+        this._resetBoatAddScrollOnBack = true;
+        this._boatAddSectionScrollTop = 0;
+        this._boatAddCardScrollTop = 0;
+        if (this.selectWrapper) this.selectWrapper.scrollTop = 0;
+        if (this.cardWrapper) this.cardWrapper.scrollTop = 0;
 
         // Prevent body scroll when modal is open
         document.body.classList.add('no-scroll');
@@ -12033,6 +12041,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (sessionSeq !== this._showBoatDetailsSeq) return;
 
+        if (!this._resetBoatAddScrollOnBack) {
+          this._boatAddSectionScrollTop = this.selectWrapper ? this.selectWrapper.scrollTop : 0;
+          this._boatAddCardScrollTop = this.cardWrapper ? this.cardWrapper.scrollTop : 0;
+        }
+
         // Hide the select wrapper (but keep details wrapper hidden until populated)
         this.selectWrapper.style.display = 'none';
 
@@ -12177,10 +12190,18 @@ document.addEventListener('DOMContentLoaded', () => {
         // The date buttons already exist and updateDateButtonStyles() will style them correctly
 
         // Re-filter and render boats with current filter parameters
-        this.fetchAndRenderBoats(false); // Use cached data
+        const targetSectionScrollTop = this._resetBoatAddScrollOnBack ? 0 : (this._boatAddSectionScrollTop || 0);
+        const targetCardScrollTop = this._resetBoatAddScrollOnBack ? 0 : (this._boatAddCardScrollTop || 0);
+        Promise.resolve(this.fetchAndRenderBoats(false)).then(() => {
+          requestAnimationFrame(() => {
+            if (this.selectWrapper) this.selectWrapper.scrollTop = targetSectionScrollTop;
+            if (this.cardWrapper) this.cardWrapper.scrollTop = targetCardScrollTop;
+          });
+        }); // Use cached data
 
         // Clear the current boat data
         this.currentBoatData = null;
+        this._resetBoatAddScrollOnBack = false;
 
         // Update reservation block visibility (should show in desktop after hiding boat details)
         this.updateReservationBlockVisibility();
@@ -13584,11 +13605,14 @@ document.addEventListener('DOMContentLoaded', () => {
           let touchEndX = 0;
           let isSwiping = false;
           let touchStartY = 0;
+          let hasTouchMoved = false;
 
           carouselWrapper.addEventListener('touchstart', (e) => {
             touchStartX = e.changedTouches[0].screenX;
+            touchEndX = touchStartX;
             touchStartY = e.changedTouches[0].screenY;
             isSwiping = true;
+            hasTouchMoved = false;
           }, { passive: false });
 
           carouselWrapper.addEventListener('touchmove', (e) => {
@@ -13605,11 +13629,19 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             touchEndX = touchCurrentX;
+            if (deltaX > 8 || deltaY > 8) {
+              hasTouchMoved = true;
+            }
           }, { passive: false });
 
           carouselWrapper.addEventListener('touchend', () => {
             if (!isSwiping) return;
             isSwiping = false;
+            if (!hasTouchMoved) {
+              touchStartX = 0;
+              touchEndX = 0;
+              return;
+            }
 
             const swipeThreshold = 50; // Minimum swipe distance in pixels
             const swipeDistance = touchStartX - touchEndX;
@@ -16064,6 +16096,9 @@ document.addEventListener('DOMContentLoaded', () => {
       async handleEditBoat(boatId) {
         const sessionSeq = (this._showBoatDetailsSeq = (this._showBoatDetailsSeq || 0) + 1);
         try {
+          this._resetBoatAddScrollOnBack = true;
+          this._boatAddSectionScrollTop = 0;
+          this._boatAddCardScrollTop = 0;
           // Prevent stale-photo flash while we fetch & repopulate details.
           if (window._showDetailsLoader) window._showDetailsLoader('boat');
 
@@ -16623,6 +16658,9 @@ document.addEventListener('DOMContentLoaded', () => {
         this.charterAvailableTripsCache = {};
         this.charterDisabledDatesCache = {};
         this._showCharterDetailsSeq = 0;
+        this._charterAddSectionScrollTop = 0;
+        this._charterAddCardScrollTop = 0;
+        this._resetCharterAddScrollOnBack = true;
         this._detailsTripsFetchSeq = 0;
 
         // Florida Keys order for proximity sorting
@@ -17154,6 +17192,9 @@ document.addEventListener('DOMContentLoaded', () => {
         // Store the charter number being edited
         this.editingCharterNumber = trip.number;
         this.editingCharterId = trip.charterId;
+        this._resetCharterAddScrollOnBack = true;
+        this._charterAddSectionScrollTop = 0;
+        this._charterAddCardScrollTop = 0;
 
         // Get the original dates from URL parameters for this charter
         const urlParams = new URLSearchParams(window.location.search);
@@ -18304,6 +18345,11 @@ document.addEventListener('DOMContentLoaded', () => {
           this.modal.style.display = 'flex';
           this.selectWrapper.style.display = 'flex';
           this.detailsWrapper.style.display = 'none';
+          this._resetCharterAddScrollOnBack = true;
+          this._charterAddSectionScrollTop = 0;
+          this._charterAddCardScrollTop = 0;
+          if (this.selectWrapper) this.selectWrapper.scrollTop = 0;
+          if (this.cardWrapper) this.cardWrapper.scrollTop = 0;
 
           // Scroll filter container to the left
           const selectFilterContainer = document.querySelector('[data-element="addFishingCharterModal_selectFishingCharter_container"]');
@@ -19565,6 +19611,11 @@ document.addEventListener('DOMContentLoaded', () => {
         // Close all popups when entering charter details view
         this.closeAllPopups();
 
+        if (!this._resetCharterAddScrollOnBack) {
+          this._charterAddSectionScrollTop = this.selectWrapper ? this.selectWrapper.scrollTop : 0;
+          this._charterAddCardScrollTop = this.cardWrapper ? this.cardWrapper.scrollTop : 0;
+        }
+
         // Hide select wrapper and show details wrapper
         this.selectWrapper.style.display = 'none';
         this.detailsWrapper.style.display = 'flex';
@@ -19952,6 +20003,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Re-render with current filters using cached data
             await this.fetchAndRenderFishingCharters(false);
+            const targetSectionScrollTop = this._resetCharterAddScrollOnBack ? 0 : (this._charterAddSectionScrollTop || 0);
+            const targetCardScrollTop = this._resetCharterAddScrollOnBack ? 0 : (this._charterAddCardScrollTop || 0);
+            requestAnimationFrame(() => {
+              if (this.selectWrapper) this.selectWrapper.scrollTop = targetSectionScrollTop;
+              if (this.cardWrapper) this.cardWrapper.scrollTop = targetCardScrollTop;
+            });
+            this._resetCharterAddScrollOnBack = false;
           });
         }
       }
