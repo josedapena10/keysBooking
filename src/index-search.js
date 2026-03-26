@@ -142,6 +142,17 @@ document.addEventListener('DOMContentLoaded', function () {
     // Default state: show text, hide loader
     setSearchButtonLoadingState(false);
 
+    function scrollToTopAfterSuccessfulSearch() {
+        window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+
+        const listingsContainer = document.querySelector(
+            '[data-element="listings-container"], #listings-container, .listings-container'
+        );
+        if (listingsContainer) {
+            listingsContainer.scrollIntoView({ behavior: 'auto', block: 'start' });
+        }
+    }
+
     // ADD THIS: Flag to track if map has been initialized
     let isMapInitialized = false;
 
@@ -931,6 +942,7 @@ document.addEventListener('DOMContentLoaded', function () {
             // Handle search results
             if (!searchResults?.error) {
                 localStorage.setItem('propertySearchResults', JSON.stringify(searchResults));
+                scrollToTopAfterSuccessfulSearch();
             } else {
             }
 
@@ -3855,6 +3867,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Handle search results
                 if (!searchResults?.error) {
                     localStorage.setItem('propertySearchResults', JSON.stringify(searchResults));
+                    scrollToTopAfterSuccessfulSearch();
                 } else {
                 }
 
@@ -3948,6 +3961,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Handle search results
                 if (!searchResults?.error) {
                     localStorage.setItem('propertySearchResults', JSON.stringify(searchResults));
+                    scrollToTopAfterSuccessfulSearch();
                 } else {
                 }
 
@@ -8609,6 +8623,18 @@ document.addEventListener('DOMContentLoaded', function () {
             return; // Already initialized
         }
 
+        if (!document.getElementById('listing-card-image-skeleton-styles')) {
+            const skeletonStyles = document.createElement('style');
+            skeletonStyles.id = 'listing-card-image-skeleton-styles';
+            skeletonStyles.textContent = `
+                @keyframes listingCardImageSkeletonShimmer {
+                    0% { background-position: 100% 0; }
+                    100% { background-position: -100% 0; }
+                }
+            `;
+            document.head.appendChild(skeletonStyles);
+        }
+
         const altText = listing.property_name || 'Property Photo';
         const transparentPixel =
             'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
@@ -8618,6 +8644,15 @@ document.addEventListener('DOMContentLoaded', function () {
         // navigates ahead, updateCarousel() promotes pending slides for current/next/prev immediately.
         const carouselHTML = `
             <div class="custom-carousel" style="position: relative; width: 100%; height: 100%; border-radius: 5px; overflow: hidden;">
+                <div class="listing-card-image-skeleton" style="
+                    position: absolute;
+                    inset: 0;
+                    z-index: 2;
+                    pointer-events: none;
+                    background: linear-gradient(90deg, #eeeeee 25%, #f5f5f5 50%, #eeeeee 75%);
+                    background-size: 200% 100%;
+                    animation: listingCardImageSkeletonShimmer 1.2s ease-in-out infinite;
+                "></div>
                 <div class="carousel-track" style="display: flex; width: 100%; height: 100%; transition: transform 0.3s ease;">
                     ${slideUrls.map((url, slideIndex) => {
             if (slideIndex === 0) {
@@ -8724,11 +8759,52 @@ document.addEventListener('DOMContentLoaded', function () {
         let currentIndex = 0;
         const totalImages = slideUrls.length;
         const track = imagesContainer.querySelector('.carousel-track');
+        const imageSkeleton = imagesContainer.querySelector('.listing-card-image-skeleton');
+
+        function setImageSkeletonVisible(isVisible) {
+            if (!imageSkeleton) return;
+            imageSkeleton.style.display = isVisible ? 'block' : 'none';
+        }
 
         function carouselSlideImg(slideIndex) {
             if (!track || slideIndex < 0 || slideIndex >= totalImages) return null;
             const slideEl = track.querySelectorAll('.carousel-slide')[slideIndex];
             return slideEl ? slideEl.querySelector('img') : null;
+        }
+
+        function syncCurrentSlideSkeleton() {
+            const currentImage = carouselSlideImg(currentIndex);
+            if (!currentImage) {
+                setImageSkeletonVisible(false);
+                return;
+            }
+
+            const hasPendingSrc = currentImage.hasAttribute('data-pending-src');
+            if (hasPendingSrc) {
+                setImageSkeletonVisible(true);
+                return;
+            }
+
+            if (currentImage.complete) {
+                setImageSkeletonVisible(false);
+                return;
+            }
+
+            setImageSkeletonVisible(true);
+        }
+
+        function bindSkeletonToImageLifecycle(img) {
+            if (!img || img.dataset.skeletonLifecycleBound === '1') return;
+            img.dataset.skeletonLifecycleBound = '1';
+
+            const onSettled = () => {
+                if (img === carouselSlideImg(currentIndex)) {
+                    setImageSkeletonVisible(false);
+                }
+            };
+
+            img.addEventListener('load', onSettled);
+            img.addEventListener('error', onSettled);
         }
 
         function promotePendingCarouselSlide(slideIndex) {
@@ -8747,6 +8823,10 @@ document.addEventListener('DOMContentLoaded', function () {
             }
             img.src = pending;
             attachSingleImageRetry(img);
+            bindSkeletonToImageLifecycle(img);
+            if (slideIndex === currentIndex) {
+                setImageSkeletonVisible(true);
+            }
         }
 
         function loadPendingSlidesSequentiallyFrom(startIndex) {
@@ -8791,6 +8871,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const firstSlideImg = track ? track.querySelector('.carousel-slide img') : null;
         if (firstSlideImg) {
             attachSingleImageRetry(firstSlideImg);
+            bindSkeletonToImageLifecycle(firstSlideImg);
             if (track) {
                 const nudgeFirstSlidePaint = () => {
                     void track.offsetWidth;
@@ -8801,6 +8882,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (afterFirstHandled) return;
                     afterFirstHandled = true;
                     nudgeFirstSlidePaint();
+                    syncCurrentSlideSkeleton();
                     loadPendingSlidesSequentiallyFrom(1);
                 }
                 firstSlideImg.addEventListener('load', afterFirstSlideReady, { once: true });
@@ -8817,6 +8899,8 @@ document.addEventListener('DOMContentLoaded', function () {
         const prevButton = imagesContainer.querySelector('.image_arrow_prev');
         const nextButton = imagesContainer.querySelector('.image_arrow_next');
         const dots = imagesContainer.querySelectorAll('.carousel-dot');
+        const allCarouselImages = imagesContainer.querySelectorAll('.carousel-slide img');
+        allCarouselImages.forEach(bindSkeletonToImageLifecycle);
 
         // Touch/scroll variables
         let startX = 0;
@@ -8858,6 +8942,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 promotePendingCarouselSlide((currentIndex + 1) % totalImages);
                 promotePendingCarouselSlide(currentIndex === 0 ? totalImages - 1 : currentIndex - 1);
             }
+
+            syncCurrentSlideSkeleton();
         }
 
         function goToNext() {
