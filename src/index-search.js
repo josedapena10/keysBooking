@@ -3224,8 +3224,8 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    /* Make Nav Bar logo hide if less than 360px */
-    @media screen and (max-width: 360px) {
+    /* Make Nav Bar logo hide if less than 375px */
+    @media screen and (max-width: 375px) {
         [data-element="LogoNavBar"] {
             display: none !important;
         }
