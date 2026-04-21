@@ -1,3 +1,5 @@
+import './host-additional-charges-modal.js';
+
 // for background 2nd click modal - mirror click
 var script = document.createElement('script');
 script.src = 'https://cdn.jsdelivr.net/npm/@finsweet/attributes-mirrorclick@1/mirrorclick.js';
@@ -190,6 +192,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // Track when content is visually loaded
 let contentVisuallyLoaded = false;
 let dataFetchingComplete = false;
+const XANO_BASE_URL = 'https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX';
 
 // Function to hide loader only when both conditions are met
 function checkAndHideLoader() {
@@ -218,14 +221,51 @@ window.Wized = window.Wized || [];
 window.Wized.push((async (Wized) => {
     await Wized.requests.waitFor('Load_user');
     const hostId = Wized.data.r.Load_user.data.id;
+    window.keysBookingHostUserId = hostId;
     initializeReservations(hostId);
 }));
+
+function getPaidAdditionalHostNetTotal(charges) {
+    return (charges || []).reduce((sum, charge) => {
+        const status = (charge.status || '').toLowerCase();
+        if (status !== 'payment_succeeded') return sum;
+        const base = parseFloat(charge.base_amount) || 0;
+        const hostFee = parseFloat(charge.hostFee_amount ?? charge.host_fee_amount) || 0;
+        return sum + Math.max(0, base - hostFee);
+    }, 0);
+}
+
+async function fetchAdditionalChargesPayoutMap(reservations, hostId) {
+    const ids = [...new Set((reservations || []).map((r) => r?.id).filter((id) => id != null))];
+    if (!ids.length || !hostId) return new Map();
+
+    const pairs = await Promise.all(ids.map(async (reservationId) => {
+        const url = `${XANO_BASE_URL}/additional_charges_by_reservation?reservation_id=${encodeURIComponent(reservationId)}&user_id=${encodeURIComponent(hostId)}&viewer_type=host`;
+        try {
+            const res = await fetch(url, { method: 'GET', headers: { 'Content-Type': 'application/json' } });
+            const text = await res.text();
+            const data = text ? JSON.parse(text) : [];
+            const rows = Array.isArray(data)
+                ? data
+                : Array.isArray(data?.items)
+                    ? data.items
+                    : Array.isArray(data?.reservation_additional_charges)
+                        ? data.reservation_additional_charges
+                        : [];
+            return [reservationId, getPaidAdditionalHostNetTotal(rows)];
+        } catch (_) {
+            return [reservationId, 0];
+        }
+    }));
+
+    return new Map(pairs);
+}
 
 // Main function to fetch and display reservations
 async function initializeReservations(hostId) {
     try {
         // Fetch reservations
-        const response = await fetch(`https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/host_reservations?host_id=${hostId}`, {
+        const response = await fetch(`${XANO_BASE_URL}/host_reservations?host_id=${hostId}`, {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json'
@@ -247,6 +287,13 @@ async function initializeReservations(hostId) {
         // Extract cancelled reservations - handle nested array structure
         const cancelledReservationsArrays = data.cancelled_reservations || [];
         const cancelledReservations = cancelledReservationsArrays.flat() || [];
+
+        const allReservationsForPayout = [...reservations, ...cancelledReservations];
+        const additionalPayoutByReservationId = await fetchAdditionalChargesPayoutMap(allReservationsForPayout, hostId);
+        allReservationsForPayout.forEach((reservation) => {
+            const extraPayout = additionalPayoutByReservationId.get(reservation.id) || 0;
+            reservation._additionalChargesHostNetPaid = extraPayout;
+        });
 
         processAndDisplayReservations(reservations, cancelledReservations);
 
@@ -544,7 +591,8 @@ function displayReservations(reservations, type) {
                 const nightsAmount = reservation.nights_amount || 0;
                 const cleaningAmount = reservation.cleaning_amount || 0;
                 const hostFeeAmount = reservation.hostFee_amount || 0;
-                const total = nightsAmount + cleaningAmount - hostFeeAmount;
+                const additionalPayout = parseFloat(reservation._additionalChargesHostNetPaid) || 0;
+                const total = nightsAmount + cleaningAmount - hostFeeAmount + additionalPayout;
                 // Format to accounting format with thousands separator and 2 decimal places
                 const formattedTotal = total.toLocaleString('en-US', {
                     style: 'decimal',
@@ -614,6 +662,10 @@ function displayReservations(reservations, type) {
 function displayReservationModal(reservation) {
     const modal = document.querySelector('[data-element="reservationInfoModal"]');
     if (!modal) return;
+
+    if (window.keysBookingAdditionalCharges && typeof window.keysBookingAdditionalCharges.setHostReservationContext === 'function') {
+        window.keysBookingAdditionalCharges.setHostReservationContext(modal, reservation);
+    }
 
     // Update modal information
     const nameElement = modal.querySelector('[data-element="reservationInfoModal_name"]');
@@ -1102,6 +1154,10 @@ function displayReservationModal(reservation) {
 
         // Make scrollbar always visible
         modalContent.style.overflowY = 'scroll';
+    }
+
+    if (window.keysBookingAdditionalCharges && typeof window.keysBookingAdditionalCharges.loadAndRenderAdditionalCharges === 'function') {
+        void window.keysBookingAdditionalCharges.loadAndRenderAdditionalCharges(modal, reservation);
     }
 
     // Show the modal

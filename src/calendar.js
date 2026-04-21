@@ -1,3 +1,5 @@
+import './host-additional-charges-modal.js';
+
 // var script = document.createElement('script');
 // script.src = 'https://cdn.jsdelivr.net/npm/fullcalendar@6.1.17/index.global.min.js';
 // document.body.appendChild(script);
@@ -262,6 +264,7 @@ document.addEventListener('DOMContentLoaded', function () {
     let lastAvailableDate = null; // Track the last available date from API
     let propertiesData = []; // Store all properties data
     let hostReservations = []; // Store host reservations data
+    let additionalPayoutByReservationId = new Map(); // paid additional-fee host net by reservation
     let blockedDateRanges = []; // Move this to a higher scope
 
     // Shared state for edit-dates (survives multiple setupEditDatesFeature calls / duplicate handlers)
@@ -307,6 +310,7 @@ document.addEventListener('DOMContentLoaded', function () {
         try {
             await Wized.requests.waitFor('Load_user');
             userId = Wized.data.r.Load_user.data.id;
+            window.keysBookingHostUserId = userId;
 
             // Fetch host reservations data
             await fetchHostReservations();
@@ -353,6 +357,45 @@ document.addEventListener('DOMContentLoaded', function () {
         } catch (error) {
             console.error('Error fetching host reservations:', error);
         }
+    }
+
+    function getPaidAdditionalHostNetTotal(charges) {
+        return (charges || []).reduce((sum, charge) => {
+            const status = (charge.status || '').toLowerCase();
+            if (status !== 'payment_succeeded') return sum;
+            const base = parseFloat(charge.base_amount) || 0;
+            const hostFee = parseFloat(charge.hostFee_amount ?? charge.host_fee_amount) || 0;
+            return sum + Math.max(0, base - hostFee);
+        }, 0);
+    }
+
+    async function fetchAdditionalPayoutMapForReservations(reservations) {
+        const ids = [...new Set((reservations || []).map((r) => r?.id).filter((id) => id != null))];
+        if (!ids.length || !userId) return new Map();
+
+        const pairs = await Promise.all(ids.map(async (reservationId) => {
+            const url = `https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/additional_charges_by_reservation?reservation_id=${encodeURIComponent(reservationId)}&user_id=${encodeURIComponent(userId)}&viewer_type=host`;
+            try {
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const text = await response.text();
+                const data = text ? JSON.parse(text) : [];
+                const rows = Array.isArray(data)
+                    ? data
+                    : Array.isArray(data?.items)
+                        ? data.items
+                        : Array.isArray(data?.reservation_additional_charges)
+                            ? data.reservation_additional_charges
+                            : [];
+                return [reservationId, getPaidAdditionalHostNetTotal(rows)];
+            } catch (_) {
+                return [reservationId, 0];
+            }
+        }));
+
+        return new Map(pairs);
     }
 
     // Function to fetch calendar data from API
@@ -454,6 +497,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
 
             }
+
+            additionalPayoutByReservationId = await fetchAdditionalPayoutMapForReservations(data.reservations || []);
 
             processCalendarData(data);
             initializeCalendar();
@@ -617,7 +662,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 const checkOutDate = reservation.check_out;
 
                 // Calculate payout amount
-                const payoutAmount = (reservation.nights_amount + reservation.cleaning_amount - reservation.hostFee_amount).toLocaleString('en-US', {
+                const nightsAmount = parseFloat(reservation.nights_amount) || 0;
+                const cleaningAmount = parseFloat(reservation.cleaning_amount) || 0;
+                const hostFeeAmount = parseFloat(reservation.hostFee_amount) || 0;
+                const additionalNet = additionalPayoutByReservationId.get(reservation.id) || 0;
+                const totalPayout = nightsAmount + cleaningAmount - hostFeeAmount + additionalNet;
+                const payoutAmount = totalPayout.toLocaleString('en-US', {
                     style: 'decimal',
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2
@@ -1914,7 +1964,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 .fc-day-past {
                     cursor: not-allowed !important;
                 }
-                .fc-day-past .fc-event {
+                .fc-day-past .fc-event:not(.multi-day-reservation) {
                     cursor: not-allowed !important;
                     background-color: transparent !important;
                 }
@@ -1997,13 +2047,15 @@ document.addEventListener('DOMContentLoaded', function () {
                     document.activeElement.blur();
                 }
 
+                const isReservationEvent = info.event.extendedProps.type === 'reservation';
+
                 // Check if the clicked date is in the past
                 const clickedDate = info.event.start;
                 const today = new Date();
                 today.setHours(0, 0, 0, 0); // Set to beginning of day for accurate comparison
 
-                // Prevent clicks on past dates
-                if (clickedDate < today) {
+                // Prevent clicks on past dates only for non-reservation event editing
+                if (!isReservationEvent && clickedDate < today) {
                     return;
                 }
 
@@ -2101,16 +2153,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Handle date click
                 const clickedDate = new Date(info.dateStr);
 
-                // Check if the clicked date is in the past
-                const today = new Date();
-                today.setHours(0, 0, 0, 0); // Set to beginning of day for accurate comparison
-
-                // Prevent clicks on past dates
-                if (clickedDate < today) {
-                    return;
-                }
-
-                // Rest of the original dateClick handler...
                 // Find any reservation events that span this date
                 const reservationOnDate = calendarEvents.find(event => {
                     if (event.extendedProps?.type === 'reservation') {
@@ -2122,6 +2164,15 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
                     return false;
                 });
+
+                // Check if the clicked date is in the past
+                const today = new Date();
+                today.setHours(0, 0, 0, 0); // Set to beginning of day for accurate comparison
+
+                // Prevent clicks on past dates only when the date is not part of a reservation
+                if (!reservationOnDate && clickedDate < today) {
+                    return;
+                }
 
                 // If we found a reservation that spans this date, simulate clicking on it
                 if (reservationOnDate) {
@@ -4532,6 +4583,10 @@ document.addEventListener('DOMContentLoaded', function () {
         const modal = document.querySelector('[data-element="reservationInfoModal"]');
         if (!modal) return;
 
+        if (window.keysBookingAdditionalCharges && typeof window.keysBookingAdditionalCharges.setHostReservationContext === 'function') {
+            window.keysBookingAdditionalCharges.setHostReservationContext(modal, selectedReservation);
+        }
+
         // Update modal information
         const nameElement = modal.querySelector('[data-element="reservationInfoModal_name"]');
         if (nameElement && selectedReservation._guest_user?.First_Name && selectedReservation._guest_user?.Last_Name) {
@@ -5019,6 +5074,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
             // Make scrollbar always visible
             modalContent.style.overflowY = 'scroll';
+        }
+
+        if (window.keysBookingAdditionalCharges && typeof window.keysBookingAdditionalCharges.loadAndRenderAdditionalCharges === 'function') {
+            void window.keysBookingAdditionalCharges.loadAndRenderAdditionalCharges(modal, selectedReservation);
         }
 
         // Show the modal

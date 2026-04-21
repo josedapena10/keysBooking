@@ -1,3 +1,5 @@
+import './host-additional-charges-modal.js';
+
 // for background 2nd click modal - mirror click
 var script = document.createElement('script');
 script.src = 'https://cdn.jsdelivr.net/npm/@finsweet/attributes-mirrorclick@1/mirrorclick.js';
@@ -212,6 +214,7 @@ window.Wized = window.Wized || [];
 window.Wized.push((async (Wized) => {
     await Wized.requests.waitFor('Load_user');
     const hostId = Wized.data.r.Load_user.data.id;
+    window.keysBookingHostUserId = hostId;
 
     // Use Promise.all to track when both data fetches complete
     await Promise.all([
@@ -492,6 +495,10 @@ function displayReservations(reservations, isCurrent) {
 function displayReservationModal(reservation) {
     const modal = document.querySelector('[data-element="reservationInfoModal"]');
     if (!modal) return;
+
+    if (window.keysBookingAdditionalCharges && typeof window.keysBookingAdditionalCharges.setHostReservationContext === 'function') {
+        window.keysBookingAdditionalCharges.setHostReservationContext(modal, reservation);
+    }
 
     // Update modal information
     const nameElement = modal.querySelector('[data-element="reservationInfoModal_name"]');
@@ -973,6 +980,10 @@ function displayReservationModal(reservation) {
 
         // Make scrollbar always visible
         modalContent.style.overflowY = 'scroll';
+    }
+
+    if (window.keysBookingAdditionalCharges && typeof window.keysBookingAdditionalCharges.loadAndRenderAdditionalCharges === 'function') {
+        void window.keysBookingAdditionalCharges.loadAndRenderAdditionalCharges(modal, reservation);
     }
 
     // Show the modal
