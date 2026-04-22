@@ -8424,6 +8424,33 @@ document.addEventListener('DOMContentLoaded', () => {
         const propertyCheckin = urlParamsForDates.get('checkin');
         const propertyCheckout = urlParamsForDates.get('checkout');
 
+        // Cache disabled dates for this boat and derive the contiguous selectable segment
+        // around a single selected date (cannot cross unavailable dates).
+        const calendarDisabledDates = this.boatDisabledDatesCache[this.currentBoatData?.id] || [];
+        let contiguousSegmentStart = null;
+        let contiguousSegmentEnd = null;
+        if (this.selectedDates.length === 1) {
+          const selectedDate = this.selectedDates[0];
+          const selectedIndex = dateArray.indexOf(selectedDate);
+          if (selectedIndex >= 0) {
+            let startIndex = selectedIndex;
+            let endIndex = selectedIndex;
+
+            for (let i = selectedIndex - 1; i >= 0; i--) {
+              if (calendarDisabledDates.includes(dateArray[i])) break;
+              startIndex = i;
+            }
+
+            for (let i = selectedIndex + 1; i < dateArray.length; i++) {
+              if (calendarDisabledDates.includes(dateArray[i])) break;
+              endIndex = i;
+            }
+
+            contiguousSegmentStart = dateArray[startIndex];
+            contiguousSegmentEnd = dateArray[endIndex];
+          }
+        }
+
         // Create date buttons
         dateArray.forEach(dateStr => {
           const [year, month, day] = dateStr.split('-').map(Number);
@@ -15164,6 +15191,33 @@ document.addEventListener('DOMContentLoaded', () => {
         const propertyCheckin = checkin;
         const propertyCheckout = checkout;
 
+        // Cache disabled dates for the current boat and precompute the contiguous
+        // selectable segment around a single selected date.
+        const calendarDisabledDates = this.boatDisabledDatesCache[this.currentBoatData?.id] || [];
+        let contiguousSegmentStart = null;
+        let contiguousSegmentEnd = null;
+        if (this.selectedDates.length === 1) {
+          const selectedDate = this.selectedDates[0];
+          const selectedIndex = dateArray.indexOf(selectedDate);
+          if (selectedIndex >= 0) {
+            let startIndex = selectedIndex;
+            let endIndex = selectedIndex;
+
+            for (let i = selectedIndex - 1; i >= 0; i--) {
+              if (calendarDisabledDates.includes(dateArray[i])) break;
+              startIndex = i;
+            }
+
+            for (let i = selectedIndex + 1; i < dateArray.length; i++) {
+              if (calendarDisabledDates.includes(dateArray[i])) break;
+              endIndex = i;
+            }
+
+            contiguousSegmentStart = dateArray[startIndex];
+            contiguousSegmentEnd = dateArray[endIndex];
+          }
+        }
+
         // Create date buttons
         dateArray.forEach(dateStr => {
           const [year, month, day] = dateStr.split('-').map(Number);
@@ -15178,7 +15232,6 @@ document.addEventListener('DOMContentLoaded', () => {
           let disabledTooltip = null;
 
           // Check calendar availability - disable dates marked unavailable in the calendar
-          const calendarDisabledDates = this.boatDisabledDatesCache[this.currentBoatData?.id] || [];
           if (calendarDisabledDates.includes(dateStr)) {
             isDisabled = true;
             disabledTooltip = 'Unavailable';
@@ -15200,6 +15253,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 isSoftDisabled = true;
                 disabledTooltip = `Requires ${effectiveMinDays} consecutive days from this date`;
               }
+            }
+          }
+
+          // With one selected date, block all dates outside the contiguous available segment.
+          if (!isDisabled && !isSoftDisabled && this.selectedDates.length === 1) {
+            const firstSelectedDate = this.selectedDates[0];
+            const outsideSegment = contiguousSegmentStart && contiguousSegmentEnd &&
+              (dateStr < contiguousSegmentStart || dateStr > contiguousSegmentEnd);
+
+            if (dateStr !== firstSelectedDate && outsideSegment) {
+              isSoftDisabled = true;
+              disabledTooltip = 'Cannot select dates across unavailable days';
             }
           }
 
@@ -15243,10 +15308,12 @@ document.addEventListener('DOMContentLoaded', () => {
             dateBtn.style.opacity = '0.5';
             dateBtn.disabled = true;
           } else if (isSoftDisabled) {
-            dateBtn.style.cursor = 'pointer';
+            // Match unavailable visual styling for blocked-but-informational dates.
+            dateBtn.style.background = '#f5f5f5';
+            dateBtn.style.color = '#ccc';
+            dateBtn.style.cursor = 'not-allowed';
             dateBtn.style.opacity = '0.5';
-            dateBtn.style.background = 'white';
-            dateBtn.style.color = 'black';
+            dateBtn.style.border = '1px solid #ddd';
           } else {
             dateBtn.style.background = this.selectedDates.includes(dateStr) ? '#000000' : 'white';
             dateBtn.style.color = this.selectedDates.includes(dateStr) ? 'white' : 'black';
@@ -15364,9 +15431,17 @@ document.addEventListener('DOMContentLoaded', () => {
             // Generate all dates in the range
             const potentialRange = this.generateDateRange(startDateStr, endDateStr);
 
+            // Do not allow creating a range that overlaps unavailable dates.
+            const calendarDisabledDates = this.boatDisabledDatesCache[this.currentBoatData?.id] || [];
+            const hasUnavailableInRange = potentialRange.some(d => calendarDisabledDates.includes(d));
+
+            if (hasUnavailableInRange) {
+              // Keep the original first date; user must pick within same available segment.
+              this.selectedDates = [existingDateStr];
+            }
             // If min days requirement exists and clicking a date before the existing selection
             // or the range doesn't meet min days, replace the selection instead of creating invalid range
-            if (effectiveMinDays > 1 && (dateStr < existingDateStr || potentialRange.length < effectiveMinDays)) {
+            else if (effectiveMinDays > 1 && (dateStr < existingDateStr || potentialRange.length < effectiveMinDays)) {
               // Replace with new single date selection
               this.selectedDates = [dateStr];
             } else {
