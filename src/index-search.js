@@ -6017,6 +6017,15 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Setup Dock Section
         function setupDockSection() {
+            function clearPrivateDockDependentFilters() {
+                // Reset filters that are currently tied to the Private Dock UI.
+                pendingFilters.dock.hasShorePower = null;
+                pendingFilters.dock.hasFreshWater = null;
+                pendingFilters.dock.hasCleaningStation = null;
+                pendingFilters.dock.hasDockLights = null;
+                pendingFilters.dock.hasMinBoatLength = null;
+            }
+
             // Initialize pending dock state from active state
             function initializePendingDockState() {
                 // Copy active state to pending
@@ -6101,6 +6110,13 @@ document.addEventListener('DOMContentLoaded', function () {
                     privateDockCheckbox.addEventListener('click', () => {
                         const hasPrivateDock = !pendingFilters.dock.hasPrivateDock;
                         pendingFilters.dock.hasPrivateDock = hasPrivateDock ? true : null;
+
+                        // If user turns Private Dock off, clear dependent dock specs/length filters
+                        // so they do not remain counted as active.
+                        if (!hasPrivateDock) {
+                            clearPrivateDockDependentFilters();
+                        }
+
                         updateDockUI();
                     });
                     privateDockCheckbox.setAttribute('data-dock-listener-added', 'true');
@@ -6530,14 +6546,19 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Add this function before the return statement in setupFilterSystem
         function setupPetsSection() {
+            function normalizePetsAllowedValue(value) {
+                return value === true ? true : null;
+            }
+
             function initializePendingPetsState() {
+                activeFilters.petsAllowed = normalizePetsAllowedValue(activeFilters.petsAllowed);
                 pendingFilters.petsAllowed = activeFilters.petsAllowed;
                 updatePetsUI();
             }
 
             function updatePetsUI() {
                 if (petsAllowedCheckbox) {
-                    const isSelected = !!pendingFilters.petsAllowed;
+                    const isSelected = pendingFilters.petsAllowed === true;
                     petsAllowedCheckbox.style.backgroundColor = isSelected ? '#000' : '#fff';
                 }
             }
@@ -6551,8 +6572,8 @@ document.addEventListener('DOMContentLoaded', function () {
             if (petsAllowedCheckbox) {
                 if (!petsAllowedCheckbox.hasAttribute('data-pets-listener-added')) {
                     petsAllowedCheckbox.addEventListener('click', () => {
-                        // Toggle the pending state
-                        pendingFilters.petsAllowed = !pendingFilters.petsAllowed;
+                        // Toggle between default (null) and selected (true)
+                        pendingFilters.petsAllowed = pendingFilters.petsAllowed === true ? null : true;
                         updatePetsUI();
                     });
                     petsAllowedCheckbox.setAttribute('data-pets-listener-added', 'true');
@@ -6600,7 +6621,7 @@ document.addEventListener('DOMContentLoaded', function () {
             if (activeFilters.amenities.length > 0) {
             }
 
-            if (activeFilters.petsAllowed !== null) {
+            if (activeFilters.petsAllowed === true) {
                 count++;
             }
 
@@ -6639,7 +6660,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
             // Copy amenities and pets
             activeFilters.amenities = [...(pendingFilters.amenities || [])];
-            activeFilters.petsAllowed = pendingFilters.petsAllowed;
+            // Pets filter is a single checkbox in UI: only true counts as active.
+            activeFilters.petsAllowed = pendingFilters.petsAllowed === true ? true : null;
+            pendingFilters.petsAllowed = activeFilters.petsAllowed;
         }
 
         // Function to collect filter values from UI (kept for backward compatibility)
