@@ -569,6 +569,22 @@ function handleUserPayments(paymentsData) {
                     });
                 }
             }
+
+            // Process additional charges within this payment
+            if (payment._additional_charges && Array.isArray(payment._additional_charges) && payment._additional_charges.length > 0) {
+                payment._additional_charges.forEach((charge) => {
+                    const chargeStatus = getAdditionalChargePaymentStatus(charge);
+
+                    if (chargeStatus) {
+                        allPaymentItems.push({
+                            type: 'additionalCharge',
+                            data: charge,
+                            parentPayment: payment,
+                            status: chargeStatus
+                        });
+                    }
+                });
+            }
         });
     } else {
     }
@@ -607,6 +623,8 @@ function handleUserPayments(paymentsData) {
                 populateFishingCharterPaymentBlock(currentBlock, paymentItem.data, paymentItem.parentPayment, paymentItem.status);
             } else if (paymentItem.type === 'boat') {
                 populateBoatPaymentBlock(currentBlock, paymentItem.data, paymentItem.parentPayment, paymentItem.status);
+            } else if (paymentItem.type === 'additionalCharge') {
+                populateAdditionalChargePaymentBlock(currentBlock, paymentItem.data, paymentItem.parentPayment, paymentItem.status);
             }
         });
     } else {
@@ -748,6 +766,28 @@ function getBoatPaymentStatus(boatPayment) {
         return 'Refunded';
     }
 
+    return null;
+}
+
+// Function to determine additional charge payment status (Paid or Refunded)
+function getAdditionalChargePaymentStatus(charge) {
+    const status = (charge.status || '').toLowerCase();
+
+    // Paid: payment succeeded and not refunded
+    if (status === 'payment_succeeded') {
+        // If a refund has been issued, treat it as refunded
+        if (charge.refund_date !== null && charge.refunded_amount !== null && charge.refunded_amount > 0) {
+            return 'Refunded';
+        }
+        return 'Paid';
+    }
+
+    // Refunded: explicit refunded status
+    if (status === 'refunded') {
+        return 'Refunded';
+    }
+
+    // Don't display pending, declined, or other non-final statuses
     return null;
 }
 
@@ -908,6 +948,66 @@ function populateBoatPaymentBlock(block, boatPayment, parentPayment, status) {
             total = boatPayment.pricing.total;
         }
         amountBlock.textContent = `$${total.toFixed(2)}`;
+    }
+}
+
+// Function to populate additional charge payment block
+function populateAdditionalChargePaymentBlock(block, charge, parentPayment, status) {
+    // Use parent reservation's property image
+    const imageBlock = block.querySelector('[data-element="paymentsBlock_image"]');
+    if (imageBlock && parentPayment && parentPayment._property_main_image && parentPayment._property_main_image.property_image) {
+        imageBlock.src = parentPayment._property_main_image.property_image.url;
+    }
+
+    // Set payment status (Paid or Refunded)
+    const statusBlock = block.querySelector('[data-element="paymentsBlock_paymentStatus"]');
+    if (statusBlock) {
+        statusBlock.textContent = status;
+    }
+
+    // Set payment date from guest_response_at (when the guest paid the charge)
+    const dateBlock = block.querySelector('[data-element="paymentsBlock_date"]');
+    if (dateBlock) {
+        const paidAt = charge.guest_response_at || charge.created_at;
+        if (paidAt) {
+            const date = new Date(paidAt);
+            dateBlock.textContent = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        }
+    }
+
+    // Set card info - prefer charge card, fallback to parent payment card
+    const cardBlock = block.querySelector('[data-element="paymentsBlock_card"]');
+    if (cardBlock) {
+        const cardType = charge.card_type || (parentPayment && parentPayment.card_type) || '';
+        const cardLast4 = charge.card_last4 || (parentPayment && parentPayment.card_last4) || '';
+        if (cardType && cardLast4) {
+            cardBlock.textContent = `${cardType} ****${cardLast4}`;
+        }
+    }
+
+    // Set charge title alongside the parent reservation context (city + dates)
+    const cityDateBlock = block.querySelector('[data-element="paymentsBlock_cityDate"]');
+    if (cityDateBlock) {
+        const title = charge.title || 'Additional Charge';
+        const city = (parentPayment && parentPayment._property && parentPayment._property.listing_city) || '';
+        const dateRange = (parentPayment && parentPayment.check_in && parentPayment.check_out)
+            ? formatDateRange(parentPayment.check_in, parentPayment.check_out)
+            : '';
+
+        const contextParts = [city, dateRange].filter(Boolean).join(' • ');
+        cityDateBlock.textContent = contextParts ? `${title} • ${contextParts}` : title;
+    }
+
+    // Set amount - if refunded, show the post-refund amount; otherwise the total charged
+    const amountBlock = block.querySelector('[data-element="paymentsBlock_amount"]');
+    if (amountBlock) {
+        let amount = 0;
+        if (status === 'Refunded' && charge.refunded_amount !== null && charge.refunded_amount !== undefined) {
+            amount = (charge.total_amount || 0) - (charge.refunded_amount || 0);
+        } else if (charge.total_amount !== undefined && charge.total_amount !== null) {
+            amount = charge.total_amount;
+        }
+        amountBlock.textContent = `$${Number(amount).toFixed(2)}`;
     }
 }
 

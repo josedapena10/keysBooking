@@ -320,7 +320,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 detailsText.style.display = 'none';
                 detailsText.style.whiteSpace = 'pre-wrap'; // Preserve line breaks and spaces
                 detailsText.textContent = trip.details_text;
-                detailsButton.textContent = 'Show Trip Details ›';
+                detailsButton.textContent = 'Trip overview ↓';
 
                 // Add click handler for toggle
                 detailsButton.style.cursor = 'pointer';
@@ -329,10 +329,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     const isHidden = detailsText.style.display === 'none';
                     if (isHidden) {
                         detailsText.style.display = 'block';
-                        detailsButton.textContent = 'Hide Trip Details ‹';
+                        detailsButton.textContent = 'Hide overview ↑';
                     } else {
                         detailsText.style.display = 'none';
-                        detailsButton.textContent = 'Show Trip Details ›';
+                        detailsButton.textContent = 'Trip overview ↓';
                     }
                 });
             } else if (detailsContainer) {
@@ -796,6 +796,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Select the email and phone number buttons
     const copyEmailButton = document.querySelector('[data-element="help_copyEmail"]');
     const copyPhoneButton = document.querySelector('[data-element="help_copyPhone"]');
+    const callButton = document.querySelector('[data-element="help_call"]');
+    const sendEmailButton = document.querySelector('[data-element="help_sendEmail"]');
 
     // Email and phone number to copy
     const email = 'support@keysbooking.com';
@@ -813,6 +815,18 @@ document.addEventListener('DOMContentLoaded', () => {
         copyPhoneButton.addEventListener('click', () => {
             copyToClipboard(phoneNumber);
             alert('Phone number copied to clipboard!');
+        });
+    }
+
+    if (callButton) {
+        callButton.addEventListener('click', () => {
+            window.location.href = `tel:${phoneNumber}`;
+        });
+    }
+
+    if (sendEmailButton) {
+        sendEmailButton.addEventListener('click', () => {
+            window.location.href = `mailto:${email}`;
         });
     }
 });
