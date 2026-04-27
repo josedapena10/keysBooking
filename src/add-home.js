@@ -316,6 +316,13 @@ document.addEventListener('DOMContentLoaded', function () {
         document.body.style.overflow = '';
     }
 
+    // Function to update the message inside the saving overlay (used for
+    // per-photo upload progress).
+    function updateSavingProgress(text) {
+        const message = savingOverlay.querySelector('.saving-message');
+        if (message && typeof text === 'string') message.textContent = text;
+    }
+
     // Immediately hide save and exit button to prevent flash on initial load
     if (saveAndExitButton) {
         saveAndExitButton.style.display = 'none';
@@ -573,7 +580,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 pendingRequests.push(rulesPromise);
             }
 
-            // If photos or cover photos were added, make the property_photos_add_home request
+            // Photos: upload ONE PER REQUEST, sequentially, with timeout +
+            // retry. The Xano endpoint appends rows when `unfinishedListing`
+            // is omitted, so we only set that flag on the first chunk (and
+            // only when resuming an existing draft) to clear the prior
+            // photos. Encoding to base64 happens lazily inside the loop so
+            // we never hold more than one data URL in memory at a time.
             if (listingData.photos.length > 0) {
                 const coverPhotos = listingData.photos.filter(p => p.isCoverPhoto);
                 const hasValidCoverPhotos = coverPhotos.length === 5 &&
@@ -601,7 +613,6 @@ document.addEventListener('DOMContentLoaded', function () {
                     });
                 }
 
-                // Ensure dock photos have valid in_dock_section_order values
                 let dockPhotoOrder = 1;
                 processedPhotos = processedPhotos.map(photo => {
                     if (photo.isDockPhoto && (!photo.in_dock_section_order || photo.in_dock_section_order < 1)) {
@@ -615,29 +626,67 @@ document.addEventListener('DOMContentLoaded', function () {
                     return photo;
                 });
 
-                const photoData = {
-                    property_id: propertyResult.id,
-                    addedPhotos: processedPhotos.map(photo => ({
-                        image: photo.dataUrl,
-                        isCoverPhoto: photo.isCoverPhoto,
-                        coverPhotoOrder: photo.coverPhotoOrder,
-                        isDockPhoto: photo.isDockPhoto,
-                        in_dock_section_order: photo.in_dock_section_order
-                    })),
-                };
+                const isResumingDraft = !!listingData.unfinishedPropertyId;
 
-                if (listingData.unfinishedPropertyId) {
-                    photoData.unfinishedListing = true;
-                }
+                const photoUploadPromise = (async () => {
+                    const total = processedPhotos.length;
+                    for (let i = 0; i < total; i++) {
+                        const photo = processedPhotos[i];
 
-                const photoPromise = fetch('https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/property_add_home_photos', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(photoData)
-                });
-                pendingRequests.push(photoPromise);
+                        // Build the image payload:
+                        //  - For newly picked photos we have a Blob -> base64
+                        //    encode it lazily right here so memory only spikes
+                        //    briefly for one photo at a time.
+                        //  - For photos restored from a resumed draft we have
+                        //    only a remote URL; we send that URL as `image`
+                        //    and Xano's storage.create_image will fetch it.
+                        let imagePayload;
+                        if (photo.blob) {
+                            imagePayload = await blobToDataUrl(photo.blob);
+                        } else if (photo.url || photo.dataUrl) {
+                            imagePayload = photo.url || photo.dataUrl;
+                        } else {
+                            continue;
+                        }
+
+                        const photoBody = {
+                            property_id: propertyResult.id,
+                            addedPhotos: [{
+                                image: imagePayload,
+                                isCoverPhoto: !!photo.isCoverPhoto,
+                                coverPhotoOrder: (photo.coverPhotoOrder == null) ? null : photo.coverPhotoOrder,
+                                isDockPhoto: !!photo.isDockPhoto,
+                                in_dock_section_order: (photo.in_dock_section_order == null) ? null : photo.in_dock_section_order
+                            }]
+                        };
+
+                        // Only the first chunk gets the wipe flag (resumes only).
+                        if (isResumingDraft && i === 0) {
+                            photoBody.unfinishedListing = true;
+                        }
+
+                        updateSavingProgress(`Uploading photo ${i + 1} of ${total}\u2026`);
+
+                        await postJsonWithRetry(
+                            'https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/property_add_home_photos',
+                            photoBody,
+                            {
+                                tries: 3,
+                                timeoutMs: 120000,
+                                onAttempt: (attempt, max) => {
+                                    if (attempt > 1) {
+                                        updateSavingProgress(`Retrying photo ${i + 1} of ${total} (attempt ${attempt}/${max})\u2026`);
+                                    }
+                                }
+                            }
+                        );
+
+                        // Free the encoded base64 string ASAP for the GC.
+                        imagePayload = null;
+                    }
+                })();
+
+                pendingRequests.push(photoUploadPromise);
             }
 
             // If safety features were added, make the property_add_home_safety request
@@ -681,7 +730,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (saveExitLoader) saveExitLoader.style.display = 'none';
                 if (saveAndExitText) saveAndExitText.style.display = 'block';
             }
-            // Handle error - show error message to user
+
+            // Surface a real error to the user instead of silently dropping
+            // them on the dashboard with a half-saved listing.
+            try { console.error('[add-home] save failed', error); } catch (e) { /* ignore */ }
+            showSaveError(error);
         }
     }
 
@@ -883,7 +936,6 @@ document.addEventListener('DOMContentLoaded', async function () {
                         if (listing._property_pictures) {
                             listingData.photos = listing._property_pictures.map(pic => ({
                                 url: pic.property_image.url,
-                                dataUrl: pic.property_image.url,
                                 isCoverPhoto: pic.inHeaderPreview || false,
                                 coverPhotoOrder: pic.inPreviewOrder || null,
                                 isDockPhoto: pic.in_dock_section || false,
@@ -1319,6 +1371,178 @@ document.addEventListener('DOMContentLoaded', async function () {
 });
 
 
+// ============================================================
+// PHOTO UPLOAD HELPERS
+// ----
+// Architecture:
+//   - At pick time we DO NOT eagerly base64-encode photos. We keep the
+//     original Blob plus an object URL for previewing. This keeps memory
+//     pressure on mobile Safari low even with many large photos.
+//   - HEIC/HEIF (and any unrecognized image type) is decoded via
+//     createImageBitmap and re-encoded as JPEG quality 0.98 because raw
+//     HEIC won't render in non-Safari browsers. Everything else (JPEG /
+//     PNG / GIF / WEBP) is uploaded byte-perfect from the original file.
+//   - At submit time photos are sent ONE PER REQUEST, sequentially, with
+//     timeout + retry. The Xano `property_add_home_photos` endpoint
+//     appends rows when `unfinishedListing != true`, so chunking only
+//     needs to flag the very first request when resuming a draft.
+// ============================================================
+
+const HEIC_MIME_TYPES = ['image/heic', 'image/heif', 'image/heic-sequence', 'image/heif-sequence'];
+const SUPPORTED_DIRECT_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+
+async function normalizeImageFile(file) {
+    const looksHeic = HEIC_MIME_TYPES.includes((file.type || '').toLowerCase()) ||
+        /\.hei[cf]$/i.test(file.name || '');
+
+    if (!looksHeic && SUPPORTED_DIRECT_TYPES.includes((file.type || '').toLowerCase())) {
+        return { blob: file, mimeType: file.type, wasReencoded: false };
+    }
+
+    let bitmap;
+    try {
+        bitmap = await createImageBitmap(file);
+    } catch (e) {
+        throw new Error(`UNSUPPORTED_FORMAT:${file.name || 'image'}`);
+    }
+
+    try {
+        const canvas = document.createElement('canvas');
+        canvas.width = bitmap.width;
+        canvas.height = bitmap.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(bitmap, 0, 0);
+        const blob = await new Promise((resolve, reject) => {
+            canvas.toBlob(
+                b => (b ? resolve(b) : reject(new Error('Canvas encoding failed'))),
+                'image/jpeg',
+                0.98
+            );
+        });
+        return { blob, mimeType: 'image/jpeg', wasReencoded: true };
+    } finally {
+        if (bitmap && typeof bitmap.close === 'function') bitmap.close();
+    }
+}
+
+function blobToDataUrl(blob) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(reader.error || new Error('FileReader failed'));
+        reader.readAsDataURL(blob);
+    });
+}
+
+async function postJsonWithRetry(url, body, options) {
+    const opts = options || {};
+    const tries = opts.tries || 3;
+    const timeoutMs = opts.timeoutMs || 90000;
+    const onAttempt = opts.onAttempt;
+    let lastError;
+
+    for (let attempt = 1; attempt <= tries; attempt++) {
+        if (typeof onAttempt === 'function') onAttempt(attempt, tries);
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+                signal: controller.signal
+            });
+            clearTimeout(timer);
+            if (!response.ok) {
+                let detail = '';
+                try { detail = await response.text(); } catch (e) { /* ignore */ }
+                throw new Error(`HTTP ${response.status}${detail ? `: ${detail.slice(0, 200)}` : ''}`);
+            }
+            try {
+                return await response.json();
+            } catch (e) {
+                return {};
+            }
+        } catch (e) {
+            clearTimeout(timer);
+            lastError = e;
+            if (attempt < tries) {
+                const backoff = 1000 * Math.pow(2, attempt - 1);
+                await new Promise(r => setTimeout(r, backoff));
+            }
+        }
+    }
+    throw lastError || new Error('Request failed');
+}
+
+function showPhotoNotice(message, kind) {
+    const tone = kind === 'error'
+        ? { bg: '#fee2e2', fg: '#991b1b', border: '#fca5a5' }
+        : { bg: '#fef3c7', fg: '#92400e', border: '#fde68a' };
+
+    let notice = document.getElementById('photo-upload-notice');
+    if (!notice) {
+        notice = document.createElement('div');
+        notice.id = 'photo-upload-notice';
+        notice.style.cssText = 'margin: 12px 0; padding: 12px 16px; border-radius: 8px; font-size: 14px; line-height: 1.4; font-family: inherit;';
+        const photoContainerParent = document.querySelector('[data-element="photo_container_parent"]');
+        if (photoContainerParent && photoContainerParent.parentNode) {
+            photoContainerParent.parentNode.insertBefore(notice, photoContainerParent);
+        } else {
+            const photosStep = document.getElementById('photos');
+            if (photosStep) photosStep.appendChild(notice);
+        }
+    }
+    notice.style.background = tone.bg;
+    notice.style.color = tone.fg;
+    notice.style.border = `1px solid ${tone.border}`;
+    notice.textContent = message;
+    notice.style.display = 'block';
+    clearTimeout(notice._dismissTimer);
+    notice._dismissTimer = setTimeout(() => { notice.style.display = 'none'; }, 8000);
+}
+
+function showSaveError(error) {
+    let banner = document.getElementById('save-error-banner');
+    if (!banner) {
+        banner = document.createElement('div');
+        banner.id = 'save-error-banner';
+        banner.style.cssText = 'position:fixed; bottom:24px; left:50%; transform:translateX(-50%); max-width:90%; width:480px; padding:16px 20px; background:#fee2e2; color:#991b1b; border:1px solid #fca5a5; border-radius:12px; z-index:1000000; box-shadow:0 8px 24px rgba(0,0,0,0.12); font-family:inherit; font-size:14px; line-height:1.4;';
+        document.body.appendChild(banner);
+    }
+
+    const detail = (error && error.message) ? error.message : 'Unknown error';
+    let friendly;
+    if (/AbortError|aborted|timeout/i.test(detail)) {
+        friendly = 'The connection was interrupted while saving (slow network?). Your information is still here — please try again.';
+    } else if (/NetworkError|Failed to fetch|networkerror/i.test(detail)) {
+        friendly = 'Could not reach the server. Please check your internet and try again.';
+    } else if (detail.startsWith('HTTP 413')) {
+        friendly = 'The photos were too large to upload. Please remove a few of the largest photos and try again.';
+    } else if (detail.startsWith('HTTP ')) {
+        friendly = `Saving failed (${detail.split(':')[0]}). Your information is still here — please try again.`;
+    } else {
+        friendly = 'We couldn\'t save your listing. Your information is still here — please try again.';
+    }
+
+    banner.innerHTML = `
+        <div style="display:flex; align-items:flex-start; gap:12px;">
+            <div style="font-size:18px; line-height:1; padding-top:1px;">⚠️</div>
+            <div style="flex:1;">
+                <div style="font-weight:600; margin-bottom:4px;">Couldn't save listing</div>
+                <div>${friendly}</div>
+            </div>
+            <button type="button" aria-label="Dismiss" style="background:none; border:none; color:#991b1b; font-size:20px; cursor:pointer; padding:0; line-height:1;">×</button>
+        </div>
+    `;
+    banner.style.display = 'block';
+    const dismiss = banner.querySelector('button');
+    if (dismiss) dismiss.onclick = () => { banner.style.display = 'none'; };
+
+    clearTimeout(banner._dismissTimer);
+    banner._dismissTimer = setTimeout(() => { banner.style.display = 'none'; }, 15000);
+}
+
 // Function to initialize photos step
 function initializePhotosStep() {
     const addPhotosButton = document.getElementById('addPhotosButton');
@@ -1391,7 +1615,10 @@ function initializePhotosStep() {
         }
     }
 
-    // Add click handler to both add photos buttons
+    // Add click handler to both add photos buttons.
+    // The file input is appended to the DOM before .click() because some
+    // older iOS Safari versions and in-app webviews ignore .click() on a
+    // fully-detached input element.
     const setupPhotoButton = (button) => {
         if (button) {
             const newButton = removeEventListeners(button);
@@ -1399,8 +1626,22 @@ function initializePhotosStep() {
                 const fileInput = document.createElement('input');
                 fileInput.type = 'file';
                 fileInput.multiple = true;
-                fileInput.accept = 'image/jpeg,image/png,image/jpg,image/gif,image/webp';
-                fileInput.addEventListener('change', handlePhotoSelection);
+                // image/* lets iOS auto-convert HEIC to JPEG when picking from
+                // Photos. We still validate / decode in JS for the cases iOS
+                // doesn't convert (Files app, AirDrop, etc.).
+                fileInput.accept = 'image/*';
+                fileInput.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;';
+                const cleanup = () => {
+                    if (fileInput.parentNode) fileInput.parentNode.removeChild(fileInput);
+                };
+                fileInput.addEventListener('change', async (event) => {
+                    try {
+                        await handlePhotoSelection(event);
+                    } finally {
+                        cleanup();
+                    }
+                });
+                document.body.appendChild(fileInput);
                 fileInput.click();
             });
         }
@@ -1410,107 +1651,66 @@ function initializePhotosStep() {
     setupPhotoButton(addPhotosButton2);
 }
 
-// Function to handle photo selection
-function handlePhotoSelection(event) {
-    const files = event.target.files;
+// Function to handle photo selection.
+// We do NOT eagerly base64-encode here. We keep the original (or HEIC-decoded)
+// Blob plus an object URL preview, so memory stays low even with many large
+// photos on mobile Safari. Encoding to a data URL happens lazily at submit
+// time, one photo at a time.
+async function handlePhotoSelection(event) {
+    const files = Array.from(event.target.files || []);
     const addPhotosContainer = document.getElementById('addPhotosButton_Container');
     const addPhotosButton2 = document.getElementById('addPhotosButton2');
     const imageSkeletonLoader = document.querySelector('[data-element="addPhotos_imageSkeletonLoader"]');
 
+    // Clear input value first so the user can re-pick the same file later
+    try { event.target.value = ''; } catch (e) { /* ignore */ }
+
     if (!files.length) return;
 
-    // Hide the add photos button container once photos are selected
-    if (addPhotosContainer) {
-        addPhotosContainer.style.display = 'none';
-    }
+    if (addPhotosContainer) addPhotosContainer.style.display = 'none';
+    if (addPhotosButton2) addPhotosButton2.style.display = 'flex';
+    if (imageSkeletonLoader) imageSkeletonLoader.style.display = 'block';
 
-    // Show the second add photos button
-    if (addPhotosButton2) {
-        addPhotosButton2.style.display = 'flex';
-    }
+    const skipped = [];
+    const reencoded = [];
 
-    // Show loader while photos are being processed
-    if (imageSkeletonLoader) {
-        imageSkeletonLoader.style.display = 'block';
-    }
-
-    let filesProcessed = 0;
-    const totalFiles = Array.from(files).filter(file =>
-        ['image/jpeg', 'image/png', 'image/jpg', 'image/gif', 'image/webp'].includes(file.type)
-    ).length;
-
-    // Process each selected file
-    Array.from(files).forEach(file => {
-        const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/gif', 'image/webp'];
-        if (!allowedTypes.includes(file.type)) {
-            filesProcessed++;
-            return;
-        }
-
-        const reader = new FileReader();
-
-        reader.onloadstart = function () {
-            // File reading has started
-        };
-
-        reader.onprogress = function (e) {
-            // File reading in progress
-            if (e.lengthComputable) {
-                const percentLoaded = Math.round((e.loaded / e.total) * 100);
-            }
-        };
-
-        reader.onload = function (e) {
-            // Extract file extension from file type
-            const fileExtension = file.type.split('/')[1];
-
-            // Create object URL for the file
-            const url = URL.createObjectURL(file);
-
-            // Store photo data
-            listingData.photos.push({
-                dataUrl: e.target.result,
-                url: url,
-                fileExtension: fileExtension,
+    const results = await Promise.all(files.map(async (file) => {
+        try {
+            const normalized = await normalizeImageFile(file);
+            if (normalized.wasReencoded) reencoded.push(file.name || 'image');
+            const objectUrl = URL.createObjectURL(normalized.blob);
+            return {
+                blob: normalized.blob,
+                url: objectUrl,
+                mimeType: normalized.mimeType,
+                originalName: file.name || '',
+                wasReencoded: normalized.wasReencoded,
                 isCoverPhoto: false,
                 coverPhotoOrder: null,
                 isDockPhoto: false,
                 in_dock_section_order: null
-            });
+            };
+        } catch (e) {
+            skipped.push(file.name || 'image');
+            return null;
+        }
+    }));
 
-            filesProcessed++;
+    const accepted = results.filter(Boolean);
+    if (accepted.length) listingData.photos.push(...accepted);
 
-            // Check if all files have been processed
-            if (filesProcessed === totalFiles) {
-                // Hide loader when all files are processed
-                if (imageSkeletonLoader) {
-                    imageSkeletonLoader.style.display = 'none';
-                }
+    if (imageSkeletonLoader) imageSkeletonLoader.style.display = 'none';
 
-                // Render all photos after adding new ones
-                renderPhotos();
+    if (skipped.length) {
+        const list = skipped.slice(0, 3).join(', ') + (skipped.length > 3 ? `, +${skipped.length - 3} more` : '');
+        showPhotoNotice(`Couldn\u2019t add ${skipped.length} file${skipped.length > 1 ? 's' : ''} (${list}). Please convert to JPEG or PNG and try again.`, 'error');
+    }
 
-                // Check photo count and update error message if needed
-                if (hasAttemptedToLeave.photos) {
-                    validatePhotos();
-                }
-            }
-        };
+    renderPhotos();
 
-        reader.onerror = function () {
-            filesProcessed++;
-
-            // Check if all files have been processed even if there was an error
-            if (filesProcessed === totalFiles && imageSkeletonLoader) {
-                imageSkeletonLoader.style.display = 'none';
-            }
-        };
-
-        reader.readAsDataURL(file);
-    });
-
-    // Clear the file input value to prevent auto-reopening
-    event.target.value = '';
+    if (hasAttemptedToLeave.photos) {
+        validatePhotos();
+    }
 }
 
 // Function to setup delete button for a photo
@@ -1527,8 +1727,13 @@ function setupPhotoAddedDeleteButton(containerParent, photoIndex) {
     newDeleteButton.onclick = (e) => {
         e.stopPropagation();
 
-        // Remove photo from listingData array
-        listingData.photos.splice(photoIndex, 1);
+        // Remove photo from listingData array (and free its object URL so
+        // mobile Safari doesn't accumulate Blob references over a long
+        // session).
+        const removed = listingData.photos.splice(photoIndex, 1)[0];
+        if (removed && typeof removed.url === 'string' && removed.url.startsWith('blob:')) {
+            try { URL.revokeObjectURL(removed.url); } catch (err) { /* ignore */ }
+        }
 
         // If no photos left, reset the UI
         if (listingData.photos.length === 0) {
@@ -1661,11 +1866,13 @@ function initializeCoverPhotosStep() {
         numberEl.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
         container.appendChild(numberEl);
 
-        const photoUrl = photo.dataUrl;
+        const photoUrl = photo.url || photo.dataUrl || '';
 
-        if (!photoUrl.startsWith('data:')) {
-            const timestamp = new Date().getTime();
-            photoImage.src = photoUrl + '?' + timestamp;
+        if (photoUrl && /^https?:/i.test(photoUrl)) {
+            // Resumed remote photo - bust the cache so the freshly-uploaded
+            // version is shown instead of an older cached copy.
+            const timestamp = Date.now();
+            photoImage.src = photoUrl + (photoUrl.includes('?') ? '&' : '?') + 't=' + timestamp;
         } else {
             photoImage.src = photoUrl;
         }
@@ -1702,9 +1909,10 @@ function initializeCoverPhotosStep() {
                 numberEl.style.display = 'none';
                 numberEl.textContent = '';
 
-                // Remove cover photo properties from the photo in listingData
-                delete listingData.photos[photoIndex].isCoverPhoto;
-                delete listingData.photos[photoIndex].coverPhotoOrder;
+                // Reset cover photo state explicitly (avoids `undefined`
+                // creeping into the upload payload).
+                listingData.photos[photoIndex].isCoverPhoto = false;
+                listingData.photos[photoIndex].coverPhotoOrder = null;
 
                 // Update order numbers for remaining photos
                 listingData.photos.forEach(p => {
@@ -1863,8 +2071,14 @@ function initializeDockPhotosStep() {
         numberEl.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
         container.appendChild(numberEl);
 
-        // Set photo source
-        photoImage.src = photo.dataUrl;
+        // Set photo source (object URL for new uploads, https for resumed)
+        const dockPhotoUrl = photo.url || photo.dataUrl || '';
+        if (dockPhotoUrl && /^https?:/i.test(dockPhotoUrl)) {
+            const ts = Date.now();
+            photoImage.src = dockPhotoUrl + (dockPhotoUrl.includes('?') ? '&' : '?') + 't=' + ts;
+        } else {
+            photoImage.src = dockPhotoUrl;
+        }
 
         // Make container clickable
         container.style.cursor = 'pointer';
@@ -1890,9 +2104,10 @@ function initializeDockPhotosStep() {
                 numberEl.style.display = 'none';
                 numberEl.textContent = '';
 
-                // Remove dock photo properties
-                delete listingData.photos[photoIndex].isDockPhoto;
-                delete listingData.photos[photoIndex].in_dock_section_order;
+                // Reset dock photo state explicitly (avoids `undefined`
+                // creeping into the upload payload).
+                listingData.photos[photoIndex].isDockPhoto = false;
+                listingData.photos[photoIndex].in_dock_section_order = null;
 
                 // Update displayed numbers and orders
                 const selectedPhotos = listingData.photos.filter(p => p.isDockPhoto);
@@ -4294,7 +4509,7 @@ function initializeReviewInfoStep() {
     const reviewImage = document.querySelector('[data-element="reviewInfo_image"]');
     const coverPhoto = listingData.photos.find(photo => photo.isCoverPhoto && photo.coverPhotoOrder === 1);
     if (reviewImage && coverPhoto) {
-        reviewImage.src = coverPhoto.dataUrl;
+        reviewImage.src = coverPhoto.url || coverPhoto.dataUrl || '';
     }
 
     // Set title
