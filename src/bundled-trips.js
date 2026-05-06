@@ -203,6 +203,46 @@ document.addEventListener('DOMContentLoaded', () => {
         return Promise.all(imgs.map(toPromise)).then(() => undefined);
     };
 
+    // Render trip overview HTML with a small allowed-tag set.
+    const formatDetailsHtml = (rawHtml = '') => {
+        const wrapper = document.createElement('div');
+        wrapper.innerHTML = rawHtml;
+
+        const allowedTags = new Set(['H4', 'P', 'UL', 'OL', 'LI', 'BR', 'STRONG', 'EM', 'B', 'I']);
+        const nodes = Array.from(wrapper.querySelectorAll('*'));
+
+        nodes.forEach((node) => {
+            if (!allowedTags.has(node.tagName)) {
+                const text = document.createTextNode(node.textContent || '');
+                node.replaceWith(text);
+            }
+        });
+
+        wrapper.querySelectorAll('h4').forEach((el) => {
+            el.style.margin = '14px 0 6px';
+            el.style.fontSize = '16px';
+            el.style.fontWeight = '500';
+            el.style.lineHeight = '1.35';
+        });
+
+        wrapper.querySelectorAll('p').forEach((el) => {
+            el.style.margin = '0 0 10px';
+            el.style.lineHeight = '1.55';
+        });
+
+        wrapper.querySelectorAll('ul, ol').forEach((el) => {
+            el.style.margin = '0 0 10px 20px';
+            el.style.padding = '0';
+            el.style.lineHeight = '1.55';
+        });
+
+        wrapper.querySelectorAll('li').forEach((el) => {
+            el.style.marginBottom = '4px';
+        });
+
+        return wrapper.innerHTML.trim();
+    };
+
     const renderTrips = (trips) => {
         trips.forEach((trip) => {
             const card = baseTemplate.cloneNode(true);
@@ -230,6 +270,29 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
+            // bundle overview
+            const bundleOverviewEl = card.querySelector('[data-element="card_bundle_overview"]');
+            if (bundleOverviewEl) {
+                const hasBoatRental = Boolean(trip?.hasBoatRental);
+                const hasFishingCharter = Boolean(trip?.hasFishingCharter);
+                const charterCount = Array.isArray(trip?.fishingcharters) ? trip.fishingcharters.length : 0;
+                const overviewParts = ['Stay'];
+
+                if (hasBoatRental) {
+                    overviewParts.push('Boat');
+                }
+
+                if (hasFishingCharter && charterCount > 0) {
+                    if (charterCount === 1) {
+                        overviewParts.push('Fishing Charter');
+                    } else {
+                        overviewParts.push(`${charterCount} Fishing Charters`);
+                    }
+                }
+
+                bundleOverviewEl.textContent = `${overviewParts.join(' + ')} Included`;
+            }
+
             // stay image
             setImageOrText(
                 card.querySelector('[data-element="card_stay_image"]'),
@@ -237,22 +300,15 @@ document.addEventListener('DOMContentLoaded', () => {
             );
             const stayBlock = card.querySelector('[data-element="card_stay_block"]');
             const stayNameEl = card.querySelector('[data-element="card_stay_name"]');
-            const stayCompanyEl = card.querySelector('[data-element="card_stay_company"]');
             if (stayNameEl) {
                 stayNameEl.textContent = trip?._property?.property_name || '';
                 toTruncate.push(stayNameEl);
-            }
-            if (stayCompanyEl) {
-                const hostFirst = trip?._property?._host_info?.First_Name || '';
-                stayCompanyEl.textContent = hostFirst ? `Hosted by ${hostFirst}` : '';
-                toTruncate.push(stayCompanyEl);
             }
 
             // boat image
             const boatBlock = card.querySelector('[data-element="card_boat_block"]');
             const boatImageEl = card.querySelector('[data-element="card_boat_image"]');
             const boatNameEl = card.querySelector('[data-element="card_boat_name"]');
-            const boatCompanyEl = card.querySelector('[data-element="card_boat_company"]');
             if (!trip?.hasBoatRental) {
                 boatBlock?.remove();
             } else {
@@ -264,14 +320,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     boatNameEl.textContent = trip?._boat?.name || '';
                     toTruncate.push(boatNameEl);
                 }
-                if (boatCompanyEl) {
-                    boatCompanyEl.textContent =
-                        trip?._boat?.__boatcompany?.name ||
-                        trip?._boat?._boatcompany?.name ||
-                        trip?._boat?.boat_company?.name ||
-                        '';
-                    toTruncate.push(boatCompanyEl);
-                }
             }
 
             // charter images (duplicate element for multiple charters)
@@ -282,24 +330,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 const charterParent = charterBlockTemplate.parentElement || card;
                 charterBlockTemplate.remove();
 
-                trip.fishingcharters.forEach((charter) => {
+                const charterCount = trip.fishingcharters.length;
+                trip.fishingcharters.forEach((charter, charterIndex) => {
                     const block = charterBlockTemplate.cloneNode(true);
                     const charterImageEl = block.querySelector('[data-element="card_charter_image"]');
+                    const charterTitleEl = block.querySelector('[data-element="card_charter_title"]');
                     const charterNameEl = block.querySelector('[data-element="card_charter_name"]');
-                    const charterCompanyEl = block.querySelector('[data-element="card_charter_company"]');
 
                     setImageOrText(charterImageEl, getCharterImage(charter));
 
                     const tripId = charter?.trip_id;
                     const tripOptionName = charter?._fishingcharter?.tripOptions?.find((opt) => opt?.id === tripId)?.name || '';
+                    if (charterTitleEl && charterCount > 1) {
+                        charterTitleEl.textContent = `Fishing Charter ${charterIndex + 1}`;
+                    }
                     if (charterNameEl) {
                         charterNameEl.textContent = tripOptionName;
                         toTruncate.push(charterNameEl);
-                    }
-
-                    if (charterCompanyEl) {
-                        charterCompanyEl.textContent = charter?.__fishingcharter?.name || charter?._fishingcharter?.name || '';
-                        toTruncate.push(charterCompanyEl);
                     }
 
                     charterParent.appendChild(block);
@@ -318,8 +365,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Show container and set up elements
                 detailsContainer.style.display = 'flex';
                 detailsText.style.display = 'none';
-                detailsText.style.whiteSpace = 'pre-wrap'; // Preserve line breaks and spaces
-                detailsText.textContent = trip.details_text;
+                detailsText.style.whiteSpace = 'normal';
+                detailsText.innerHTML = formatDetailsHtml(trip.details_text);
                 detailsButton.textContent = 'Trip overview ↓';
 
                 // Add click handler for toggle
