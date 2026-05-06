@@ -7093,8 +7093,42 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Flag to prevent multiple rapid calls to handleAddToReservation
         this.isAddingToReservation = false;
+        this.boatSearchReloadCounter = 0;
+        this.lastBoatSearchTrigger = 'initial';
+        this._boatSearchReloadInFlight = false;
+        this._boatSearchReloadPromise = null;
+        this._pendingBoatSearchReload = null;
+        this._isInitialized = false;
+        this._lastRefilterSignature = '';
+        this._lastRefilterAt = 0;
+        this._sliderRefilterDebounceTimer = null;
+        this._isOpeningBoatModal = false;
+        this._lastBoatModalOpenAt = 0;
 
         this.initialize();
+      }
+
+      triggerBoatSearchReload(trigger, forceFetch = false, details = {}) {
+        if (this._boatSearchReloadInFlight) {
+          this._pendingBoatSearchReload = { trigger, forceFetch, details };
+          return this._boatSearchReloadPromise || Promise.resolve(this.availableBoats);
+        }
+
+        this.boatSearchReloadCounter += 1;
+        this.lastBoatSearchTrigger = trigger;
+        this._boatSearchReloadInFlight = true;
+        this._boatSearchReloadPromise = this.fetchAndRenderBoats(forceFetch, { trigger, ...details })
+          .finally(() => {
+            this._boatSearchReloadInFlight = false;
+            const pending = this._pendingBoatSearchReload;
+            this._pendingBoatSearchReload = null;
+
+            if (pending) {
+              this.triggerBoatSearchReload(pending.trigger, pending.forceFetch, pending.details);
+            }
+          });
+
+        return this._boatSearchReloadPromise;
       }
 
       // Close all popups for boat rental service
@@ -7466,9 +7500,14 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       initialize() {
+        if (this._isInitialized) {
+          return;
+        }
+
         if (!this.buttons || this.buttons.length === 0 || !this.modal || !this.selectWrapper || !this.detailsWrapper || !this.exitButton || !this.cardTemplate || !this.cardWrapper) {
           return;
         }
+        this._isInitialized = true;
 
         // Set initial styles
         this.modal.style.display = 'none';
@@ -7848,7 +7887,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Now that user is exiting dates section, check private dock filter availability and fetch boats
             this.checkPrivateDockFilterAvailabilityForBoatDates();
             this.batchAvailabilityData = null;
-            this.fetchAndRenderBoats(false); // Use cached boat data, re-fetch availability
+            this.triggerBoatSearchReload('datesPopupExit', false); // Use cached boat data, re-fetch availability
 
             // If popup was auto-opened due to missing dates, auto-save and close modal
             if (this.autoOpenedFromMissingDates) {
@@ -7876,7 +7915,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Now that user is exiting dates section, check private dock filter availability and fetch boats
             this.checkPrivateDockFilterAvailabilityForBoatDates();
             this.batchAvailabilityData = null;
-            this.fetchAndRenderBoats(false); // Use cached boat data, re-fetch availability
+            this.triggerBoatSearchReload('datesPopupDone', false); // Use cached boat data, re-fetch availability
           });
         }
 
@@ -7916,7 +7955,7 @@ document.addEventListener('DOMContentLoaded', () => {
               this.updateExistingCards();
               this.updateURLParams();
 
-              this.fetchAndRenderBoats(false); // Use cached data
+              this.triggerBoatSearchReload('dayType:fullDayClick', false); // Use cached data
             }
           });
         }
@@ -7933,7 +7972,7 @@ document.addEventListener('DOMContentLoaded', () => {
               this.updateExistingCards();
               this.updateURLParams();
               // Re-filter boats to apply half-day filtering
-              this.fetchAndRenderBoats(false); // Use cached data
+              this.triggerBoatSearchReload('dayType:halfDayClick', false); // Use cached data
             }
           });
         }
@@ -7978,7 +8017,7 @@ document.addEventListener('DOMContentLoaded', () => {
             this.guestNumber.textContent = this.selectedGuests;
             this.updateGuestsFilterText();
             this.updateFilterStyles();
-            this.refilterBoatsIfModalOpen();
+            this.refilterBoatsIfModalOpen('guestsClearButton');
             this.updateURLParams();
           });
         }
@@ -8097,7 +8136,7 @@ document.addEventListener('DOMContentLoaded', () => {
               });
             });
 
-            this.refilterBoatsIfModalOpen();
+            this.refilterBoatsIfModalOpen('privateDockToggle');
           });
 
           // Show tooltip on hover when disabled
@@ -8163,7 +8202,7 @@ document.addEventListener('DOMContentLoaded', () => {
             this.guestNumber.textContent = this.selectedGuests;
             this.updateGuestsFilterText();
             this.updateFilterStyles();
-            this.refilterBoatsIfModalOpen();
+            this.refilterBoatsIfModalOpen('guestMinus');
             this.updateURLParams();
           }
         });
@@ -8173,7 +8212,7 @@ document.addEventListener('DOMContentLoaded', () => {
           this.guestNumber.textContent = this.selectedGuests;
           this.updateGuestsFilterText();
           this.updateFilterStyles();
-          this.refilterBoatsIfModalOpen();
+          this.refilterBoatsIfModalOpen('guestPlus');
           this.updateURLParams();
         });
       }
@@ -9710,7 +9749,7 @@ document.addEventListener('DOMContentLoaded', () => {
         skeletons.forEach(skeleton => skeleton.remove());
       }
 
-      async fetchAndRenderBoats(forceFetch = false) {
+      async fetchAndRenderBoats(forceFetch = false, debugMeta = {}) {
         try {
           let allBoats;
 
@@ -10439,46 +10478,61 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       async handleButtonClick() {
-        const urlParams = new URLSearchParams(window.location.search);
-        const checkin = urlParams.get('checkin');
-        const checkout = urlParams.get('checkout');
-        const hasStayDates = !!(checkin && checkout && checkin.trim() !== '' && checkout.trim() !== '');
+        if (this._isOpeningBoatModal) {
+          return;
+        }
 
-        // Validation handled elsewhere; no modal message needed here
+        if (this.modal && this.modal.style.display === 'flex' && (Date.now() - this._lastBoatModalOpenAt) < 500) {
+          return;
+        }
 
-        // Close all popups when modal opens
-        this.closeAllPopups();
+        this._isOpeningBoatModal = true;
 
-        // Load user age for age-based filtering
-        await this.loadUserAge();
+        try {
+          const urlParams = new URLSearchParams(window.location.search);
+          const checkin = urlParams.get('checkin');
+          const checkout = urlParams.get('checkout');
+          const hasStayDates = !!(checkin && checkout && checkin.trim() !== '' && checkout.trim() !== '');
 
-        // Ensure modal always opens to select wrapper view
-        this.detailsWrapper.style.display = 'none';
-        this.selectWrapper.style.display = 'flex';
+          // Validation handled elsewhere; no modal message needed here
 
-        // Show modal
-        this.modal.style.display = 'flex';
-        this._resetBoatAddScrollOnBack = true;
-        this._boatAddSectionScrollTop = 0;
-        this._boatAddCardScrollTop = 0;
-        if (this.selectWrapper) this.selectWrapper.scrollTop = 0;
-        if (this.cardWrapper) this.cardWrapper.scrollTop = 0;
+          // Close all popups when modal opens
+          this.closeAllPopups();
 
-        // Prevent body scroll when modal is open
-        document.body.classList.add('no-scroll');
+          // Load user age for age-based filtering
+          await this.loadUserAge();
 
-        // Apply pickup time gating when modal opens
-        this.applyPickupTimeGating(this.pickupTimePills, false);
-        this.applyPickupTimeGating(this.boatDetailsPickupTimePills, true);
+          // Ensure modal always opens to select wrapper view
+          this.detailsWrapper.style.display = 'none';
+          this.selectWrapper.style.display = 'flex';
 
-        // Check if private dock filter should be available based on property stay length
-        this.checkPrivateDockFilterAvailability();
+          // Show modal
+          this.modal.style.display = 'flex';
+          this._lastBoatModalOpenAt = Date.now();
+          this._resetBoatAddScrollOnBack = true;
+          this._boatAddSectionScrollTop = 0;
+          this._boatAddCardScrollTop = 0;
+          if (this.selectWrapper) this.selectWrapper.scrollTop = 0;
+          if (this.cardWrapper) this.cardWrapper.scrollTop = 0;
 
-        // Fetch and render boat options with filtering (force fresh fetch on modal open)
-        await this.fetchAndRenderBoats(true);
+          // Prevent body scroll when modal is open
+          document.body.classList.add('no-scroll');
 
-        // Render date selection to set up initial disabled states
-        this.renderDateSelection();
+          // Apply pickup time gating when modal opens
+          this.applyPickupTimeGating(this.pickupTimePills, false);
+          this.applyPickupTimeGating(this.boatDetailsPickupTimePills, true);
+
+          // Check if private dock filter should be available based on property stay length
+          this.checkPrivateDockFilterAvailability();
+
+          // Fetch and render boat options with filtering (force fresh fetch on modal open)
+          await this.fetchAndRenderBoats(true);
+
+          // Render date selection to set up initial disabled states
+          this.renderDateSelection();
+        } finally {
+          this._isOpeningBoatModal = false;
+        }
       }
 
       // Check if private dock delivery is available for the current property stay
@@ -10801,7 +10855,7 @@ document.addEventListener('DOMContentLoaded', () => {
         this.checkPrivateDockFilterAvailabilityForBoatDates();
 
         // Re-filter boats to show all boats again
-        this.fetchAndRenderBoats(false); // Use cached data
+        this.triggerBoatSearchReload('clearDatesFilter', false); // Use cached data
       }
 
       clearPickupTimeFilter() {
@@ -10832,7 +10886,7 @@ document.addEventListener('DOMContentLoaded', () => {
         this.updateExistingCards();
         this.updateURLParams();
         // Re-filter boats to show all boats again
-        this.fetchAndRenderBoats(false); // Use cached data
+        this.triggerBoatSearchReload('clearPickupTimeFilter', false); // Use cached data
       }
 
       clearGuestsFilter() {
@@ -10846,7 +10900,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Update UI elements
         this.updateGuestsFilterText();
         this.updateFilterStyles();
-        this.refilterBoatsIfModalOpen();
+        this.refilterBoatsIfModalOpen('clearGuestsFilter');
         this.updateURLParams();
       }
 
@@ -11001,11 +11055,46 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
 
-      refilterBoatsIfModalOpen() {
+      refilterBoatsIfModalOpen(trigger = 'unspecified') {
         // Only re-filter if the modal is currently open
         // Use cached data - don't re-fetch from API
+        const modalIsOpen = this.modal && this.modal.style.display === 'flex';
+        const sliderDebounceMs = 180;
+        const isSliderTrigger = trigger === 'priceSliderUpdate' || trigger === 'lengthSliderUpdate';
+        const now = Date.now();
+        const signature = JSON.stringify({
+          trigger,
+          selectedDates: this.selectedDates,
+          selectedLengthType: this.selectedLengthType,
+          selectedPickupTime: this.selectedPickupTime,
+          selectedGuests: this.selectedGuests,
+          selectedPrivateDock: this.selectedPrivateDock,
+          selectedPriceMin: this.selectedPriceMin,
+          selectedPriceMax: this.selectedPriceMax,
+          selectedLengthMin: this.selectedLengthMin,
+          selectedLengthMax: this.selectedLengthMax,
+          selectedBoatTypes: this.selectedBoatTypes
+        });
+
+        if (modalIsOpen && this._lastRefilterSignature === signature && (now - this._lastRefilterAt) < 120) {
+          return;
+        }
+        this._lastRefilterSignature = signature;
+        this._lastRefilterAt = now;
         if (this.modal && this.modal.style.display === 'flex') {
-          this.fetchAndRenderBoats(false); // false = use cached boats
+          if (isSliderTrigger) {
+            if (this._sliderRefilterDebounceTimer) {
+              clearTimeout(this._sliderRefilterDebounceTimer);
+            }
+
+            this._sliderRefilterDebounceTimer = setTimeout(() => {
+              this._sliderRefilterDebounceTimer = null;
+              this.triggerBoatSearchReload(`refilterBoatsIfModalOpen:${trigger}`, false, { debounced: true });
+            }, sliderDebounceMs);
+            return;
+          }
+
+          this.triggerBoatSearchReload(`refilterBoatsIfModalOpen:${trigger}`, false); // false = use cached boats
         }
       }
 
@@ -11476,7 +11565,7 @@ document.addEventListener('DOMContentLoaded', () => {
           // Update filter text and styles
           this.updatePriceFilterText();
           this.updateFilterStyles();
-          this.refilterBoatsIfModalOpen();
+          this.refilterBoatsIfModalOpen('priceSliderUpdate');
         };
 
         const handleDragStart = (e, isMin) => {
@@ -11657,7 +11746,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Update UI elements
         this.updatePriceFilterText();
         this.updateFilterStyles();
-        this.refilterBoatsIfModalOpen();
+        this.refilterBoatsIfModalOpen('clearPriceFilter');
       }
 
       updatePriceFilterText() {
@@ -11728,7 +11817,7 @@ document.addEventListener('DOMContentLoaded', () => {
           // Update filter text and styles
           this.updateLengthFilterText();
           this.updateFilterStyles();
-          this.refilterBoatsIfModalOpen();
+          this.refilterBoatsIfModalOpen('lengthSliderUpdate');
         };
 
         const handleDragStart = (e, isMin) => {
@@ -11899,7 +11988,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Update UI elements
         this.updateLengthFilterText();
         this.updateFilterStyles();
-        this.refilterBoatsIfModalOpen();
+        this.refilterBoatsIfModalOpen('clearLengthFilter');
       }
 
       updateLengthFilterText() {
@@ -11944,7 +12033,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             this.updateBoatTypeFilterText();
             this.updateFilterStyles();
-            this.refilterBoatsIfModalOpen();
+            this.refilterBoatsIfModalOpen('boatTypeSelectionChange');
           };
 
           block.addEventListener('click', handleSelection);
@@ -11984,7 +12073,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Update UI elements
         this.updateBoatTypeFilterText();
         this.updateFilterStyles();
-        this.refilterBoatsIfModalOpen();
+        this.refilterBoatsIfModalOpen('clearBoatTypeFilter');
       }
 
       updateBoatTypeFilterText() {
@@ -12032,7 +12121,7 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         }
 
-        this.refilterBoatsIfModalOpen();
+        this.refilterBoatsIfModalOpen('clearPrivateDockFilter');
       }
 
       // ==========================================
