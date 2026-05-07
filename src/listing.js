@@ -10243,7 +10243,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const averageRating = ratings.reduce((a, b) => a + b, 0) / ratings.length;
 
             // Display average rating with one decimal place
-            ratingAvgElement.textContent = averageRating.toFixed(1);
+            ratingAvgElement.textContent = averageRating.toFixed(2);
             ratingNumberElement.textContent = `(${boat.reviews.length})`;
           }
         }
@@ -12388,8 +12388,8 @@ document.addEventListener('DOMContentLoaded', () => {
           } else {
             const ratings = boat.reviews.map(review => review.rating);
             const averageRating = ratings.reduce((a, b) => a + b, 0) / ratings.length;
-            boatDetailsReviewsAVG.textContent = averageRating.toFixed(1);
-            boatDetailsReviewsAmount.textContent = `${boat.reviews.length} Reviews`;
+            boatDetailsReviewsAVG.textContent = averageRating.toFixed(2);
+            boatDetailsReviewsAmount.textContent = `${boat.reviews.length} review${boat.reviews.length === 1 ? '' : 's'}`;
             if (boatDetailsReviewsDot) {
               boatDetailsReviewsDot.style.display = '';
             }
@@ -12412,10 +12412,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const ratings = boat.reviews.map(review => review.rating);
             const averageRating = ratings.reduce((a, b) => a + b, 0) / ratings.length;
             if (reviewsSectionAvg) {
-              reviewsSectionAvg.textContent = averageRating.toFixed(1);
+              reviewsSectionAvg.textContent = averageRating.toFixed(2);
             }
             if (reviewsSectionAmount) {
-              reviewsSectionAmount.textContent = `${boat.reviews.length} Reviews`;
+              reviewsSectionAmount.textContent = `${boat.reviews.length} review${boat.reviews.length === 1 ? '' : 's'}`;
             }
 
             // Sort reviews by date (newest first)
@@ -19587,7 +19587,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const averageRating = ratings.reduce((a, b) => a + b, 0) / ratings.length;
 
             // Display average rating with one decimal place
-            ratingAvgElement.textContent = averageRating.toFixed(1);
+            ratingAvgElement.textContent = averageRating.toFixed(2);
             ratingNumberElement.textContent = `(${reviews.length})`;
           }
         }
@@ -21271,8 +21271,9 @@ document.addEventListener('DOMContentLoaded', () => {
             reviewsDot.style.display = 'none';
           } else {
             const avgRating = charter.reviews.reduce((sum, review) => sum + (review.rating || 0), 0) / charter.reviews.length;
-            reviewsAvgElement.textContent = avgRating.toFixed(1);
-            reviewsAmountElement.textContent = `(${charter.reviews.length})`;
+            reviewsAvgElement.textContent = avgRating.toFixed(2);
+            reviewsAmountElement.textContent = `${charter.reviews.length} review${charter.reviews.length === 1 ? '' : 's'}`;
+
             reviewsDot.style.display = 'flex';
           }
         }
@@ -21534,7 +21535,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const avgElement = document.querySelector('[data-element="fishingCharterDetails_reviewsSection_avg"]');
         if (avgElement) {
           const avgRating = charter.reviews.reduce((sum, review) => sum + (review.rating || 0), 0) / charter.reviews.length;
-          avgElement.textContent = avgRating.toFixed(1);
+          avgElement.textContent = avgRating.toFixed(2);
         }
 
         // Amount of reviews
@@ -21621,7 +21622,7 @@ document.addEventListener('DOMContentLoaded', () => {
           // Rating
           const ratingElement = block.querySelector('[data-element="fishingCharterDetails_reviewsSection_reviewBlock_rating"]');
           if (ratingElement) {
-            ratingElement.textContent = review.rating || '';
+            ratingElement.textContent = `${review.rating}/5`;
           }
 
           // Month and year
