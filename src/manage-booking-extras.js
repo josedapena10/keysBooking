@@ -312,6 +312,19 @@ function formatPhone(e164) {
     return e164;
 }
 
+function formatBoatingExperience(value) {
+    if (value === undefined || value === null) return '';
+    const str = String(value).trim();
+    if (!str) return '';
+    // Pull the leading numeric portion (e.g. "20years" -> "20", "1 year" -> "1")
+    const match = str.match(/^(\d+(?:\.\d+)?)/);
+    if (!match) return str;
+    const numStr = match[1];
+    const num = parseFloat(numStr);
+    const unit = num === 1 ? 'year' : 'years';
+    return `${numStr} ${unit}`;
+}
+
 function formatTime24To12(h) {
     if (h === undefined || h === null) return '';
     const n = Number(h);
@@ -1126,7 +1139,7 @@ function renderBoatCustomerDetails(piData, resCodeData, statusVariant, linkState
         showFlex('manageBooking_customerDetails_boat_boatingExperience');
         setText(
             'manageBooking_customerDetails_boat_boatingExperience',
-            `${boatingExperience}`
+            formatBoatingExperience(boatingExperience)
         );
     } else {
         hide('manageBooking_customerDetails_boat_boatingExperienceContainer');
