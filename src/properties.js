@@ -1387,7 +1387,6 @@ reserveButtons.forEach(button => {
 
 
 // //calender
-
 // //calender
 // //calender
 // //calender
@@ -4338,8 +4337,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (companyName) {
                     companyNameElements.forEach(element => {
                         if (element) {
+                            // Clear any stored full text to use new company name
+                            delete element.dataset.fullText;
                             element.textContent = companyName;
-                            // Don't truncate company name
+                            truncateToFit(element);
                         }
                     });
                 }
@@ -17316,7 +17317,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Update selectedFishingCharterBlock_companyName
                 const companyNameElement = block.querySelector('[data-element="selectedFishingCharterBlock_companyName"]');
                 if (companyNameElement) {
+                    // Clear any stored full text to use new company name
+                    delete companyNameElement.dataset.fullText;
                     companyNameElement.textContent = trip.companyName;
+                    truncateToFit(companyNameElement);
                 }
 
                 // Update selectedFishingCharterBlock_datesDelivery
