@@ -1374,10 +1374,12 @@ reserveButtons.forEach(button => {
                 buttonLoader.style.display = 'flex';
             }
 
-            // Get current URL parameters
-            const params = window.location.search;
-            // Navigate to '/book/stay' with all current parameters
-            window.location.href = '/book/stays' + params;
+            const params = new URLSearchParams(window.location.search);
+            const pathMatch = window.location.pathname.match(/^\/properties\/([^/]+)/);
+            if (pathMatch && pathMatch[1]) {
+                params.set('slug', pathMatch[1]);
+            }
+            window.location.href = '/book/stays?' + params.toString();
         });
     }
 });

@@ -9705,8 +9705,15 @@ document.addEventListener('DOMContentLoaded', function () {
                             params.append(key, value);
                         });
 
-                        // Open in new tab
-                        const url = `/listing/page?${params.toString()}`;
+                        const slug = listing.webflow_slug;
+                        let url;
+                        if (slug) {
+                            const cleanParams = new URLSearchParams(params);
+                            cleanParams.delete('id');
+                            url = `/properties/${slug}?${cleanParams.toString()}`;
+                        } else {
+                            url = `/listing/page?${params.toString()}`;
+                        }
                         window.open(url, '_blank');
                     });
                 }
@@ -9933,8 +9940,15 @@ document.addEventListener('DOMContentLoaded', function () {
                             });
                         }
 
-                        // Open in new tab
-                        const url = `/listing/page?${params.toString()}`;
+                        const slug = listing.webflow_slug;
+                        let url;
+                        if (slug) {
+                            const cleanParams = new URLSearchParams(params);
+                            cleanParams.delete('id');
+                            url = `/properties/${slug}?${cleanParams.toString()}`;
+                        } else {
+                            url = `/listing/page?${params.toString()}`;
+                        }
                         window.open(url, '_blank');
                     });
                 }
@@ -10509,8 +10523,15 @@ document.addEventListener('DOMContentLoaded', function () {
                         params.append(key, value);
                     });
 
-                    // Open in new tab
-                    const url = `/listing/page?${params.toString()}`;
+                    const slug = this.listing.webflow_slug;
+                    let url;
+                    if (slug) {
+                        const cleanParams = new URLSearchParams(params);
+                        cleanParams.delete('id');
+                        url = `/properties/${slug}?${cleanParams.toString()}`;
+                    } else {
+                        url = `/listing/page?${params.toString()}`;
+                    }
                     window.open(url, '_blank');
                 });
 
