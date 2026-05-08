@@ -540,6 +540,141 @@ document.addEventListener('DOMContentLoaded', function () {
             : `${startMonth} ${startDay} - ${endMonth} ${endDay}`;
     }
 
+    function readSearchStateFromURL() {
+        const p = new URLSearchParams(window.location.search);
+        return {
+            location: p.get('location') || null,
+            ne_lat: p.get('ne_lat'),
+            ne_lng: p.get('ne_lng'),
+            sw_lat: p.get('sw_lat'),
+            sw_lng: p.get('sw_lng'),
+            checkIn: p.get('checkin') || null,
+            checkOut: p.get('checkout') || null,
+            adults: parseInt(p.get('adults')) || 0,
+            children: parseInt(p.get('children')) || 0,
+            infants: parseInt(p.get('infants')) || 0,
+            pets: parseInt(p.get('pets')) || 0,
+            boatRental: p.get('boat') === '1',
+            fishingCharter: p.get('charter') === '1',
+        };
+    }
+
+    function applyInitialURLStateToSearch(state) {
+        if (!state) return;
+
+        if (state.boatRental || state.fishingCharter) {
+            apiFormats.type.boatRental = !!state.boatRental;
+            apiFormats.type.fishingCharter = !!state.fishingCharter;
+            currentSelections.typeFlags.boatRental = !!state.boatRental;
+            currentSelections.typeFlags.fishingCharter = !!state.fishingCharter;
+
+            const parts = ['Home'];
+            if (state.boatRental) parts.push('Boat');
+            if (state.fishingCharter) parts.push('Charter');
+            currentSelections.type = parts.join(' + ');
+            if (typeButtonText) {
+                typeButtonText.textContent = currentSelections.type;
+            }
+        }
+
+        if (state.location) {
+            apiFormats.location.name = state.location;
+            currentSelections.location = state.location;
+            if (locationButtonText) {
+                locationButtonText.textContent = state.location;
+            }
+            if (state.ne_lat && state.ne_lng && state.sw_lat && state.sw_lng) {
+                apiFormats.location.bounds = {
+                    northeast: { lat: parseFloat(state.ne_lat), lng: parseFloat(state.ne_lng) },
+                    southwest: { lat: parseFloat(state.sw_lat), lng: parseFloat(state.sw_lng) },
+                    center: {
+                        lat: (parseFloat(state.ne_lat) + parseFloat(state.sw_lat)) / 2,
+                        lng: (parseFloat(state.ne_lng) + parseFloat(state.sw_lng)) / 2,
+                    },
+                };
+            }
+        }
+
+        if (state.checkIn && state.checkOut && /^\d{4}-\d{2}-\d{2}$/.test(state.checkIn) && /^\d{4}-\d{2}-\d{2}$/.test(state.checkOut)) {
+            apiFormats.dates.checkIn = state.checkIn;
+            apiFormats.dates.checkOut = state.checkOut;
+            const [ciY, ciM, ciD] = state.checkIn.split('-').map(Number);
+            const [coY, coM, coD] = state.checkOut.split('-').map(Number);
+            const checkInDate = new Date(ciY, ciM - 1, ciD);
+            const checkOutDate = new Date(coY, coM - 1, coD);
+            currentSelections.selectedDatesObj = { checkIn: checkInDate, checkOut: checkOutDate };
+            currentSelections.dates = formatDateRange(checkInDate, checkOutDate);
+            if (datesButtonText && currentSelections.dates) {
+                datesButtonText.textContent = currentSelections.dates;
+                datesButtonText.style.color = "";
+                datesButtonText.style.fontWeight = "";
+            }
+        }
+
+        const guestsTotal = (state.adults || 0) + (state.children || 0) + (state.infants || 0) + (state.pets || 0);
+        if (guestsTotal > 0) {
+            apiFormats.guests.adults = state.adults;
+            apiFormats.guests.children = state.children;
+            apiFormats.guests.infants = state.infants;
+            apiFormats.guests.pets = state.pets;
+            apiFormats.guests.total = guestsTotal;
+            const labelParts = [];
+            if (state.adults) labelParts.push(state.adults + ' adult' + (state.adults > 1 ? 's' : ''));
+            if (state.children) labelParts.push(state.children + ' child' + (state.children > 1 ? 'ren' : ''));
+            if (state.infants) labelParts.push(state.infants + ' infant' + (state.infants > 1 ? 's' : ''));
+            if (state.pets) labelParts.push(state.pets + ' pet' + (state.pets > 1 ? 's' : ''));
+            currentSelections.guests = labelParts.join(', ');
+            if (guestsButtonText && currentSelections.guests) {
+                guestsButtonText.textContent = currentSelections.guests;
+                guestsButtonText.style.color = "";
+                guestsButtonText.style.fontWeight = "";
+            }
+        }
+
+        Object.assign(pendingSelections, currentSelections);
+    }
+
+    function syncSearchStateToURL() {
+        try {
+            const p = new URLSearchParams();
+
+            if (apiFormats.location && apiFormats.location.name && apiFormats.location.name !== defaultValues.location) {
+                p.set('location', apiFormats.location.name);
+                const bounds = apiFormats.location.bounds;
+                if (bounds && bounds.northeast && bounds.southwest) {
+                    p.set('ne_lat', bounds.northeast.lat);
+                    p.set('ne_lng', bounds.northeast.lng);
+                    p.set('sw_lat', bounds.southwest.lat);
+                    p.set('sw_lng', bounds.southwest.lng);
+                }
+            }
+
+            const formattedCheckIn = typeof formatDateForAPI === 'function' ? formatDateForAPI(apiFormats.dates.checkIn) : '';
+            const formattedCheckOut = typeof formatDateForAPI === 'function' ? formatDateForAPI(apiFormats.dates.checkOut) : '';
+            if (formattedCheckIn) p.set('checkin', formattedCheckIn);
+            if (formattedCheckOut) p.set('checkout', formattedCheckOut);
+
+            if (apiFormats.guests) {
+                if (apiFormats.guests.adults > 0) p.set('adults', apiFormats.guests.adults);
+                if (apiFormats.guests.children > 0) p.set('children', apiFormats.guests.children);
+                if (apiFormats.guests.infants > 0) p.set('infants', apiFormats.guests.infants);
+                if (apiFormats.guests.pets > 0) p.set('pets', apiFormats.guests.pets);
+            }
+
+            if (apiFormats.type) {
+                if (apiFormats.type.boatRental) p.set('boat', '1');
+                if (apiFormats.type.fishingCharter) p.set('charter', '1');
+            }
+
+            const qs = p.toString();
+            const newUrl = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
+            const currentFullPath = window.location.pathname + window.location.search;
+            if (newUrl !== currentFullPath) {
+                window.history.replaceState(null, '', newUrl);
+            }
+        } catch (e) { }
+    }
+
     // Function to get location bounds from Google Maps Geocoding API
     async function getLocationBounds(locationName) {
 
@@ -8366,6 +8501,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (apiFormats.guests.total > 0) params.append('guests_total', apiFormats.guests.total);
             }
 
+            syncSearchStateToURL();
+
             // Make the API request as GET with query parameters
             const apiUrl = `https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/property_search?${params.toString()}`;
             const response = await fetch(apiUrl, {
@@ -10246,6 +10383,8 @@ document.addEventListener('DOMContentLoaded', function () {
             });
         });
     }
+
+    applyInitialURLStateToSearch(readSearchStateFromURL());
 
     // Call fetchPropertySearchResults on page load to display initial properties
     fetchPropertySearchResults()

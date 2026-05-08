@@ -19290,8 +19290,11 @@ document.addEventListener('DOMContentLoaded', () => {
                                 actualPrice = actualPrice * (1 + charter.serviceFee);
                             }
 
-                            // Check if this trip's calculated price falls within the filter range
-                            return actualPrice >= this.priceMin && actualPrice <= this.priceMax;
+                            // Check if this trip's calculated price falls within the filter range.
+                            // priceMax === 5000 is the slider's "$5,000+" sentinel (no upper bound),
+                            // matching the UI behavior that displays it as "$X,XXX+" everywhere else.
+                            const isAtMaxBound = this.priceMax >= 5000;
+                            return actualPrice >= this.priceMin && (isAtMaxBound || actualPrice <= this.priceMax);
                         });
 
                         // If no filtered trip fits the price range, exclude this charter completely
