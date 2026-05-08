@@ -632,6 +632,25 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         Object.assign(pendingSelections, currentSelections);
+
+        try {
+            if (typeof updateExtrasVisibility === 'function') updateExtrasVisibility();
+        } catch (e) { }
+        try {
+            if (window.quickSearchHandlers && typeof window.quickSearchHandlers.updateVisibility === 'function') {
+                window.quickSearchHandlers.updateVisibility();
+            }
+        } catch (e) { }
+        try {
+            if (window.typePopupHandlers && typeof window.typePopupHandlers.updateTypeSelectionVisual === 'function') {
+                window.typePopupHandlers.updateTypeSelectionVisual();
+            }
+        } catch (e) { }
+        try {
+            if (typeof responsiveNav !== 'undefined' && responsiveNav && typeof responsiveNav.updatePhoneView === 'function') {
+                responsiveNav.updatePhoneView();
+            }
+        } catch (e) { }
     }
 
     function syncSearchStateToURL() {
