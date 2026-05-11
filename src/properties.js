@@ -1,18 +1,56 @@
 (function bootstrapPropertyIdFromCms() {
-    try {
-        const root = document.querySelector('[data-property-id]');
-        const cmsPropertyId = root ? root.getAttribute('data-property-id') : null;
-        if (!cmsPropertyId) return;
+    function run() {
+        try {
+            const root = document.querySelector('[data-property-id]');
+            const cmsPropertyId = root ? root.getAttribute('data-property-id') : null;
+            if (!cmsPropertyId) return;
 
-        const url = new URL(window.location.href);
-        if (!url.searchParams.get('id')) {
-            url.searchParams.set('id', cmsPropertyId);
-            window.history.replaceState(null, '', url.toString());
+            const url = new URL(window.location.href);
+            if (!url.searchParams.get('id')) {
+                url.searchParams.set('id', cmsPropertyId);
+                window.history.replaceState(null, '', url.toString());
+            }
+
+            window.Wized = window.Wized || [];
+            window.Wized.push((Wized) => {
+                if (Wized.data.n.parameter.id !== cmsPropertyId) {
+                    Wized.data.n.parameter.id = cmsPropertyId;
+                }
+                const already =
+                    Wized.data.r &&
+                    Wized.data.r.Load_Property_Details &&
+                    Wized.data.r.Load_Property_Details.data;
+                if (!already && Wized.requests && typeof Wized.requests.execute === 'function') {
+                    Wized.requests.execute('Load_Property_Details');
+                }
+            });
+        } catch (e) {
+            console.error('bootstrap property id failed', e);
         }
-    } catch (e) {
-        console.error('bootstrap property id failed', e);
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', run, { once: true });
+    } else {
+        run();
     }
 })();
+
+// (function bootstrapPropertyIdFromCms() {
+//     try {
+//         const root = document.querySelector('[data-property-id]');
+//         const cmsPropertyId = root ? root.getAttribute('data-property-id') : null;
+//         if (!cmsPropertyId) return;
+
+//         const url = new URL(window.location.href);
+//         if (!url.searchParams.get('id')) {
+//             url.searchParams.set('id', cmsPropertyId);
+//             window.history.replaceState(null, '', url.toString());
+//         }
+//     } catch (e) {
+//         console.error('bootstrap property id failed', e);
+//     }
+// })();
 
 // for background 2nd click modal - mirror click
 var script = document.createElement('script');
