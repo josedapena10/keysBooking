@@ -1029,6 +1029,20 @@ function renderBoatRequestDetails(piData, resCodeData, statusVariant) {
         setText('manageBooking_requestDetails_boat_stayDates', stayDatesStr);
     }
 
+    // Stay address (from ReservationCode property details)
+    // Hide the container when pickup location is a private dock (same address already shown)
+    const stayAddressLine1 = resCodeData._property_details?.address_line_1 || '';
+    const stayAddressLine2 = resCodeData._property_details?.address_line_2 || '';
+    const stayAddressFull = [stayAddressLine1, stayAddressLine2].filter(Boolean).join(' ');
+    if (piData.boatPrivateDock === true) {
+        hide('manageBooking_requestDetails_boat_homeAddressContainer');
+        hide('manageBooking_requestDetails_boat_homeAddress');
+    } else {
+        showFlex('manageBooking_requestDetails_boat_homeAddressContainer');
+        showFlex('manageBooking_requestDetails_boat_homeAddress');
+        setText('manageBooking_requestDetails_boat_homeAddress', stayAddressFull);
+    }
+
     // Private Dock Delivery
     if (piData.boatPrivateDock === true) {
         // Private dock: use property address from reservationCode data
@@ -2191,6 +2205,8 @@ function hideAllContent() {
         'manageBooking_requestDetails_boat_passengers',
         'manageBooking_requestDetails_boat_payoutAmount',
         'manageBooking_requestDetails_boat_stayDates',
+        'manageBooking_requestDetails_boat_homeAddressContainer',
+        'manageBooking_requestDetails_boat_homeAddress',
         'manageBooking_requestDetails_boat_privateDockDelivery',
         'manageBooking_requestDetails_boat_guestHostCancellationDate_Container',
         'manageBooking_requestDetails_boat_guestHostCancellationDate_header',
