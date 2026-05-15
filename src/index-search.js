@@ -8315,7 +8315,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // ADD THIS: Skeleton loading functionality at the top after the existing variables
     let skeletonTimeout = null;
     let skeletonStartTime = null;
-    const MINIMUM_SKELETON_TIME = 1500; // 1.5 seconds minimum display
+    const MINIMUM_SKELETON_TIME = 500; // 0.5 seconds minimum display
 
     // Add skeleton CSS styles
     const skeletonStyles = document.createElement('style');
