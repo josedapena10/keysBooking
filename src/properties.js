@@ -3160,22 +3160,43 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Retrieve the properties and sliders
                 var propertyPhotos = event.data.property._property_all_pictures;
+                const isMobile = window.innerWidth <= 991;
 
-                // Preload the first photo to reduce initial slider paint delay
+                // Preload hero images so first paint competes less with Splide mount work
                 if (propertyPhotos && propertyPhotos[0] && propertyPhotos[0].property_image && propertyPhotos[0].property_image.url) {
+                    const appendImagePreload = (href, priority) => {
+                        if (!href) return;
+                        const dup = Array.from(document.head.querySelectorAll('link[rel="preload"][as="image"]')).some(
+                            (l) => l.getAttribute('href') === href
+                        );
+                        if (dup) return;
+                        const preload = document.createElement('link');
+                        preload.rel = 'preload';
+                        preload.as = 'image';
+                        preload.href = href;
+                        try {
+                            if ('fetchPriority' in preload) {
+                                preload.fetchPriority = priority;
+                            }
+                        } catch (_) {
+                            /* ignore */
+                        }
+                        document.head.appendChild(preload);
+                    };
                     const firstPhotoUrl = propertyPhotos[0].property_image.url;
-                    const preload = document.createElement('link');
-                    preload.rel = 'preload';
-                    preload.as = 'image';
-                    preload.href = firstPhotoUrl;
-                    preload.fetchPriority = 'high';
-                    document.head.appendChild(preload);
+                    appendImagePreload(firstPhotoUrl, 'high');
+                    // Desktop: warm next slides without starving the LCP image
+                    if (!isMobile && propertyPhotos[1] && propertyPhotos[1].property_image && propertyPhotos[1].property_image.url) {
+                        appendImagePreload(propertyPhotos[1].property_image.url, 'low');
+                    }
+                    if (!isMobile && propertyPhotos[2] && propertyPhotos[2].property_image && propertyPhotos[2].property_image.url) {
+                        appendImagePreload(propertyPhotos[2].property_image.url, 'low');
+                    }
                 } else {
                 }
 
                 // Select all elements that should be Splide sliders
                 var splide = document.querySelector('.splide');
-                const isMobile = window.innerWidth <= 991;
 
 
                 // Initialize Splide for this slider
@@ -3222,6 +3243,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         li.innerHTML = `<img src="${photoUrl.property_image.url}" 
                              alt="Property Photo"
                              loading="eager"
+                             fetchpriority="low"
                              decoding="async">`;
                         if (index < 5) {
 

@@ -8876,6 +8876,46 @@ document.addEventListener('DOMContentLoaded', function () {
         return urls;
     }
 
+    /** Remove prior search-grid preloads so each render does not accumulate <link> tags. */
+    function removeListingHeroPreloadsFromHead() {
+        document.querySelectorAll('link[data-preload-listing-hero="1"]').forEach((el) => el.remove());
+    }
+
+    /**
+     * Hint the browser to fetch above-the-fold card heroes before carousel innerHTML runs.
+     * Caps total links to avoid competing with other critical resources.
+     */
+    function preloadListingHeroUrlsForSearchGrid(listingsSlice) {
+        removeListingHeroPreloadsFromHead();
+        const seen = new Set();
+        const urls = [];
+        for (let i = 0; i < listingsSlice.length; i++) {
+            const hero = getListingCarouselSlideUrls(listingsSlice[i])[0];
+            if (hero && !seen.has(hero)) {
+                seen.add(hero);
+                urls.push(hero);
+            }
+        }
+        const max = 16;
+        const highThrough = 6;
+        for (let j = 0; j < urls.length && j < max; j++) {
+            const url = urls[j];
+            const link = document.createElement('link');
+            link.rel = 'preload';
+            link.as = 'image';
+            link.href = url;
+            link.setAttribute('data-preload-listing-hero', '1');
+            try {
+                if ('fetchPriority' in link) {
+                    link.fetchPriority = j < highThrough ? 'high' : 'low';
+                }
+            } catch (_) {
+                /* ignore */
+            }
+            document.head.appendChild(link);
+        }
+    }
+
     function getListingHeroPrefetchPool() {
         let pool = document.getElementById('listing-hero-prefetch-pool');
         if (!pool) {
@@ -8926,34 +8966,43 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         }
 
-        const START_DELAY_MS = 280;
-        const STAGGER_MS = 20;
+        const STAGGER_MS = 35;
         const tierHighThrough = perPage;
         const tierAutoThrough = perPage * 3;
 
-        heroes.forEach((url, i) => {
-            setTimeout(() => {
-                const img = document.createElement('img');
-                img.alt = '';
-                img.decoding = 'async';
-                img.loading = 'eager';
-                try {
-                    if ('fetchPriority' in img) {
-                        if (i < tierHighThrough) {
-                            img.fetchPriority = 'high';
-                        } else if (i < tierAutoThrough) {
-                            img.fetchPriority = 'auto';
-                        } else {
-                            img.fetchPriority = 'low';
+        function runPaginationHeroWarmup() {
+            heroes.forEach((url, i) => {
+                setTimeout(() => {
+                    const img = document.createElement('img');
+                    img.alt = '';
+                    img.decoding = 'async';
+                    img.loading = 'eager';
+                    try {
+                        if ('fetchPriority' in img) {
+                            if (i < tierHighThrough) {
+                                img.fetchPriority = 'high';
+                            } else if (i < tierAutoThrough) {
+                                img.fetchPriority = 'auto';
+                            } else {
+                                img.fetchPriority = 'low';
+                            }
                         }
+                    } catch (_) {
+                        /* ignore */
                     }
-                } catch (_) {
-                    /* ignore */
-                }
-                img.src = url;
-                pool.appendChild(img);
-            }, START_DELAY_MS + i * STAGGER_MS);
-        });
+                    img.src = url;
+                    pool.appendChild(img);
+                }, i * STAGGER_MS);
+            });
+        }
+
+        // Defer off-page hero warming so visible listing preloads + first-slide fetches win bandwidth.
+        const ric = window.requestIdleCallback;
+        if (typeof ric === 'function') {
+            ric(() => runPaginationHeroWarmup(), { timeout: 2200 });
+        } else {
+            setTimeout(runPaginationHeroWarmup, 650);
+        }
     }
 
     function shouldQueueListingCardCarouselInit(card, listing) {
@@ -9774,6 +9823,8 @@ document.addEventListener('DOMContentLoaded', function () {
         const startIndex = (currentPage - 1) * listingsPerPage;
         const endIndex = startIndex + listingsPerPage;
         const paginatedListings = (currentListings || []).slice(startIndex, endIndex);
+
+        preloadListingHeroUrlsForSearchGrid(paginatedListings);
 
         // If this is a filter update, hide all cards first
         if (filteredOnly) {
@@ -10723,13 +10774,18 @@ document.addEventListener('DOMContentLoaded', function () {
                             `<div class="map-carousel-slide" style="flex: 0 0 100%; height: 100%;">
                                 <img src="${img.property_image?.url || vaultUrlFromPropertyImageMeta(img.property_image) || ''}" 
                                      alt="${this.listing.property_name}" 
-                                     loading="${index < 3 ? 'eager' : 'lazy'}"
+                                     loading="${index === 0 ? 'eager' : 'lazy'}"
+                                     decoding="async"
+                                     ${index === 0 ? 'fetchpriority="high"' : ''}
                                      style="width: 100%; height: 200px; object-fit: cover;">
                             </div>`
                         ).join('') :
                         `<div class="map-carousel-slide" style="flex: 0 0 100%; height: 100%;">
                             <img src="${this.listing.image_url || ''}" 
                                  alt="${this.listing.property_name}" 
+                                 loading="eager"
+                                 decoding="async"
+                                 fetchpriority="high"
                                  style="width: 100%; height: 200px; object-fit: cover;">
                         </div>`
                     }
