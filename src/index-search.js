@@ -11744,7 +11744,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                 window.currentListingOverlay = null;
                             }
 
-                            // Center the map on this marker
+                            // Center the map on this marker (use parsed coords; API may return strings)
                             window.currentMap.setCenter({ lat, lng });
 
                             // Pan the view down so marker appears lower in viewport
@@ -11758,7 +11758,7 @@ document.addEventListener('DOMContentLoaded', function () {
                             setTimeout(() => {
                                 // Double-check no other overlay was created in the meantime
                                 if (!window.currentListingOverlay) {
-                                    const position = new google.maps.LatLng(listing.latitude, listing.longitude);
+                                    const position = new google.maps.LatLng(lat, lng);
                                     window.currentListingOverlay = createListingCardOverlay(listing, position, window.currentMap);
                                 }
 
@@ -11809,8 +11809,12 @@ document.addEventListener('DOMContentLoaded', function () {
                                         window.currentListingOverlay = null;
                                     }
 
-                                    // Center the map on this marker
-                                    window.currentMap.setCenter({ lat: this.listing.latitude, lng: this.listing.longitude });
+                                    // Use this.position (LatLng with finite numbers), not raw listing fields — API
+                                    // may return latitude/longitude as strings and Maps rejects LatLngLiteral with non-numbers.
+                                    window.currentMap.setCenter({
+                                        lat: this.position.lat(),
+                                        lng: this.position.lng()
+                                    });
 
                                     // Pan the view down so marker appears lower in viewport
                                     // This ensures the card overlay above the marker stays visible
@@ -11823,8 +11827,11 @@ document.addEventListener('DOMContentLoaded', function () {
                                     setTimeout(() => {
                                         // Double-check no other overlay was created in the meantime
                                         if (!window.currentListingOverlay) {
-                                            const position = new google.maps.LatLng(this.listing.latitude, this.listing.longitude);
-                                            window.currentListingOverlay = createListingCardOverlay(this.listing, position, window.currentMap);
+                                            window.currentListingOverlay = createListingCardOverlay(
+                                                this.listing,
+                                                this.position,
+                                                window.currentMap
+                                            );
                                         }
 
                                         // Reset centering flag after overlay is created - increase delay to ensure all idle events are blocked
