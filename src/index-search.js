@@ -8876,17 +8876,154 @@ document.addEventListener('DOMContentLoaded', function () {
         return urls;
     }
 
-    /** Remove prior search-grid preloads so each render does not accumulate <link> tags. */
+    function normalizePropertyImageUrlForCompare(u) {
+        if (!u || typeof u !== 'string') {
+            return '';
+        }
+        const t = u.trim();
+        if (!t) {
+            return '';
+        }
+        try {
+            return new URL(t, window.location.href).href;
+        } catch (_) {
+            return t;
+        }
+    }
+
+    /**
+     * If the search grid already painted this listing's hero, swap the map overlay's first <img>
+     * for a clone of that node so the bitmap is typically ready immediately (no opacity tricks).
+     */
+    function replaceMapOverlayFirstHeroWithLoadedGridImage(mapOverlayRoot, listing) {
+        const listingId = listing?.id;
+        if (listingId == null || !mapOverlayRoot) {
+            return;
+        }
+
+        const mapHeroImg = mapOverlayRoot.querySelector(
+            '.map-custom-carousel .map-carousel-track .map-carousel-slide img'
+        );
+        if (!mapHeroImg) {
+            return;
+        }
+
+        const gridCard = document.querySelector(
+            `[data-element="listings-container"] [data-listing-id="${listingId}"]`
+        );
+        if (!gridCard) {
+            return;
+        }
+
+        const gridImg = gridCard.querySelector(
+            '[data-element="listing-card-images-container"] .carousel-track .carousel-slide img'
+        );
+        if (!gridImg) {
+            return;
+        }
+
+        const gridSrcRaw = gridImg.getAttribute('src') || gridImg.src || '';
+        if (!gridSrcRaw || gridSrcRaw.startsWith('data:')) {
+            return;
+        }
+
+        const mapSrcNorm = normalizePropertyImageUrlForCompare(mapHeroImg.getAttribute('src') || mapHeroImg.src || '');
+        const gridSrcNorm = normalizePropertyImageUrlForCompare(gridSrcRaw);
+        if (mapSrcNorm && gridSrcNorm && mapSrcNorm !== gridSrcNorm) {
+            return;
+        }
+
+        if (!gridImg.complete || !gridImg.naturalWidth) {
+            return;
+        }
+
+        const clone = gridImg.cloneNode(true);
+        clone.alt = mapHeroImg.alt || listing.property_name || '';
+        clone.setAttribute('loading', 'eager');
+        try {
+            if ('fetchPriority' in clone) {
+                clone.fetchPriority = 'high';
+            }
+        } catch (_) {
+            /* ignore */
+        }
+        clone.style.cssText = 'width: 100%; height: 200px; object-fit: cover;';
+        clone.removeAttribute('data-pending-src');
+        mapHeroImg.replaceWith(clone);
+    }
+
+    const MAP_MARKER_WARM_POOL_MAX = 48;
+
+    /** Start fetching/decoding hero URLs as soon as the user touches a marker (before click completes). */
+    function warmListingHeroImagesForMapIntent(listing) {
+        if (!listing) {
+            return;
+        }
+        const urls = getListingCarouselSlideUrls(listing).slice(0, 4);
+        if (urls.length === 0) {
+            return;
+        }
+
+        let pool = document.getElementById('map-marker-hero-warm-pool');
+        if (!pool) {
+            pool = document.createElement('div');
+            pool.id = 'map-marker-hero-warm-pool';
+            pool.setAttribute('aria-hidden', 'true');
+            pool.style.cssText =
+                'position:absolute;left:-9999px;top:0;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);pointer-events:none;visibility:hidden;';
+            document.body.appendChild(pool);
+        }
+
+        const seen = new Set();
+        pool.querySelectorAll('img[data-map-warm-src]').forEach((im) => {
+            seen.add(im.getAttribute('data-map-warm-src'));
+        });
+
+        urls.forEach((url, i) => {
+            if (seen.has(url)) {
+                return;
+            }
+            seen.add(url);
+            const img = document.createElement('img');
+            img.setAttribute('data-map-warm-src', url);
+            img.alt = '';
+            img.loading = 'eager';
+            img.decoding = 'async';
+            try {
+                if ('fetchPriority' in img) {
+                    img.fetchPriority = i === 0 ? 'high' : 'low';
+                }
+            } catch (_) {
+                /* ignore */
+            }
+            img.src = url;
+            pool.appendChild(img);
+        });
+
+        while (pool.children.length > MAP_MARKER_WARM_POOL_MAX) {
+            pool.removeChild(pool.firstChild);
+        }
+    }
+
+    /** Remove legacy <link rel="preload"> heroes (Chrome warns if preloaded URL is not consumed quickly). */
     function removeListingHeroPreloadsFromHead() {
         document.querySelectorAll('link[data-preload-listing-hero="1"]').forEach((el) => el.remove());
     }
 
     /**
-     * Hint the browser to fetch above-the-fold card heroes before carousel innerHTML runs.
-     * Caps total links to avoid competing with other critical resources.
+     * Warm current-page hero URLs via real <img> nodes in the prefetch pool (same idea as pagination warmup).
+     * Avoids `<link rel=preload as=image>`: Chrome flags those when no matching consumer runs within a few seconds of load.
      */
-    function preloadListingHeroUrlsForSearchGrid(listingsSlice) {
+    function warmListingHeroImagesForSearchGridSlice(listingsSlice) {
         removeListingHeroPreloadsFromHead();
+
+        if (!listingsSlice || listingsSlice.length === 0) {
+            return;
+        }
+
+        const pool = getListingHeroPrefetchPool();
+        pool.querySelectorAll('img[data-search-grid-warm="1"]').forEach((el) => el.remove());
+
         const seen = new Set();
         const urls = [];
         for (let i = 0; i < listingsSlice.length; i++) {
@@ -8900,19 +9037,20 @@ document.addEventListener('DOMContentLoaded', function () {
         const highThrough = 6;
         for (let j = 0; j < urls.length && j < max; j++) {
             const url = urls[j];
-            const link = document.createElement('link');
-            link.rel = 'preload';
-            link.as = 'image';
-            link.href = url;
-            link.setAttribute('data-preload-listing-hero', '1');
+            const img = document.createElement('img');
+            img.setAttribute('data-search-grid-warm', '1');
+            img.alt = '';
+            img.loading = 'eager';
+            img.decoding = 'async';
             try {
-                if ('fetchPriority' in link) {
-                    link.fetchPriority = j < highThrough ? 'high' : 'low';
+                if ('fetchPriority' in img) {
+                    img.fetchPriority = j < highThrough ? 'high' : 'low';
                 }
             } catch (_) {
                 /* ignore */
             }
-            document.head.appendChild(link);
+            img.src = url;
+            pool.appendChild(img);
         }
     }
 
@@ -9824,7 +9962,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const endIndex = startIndex + listingsPerPage;
         const paginatedListings = (currentListings || []).slice(startIndex, endIndex);
 
-        preloadListingHeroUrlsForSearchGrid(paginatedListings);
+        warmListingHeroImagesForSearchGridSlice(paginatedListings);
 
         // If this is a filter update, hide all cards first
         if (filteredOnly) {
@@ -10909,6 +11047,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 `;
 
                 this.div.innerHTML = cardHTML;
+                replaceMapOverlayFirstHeroWithLoadedGridImage(this.div, this.listing);
 
                 // Add click handler to close button
                 const closeBtn = this.div.querySelector('.close-btn');
@@ -11774,15 +11913,27 @@ document.addEventListener('DOMContentLoaded', function () {
                         const markerDiv = document.createElement('div');
                         markerDiv.innerHTML = markerHTML;
 
+                        const markerSurface = markerDiv.firstElementChild;
+                        if (markerSurface) {
+                            markerSurface.addEventListener(
+                                'pointerdown',
+                                () => {
+                                    warmListingHeroImagesForMapIntent(listing);
+                                },
+                                { passive: true }
+                            );
+                        }
+
                         marker = new google.maps.marker.AdvancedMarkerElement({
                             position: { lat, lng },
                             map: window.currentMap,
-                            content: markerDiv.firstElementChild,
+                            content: markerSurface,
                             title: listing.property_name
                         });
 
                         // Add click handler to center map on marker
                         marker.addListener('click', () => {
+                            warmListingHeroImagesForMapIntent(listing);
                             // Prevent multiple rapid clicks
                             if (window.markerClickInProgress) {
                                 return;
@@ -11810,20 +11961,18 @@ document.addEventListener('DOMContentLoaded', function () {
                             // Change marker background
                             setMarkerBackgroundColor(listing.id, '#9ecaff');
 
-                            // Create and show listing card overlay after a brief delay to prevent race conditions
-                            setTimeout(() => {
-                                // Double-check no other overlay was created in the meantime
+                            // Show overlay on the next frame (no artificial hide/reveal); inner timeout keeps drag/idle races stable
+                            requestAnimationFrame(() => {
                                 if (!window.currentListingOverlay) {
                                     const position = new google.maps.LatLng(lat, lng);
                                     window.currentListingOverlay = createListingCardOverlay(listing, position, window.currentMap);
                                 }
 
-                                // Reset centering flag after overlay is created - increase delay to ensure all idle events are blocked
                                 setTimeout(() => {
                                     isCenteringOnMarker = false;
                                     window.markerClickInProgress = false;
-                                }, 600); // Increased to 600ms to be longer than the idle timeout (500ms)
-                            }, 150);
+                                }, 600);
+                            });
                         });
                     } else {
                         // Fallback to custom overlay
@@ -11844,9 +11993,22 @@ document.addEventListener('DOMContentLoaded', function () {
                                 const panes = this.getPanes();
                                 panes.overlayMouseTarget.appendChild(this.div);
 
+                                const markerSurface = this.div.firstElementChild;
+                                if (markerSurface) {
+                                    markerSurface.addEventListener(
+                                        'pointerdown',
+                                        () => {
+                                            warmListingHeroImagesForMapIntent(this.listing);
+                                        },
+                                        { passive: true }
+                                    );
+                                }
+
                                 // Add click handler
                                 this.div.firstElementChild.addEventListener('click', (e) => {
                                     e.stopPropagation();
+
+                                    warmListingHeroImagesForMapIntent(this.listing);
 
                                     // Prevent multiple rapid clicks
                                     if (window.markerClickInProgress) {
@@ -11879,9 +12041,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                     // Change marker background
                                     setMarkerBackgroundColor(this.listing.id, '#9ecaff');
 
-                                    // Create and show listing card overlay after a brief delay to prevent race conditions
-                                    setTimeout(() => {
-                                        // Double-check no other overlay was created in the meantime
+                                    requestAnimationFrame(() => {
                                         if (!window.currentListingOverlay) {
                                             window.currentListingOverlay = createListingCardOverlay(
                                                 this.listing,
@@ -11890,12 +12050,11 @@ document.addEventListener('DOMContentLoaded', function () {
                                             );
                                         }
 
-                                        // Reset centering flag after overlay is created - increase delay to ensure all idle events are blocked
                                         setTimeout(() => {
                                             isCenteringOnMarker = false;
                                             window.markerClickInProgress = false;
-                                        }, 600); // Increased to 600ms to be longer than the idle timeout (500ms)
-                                    }, 150);
+                                        }, 600);
+                                    });
                                 });
                             }
 
