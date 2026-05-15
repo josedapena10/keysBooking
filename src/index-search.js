@@ -1,3 +1,22 @@
+/* Hide phone map/list footer on first paint until listing load logic runs (DOMContentLoaded is too late for one frame of flash). */
+(function () {
+    try {
+        if (typeof document === 'undefined') return;
+        if (document.getElementById('kb-phone-map-footer-first-paint')) return;
+        const s = document.createElement('style');
+        s.id = 'kb-phone-map-footer-first-paint';
+        s.textContent =
+            'html.kb-listings-footer-load-pending [data-element="phoneViewMapViewButtonFooter"]{' +
+            'display:none!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important;}';
+        (document.head || document.documentElement).appendChild(s);
+        if (document.documentElement) {
+            document.documentElement.classList.add('kb-listings-footer-load-pending');
+        }
+    } catch (_e) {
+        /* no-op */
+    }
+})();
+
 document.addEventListener('DOMContentLoaded', function () {
 
     // Keep loader visible until skeleton shows
@@ -6914,7 +6933,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 // Amenities filter
                 if (activeFilters.amenities.length > 0) {
-                    const listingAmenityIds = listing._amenities?.map(a => a.attribute_id) || [];
+                    const amenityRows = Array.isArray(listing._amenities)
+                        ? listing._amenities
+                        : parsePropertySearchJsonArrayField(listing._amenities);
+                    const listingAmenityIds = amenityRows.map(a => a && a.attribute_id).filter(id => id != null);
 
                     // Check if the listing has all selected amenities
                     const hasAllAmenities = activeFilters.amenities.every(id => {
@@ -8222,6 +8244,74 @@ document.addEventListener('DOMContentLoaded', function () {
     let paginationShowTimeout = null;
     const PAGINATION_SHOW_DELAY_MS = 300;
 
+    /** Phone map/list footer: hide while listings are loading so it does not flash above empty space. */
+    let phoneMapFooterRevealGeneration = 0;
+
+    /** Listing cards: rAF-queued `initializeCustomCarouselForCard` work still in flight (footer stays hidden until 0). */
+    let listingCarouselInitPendingCount = 0;
+
+    function ensurePhoneMapFooterLoadingStyles() {
+        if (document.getElementById('kb-phone-map-footer-loading-styles')) return;
+        const s = document.createElement('style');
+        s.id = 'kb-phone-map-footer-loading-styles';
+        s.textContent = `
+            [data-element="phoneViewMapViewButtonFooter"].kb-footer-listings-loading {
+                display: none !important;
+                visibility: hidden !important;
+                opacity: 0 !important;
+                pointer-events: none !important;
+            }
+        `;
+        document.head.appendChild(s);
+    }
+
+    function hidePhoneMapFooterForListingLoad() {
+        ensurePhoneMapFooterLoadingStyles();
+        const el = document.querySelector('[data-element="phoneViewMapViewButtonFooter"]');
+        if (!el) return;
+        el.dataset.kbHiddenForListings = '1';
+        el.classList.add('kb-footer-listings-loading');
+        el.style.setProperty('visibility', 'hidden', 'important');
+        el.style.setProperty('opacity', '0', 'important');
+        el.style.setProperty('pointer-events', 'none', 'important');
+    }
+
+    function revealPhoneMapFooterWhenReady() {
+        const el = document.querySelector('[data-element="phoneViewMapViewButtonFooter"]');
+        if (!el || el.dataset.kbHiddenForListings !== '1') {
+            document.documentElement.classList.remove('kb-listings-footer-load-pending');
+            return;
+        }
+        if (listingCarouselInitPendingCount > 0) {
+            return;
+        }
+        const gen = ++phoneMapFooterRevealGeneration;
+        const listingContainer = document.querySelector('[data-element="listings-container"]');
+
+        const finalize = () => {
+            if (gen !== phoneMapFooterRevealGeneration) return;
+            if (listingCarouselInitPendingCount > 0) {
+                revealPhoneMapFooterWhenReady();
+                return;
+            }
+            el.dataset.kbHiddenForListings = '';
+            el.classList.remove('kb-footer-listings-loading');
+            el.style.removeProperty('visibility');
+            el.style.removeProperty('opacity');
+            el.style.removeProperty('pointer-events');
+            document.documentElement.classList.remove('kb-listings-footer-load-pending');
+        };
+
+        // Listings + initializeCustomCarouselForCard schedule rAF per card — wait for layout/paint.
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                const n = listingContainer ? listingContainer.querySelectorAll('[data-listing-id]').length : 0;
+                const extraMs = Math.min(360, Math.max(0, n - 6) * 22);
+                setTimeout(finalize, 140 + extraMs);
+            });
+        });
+    }
+
     // ADD THIS: Skeleton loading functionality at the top after the existing variables
     let skeletonTimeout = null;
     let skeletonStartTime = null;
@@ -8336,7 +8426,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // Function to create skeleton cards
-    function createSkeletonCards(count = 4) {
+    function createSkeletonCards(count = 6) {
         const skeletonContainer = createSkeletonContainer();
         skeletonContainer.innerHTML = '';
 
@@ -8349,6 +8439,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Function to show skeleton loading with minimum time (NON-BLOCKING VERSION)
     function showSkeletonLoading() {
+        hidePhoneMapFooterForListingLoad();
         const listingsContainer = document.querySelector('[data-element="listings-container"]');
         const skeletonContainer = createSkeletonContainer();
         const paginationContainer = document.querySelector('[data-element="pagination-container"]');
@@ -8359,7 +8450,8 @@ document.addEventListener('DOMContentLoaded', function () {
         // Use requestAnimationFrame to avoid blocking map interactions
         requestAnimationFrame(() => {
             // Create and show skeleton cards
-            createSkeletonCards(4);
+            createSkeletonCards(6);
+            hidePhoneMapFooterForListingLoad();
 
             // Hide listings container and pagination
             if (listingsContainer) {
@@ -8393,6 +8485,7 @@ document.addEventListener('DOMContentLoaded', function () {
             requestAnimationFrame(() => {
                 if (listingsContainer) listingsContainer.style.display = '';
                 if (skeletonContainer) skeletonContainer.style.display = 'none';
+                revealPhoneMapFooterWhenReady();
             });
             return;
         }
@@ -8418,6 +8511,8 @@ document.addEventListener('DOMContentLoaded', function () {
                     listingsContainer.style.display = '';
                 }
 
+                revealPhoneMapFooterWhenReady();
+
                 // Reset timing variables
                 skeletonStartTime = null;
                 skeletonTimeout = null;
@@ -8433,7 +8528,65 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
+    /** Full file URL when property_search_v2 returns property_image.path (no .url). */
+    const PROPERTY_SEARCH_VAULT_ORIGIN = 'https://xruq-v9q0-hayo.n7c.xano.io';
 
+    function parsePropertySearchJsonArrayField(value, _contextLabel) {
+        if (Array.isArray(value)) return value;
+        if (typeof value === 'string' && value.trim()) {
+            try {
+                const parsed = JSON.parse(value);
+                if (!Array.isArray(parsed)) {
+                    return [];
+                }
+                return parsed;
+            } catch (_parseErr) {
+                return [];
+            }
+        }
+        return [];
+    }
+
+    function vaultUrlFromPropertyImageMeta(propertyImage) {
+        if (!propertyImage || typeof propertyImage !== 'object') return '';
+        if (propertyImage.url) return propertyImage.url;
+        const path = propertyImage.path;
+        if (typeof path === 'string' && path.trim()) {
+            const p = path.trim();
+            return p.startsWith('http') ? p : `${PROPERTY_SEARCH_VAULT_ORIGIN}${p.startsWith('/') ? p : `/${p}`}`;
+        }
+        return '';
+    }
+
+    /** API may return review_average as string; .toFixed only exists on numbers. */
+    function formatReviewAverageForDisplay(value) {
+        const n = Number(value);
+        return Number.isFinite(n) ? n.toFixed(2) : '';
+    }
+
+    function normalizePropertySearchListing(listing) {
+        if (!listing || typeof listing !== 'object') return listing;
+        const id = listing.id;
+        try {
+            listing._images = parsePropertySearchJsonArrayField(listing._images, `listing._images id=${id}`);
+            listing._amenities = parsePropertySearchJsonArrayField(listing._amenities, `listing._amenities id=${id}`);
+            for (let i = 0; i < listing._images.length; i++) {
+                const row = listing._images[i];
+                const pi = row && row.property_image;
+                if (pi && typeof pi === 'object') {
+                    const u = vaultUrlFromPropertyImageMeta(pi);
+                    if (u && !pi.url) {
+                        pi.url = u;
+                    }
+                }
+            }
+        } catch (_normErr) {
+            listing._images = [];
+            listing._amenities = [];
+            return listing;
+        }
+        return listing;
+    }
 
     // MODIFY the fetchPropertySearchResults function to include skeleton loading
     async function fetchPropertySearchResults(options = {}) {
@@ -8461,6 +8614,7 @@ document.addEventListener('DOMContentLoaded', function () {
         try {
             isSearchInProgress = true;
             shouldDelayPaginationRender = true;
+            hidePhoneMapFooterForListingLoad();
 
             // Wait for user data to be loaded (for age-based filtering)
             await waitForUserData();
@@ -8523,7 +8677,7 @@ document.addEventListener('DOMContentLoaded', function () {
             syncSearchStateToURL();
 
             // Make the API request as GET with query parameters
-            const apiUrl = `https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/property_search?${params.toString()}`;
+            const apiUrl = `https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/property_search_v2?${params.toString()}`;
             const response = await fetch(apiUrl, {
                 method: 'GET'
             });
@@ -8534,17 +8688,24 @@ document.addEventListener('DOMContentLoaded', function () {
                 throw new Error(`API error: ${response.status}`);
             }
 
-            // Parse the data
-            const apiResponse = await response.json();
-            // The endpoint now returns { availableProperties: [...] }
-            const availableProperties = apiResponse.availableProperties || [];
+            // Parse body once (response stream can only be read once)
+            const responseText = await response.text();
+            const apiResponse = JSON.parse(responseText);
+            // The endpoint returns { availableProperties: [...] }; _images / _amenities may be JSON strings,
+            // and property_image may use vault path instead of url — normalize for the rest of the UI.
+            const rawAvailable = apiResponse.availableProperties || [];
+            const availableProperties = rawAvailable.map(normalizePropertySearchListing);
             boatRentals = apiResponse.boatRentals || [];
             fishingCharters = apiResponse.fishingCharters || [];
 
 
 
             // Store results in localStorage
-            localStorage.setItem('propertySearchResults', JSON.stringify(availableProperties));
+            try {
+                localStorage.setItem('propertySearchResults', JSON.stringify(availableProperties));
+            } catch (_lsErr) {
+                /* ignore */
+            }
 
             // Set the base list for filtering
             currentListings = Array.isArray(availableProperties) ? availableProperties : [];
@@ -8559,7 +8720,12 @@ document.addEventListener('DOMContentLoaded', function () {
             charterModule.buildIndex(availableProperties || [], fishingCharters || []);
 
             // Now re-apply any active filters to the new base list
-            const filtered = filterSystem ? filterSystem.applyFilters(unfilteredListings) : unfilteredListings;
+            let filtered;
+            try {
+                filtered = filterSystem ? filterSystem.applyFilters(unfilteredListings) : unfilteredListings;
+            } catch (_filterErr) {
+                filtered = unfilteredListings;
+            }
             currentPage = 1;
             renderListingCards(filtered, false, currentPage);
             updateMarkersVisibilityWithFilters(filtered);
@@ -8695,11 +8861,14 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function getListingCarouselSlideUrls(listing) {
         const urls = [];
-        if (Array.isArray(listing._images)) {
-            for (const imageData of listing._images) {
-                const url = imageData?.property_image?.url;
-                if (url) urls.push(url);
-            }
+        const images = Array.isArray(listing._images)
+            ? listing._images
+            : parsePropertySearchJsonArrayField(listing._images);
+        for (const imageData of images) {
+            const url =
+                imageData?.property_image?.url ||
+                vaultUrlFromPropertyImageMeta(imageData?.property_image);
+            if (url) urls.push(url);
         }
         if (urls.length === 0 && listing.image_url) {
             urls.push(listing.image_url);
@@ -8787,18 +8956,62 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    function initializeCustomCarouselForCard(card, listing) {
+    function shouldQueueListingCardCarouselInit(card, listing) {
+        const imagesContainer = card.querySelector('[data-element="listing-card-images-container"]');
+        if (!imagesContainer || imagesContainer.classList.contains('is-initialized')) {
+            return false;
+        }
+        return getListingCarouselSlideUrls(listing).length > 0;
+    }
+
+    /**
+     * When a listing card will run full carousel init (URLs + not yet initialized), block the phone
+     * map footer until the first hero image has settled (load/error/timeout) — not when sync setup returns.
+     */
+    function acquireListingCarouselFooterGate() {
+        listingCarouselInitPendingCount += 1;
+        let released = false;
+        return function releaseListingCarouselFooterGate() {
+            if (released) return;
+            released = true;
+            listingCarouselInitPendingCount -= 1;
+            if (listingCarouselInitPendingCount < 0) {
+                listingCarouselInitPendingCount = 0;
+            }
+            revealPhoneMapFooterWhenReady();
+        };
+    }
+
+    function scheduleListingCardCarouselInit(card, listing) {
+        const footerGate = shouldQueueListingCardCarouselInit(card, listing)
+            ? acquireListingCarouselFooterGate()
+            : null;
+        requestAnimationFrame(() => {
+            try {
+                initializeCustomCarouselForCard(card, listing, { footerGate });
+            } catch (err) {
+                if (footerGate) footerGate();
+                throw err;
+            }
+        });
+    }
+
+    function initializeCustomCarouselForCard(card, listing, options = {}) {
+        const footerGate = typeof options.footerGate === 'function' ? options.footerGate : null;
+
         // Find the images container within the card
         const imagesContainer = card.querySelector('[data-element="listing-card-images-container"]');
 
         const slideUrls = getListingCarouselSlideUrls(listing);
 
         if (!imagesContainer || slideUrls.length === 0) {
+            if (footerGate) footerGate();
             return;
         }
 
         // Check if already initialized
         if (imagesContainer.classList.contains('is-initialized')) {
+            if (footerGate) footerGate();
             return; // Already initialized
         }
 
@@ -9063,6 +9276,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     nudgeFirstSlidePaint();
                     syncCurrentSlideSkeleton();
                     loadPendingSlidesSequentiallyFrom(1);
+                    if (footerGate) footerGate();
                 }
                 firstSlideImg.addEventListener('load', afterFirstSlideReady, { once: true });
                 firstSlideImg.addEventListener('error', afterFirstSlideReady, { once: true });
@@ -9074,6 +9288,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
                 setTimeout(afterFirstSlideReady, 4500);
             }
+        } else if (footerGate) {
+            footerGate();
         }
         const prevButton = imagesContainer.querySelector('.image_arrow_prev');
         const nextButton = imagesContainer.querySelector('.image_arrow_next');
@@ -9640,136 +9856,158 @@ document.addEventListener('DOMContentLoaded', function () {
         existingResetButtons.forEach(btn => btn.remove());
 
         paginatedListings.forEach((listing) => {
-            // Check if card for this listing already exists
-            let card = listingContainer.querySelector(`[data-listing-id="${listing.id}"]`);
+            try {
+                // Check if card for this listing already exists
+                let card = listingContainer.querySelector(`[data-listing-id="${listing.id}"]`);
 
-            if (!card) {
-                // Card doesn't exist, create a new one from template
-                card = listingCardTemplate.cloneNode(true);
-                card.style.display = ''; // Make sure the new card is visible
+                if (!card) {
+                    // Card doesn't exist, create a new one from template
+                    card = listingCardTemplate.cloneNode(true);
+                    card.style.display = ''; // Make sure the new card is visible
 
-                // Update card content
-                const title = card.querySelector('[data-element="listing-card-title"]');
-                const subtitle = card.querySelector('[data-element="listing-card-subtitle"]');
-                const totalPrice = card.querySelector('[data-element="ListingCardTotalPrice"]');
-                const totalPriceSubText = card.querySelector('[data-element="ListingCardTotalPrice_subText"]');
-                const image = card.querySelector('[data-element="listing-card-image"]');
-                const titleSubtitleSubtextContainer = card.querySelector('[data-element="listing-card-top3text-container"]');
-                // Add review elements
-                const reviewAverage = card.querySelector('[data-element="ListingCardReviewAverage"]');
-                const reviewIcon = card.querySelector('[data-element="ListingCardReviewIcon"]');
-                const reviewCount = card.querySelector('[data-element="ListingCardReviewCount"]');
-                // Add minNights element
-                const minNightsElement = card.querySelector('[data-element="listing-card-minNights"]');
+                    // Update card content
+                    const title = card.querySelector('[data-element="listing-card-title"]');
+                    const subtitle = card.querySelector('[data-element="listing-card-subtitle"]');
+                    const totalPrice = card.querySelector('[data-element="ListingCardTotalPrice"]');
+                    const totalPriceSubText = card.querySelector('[data-element="ListingCardTotalPrice_subText"]');
+                    const image = card.querySelector('[data-element="listing-card-image"]');
+                    const titleSubtitleSubtextContainer = card.querySelector('[data-element="listing-card-top3text-container"]');
+                    // Add review elements
+                    const reviewAverage = card.querySelector('[data-element="ListingCardReviewAverage"]');
+                    const reviewIcon = card.querySelector('[data-element="ListingCardReviewIcon"]');
+                    const reviewCount = card.querySelector('[data-element="ListingCardReviewCount"]');
+                    // Add minNights element
+                    const minNightsElement = card.querySelector('[data-element="listing-card-minNights"]');
 
-                // Set basic info
-                if (title) {
-                    title.textContent = listing.property_name || 'Property Name';
-                    // Add requestAnimationFrame to ensure DOM is updated
-                    requestAnimationFrame(() => {
-                        handleTextTruncation(title);
-                    });
-                }
-                if (subtitle) subtitle.textContent = listing.listing_city_state || '';
-                if (image) {
-                    attachSingleImageRetry(image);
-                    if (listing.image_url) image.src = listing.image_url;
-                }
-
-                // Set review info
-                if (reviewAverage && reviewCount) {
-                    if (!listing.reviews_amount || !listing.review_average) {
-                        reviewAverage.textContent = '';
-                        reviewIcon.style.display = 'none';
-                        reviewCount.style.display = 'none';
-                        titleSubtitleSubtextContainer.style.width = '100%';
-                    } else {
-                        reviewAverage.textContent = listing.review_average.toFixed(2);
-                        reviewCount.textContent = `(${listing.reviews_amount})`;
-                        reviewCount.style.display = '';
+                    // Set basic info
+                    if (title) {
+                        title.textContent = listing.property_name || 'Property Name';
+                        // Add requestAnimationFrame to ensure DOM is updated
+                        requestAnimationFrame(() => {
+                            handleTextTruncation(title);
+                        });
                     }
-                }
+                    if (subtitle) subtitle.textContent = listing.listing_city_state || '';
+                    if (image) {
+                        attachSingleImageRetry(image);
+                        if (listing.image_url) image.src = listing.image_url;
+                    }
 
-                // Handle minNights display
-                if (minNightsElement) {
-                    const hasExtras = wantBoat() || wantChar();
-                    const datesSelected = hasDates();
-
-                    if (hasExtras && !datesSelected) {
-                        // Calculate effective nights considering filters
-                        const minNights = listing.min_nights || 1;
-                        let effectiveNights = minNights;
-
-                        let maxFilterDays = 0;
-                        let boatRequiredMinNights = 0;
-
-                        // Get boat rental days if boat is active
-                        if (wantBoat() && typeof boatModule !== 'undefined') {
-                            const boatFilters = boatModule.getCurrentFilters();
-                            if (boatFilters && boatFilters.days) {
-                                maxFilterDays = Math.max(maxFilterDays, boatFilters.days);
+                    // Set review info
+                    if (reviewAverage && reviewCount) {
+                        const reviewAvgText = formatReviewAverageForDisplay(listing.review_average);
+                        if (!listing.reviews_amount || !reviewAvgText) {
+                            reviewAverage.textContent = '';
+                            if (reviewIcon) {
+                                reviewIcon.style.display = 'none';
                             }
+                            reviewCount.style.display = 'none';
+                            if (titleSubtitleSubtextContainer) {
+                                titleSubtitleSubtextContainer.style.width = '100%';
+                            }
+                        } else {
+                            reviewAverage.textContent = reviewAvgText;
+                            reviewCount.textContent = `(${listing.reviews_amount})`;
+                            reviewCount.style.display = '';
+                        }
+                    }
 
-                            // Check if boats require minimum nights due to public dock delivery
-                            // Only apply when no explicit day filter is set (default 0.5)
-                            if (!boatFilters?.days || boatFilters.days <= 0.5) {
-                                const boatBadgeData = boatModule.getBoatBadgeData(listing, null, null);
-                                if (boatBadgeData && boatBadgeData.minNights) {
-                                    boatRequiredMinNights = boatBadgeData.minNights;
+                    // Handle minNights display
+                    if (minNightsElement) {
+                        const hasExtras = wantBoat() || wantChar();
+                        const datesSelected = hasDates();
+
+                        if (hasExtras && !datesSelected) {
+                            // Calculate effective nights considering filters
+                            const minNights = listing.min_nights || 1;
+                            let effectiveNights = minNights;
+
+                            let maxFilterDays = 0;
+                            let boatRequiredMinNights = 0;
+
+                            // Get boat rental days if boat is active
+                            if (wantBoat() && typeof boatModule !== 'undefined') {
+                                const boatFilters = boatModule.getCurrentFilters();
+                                if (boatFilters && boatFilters.days) {
+                                    maxFilterDays = Math.max(maxFilterDays, boatFilters.days);
+                                }
+
+                                // Check if boats require minimum nights due to public dock delivery
+                                // Only apply when no explicit day filter is set (default 0.5)
+                                if (!boatFilters?.days || boatFilters.days <= 0.5) {
+                                    const boatBadgeData = boatModule.getBoatBadgeData(listing, null, null);
+                                    if (boatBadgeData && boatBadgeData.minNights) {
+                                        boatRequiredMinNights = boatBadgeData.minNights;
+                                    }
                                 }
                             }
-                        }
 
-                        // Get charter days if charter is active
-                        if (wantChar() && typeof charterModule !== 'undefined') {
-                            const charterFilters = charterModule.getCurrentFilters();
-                            if (charterFilters && charterFilters.days) {
-                                maxFilterDays = Math.max(maxFilterDays, charterFilters.days);
+                            // Get charter days if charter is active
+                            if (wantChar() && typeof charterModule !== 'undefined') {
+                                const charterFilters = charterModule.getCurrentFilters();
+                                if (charterFilters && charterFilters.days) {
+                                    maxFilterDays = Math.max(maxFilterDays, charterFilters.days);
+                                }
                             }
+
+                            // Use the highest value between property min nights, filter days, and boat required min nights
+                            effectiveNights = Math.max(minNights, maxFilterDays, boatRequiredMinNights);
+
+                            minNightsElement.textContent = `${effectiveNights} night${effectiveNights > 1 ? 's' : ''}`;
+                            minNightsElement.style.display = 'flex';
+                        } else {
+                            // Hide minNights in all other cases
+                            minNightsElement.style.display = 'none';
                         }
-
-                        // Use the highest value between property min nights, filter days, and boat required min nights
-                        effectiveNights = Math.max(minNights, maxFilterDays, boatRequiredMinNights);
-
-                        minNightsElement.textContent = `${effectiveNights} night${effectiveNights > 1 ? 's' : ''}`;
-                        minNightsElement.style.display = 'flex';
-                    } else {
-                        // Hide minNights in all other cases
-                        minNightsElement.style.display = 'none';
                     }
-                }
 
-                // Phase 2-3: Handle price display with new logic
-                if (totalPrice) {
-                    const hasExtras = wantBoat() || wantChar();
-                    const datesSelected = hasDates();
+                    // Phase 2-3: Handle price display with new logic
+                    if (totalPrice) {
+                        const hasExtras = wantBoat() || wantChar();
+                        const datesSelected = hasDates();
 
-                    if (!hasExtras && !datesSelected) {
-                        // Home-only & NO dates: Starting at nightly
-                        if (listing.nightlyPrice && Number.isFinite(Number(listing.nightlyPrice))) {
-                            const priceText = fmtMoney(listing.nightlyPrice);
-                            const minNights = listing.min_nights || 1;
+                        if (!hasExtras && !datesSelected) {
+                            // Home-only & NO dates: Starting at nightly
+                            if (listing.nightlyPrice && Number.isFinite(Number(listing.nightlyPrice))) {
+                                const priceText = fmtMoney(listing.nightlyPrice);
+                                const minNights = listing.min_nights || 1;
+                                totalPrice.textContent = priceText;
+                                if (totalPriceSubText) totalPriceSubText.textContent = "per night (" + minNights + " night" + (minNights > 1 ? 's' : '') + " min)";
+                            } else {
+                                totalPrice.textContent = "Price unavailable";
+                                if (totalPriceSubText) totalPriceSubText.textContent = "";
+                            }
+                        } else if (!hasExtras && datesSelected) {
+                            // Home-only & WITH dates: Total stay price
+                            const stayPrice = Number(listing.customDatesTotalPrice || 0);
+                            const priceText = fmtMoney(stayPrice);
                             totalPrice.textContent = priceText;
-                            if (totalPriceSubText) totalPriceSubText.textContent = "per night (" + minNights + " night" + (minNights > 1 ? 's' : '') + " min)";
+                            if (totalPriceSubText) totalPriceSubText.textContent = "total before taxes";
+                        } else if (hasExtras && !datesSelected) {
+                            // Extras & NO dates: Combined starting at
+                            const homeStart = computeHomeStartNoDates(listing);
+                            if (homeStart == null) {
+                                totalPrice.textContent = "Price unavailable";
+                                if (totalPriceSubText) totalPriceSubText.textContent = "";
+                            } else {
+                                const extrasStart = minBoat(listing) + minChar(listing);
+                                const combinedPrice = homeStart + extrasStart;
+                                const priceText = "Starting at " + fmtMoney(combinedPrice);
+                                totalPrice.textContent = priceText;
+                                // Create dynamic subtext based on selected extras
+                                const hasBoat = wantBoat();
+                                const hasCharter = wantChar();
+                                let subtextParts = ['home'];
+                                if (hasBoat) subtextParts.push('boat');
+                                if (hasCharter) subtextParts.push('charter');
+                                const subtextContent = `(${subtextParts.join(' + ')})`;
+                                if (totalPriceSubText) totalPriceSubText.textContent = subtextContent;
+                            }
                         } else {
-                            totalPrice.textContent = "Price unavailable";
-                            if (totalPriceSubText) totalPriceSubText.textContent = "";
-                        }
-                    } else if (!hasExtras && datesSelected) {
-                        // Home-only & WITH dates: Total stay price
-                        const stayPrice = Number(listing.customDatesTotalPrice || 0);
-                        const priceText = fmtMoney(stayPrice);
-                        totalPrice.textContent = priceText;
-                        if (totalPriceSubText) totalPriceSubText.textContent = "total before taxes";
-                    } else if (hasExtras && !datesSelected) {
-                        // Extras & NO dates: Combined starting at
-                        const homeStart = computeHomeStartNoDates(listing);
-                        if (homeStart == null) {
-                            totalPrice.textContent = "Price unavailable";
-                            if (totalPriceSubText) totalPriceSubText.textContent = "";
-                        } else {
-                            const extrasStart = minBoat(listing) + minChar(listing);
-                            const combinedPrice = homeStart + extrasStart;
+                            // Extras & WITH dates: Combined total
+                            const base = Number(listing.customDatesTotalPrice || 0);
+                            const extrasPrice = minBoat(listing) + minChar(listing);
+                            const combinedPrice = base + extrasPrice;
                             const priceText = "Starting at " + fmtMoney(combinedPrice);
                             totalPrice.textContent = priceText;
                             // Create dynamic subtext based on selected extras
@@ -9781,227 +10019,226 @@ document.addEventListener('DOMContentLoaded', function () {
                             const subtextContent = `(${subtextParts.join(' + ')})`;
                             if (totalPriceSubText) totalPriceSubText.textContent = subtextContent;
                         }
-                    } else {
-                        // Extras & WITH dates: Combined total
-                        const base = Number(listing.customDatesTotalPrice || 0);
-                        const extrasPrice = minBoat(listing) + minChar(listing);
-                        const combinedPrice = base + extrasPrice;
-                        const priceText = "Starting at " + fmtMoney(combinedPrice);
-                        totalPrice.textContent = priceText;
-                        // Create dynamic subtext based on selected extras
-                        const hasBoat = wantBoat();
-                        const hasCharter = wantChar();
-                        let subtextParts = ['home'];
-                        if (hasBoat) subtextParts.push('boat');
-                        if (hasCharter) subtextParts.push('charter');
-                        const subtextContent = `(${subtextParts.join(' + ')})`;
-                        if (totalPriceSubText) totalPriceSubText.textContent = subtextContent;
                     }
-                }
 
-                // Set data attribute for map interaction
-                card.setAttribute('data-listing-id', listing.id);
+                    // Set data attribute for map interaction
+                    card.setAttribute('data-listing-id', listing.id);
 
 
-                // Add click event to listingCard_bodyBlock for navigation
-                const bodyBlock = card.querySelector('[data-element="listingCard_bodyBlock"]');
-                if (bodyBlock) {
-                    bodyBlock.addEventListener('click', (e) => {
-                        // Don't navigate if clicking on carousel arrows or dots
-                        if (e.target.closest('.image_arrow_prev') ||
-                            e.target.closest('.image_arrow_next') ||
-                            e.target.closest('.carousel-dot')) {
-                            return;
-                        }
-
-                        // Don't navigate if user was dragging
-                        if (card._dragState && (card._dragState.isDragging() || card._dragState.hasMoved())) {
-                            return;
-                        }
-
-                        // Build URL parameters
-                        const params = new URLSearchParams();
-
-                        // Add listing ID
-                        params.append('id', listing.id);
-
-                        // Add dates (use search dates if available, otherwise default dates)
-                        let checkInDate, checkOutDate;
-                        if (apiFormats.dates.checkIn && apiFormats.dates.checkOut) {
-                            checkInDate = formatDateToYYYYMMDD(apiFormats.dates.checkIn);
-                            checkOutDate = formatDateToYYYYMMDD(apiFormats.dates.checkOut);
-                        } else {
-                            checkInDate = '';
-                            checkOutDate = '';
-                        }
-                        params.append('checkin', checkInDate);
-                        params.append('checkout', checkOutDate);
-
-                        // Add guest counts (use search guests if available, otherwise defaults)
-                        let guestParams = {
-                            guests: 1,
-                            adults: 1,
-                            children: 0,
-                            infants: 0,
-                            pets: 0
-                        };
-
-                        if (apiFormats.guests && apiFormats.guests.total > 0) {
-                            guestParams = {
-                                guests: apiFormats.guests.total,
-                                adults: apiFormats.guests.adults || 0,
-                                children: apiFormats.guests.children || 0,
-                                infants: apiFormats.guests.infants || 0,
-                                pets: apiFormats.guests.pets || 0
-                            };
-                        }
-
-                        // Append guest parameters
-                        Object.entries(guestParams).forEach(([key, value]) => {
-                            params.append(key, value);
-                        });
-
-                        const slug = listing.webflow_slug;
-                        let url;
-                        if (slug) {
-                            const cleanParams = new URLSearchParams(params);
-                            cleanParams.delete('id');
-                            url = `/properties/${slug}?${cleanParams.toString()}`;
-                        } else {
-                            url = `/listing/page?${params.toString()}`;
-                        }
-                        window.open(url, '_blank');
-                    });
-                }
-
-                // Add click event to highlight on map (keep existing functionality)
-                card.addEventListener('click', () => {
-                    highlightMarker(listing.id);
-                });
-
-                // Add hover effects for marker interaction
-                card.addEventListener('mouseenter', () => {
-                    setMarkerBackgroundColor(listing.id, '#9ecaff');
-                });
-
-                card.addEventListener('mouseleave', () => {
-                    // Only reset if there's no active overlay for this listing
-                    if (!window.currentListingOverlay ||
-                        window.currentListingOverlay.listing.id !== listing.id) {
-                        setMarkerBackgroundColor(listing.id, 'white');
-                    }
-                });
-
-                // Append to container
-                listingContainer.appendChild(card);
-
-                // Initialize custom carousel for this card after it's in the DOM
-                requestAnimationFrame(() => {
-
-                    initializeCustomCarouselForCard(card, listing);
-                });
-            } else {
-
-                // Card exists, update its content
-                const totalPrice = card.querySelector('[data-element="ListingCardTotalPrice"]');
-                const totalPriceSubText = card.querySelector('[data-element="ListingCardTotalPrice_subText"]');
-                // Add review elements
-                const reviewAverage = card.querySelector('[data-element="ListingCardReviewAverage"]');
-                const reviewCount = card.querySelector('[data-element="ListingCardReviewCount"]');
-                const reviewIcon = card.querySelector('[data-element="ListingCardReviewIcon"]');
-                // Add minNights element
-                const minNightsElement = card.querySelector('[data-element="listing-card-minNights"]');
-
-                // Update review info
-                if (reviewAverage && reviewCount) {
-                    if (!listing.reviews_amount || !listing.review_average) {
-                        reviewAverage.textContent = '';
-                        reviewIcon.style.display = 'none';
-                        reviewCount.style.display = 'none';
-                    } else {
-                        reviewAverage.textContent = listing.review_average.toFixed(2);
-                        reviewCount.textContent = `(${listing.reviews_amount})`;
-                        reviewCount.style.display = '';
-                    }
-                }
-
-                // Handle minNights display for existing cards
-                if (minNightsElement) {
-                    const hasExtras = wantBoat() || wantChar();
-                    const datesSelected = hasDates();
-
-                    if (hasExtras && !datesSelected) {
-                        // Calculate effective nights considering filters
-                        const minNights = listing.min_nights || 1;
-                        let effectiveNights = minNights;
-
-                        let maxFilterDays = 0;
-                        let boatRequiredMinNights = 0;
-
-                        // Get boat rental days if boat is active
-                        if (wantBoat() && typeof boatModule !== 'undefined') {
-                            const boatFilters = boatModule.getCurrentFilters();
-                            if (boatFilters && boatFilters.days) {
-                                maxFilterDays = Math.max(maxFilterDays, boatFilters.days);
+                    // Add click event to listingCard_bodyBlock for navigation
+                    const bodyBlock = card.querySelector('[data-element="listingCard_bodyBlock"]');
+                    if (bodyBlock) {
+                        bodyBlock.addEventListener('click', (e) => {
+                            // Don't navigate if clicking on carousel arrows or dots
+                            if (e.target.closest('.image_arrow_prev') ||
+                                e.target.closest('.image_arrow_next') ||
+                                e.target.closest('.carousel-dot')) {
+                                return;
                             }
 
-                            // Check if boats require minimum nights due to public dock delivery
-                            // Only apply when no explicit day filter is set (default 0.5)
-                            if (!boatFilters?.days || boatFilters.days <= 0.5) {
-                                const boatBadgeData = boatModule.getBoatBadgeData(listing, null, null);
-                                if (boatBadgeData && boatBadgeData.minNights) {
-                                    boatRequiredMinNights = boatBadgeData.minNights;
+                            // Don't navigate if user was dragging
+                            if (card._dragState && (card._dragState.isDragging() || card._dragState.hasMoved())) {
+                                return;
+                            }
+
+                            // Build URL parameters
+                            const params = new URLSearchParams();
+
+                            // Add listing ID
+                            params.append('id', listing.id);
+
+                            // Add dates (use search dates if available, otherwise default dates)
+                            let checkInDate, checkOutDate;
+                            if (apiFormats.dates?.checkIn && apiFormats.dates?.checkOut) {
+                                checkInDate = formatDateToYYYYMMDD(apiFormats.dates.checkIn);
+                                checkOutDate = formatDateToYYYYMMDD(apiFormats.dates.checkOut);
+                            } else {
+                                checkInDate = '';
+                                checkOutDate = '';
+                            }
+                            params.append('checkin', checkInDate);
+                            params.append('checkout', checkOutDate);
+
+                            // Add guest counts (use search guests if available, otherwise defaults)
+                            let guestParams = {
+                                guests: 1,
+                                adults: 1,
+                                children: 0,
+                                infants: 0,
+                                pets: 0
+                            };
+
+                            if (apiFormats.guests && apiFormats.guests.total > 0) {
+                                guestParams = {
+                                    guests: apiFormats.guests.total,
+                                    adults: apiFormats.guests.adults || 0,
+                                    children: apiFormats.guests.children || 0,
+                                    infants: apiFormats.guests.infants || 0,
+                                    pets: apiFormats.guests.pets || 0
+                                };
+                            }
+
+                            // Append guest parameters
+                            Object.entries(guestParams).forEach(([key, value]) => {
+                                params.append(key, value);
+                            });
+
+                            const slug = listing.webflow_slug;
+                            let url;
+                            if (slug) {
+                                const cleanParams = new URLSearchParams(params);
+                                cleanParams.delete('id');
+                                url = `/properties/${slug}?${cleanParams.toString()}`;
+                            } else {
+                                url = `/listing/page?${params.toString()}`;
+                            }
+                            window.open(url, '_blank');
+                        });
+                    }
+
+                    // Add click event to highlight on map (keep existing functionality)
+                    card.addEventListener('click', () => {
+                        highlightMarker(listing.id);
+                    });
+
+                    // Add hover effects for marker interaction
+                    card.addEventListener('mouseenter', () => {
+                        setMarkerBackgroundColor(listing.id, '#9ecaff');
+                    });
+
+                    card.addEventListener('mouseleave', () => {
+                        // Only reset if there's no active overlay for this listing
+                        if (!window.currentListingOverlay ||
+                            window.currentListingOverlay.listing.id !== listing.id) {
+                            setMarkerBackgroundColor(listing.id, 'white');
+                        }
+                    });
+
+                    // Append to container
+                    listingContainer.appendChild(card);
+
+                    // Initialize custom carousel for this card after it's in the DOM
+                    scheduleListingCardCarouselInit(card, listing);
+                } else {
+
+                    // Card exists, update its content
+                    const totalPrice = card.querySelector('[data-element="ListingCardTotalPrice"]');
+                    const totalPriceSubText = card.querySelector('[data-element="ListingCardTotalPrice_subText"]');
+                    // Add review elements
+                    const reviewAverage = card.querySelector('[data-element="ListingCardReviewAverage"]');
+                    const reviewCount = card.querySelector('[data-element="ListingCardReviewCount"]');
+                    const reviewIcon = card.querySelector('[data-element="ListingCardReviewIcon"]');
+                    // Add minNights element
+                    const minNightsElement = card.querySelector('[data-element="listing-card-minNights"]');
+
+                    // Update review info
+                    if (reviewAverage && reviewCount) {
+                        const reviewAvgText = formatReviewAverageForDisplay(listing.review_average);
+                        if (!listing.reviews_amount || !reviewAvgText) {
+                            reviewAverage.textContent = '';
+                            if (reviewIcon) {
+                                reviewIcon.style.display = 'none';
+                            }
+                            reviewCount.style.display = 'none';
+                        } else {
+                            reviewAverage.textContent = reviewAvgText;
+                            reviewCount.textContent = `(${listing.reviews_amount})`;
+                            reviewCount.style.display = '';
+                        }
+                    }
+
+                    // Handle minNights display for existing cards
+                    if (minNightsElement) {
+                        const hasExtras = wantBoat() || wantChar();
+                        const datesSelected = hasDates();
+
+                        if (hasExtras && !datesSelected) {
+                            // Calculate effective nights considering filters
+                            const minNights = listing.min_nights || 1;
+                            let effectiveNights = minNights;
+
+                            let maxFilterDays = 0;
+                            let boatRequiredMinNights = 0;
+
+                            // Get boat rental days if boat is active
+                            if (wantBoat() && typeof boatModule !== 'undefined') {
+                                const boatFilters = boatModule.getCurrentFilters();
+                                if (boatFilters && boatFilters.days) {
+                                    maxFilterDays = Math.max(maxFilterDays, boatFilters.days);
+                                }
+
+                                // Check if boats require minimum nights due to public dock delivery
+                                // Only apply when no explicit day filter is set (default 0.5)
+                                if (!boatFilters?.days || boatFilters.days <= 0.5) {
+                                    const boatBadgeData = boatModule.getBoatBadgeData(listing, null, null);
+                                    if (boatBadgeData && boatBadgeData.minNights) {
+                                        boatRequiredMinNights = boatBadgeData.minNights;
+                                    }
                                 }
                             }
-                        }
 
-                        // Get charter days if charter is active
-                        if (wantChar() && typeof charterModule !== 'undefined') {
-                            const charterFilters = charterModule.getCurrentFilters();
-                            if (charterFilters && charterFilters.days) {
-                                maxFilterDays = Math.max(maxFilterDays, charterFilters.days);
+                            // Get charter days if charter is active
+                            if (wantChar() && typeof charterModule !== 'undefined') {
+                                const charterFilters = charterModule.getCurrentFilters();
+                                if (charterFilters && charterFilters.days) {
+                                    maxFilterDays = Math.max(maxFilterDays, charterFilters.days);
+                                }
                             }
+
+                            // Use the highest value between property min nights, filter days, and boat required min nights
+                            effectiveNights = Math.max(minNights, maxFilterDays, boatRequiredMinNights);
+
+                            minNightsElement.textContent = `${effectiveNights} night${effectiveNights > 1 ? 's' : ''}`;
+                            minNightsElement.style.display = 'flex';
+                        } else {
+                            // Hide minNights in all other cases
+                            minNightsElement.style.display = 'none';
                         }
-
-                        // Use the highest value between property min nights, filter days, and boat required min nights
-                        effectiveNights = Math.max(minNights, maxFilterDays, boatRequiredMinNights);
-
-                        minNightsElement.textContent = `${effectiveNights} night${effectiveNights > 1 ? 's' : ''}`;
-                        minNightsElement.style.display = 'flex';
-                    } else {
-                        // Hide minNights in all other cases
-                        minNightsElement.style.display = 'none';
                     }
-                }
 
-                // Phase 2-3: Update price display with new logic
-                if (totalPrice) {
-                    const hasExtras = wantBoat() || wantChar();
-                    const datesSelected = hasDates();
+                    // Phase 2-3: Update price display with new logic
+                    if (totalPrice) {
+                        const hasExtras = wantBoat() || wantChar();
+                        const datesSelected = hasDates();
 
-                    if (!hasExtras && !datesSelected) {
-                        // Home-only & NO dates: Starting at nightly
-                        if (listing.nightlyPrice && Number.isFinite(Number(listing.nightlyPrice))) {
-                            totalPrice.textContent = fmtMoney(listing.nightlyPrice);
-                            if (totalPriceSubText) totalPriceSubText.textContent = "per night (" + listing.min_nights + " night" + (listing.min_nights > 1 ? 's' : '') + " min)";
+                        if (!hasExtras && !datesSelected) {
+                            // Home-only & NO dates: Starting at nightly
+                            if (listing.nightlyPrice && Number.isFinite(Number(listing.nightlyPrice))) {
+                                totalPrice.textContent = fmtMoney(listing.nightlyPrice);
+                                if (totalPriceSubText) totalPriceSubText.textContent = "per night (" + listing.min_nights + " night" + (listing.min_nights > 1 ? 's' : '') + " min)";
+                            } else {
+                                totalPrice.textContent = "Price unavailable";
+                                if (totalPriceSubText) totalPriceSubText.textContent = "";
+                            }
+                        } else if (!hasExtras && datesSelected) {
+                            // Home-only & WITH dates: Total stay price
+                            const stayPrice = Number(listing.customDatesTotalPrice || 0);
+                            totalPrice.textContent = fmtMoney(stayPrice);
+                            if (totalPriceSubText) totalPriceSubText.textContent = "total before taxes";
+                        } else if (hasExtras && !datesSelected) {
+                            // Extras & NO dates: Combined starting at
+                            const homeStart = computeHomeStartNoDates(listing);
+                            if (homeStart == null) {
+                                totalPrice.textContent = "Price unavailable";
+                                if (totalPriceSubText) totalPriceSubText.textContent = "";
+                            } else {
+                                const extrasStart = minBoat(listing) + minChar(listing);
+                                totalPrice.textContent = "Starting at " + fmtMoney(homeStart + extrasStart);
+                                // Create dynamic subtext based on selected extras
+                                const hasBoat = wantBoat();
+                                const hasCharter = wantChar();
+                                let subtextParts = ['home'];
+                                if (hasBoat) subtextParts.push('boat');
+                                if (hasCharter) subtextParts.push('charter');
+                                const subtextContent = `(${subtextParts.join(' + ')})`;
+                                if (totalPriceSubText) totalPriceSubText.textContent = subtextContent;
+                            }
                         } else {
-                            totalPrice.textContent = "Price unavailable";
-                            if (totalPriceSubText) totalPriceSubText.textContent = "";
-                        }
-                    } else if (!hasExtras && datesSelected) {
-                        // Home-only & WITH dates: Total stay price
-                        const stayPrice = Number(listing.customDatesTotalPrice || 0);
-                        totalPrice.textContent = fmtMoney(stayPrice);
-                        if (totalPriceSubText) totalPriceSubText.textContent = "total before taxes";
-                    } else if (hasExtras && !datesSelected) {
-                        // Extras & NO dates: Combined starting at
-                        const homeStart = computeHomeStartNoDates(listing);
-                        if (homeStart == null) {
-                            totalPrice.textContent = "Price unavailable";
-                            if (totalPriceSubText) totalPriceSubText.textContent = "";
-                        } else {
-                            const extrasStart = minBoat(listing) + minChar(listing);
-                            totalPrice.textContent = "Starting at " + fmtMoney(homeStart + extrasStart);
+                            // Extras & WITH dates: Combined total
+                            const base = Number(listing.customDatesTotalPrice || 0);
+                            const extrasPrice = minBoat(listing) + minChar(listing);
+                            const combinedPrice = base + extrasPrice;
+                            totalPrice.textContent = "Starting at " + fmtMoney(combinedPrice);
                             // Create dynamic subtext based on selected extras
                             const hasBoat = wantBoat();
                             const hasCharter = wantChar();
@@ -10010,104 +10247,90 @@ document.addEventListener('DOMContentLoaded', function () {
                             if (hasCharter) subtextParts.push('charter');
                             const subtextContent = `(${subtextParts.join(' + ')})`;
                             if (totalPriceSubText) totalPriceSubText.textContent = subtextContent;
-                        }
-                    } else {
-                        // Extras & WITH dates: Combined total
-                        const base = Number(listing.customDatesTotalPrice || 0);
-                        const extrasPrice = minBoat(listing) + minChar(listing);
-                        const combinedPrice = base + extrasPrice;
-                        totalPrice.textContent = "Starting at " + fmtMoney(combinedPrice);
-                        // Create dynamic subtext based on selected extras
-                        const hasBoat = wantBoat();
-                        const hasCharter = wantChar();
-                        let subtextParts = ['home'];
-                        if (hasBoat) subtextParts.push('boat');
-                        if (hasCharter) subtextParts.push('charter');
-                        const subtextContent = `(${subtextParts.join(' + ')})`;
-                        if (totalPriceSubText) totalPriceSubText.textContent = subtextContent;
 
+                        }
+                    }
+
+                    // Make the card visible
+                    card.style.display = '';
+
+                    // For existing cards, update title if needed
+                    const title = card.querySelector('[data-element="listing-card-title"]');
+                    if (title) {
+                        title.textContent = listing.property_name || 'Property Name';
+                        requestAnimationFrame(() => {
+                            handleTextTruncation(title);
+                        });
+                    }
+
+                    // Check if custom carousel needs to be initialized
+                    scheduleListingCardCarouselInit(card, listing);
+
+                    // Add/update click event handler for existing cards
+                    const bodyBlock = card.querySelector('[data-element="listingCard_bodyBlock"]');
+                    if (bodyBlock && !bodyBlock.hasAttribute('data-click-handler')) {
+                        bodyBlock.setAttribute('data-click-handler', 'true'); // Mark as having handler
+
+                        bodyBlock.addEventListener('click', (e) => {
+                            // Don't navigate if clicking on carousel arrows or dots
+                            if (e.target.closest('.image_arrow_prev') ||
+                                e.target.closest('.image_arrow_next') ||
+                                e.target.closest('.carousel-dot')) {
+                                return;
+                            }
+
+                            // Don't navigate if user was dragging
+                            if (card._dragState && (card._dragState.isDragging() || card._dragState.hasMoved())) {
+                                return;
+                            }
+
+                            // Build URL parameters
+                            const params = new URLSearchParams();
+
+                            // Add listing ID
+                            params.append('id', listing.id);
+
+                            // Add dates (use search dates if available, otherwise default dates)
+                            let checkInDate, checkOutDate;
+                            if (apiFormats.dates?.checkIn && apiFormats.dates?.checkOut) {
+                                checkInDate = formatDateToYYYYMMDD(apiFormats.dates.checkIn);
+                                checkOutDate = formatDateToYYYYMMDD(apiFormats.dates.checkOut);
+                            } else {
+                                checkInDate = formatDateToYYYYMMDD(listing.default_startDate);
+                                checkOutDate = formatDateToYYYYMMDD(listing.default_endDate);
+                            }
+                            params.append('checkin', checkInDate);
+                            params.append('checkout', checkOutDate);
+
+                            // Add guest parameters if they exist
+                            if (apiFormats.guests && apiFormats.guests.total > 0) {
+                                const guestParams = {
+                                    guests: apiFormats.guests.total,
+                                    adults: apiFormats.guests.adults || 0,
+                                    children: apiFormats.guests.children || 0,
+                                    infants: apiFormats.guests.infants || 0,
+                                    pets: apiFormats.guests.pets || 0
+                                };
+                                Object.entries(guestParams).forEach(([key, value]) => {
+                                    params.append(key, value);
+                                });
+                            }
+
+                            const slug = listing.webflow_slug;
+                            let url;
+                            if (slug) {
+                                const cleanParams = new URLSearchParams(params);
+                                cleanParams.delete('id');
+                                url = `/properties/${slug}?${cleanParams.toString()}`;
+                            } else {
+                                url = `/listing/page?${params.toString()}`;
+                            }
+                            window.open(url, '_blank');
+                        });
                     }
                 }
-
-                // Make the card visible
-                card.style.display = '';
-
-                // For existing cards, update title if needed
-                const title = card.querySelector('[data-element="listing-card-title"]');
-                if (title) {
-                    title.textContent = listing.property_name || 'Property Name';
-                    requestAnimationFrame(() => {
-                        handleTextTruncation(title);
-                    });
-                }
-
-                // Check if custom carousel needs to be initialized
-                requestAnimationFrame(() => {
-                    initializeCustomCarouselForCard(card, listing);
-                });
-
-                // Add/update click event handler for existing cards
-                const bodyBlock = card.querySelector('[data-element="listingCard_bodyBlock"]');
-                if (bodyBlock && !bodyBlock.hasAttribute('data-click-handler')) {
-                    bodyBlock.setAttribute('data-click-handler', 'true'); // Mark as having handler
-
-                    bodyBlock.addEventListener('click', (e) => {
-                        // Don't navigate if clicking on carousel arrows or dots
-                        if (e.target.closest('.image_arrow_prev') ||
-                            e.target.closest('.image_arrow_next') ||
-                            e.target.closest('.carousel-dot')) {
-                            return;
-                        }
-
-                        // Don't navigate if user was dragging
-                        if (card._dragState && (card._dragState.isDragging() || card._dragState.hasMoved())) {
-                            return;
-                        }
-
-                        // Build URL parameters
-                        const params = new URLSearchParams();
-
-                        // Add listing ID
-                        params.append('id', listing.id);
-
-                        // Add dates (use search dates if available, otherwise default dates)
-                        let checkInDate, checkOutDate;
-                        if (apiFormats.dates.checkIn && apiFormats.dates.checkOut) {
-                            checkInDate = formatDateToYYYYMMDD(apiFormats.dates.checkIn);
-                            checkOutDate = formatDateToYYYYMMDD(apiFormats.dates.checkOut);
-                        } else {
-                            checkInDate = formatDateToYYYYMMDD(listing.default_startDate);
-                            checkOutDate = formatDateToYYYYMMDD(listing.default_endDate);
-                        }
-                        params.append('checkin', checkInDate);
-                        params.append('checkout', checkOutDate);
-
-                        // Add guest parameters if they exist
-                        if (apiFormats.guests && apiFormats.guests.total > 0) {
-                            const guestParams = {
-                                guests: apiFormats.guests.total,
-                                adults: apiFormats.guests.adults || 0,
-                                children: apiFormats.guests.children || 0,
-                                infants: apiFormats.guests.infants || 0,
-                                pets: apiFormats.guests.pets || 0
-                            };
-                            Object.entries(guestParams).forEach(([key, value]) => {
-                                params.append(key, value);
-                            });
-                        }
-
-                        const slug = listing.webflow_slug;
-                        let url;
-                        if (slug) {
-                            const cleanParams = new URLSearchParams(params);
-                            cleanParams.delete('id');
-                            url = `/properties/${slug}?${cleanParams.toString()}`;
-                        } else {
-                            url = `/listing/page?${params.toString()}`;
-                        }
-                        window.open(url, '_blank');
-                    });
-                }
+            } catch (_cardRenderErr) {
+                /* ignore */
             }
         });
 
@@ -10498,7 +10721,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                 ${this.listing._images && this.listing._images.length > 0 ?
                         this.listing._images.map((img, index) =>
                             `<div class="map-carousel-slide" style="flex: 0 0 100%; height: 100%;">
-                                <img src="${img.property_image?.url || ''}" 
+                                <img src="${img.property_image?.url || vaultUrlFromPropertyImageMeta(img.property_image) || ''}" 
                                      alt="${this.listing.property_name}" 
                                      loading="${index < 3 ? 'eager' : 'lazy'}"
                                      style="width: 100%; height: 200px; object-fit: cover;">
@@ -10592,13 +10815,13 @@ document.addEventListener('DOMContentLoaded', function () {
                                 <h3 style="margin: 0; padding: 0; font-size: 14px; color: #000000; font-weight: 500; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 8px; font-family: 'TT Fors', sans-serif; line-height: 1;">
                                     ${this.listing.property_name || 'Property'}
                                 </h3>
-                                ${(this.listing.reviews_amount && this.listing.review_average) ? `
+                                ${(this.listing.reviews_amount && formatReviewAverageForDisplay(this.listing.review_average)) ? `
                                 <div style="display: flex; align-items: center; gap: 3px; font-family: 'TT Fors', sans-serif; line-height: 1; margin: 0; padding: 0;">
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="#000000" style="margin: 0; padding: 0; display: block;">
                                         <path d="M12 2l2.59 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l7.41-1.01L12 2z" stroke="#000000" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
                                     </svg>
                                     <span style="font-size: 14px; font-weight: 500; font-family: 'TT Fors', sans-serif; line-height: 1;">
-                                        ${this.listing.review_average.toFixed(2)}
+                                        ${formatReviewAverageForDisplay(this.listing.review_average)}
                                     </span>
                                     <span style="font-size: 14px; color: #000000; font-family: 'TT Fors', sans-serif; line-height: 1;">(${this.listing.reviews_amount})</span>
                                 </div>
@@ -10662,7 +10885,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
                     let checkInDate = '';
                     let checkOutDate = '';
-                    if (apiFormats.dates.checkIn && apiFormats.dates.checkOut) {
+                    if (apiFormats.dates?.checkIn && apiFormats.dates?.checkOut) {
                         checkInDate = formatDateToYYYYMMDD(apiFormats.dates.checkIn);
                         checkOutDate = formatDateToYYYYMMDD(apiFormats.dates.checkOut);
                     }
@@ -10798,7 +11021,7 @@ document.addEventListener('DOMContentLoaded', function () {
             }
 
             getDateRange() {
-                if (apiFormats.dates.checkIn && apiFormats.dates.checkOut) {
+                if (apiFormats.dates?.checkIn && apiFormats.dates?.checkOut) {
                     return formatDateRange(apiFormats.dates.checkIn, apiFormats.dates.checkOut);
                 } else {
                     // Check if we should show minimum nights (extras selected but no dates)
