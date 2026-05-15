@@ -188,6 +188,8 @@ function truncateToFit(element) {
 
 // Page loader management - keep loader visible until all content is ready
 (function initPageLoader() {
+    let maxWaitHideLoaderTimeoutId = null;
+
     const loadingTracker = {
         propertyDetailsLoaded: false,
         calendarQueryLoaded: false,
@@ -223,6 +225,10 @@ function truncateToFit(element) {
 
     // Function to hide the loader
     function hideLoader() {
+        if (maxWaitHideLoaderTimeoutId != null) {
+            clearTimeout(maxWaitHideLoaderTimeoutId);
+            maxWaitHideLoaderTimeoutId = null;
+        }
         const loader = document.querySelector('[data-element="loader"]');
         if (loader && loader.style.display !== 'none') {
             // Add fade out effect
@@ -388,8 +394,9 @@ function truncateToFit(element) {
         }
     }, 6000);
 
-    // Fallback: Ensure loader is hidden after maximum wait time
-    setTimeout(() => {
+    // Fallback: Ensure loader is hidden after maximum wait time (cleared on first real hideLoader)
+    maxWaitHideLoaderTimeoutId = setTimeout(() => {
+        maxWaitHideLoaderTimeoutId = null;
         hideLoader();
     }, 10000);
 })();
@@ -694,8 +701,6 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const requestName = 'Load_Property_Details'; // Ensure this matches the actual request name
             await Wized.requests.waitFor(requestName);
-
-
             let counters = {
                 adults: parseInt(Wized.data.n.parameter.adults) || 1,
                 children: parseInt(Wized.data.n.parameter.children) || 0,
@@ -3142,6 +3147,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         Wized.on('requestend', (event) => {
             if (event.name === 'Load_Property_Details') {
+                if (window._listingSplideGalleryInitialized) {
+                    return;
+                }
                 const splideLogPrefix = '[Splide Init]';
                 const now = () => Math.round(performance.now());
 
@@ -3263,7 +3271,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Refresh the slider after adding slides
                 slider.refresh();
 
-
+                window._listingSplideGalleryInitialized = true;
 
             }
         });
