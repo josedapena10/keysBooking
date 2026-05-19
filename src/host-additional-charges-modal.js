@@ -1,6 +1,6 @@
 /**
  * Host reservation modal: additional charges (guest payment rows, host payout rows, existing fees list, request modal).
- * Loaded after host-dashboard.js / host-reservations.js / calendar.js or inlined — see those files for integration.
+ * Canonical source: this file is inlined at the top of host-dashboard.js, host-reservations.js, and calendar.js (no import) so raw scripts work in Webflow.
  *
  * Host user id for Xano calls must match the signed-in host from Wized: each page runs
  * `await Wized.requests.waitFor('Load_user')` then sets `window.keysBookingHostUserId = Wized.data.r.Load_user.data.id`.
@@ -622,30 +622,7 @@
             if (priceIn) formatPriceInputEl(priceIn);
             const baseAmount = getPriceInputNumericAmount(priceIn);
 
-            console.log('[additional-fee:create] raw inputs', {
-                titleRaw: titleIn ? titleIn.value : null,
-                descriptionRaw: descIn ? descIn.value : null,
-                priceRaw: priceIn ? priceIn.value : null,
-                priceType: priceIn ? priceIn.type : null,
-                reservationId,
-                hostUserId
-            });
-            console.log('[additional-fee:create] parsed inputs', {
-                title,
-                description,
-                baseAmount,
-                isFiniteBaseAmount: Number.isFinite(baseAmount),
-                hasTitle: !!title,
-                hasDescription: !!description
-            });
-
             if (!title || !description || !Number.isFinite(baseAmount) || baseAmount <= 0) {
-                console.warn('[additional-fee:create] validation failed', {
-                    hasTitle: !!title,
-                    hasDescription: !!description,
-                    isFiniteBaseAmount: Number.isFinite(baseAmount),
-                    baseAmount
-                });
                 if (errEl) {
                     errEl.textContent = 'Please enter a title, description, and a valid price.';
                     errEl.style.display = 'block';
@@ -664,19 +641,11 @@
             createBtn.setAttribute('disabled', 'true');
 
             try {
-                console.log('[additional-fee:create] posting request', {
-                    reservationIdParsed: parseInt(reservationId, 10),
-                    hostUserId,
-                    title,
-                    description,
-                    base_amount: baseAmount
-                });
                 await postAdditionalChargeCreate(parseInt(reservationId, 10), hostUserId, {
                     title,
                     description,
                     base_amount: baseAmount
                 });
-                console.log('[additional-fee:create] create success');
                 if (additionalModal) additionalModal.style.display = 'none';
                 const detailsModal = getHostReservationDetailsModal();
                 if (detailsModal) {
@@ -698,10 +667,6 @@
                     }
                 }
             } catch (err) {
-                console.error(err);
-                console.error('[additional-fee:create] create failed', {
-                    message: err && err.message ? err.message : String(err)
-                });
                 if (errEl) {
                     errEl.textContent = err.message || 'Could not create request.';
                     errEl.style.display = 'block';

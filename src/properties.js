@@ -1,3 +1,23 @@
+// Remove `?checkin=&checkout=` (empty values) so Wized expressions that parse dates do not throw
+// RangeError: Invalid time value (cancellation / reserve conditions expect real YYYY-MM-DD or absent keys).
+(function normalizeEmptyStayQueryParams() {
+    try {
+        const url = new URL(window.location.href);
+        let changed = false;
+        for (const key of ['checkin', 'checkout']) {
+            if (!url.searchParams.has(key)) continue;
+            const raw = url.searchParams.get(key);
+            if (raw === null || String(raw).trim() === '') {
+                url.searchParams.delete(key);
+                changed = true;
+            }
+        }
+        if (changed) {
+            window.history.replaceState(null, '', url.toString());
+        }
+    } catch (e) { /* ignore */ }
+})();
+
 (function bootstrapPropertyIdFromCms() {
     function run() {
         try {
@@ -13,20 +33,28 @@
 
             window.Wized = window.Wized || [];
             window.Wized.push((Wized) => {
-                if (Wized.data.n.parameter.id !== cmsPropertyId) {
-                    Wized.data.n.parameter.id = cmsPropertyId;
-                }
-                const already =
-                    Wized.data.r &&
-                    Wized.data.r.Load_Property_Details &&
-                    Wized.data.r.Load_Property_Details.data;
-                if (!already && Wized.requests && typeof Wized.requests.execute === 'function') {
-                    Wized.requests.execute('Load_Property_Details');
-                }
+                try {
+                    if (Wized.data.n.parameter.id !== cmsPropertyId) {
+                        Wized.data.n.parameter.id = cmsPropertyId;
+                    }
+                    // Do NOT call Wized.requests.execute('Load_Property_Details') here.
+                    //
+                    // If we execute while Wized also runs Details (page load / parameter / workflows),
+                    // you get two full Xano round-trips. Your logs showed a single execute #1 from
+                    // bootstrap followed by requestend count 2 — the second run is Wized-internal.
+                    //
+                    // When your custom request condition *blocks* Wized's first run, a deferred
+                    // bootstrap execute fires instead — then Wized often still runs Details again
+                    // after the first requestend → still 2 fetches, plus ~280ms extra wait.
+                    //
+                    // Fix in Wized: the request's custom condition should allow a *cold* load when
+                    // there is no property payload yet, e.g. !r.Load_Property_Details?.data?.property,
+                    // and skip only when you already have the correct listing for n.parameter.id.
+                    //
+                    // This bootstrap only syncs CMS id → URL + n.parameter.id so Wized can load.
+                } catch (e) { /* ignore */ }
             });
-        } catch (e) {
-            console.error('bootstrap property id failed', e);
-        }
+        } catch (e) { /* ignore */ }
     }
 
     if (document.readyState === 'loading') {
@@ -36,21 +64,15 @@
     }
 })();
 
-// (function bootstrapPropertyIdFromCms() {
-//     try {
-//         const root = document.querySelector('[data-property-id]');
-//         const cmsPropertyId = root ? root.getAttribute('data-property-id') : null;
-//         if (!cmsPropertyId) return;
-
-//         const url = new URL(window.location.href);
-//         if (!url.searchParams.get('id')) {
-//             url.searchParams.set('id', cmsPropertyId);
-//             window.history.replaceState(null, '', url.toString());
-//         }
-//     } catch (e) {
-//         console.error('bootstrap property id failed', e);
-//     }
-// })();
+// kbLog / kbStart: no-op stubs (call sites use optional chaining; avoids console noise).
+(function () {
+    if (window.__kbPropsLogger) return;
+    function noop() { }
+    function noopStart() { return noop; }
+    window.__kbPropsLogger = { enabled: false, log: noop, start: noopStart };
+    window.kbLog = noop;
+    window.kbStart = noopStart;
+})();
 
 // for background 2nd click modal - mirror click
 var script = document.createElement('script');
@@ -189,6 +211,9 @@ function truncateToFit(element) {
 // Page loader management - keep loader visible until all content is ready
 (function initPageLoader() {
     let maxWaitHideLoaderTimeoutId = null;
+    /** `validateExtrasAvailabilityOnLoad` + Xano can exceed 6s under load (see charter+stay logs). */
+    const EXTRAS_PROCESSED_FALLBACK_MS = 15000;
+    let extrasProcessedFallbackTimeoutId = null;
 
     const loadingTracker = {
         propertyDetailsLoaded: false,
@@ -198,11 +223,22 @@ function truncateToFit(element) {
         extrasProcessed: false
     };
 
+    let _kbLoadPropertyDetailsRequestEndCount = 0;
+
     // Detect if URL has extras that need processing before showing page
     function urlHasExtras() {
         const urlParams = new URLSearchParams(window.location.search);
-        return !!(urlParams.get('boatId') || urlParams.get('fishingCharterId1'));
+        if (urlParams.get('boatId')) return true;
+        for (const key of urlParams.keys()) {
+            if (/^fishingCharterId\d+$/.test(key) && urlParams.get(key)) return true;
+        }
+        return false;
     }
+
+    window.kbLog && window.kbLog('loader: init', {
+        hasExtras: urlHasExtras(),
+        search: window.location.search
+    });
 
     // Function to check if all critical content is loaded
     function checkAllContentLoaded() {
@@ -218,8 +254,18 @@ function truncateToFit(element) {
             (!hasExtras || loadingTracker.extrasProcessed);
 
         if (allLoaded) {
+            window.kbLog && window.kbLog('loader: all gates satisfied → hideLoader', {
+                tracker: Object.assign({}, loadingTracker),
+                hasDatesSelected: !!hasDatesSelected,
+                hasExtras
+            });
             hideLoader();
         } else {
+            window.kbLog && window.kbLog('loader: waiting', {
+                tracker: Object.assign({}, loadingTracker),
+                hasDatesSelected: !!hasDatesSelected,
+                hasExtras
+            });
         }
     }
 
@@ -231,17 +277,20 @@ function truncateToFit(element) {
         }
         const loader = document.querySelector('[data-element="loader"]');
         if (loader && loader.style.display !== 'none') {
+            window.kbLog && window.kbLog('loader: fade out + display:none');
             // Add fade out effect
             loader.style.opacity = '0';
             setTimeout(() => {
                 loader.style.display = 'none';
             }, 300);
         } else {
+            window.kbLog && window.kbLog('loader: hideLoader called but already hidden');
         }
     }
 
     // Expose function to notify when custom min nights are loaded
     window.notifyCustomMinNightsLoaded = function () {
+        window.kbLog && window.kbLog('notifyCustomMinNightsLoaded() called');
         loadingTracker.customMinNightsLoaded = true;
         checkAllContentLoaded();
     };
@@ -249,14 +298,22 @@ function truncateToFit(element) {
     // Expose function to notify when extras (boat/charter) are fully processed
     window.notifyExtrasProcessed = function () {
         if (!loadingTracker.extrasProcessed) {
+            window.kbLog && window.kbLog('notifyExtrasProcessed() → extras gate cleared');
             loadingTracker.extrasProcessed = true;
+            if (extrasProcessedFallbackTimeoutId != null) {
+                clearTimeout(extrasProcessedFallbackTimeoutId);
+                extrasProcessedFallbackTimeoutId = null;
+            }
             checkAllContentLoaded();
+        } else {
+            window.kbLog && window.kbLog('notifyExtrasProcessed() skipped (already cleared)');
         }
     };
 
     // If no extras in URL, mark as processed immediately
     if (!urlHasExtras()) {
         loadingTracker.extrasProcessed = true;
+        window.kbLog && window.kbLog('loader: no extras in URL → extrasProcessed pre-set');
     }
 
     // Make loader visible on page load
@@ -271,12 +328,22 @@ function truncateToFit(element) {
 
     // Track when Wized requests complete
     window.addEventListener('DOMContentLoaded', () => {
+        window.kbLog && window.kbLog('DOMContentLoaded: install Wized requestend listeners');
         window.Wized = window.Wized || [];
         window.Wized.push((Wized) => {
 
             Wized.on('requestend', (event) => {
+                window.kbLog && window.kbLog('Wized requestend', {
+                    name: event && event.name,
+                    duration: event && event.duration
+                });
 
                 if (event.name === 'Load_Property_Details') {
+                    _kbLoadPropertyDetailsRequestEndCount += 1;
+                    window.kbLog && window.kbLog('Wized Load_Property_Details requestend count', {
+                        count: _kbLoadPropertyDetailsRequestEndCount,
+                        duration: event && event.duration
+                    });
                     loadingTracker.propertyDetailsLoaded = true;
                     checkAllContentLoaded();
                 }
@@ -287,12 +354,15 @@ function truncateToFit(element) {
             });
 
             // Wait for Property Details first (required)
+            const endWaitDetails = window.kbStart && window.kbStart('loader: waitFor Load_Property_Details');
             Wized.requests.waitFor('Load_Property_Details')
                 .then(() => {
+                    endWaitDetails && endWaitDetails();
 
                     // Check if the listing is active
                     const propertyData = Wized.data.r.Load_Property_Details?.data?.property;
                     if (propertyData && propertyData.is_active === false) {
+                        window.kbLog && window.kbLog('loader: property is_active=false → redirect /');
                         // Redirect to home page if listing is not active
                         window.location.href = '/';
                         return;
@@ -304,13 +374,16 @@ function truncateToFit(element) {
                     const hasCheckout = urlParams.has('checkout') && urlParams.get('checkout') !== '';
 
                     if (hasCheckin && hasCheckout) {
+                        window.kbLog && window.kbLog('loader: stay dates in URL → race waitFor(Load_Property_Calendar_Query) vs 3000ms');
+                        const endWaitCal = window.kbStart && window.kbStart('loader: waitFor Load_Property_Calendar_Query (raced 3000ms)');
                         // Wait for calendar query with a 3-second timeout
                         Promise.race([
                             Wized.requests.waitFor('Load_Property_Calendar_Query'),
                             new Promise((resolve) => setTimeout(() => {
-                                resolve();
+                                resolve('timeout');
                             }, 3000))
-                        ]).then(() => {
+                        ]).then((result) => {
+                            endWaitCal && endWaitCal({ result: result === 'timeout' ? 'timeout(3000ms)' : 'resolved' });
                             if (!loadingTracker.calendarQueryLoaded) {
                                 loadingTracker.calendarQueryLoaded = true;
                             }
@@ -318,12 +391,14 @@ function truncateToFit(element) {
                             checkAllContentLoaded();
                         });
                     } else {
+                        window.kbLog && window.kbLog('loader: no stay dates → skip calendar query wait');
                         loadingTracker.calendarQueryLoaded = true;
                         loadingTracker.reservationLogicInitialized = true;
                         checkAllContentLoaded();
                     }
                 })
-                .catch(() => {
+                .catch((err) => {
+                    window.kbLog && window.kbLog('loader: waitFor(Load_Property_Details) rejected', { message: err && err.message });
                 });
         });
     });
@@ -381,24 +456,37 @@ function truncateToFit(element) {
         const urlParams = new URLSearchParams(window.location.search);
         const hasDatesSelected = urlParams.get('checkin') && urlParams.get('checkout');
         if (!hasDatesSelected && !loadingTracker.customMinNightsLoaded) {
+            window.kbLog && window.kbLog('loader: fallback 100ms — no stay dates → customMinNightsLoaded=true');
             loadingTracker.customMinNightsLoaded = true;
             checkAllContentLoaded();
         }
     }, 100);
 
-    // Fallback: If extras processing takes too long, mark as done
-    setTimeout(() => {
-        if (!loadingTracker.extrasProcessed) {
-            loadingTracker.extrasProcessed = true;
-            checkAllContentLoaded();
-        }
-    }, 6000);
+    // Fallback: If extras processing takes too long, mark as done (charter/boat validation hits Xano)
+    if (urlHasExtras()) {
+        extrasProcessedFallbackTimeoutId = setTimeout(() => {
+            extrasProcessedFallbackTimeoutId = null;
+            if (!loadingTracker.extrasProcessed) {
+                window.kbLog && window.kbLog(`loader: ⚠ fallback ${EXTRAS_PROCESSED_FALLBACK_MS}ms — forcing extrasProcessed`, {
+                    tracker: Object.assign({}, loadingTracker)
+                });
+                loadingTracker.extrasProcessed = true;
+                checkAllContentLoaded();
+            }
+        }, EXTRAS_PROCESSED_FALLBACK_MS);
+    }
 
-    // Fallback: Ensure loader is hidden after maximum wait time (cleared on first real hideLoader)
+    // Fallback: Ensure loader is hidden after maximum wait time (cleared on first real hideLoader).
+    // When URL has extras, validation can run past 10s; keep max wait above extras fallback so we
+    // do not hide the overlay while extrasProcessed is still false (confusing partial UI).
+    const maxLoaderWaitMs = urlHasExtras()
+        ? Math.max(10000, EXTRAS_PROCESSED_FALLBACK_MS + 500)
+        : 10000;
     maxWaitHideLoaderTimeoutId = setTimeout(() => {
+        window.kbLog && window.kbLog(`loader: ⚠ fallback ${maxLoaderWaitMs}ms — hideLoader (max wait)`);
         maxWaitHideLoaderTimeoutId = null;
         hideLoader();
-    }, 10000);
+    }, maxLoaderWaitMs);
 })();
 
 // Add calendar styling
@@ -1253,64 +1341,84 @@ window.Webflow.push(() => {
         return;
     }
 
-    window.onload = () => {
+    window.Wized = window.Wized || [];
+    window.Wized.push(async (Wized) => {
         try {
-            let latitude, longitude;
+            await Wized.requests.waitFor('Load_Property_Details');
+            let latitude;
+            let longitude;
+            try {
+                latitude = Wized.data.v.latitude;
+                longitude = Wized.data.v.longitude;
+            } catch (error) {
+            }
+            if (!latitude || !longitude) {
+                return;
+            }
+
+            const miles = 0.05;
+            const earthRadius = 3958.8;
+            const latOffset = -(miles / earthRadius) * (180 / Math.PI);
+            const lngOffset = (miles / earthRadius) * (180 / Math.PI) / Math.cos(latitude * Math.PI / 180);
+            const fakeLatitude = latitude + latOffset;
+            const fakeLongitude = longitude + lngOffset;
             const apiKey = 'AIzaSyDIsh3z39SZKKEsHm59QVcOucjCrFMepfQ';
 
-            const checkDataInterval = setInterval(async () => {
-                window.Wized = window.Wized || [];
-                window.Wized.push(async (Wized) => {
+            const runWhenIdle = typeof requestIdleCallback === 'function'
+                ? (cb) => requestIdleCallback(cb, { timeout: 5000 })
+                : (cb) => setTimeout(cb, 2000);
+
+            runWhenIdle(() => {
+                if (mapElement.dataset.kbMapInit === '1') {
+                    return;
+                }
+                mapElement.dataset.kbMapInit = '1';
+
+                window.__kbMapsCallbackSeq = (window.__kbMapsCallbackSeq || 0) + 1;
+                const cbName = 'kbInitListingMap_' + window.__kbMapsCallbackSeq;
+                const lat = fakeLatitude;
+                const lng = fakeLongitude;
+                const el = mapElement;
+
+                window[cbName] = function () {
                     try {
-                        latitude = Wized.data.v.latitude;
-                        longitude = Wized.data.v.longitude;
-                    } catch (error) {
-                    }
+                        delete window[cbName];
+                        const g = window.google && window.google.maps;
+                        if (!g || !g.Map) {
+                            el.dataset.kbMapInit = '';
+                            return;
+                        }
+                        const topRight =
+                            (g.ControlPosition && typeof g.ControlPosition.TOP_RIGHT === 'number')
+                                ? g.ControlPosition.TOP_RIGHT
+                                : 3;
+                        const map = new g.Map(el, {
+                            zoom: 16,
+                            center: { lat: lat, lng: lng },
+                            mapTypeId: 'roadmap',
+                            mapTypeControl: false,
+                            fullscreenControl: false,
+                            zoomControlOptions: {
+                                position: topRight,
+                            },
+                            streetViewControlOptions: {
+                                position: topRight,
+                            },
+                            scrollwheel: false,
+                            styles: [
+                                { "featureType": "administrative", "elementType": "labels", "stylers": [{ "visibility": "off" }] },
+                                { "featureType": "landscape", "stylers": [{ "color": "#f5f5f5" }] },
+                                { "featureType": "poi", "elementType": "labels.icon", "stylers": [{ "visibility": "off" }] },
+                                { "featureType": "poi.park", "elementType": "geometry", "stylers": [{ "color": "#c2d2b1" }] },
+                                { "featureType": "poi", "elementType": "labels.text", "stylers": [{ "visibility": "off" }] },
+                                { "featureType": "road", "elementType": "labels", "stylers": [{ "visibility": "off" }] },
+                                { "featureType": "transit", "elementType": "labels", "stylers": [{ "visibility": "off" }] },
+                                { "featureType": "water", "elementType": "geometry", "stylers": [{ "color": "#9ecaff" }] },
+                                { "featureType": "road", "elementType": "geometry", "stylers": [{ "color": "#f0f0f0" }, { "visibility": "on" }] },
+                            ]
+                        });
 
-                    // Calculate new latitude and longitude to show 0.1 miles south and right
-                    const miles = 0.05;
-                    const earthRadius = 3958.8; // Radius of the Earth in miles
-                    const latOffset = -(miles / earthRadius) * (180 / Math.PI); // Negative to go south
-                    const lngOffset = (miles / earthRadius) * (180 / Math.PI) / Math.cos(latitude * Math.PI / 180); // Positive to go right (east)
-
-                    const fakeLatitude = latitude + latOffset;
-                    const fakeLongitude = longitude + lngOffset;
-
-                    if (latitude && longitude) {
-                        clearInterval(checkDataInterval); // Stop the interval once data is available
-
-                        const script = document.createElement('script');
-                        script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}`;
-                        // script.defer = true;
-                        script.async = true;
-                        script.onload = () => {
-                            const map = new window.google.maps.Map(mapElement, {
-                                zoom: 16,
-                                center: { lat: fakeLatitude, lng: fakeLongitude },
-                                mapTypeId: 'roadmap',
-                                mapTypeControl: false,
-                                fullscreenControl: false,
-                                zoomControlOptions: {
-                                    position: google.maps.ControlPosition.TOP_RIGHT,
-                                },
-                                streetViewControlOptions: {
-                                    position: google.maps.ControlPosition.TOP_RIGHT,
-                                },
-                                scrollwheel: false,
-                                styles: [
-                                    { "featureType": "administrative", "elementType": "labels", "stylers": [{ "visibility": "off" }] },
-                                    { "featureType": "landscape", "stylers": [{ "color": "#f5f5f5" }] },
-                                    { "featureType": "poi", "elementType": "labels.icon", "stylers": [{ "visibility": "off" }] },
-                                    { "featureType": "poi.park", "elementType": "geometry", "stylers": [{ "color": "#c2d2b1" }] },
-                                    { "featureType": "poi", "elementType": "labels.text", "stylers": [{ "visibility": "off" }] },
-                                    { "featureType": "road", "elementType": "labels", "stylers": [{ "visibility": "off" }] },
-                                    { "featureType": "transit", "elementType": "labels", "stylers": [{ "visibility": "off" }] },
-                                    { "featureType": "water", "elementType": "geometry", "stylers": [{ "color": "#9ecaff" }] },
-                                    { "featureType": "road", "elementType": "geometry", "stylers": [{ "color": "#f0f0f0" }, { "visibility": "on" }] },
-                                ]
-                            });
-
-                            const pinSvgString = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+                        const pinSvgString = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
                 <circle cx="24" cy="24" r="22" fill="#ffffff" filter="drop-shadow(0 0 2px rgba(0,0,0,0.2))"/>
                 <g transform="translate(12 10)" stroke-linecap="round" stroke-width="1.5" stroke="#323232" fill="none" stroke-linejoin="round">
                   <path d="M3 11.69l7.93-6.81 0-.01c.61-.53 1.51-.53 2.12 0l7.93 6.8"/>
@@ -1321,38 +1429,48 @@ window.Webflow.push(() => {
                 </g>
               </svg>`;
 
-                            const marker = new google.maps.Marker({
-                                position: { lat: fakeLatitude, lng: fakeLongitude },
-                                map: map,
-                                icon: {
-                                    url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(pinSvgString),
-                                    scaledSize: new google.maps.Size(56, 56),
-                                    origin: new google.maps.Point(0, 0),
-                                    anchor: new google.maps.Point(28, 28)
-                                },
-                                title: 'A marker using a custom SVG image.'
-                            });
+                        new g.Marker({
+                            position: { lat: lat, lng: lng },
+                            map: map,
+                            icon: {
+                                url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(pinSvgString),
+                                scaledSize: new g.Size(56, 56),
+                                origin: new g.Point(0, 0),
+                                anchor: new g.Point(28, 28)
+                            },
+                            title: 'A marker using a custom SVG image.'
+                        });
 
-                            // Add a blue circle around the altered coordinates
-                            const circle = new google.maps.Circle({
-                                strokeColor: '#67C8FF',
-                                strokeOpacity: 0.0,
-                                strokeWeight: 2,
-                                fillColor: '#3998ed',
-                                fillOpacity: 0.3,
-                                map: map,
-                                center: { lat: fakeLatitude, lng: fakeLongitude },
-                                radius: 0.25 * 1609.34 // 0.25 miles in meters
-                            });
-
-                        };
-                        document.head.appendChild(script);
+                        new g.Circle({
+                            strokeColor: '#67C8FF',
+                            strokeOpacity: 0.0,
+                            strokeWeight: 2,
+                            fillColor: '#3998ed',
+                            fillOpacity: 0.3,
+                            map: map,
+                            center: { lat: lat, lng: lng },
+                            radius: 0.25 * 1609.34
+                        });
+                    } catch (err) {
+                        el.dataset.kbMapInit = '';
                     }
-                });
-            }, 1000); // Check every second
+                };
+
+                const script = document.createElement('script');
+                script.async = true;
+                script.onerror = function () {
+                    try {
+                        delete window[cbName];
+                    } catch (e) { /* ignore */ }
+                    el.dataset.kbMapInit = '';
+                };
+                script.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(apiKey) +
+                    '&loading=async&callback=' + encodeURIComponent(cbName);
+                document.head.appendChild(script);
+            });
         } catch (error) {
         }
-    };
+    });
 });
 
 
@@ -1437,15 +1555,97 @@ reserveButtons.forEach(button => {
 document.addEventListener('DOMContentLoaded', function () {
     window.Wized = window.Wized || [];
     window.Wized.push((async (Wized) => {
-        // Wait for required data
-        await Wized.requests.waitFor('Load_Property_Calendar_Disabled');
-        await Wized.requests.waitFor('Load_Property_Details');
+        const CUSTOM_MIN_NIGHTS_ENDPOINT = 'https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/property_calendar_customMinNights';
+        let disabledDates = new Set();
+        let checkoutOnlyDates = new Set();
+        const customMinNightsByDate = new Map();
+        let customMinNightsLoaded = false;
+        window.customMinNightsLoaded = false;
 
-        // Get calendar data and property details
+        let _hydrateCustomMinNightsInflight = null;
+        let _hydrateCustomMinNightsInflightId = null;
+
+        async function hydrateCustomMinNights(currentPropertyData) {
+            const propertyId = currentPropertyData?.id || currentPropertyData?.property_id;
+            if (!propertyId) {
+                window.kbLog && window.kbLog('hydrateCustomMinNights: skip (no propertyId)');
+                return;
+            }
+            const pid = String(propertyId);
+            if (_hydrateCustomMinNightsInflight && _hydrateCustomMinNightsInflightId === pid) {
+                window.kbLog && window.kbLog('hydrateCustomMinNights: join inflight fetch', { propertyId: pid });
+                await _hydrateCustomMinNightsInflight;
+                return;
+            }
+
+            const url = `${CUSTOM_MIN_NIGHTS_ENDPOINT}?property_id=${encodeURIComponent(propertyId)}`;
+            const run = async () => {
+                const endHydrate = window.kbStart && window.kbStart('hydrateCustomMinNights: fetch ' + url);
+                try {
+                    const res = await fetch(url);
+                    if (!res.ok) {
+                        endHydrate && endHydrate({ status: res.status, ok: false });
+                        return;
+                    }
+                    const body = await res.json();
+                    const rows = Array.isArray(body) ? body : Array.isArray(body?.data) ? body.data : [];
+                    rows.forEach(row => {
+                        if (row.date && row.custom_minNights !== undefined && row.custom_minNights !== null) {
+                            customMinNightsByDate.set(row.date, row.custom_minNights);
+                        }
+                        if (row.date && row.isAvailable === true && row.isAvailableForCheckout === true) {
+                            checkoutOnlyDates.add(row.date);
+                        }
+                    });
+
+                    customMinNightsLoaded = true;
+                    window.customMinNightsLoaded = true;
+
+                    if (window.updateAvailabilityStatus) {
+                        window.updateAvailabilityStatus();
+                    }
+
+                    if (window.notifyCustomMinNightsLoaded) {
+                        window.notifyCustomMinNightsLoaded();
+                    }
+                    endHydrate && endHydrate({ rowCount: rows.length, propertyId });
+                } catch (err) {
+                    endHydrate && endHydrate({ error: err && err.message });
+                    customMinNightsLoaded = true;
+                    window.customMinNightsLoaded = true;
+
+                    if (window.notifyCustomMinNightsLoaded) {
+                        window.notifyCustomMinNightsLoaded();
+                    }
+                }
+            };
+
+            _hydrateCustomMinNightsInflightId = pid;
+            _hydrateCustomMinNightsInflight = run().finally(() => {
+                _hydrateCustomMinNightsInflight = null;
+                _hydrateCustomMinNightsInflightId = null;
+            });
+            await _hydrateCustomMinNightsInflight;
+        }
+
+        // Start custom min-nights Xano fetch as soon as we know property id (overlaps Wized requests).
+        const upsEarly = new URLSearchParams(window.location.search);
+        let bootstrapPropertyId = upsEarly.get('id');
+        if (!bootstrapPropertyId) {
+            const cmsRoot = document.querySelector('[data-property-id]');
+            if (cmsRoot) bootstrapPropertyId = cmsRoot.getAttribute('data-property-id');
+        }
+        if (bootstrapPropertyId) {
+            void hydrateCustomMinNights({ id: bootstrapPropertyId });
+        }
+
+        await Promise.all([
+            Wized.requests.waitFor('Load_Property_Calendar_Disabled'),
+            Wized.requests.waitFor('Load_Property_Details'),
+        ]);
+
         let calendarData = Wized.data.r.Load_Property_Calendar_Disabled;
         let propertyData = Wized.data.r.Load_Property_Details.data.property;
-        const CUSTOM_MIN_NIGHTS_ENDPOINT = 'https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/property_calendar_customMinNights';
-
 
         // Get DOM elements
         const checkInInput = document.querySelector('[data-element="checkInInput"]');
@@ -1455,20 +1655,13 @@ document.addEventListener('DOMContentLoaded', function () {
         const calendarContainer = document.querySelector('[data-element="calendarContainer"]');
         const mobileCalendarContainer = document.querySelector('[data-element="mobileCalendarContainer"]');
 
-        // Initialize state
+        // Initialize state (disabled/checkout/custom-min maps live above with hydrate — do not redeclare)
         let selectedStartDate = null;
         let selectedEndDate = null;
-        let disabledDates = new Set();
-        let checkoutOnlyDates = new Set(); // Dates only available for checkout
         let unclickableCheckInDates = new Set(); // Available dates that can't be used as check-in
         let selectingCheckOut = false;
         let isRefreshingCalendarData = false;
-        const customMinNightsByDate = new Map(); // Per-day overrides for minimum nights
-        let customMinNightsLoaded = false; // Track if custom min nights have been hydrated
         let checkinoutRules = []; // Check-in/out day-of-week restrictions from property_checkinout_rules
-
-        // Expose globally so other functions can check if custom min nights are loaded
-        window.customMinNightsLoaded = false;
 
         // Load check-in/out day-of-week rules from Load_Property_Details response
         const detailsResponse = Wized.data.r.Load_Property_Details?.data;
@@ -1518,53 +1711,7 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         });
 
-        async function hydrateCustomMinNights(currentPropertyData) {
-            const propertyId = currentPropertyData?.id || currentPropertyData?.property_id;
-            if (!propertyId) {
-                return;
-            }
-            const url = `${CUSTOM_MIN_NIGHTS_ENDPOINT}?property_id=${encodeURIComponent(propertyId)}`;
-            try {
-                const res = await fetch(url);
-                if (!res.ok) {
-                    return;
-                }
-                const body = await res.json();
-                const rows = Array.isArray(body) ? body : Array.isArray(body?.data) ? body.data : [];
-                rows.forEach(row => {
-                    if (row.date && row.custom_minNights !== undefined && row.custom_minNights !== null) {
-                        customMinNightsByDate.set(row.date, row.custom_minNights);
-                    }
-                    // If API returns checkout-only info for available dates, respect it
-                    if (row.date && row.isAvailable === true && row.isAvailableForCheckout === true) {
-                        checkoutOnlyDates.add(row.date);
-                    }
-                });
-
-                // Mark as loaded (both local and global)
-                customMinNightsLoaded = true;
-                window.customMinNightsLoaded = true;
-
-                // Re-trigger validation after custom min nights load
-                if (window.updateAvailabilityStatus) {
-                    window.updateAvailabilityStatus();
-                }
-
-                // Notify page loader that custom min nights are ready
-                if (window.notifyCustomMinNightsLoaded) {
-                    window.notifyCustomMinNightsLoaded();
-                }
-            } catch (err) {
-                // Mark as loaded even on error to avoid infinite waiting
-                customMinNightsLoaded = true;
-                window.customMinNightsLoaded = true;
-
-                // Notify page loader even on error
-                if (window.notifyCustomMinNightsLoaded) {
-                    window.notifyCustomMinNightsLoaded();
-                }
-            }
-        }
+        const _earlyHydrateCustomMinNightsPromise = hydrateCustomMinNights(propertyData);
 
         // Get property rules
         const advanceNotice = propertyData.advanceNotice || 0;
@@ -1829,8 +1976,8 @@ document.addEventListener('DOMContentLoaded', function () {
             });
         }
 
-        // Mark small gaps as unavailable
-        await hydrateCustomMinNights(propertyData);
+        // Mark small gaps as unavailable (min-nights Xano: URL kick + _earlyHydrateCustomMinNightsPromise)
+        await _earlyHydrateCustomMinNightsPromise;
         markSmallGapsAsUnavailable();
 
         // Helper function to check if a date has valid checkout options
@@ -1897,7 +2044,8 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         // Ensure latest availability data is applied before rendering calendars
-        async function refreshStayCalendarData(resetViewToSelectedDate = false) {
+        async function refreshStayCalendarData(resetViewToSelectedDate = false, refreshOptions = {}) {
+            const skipMinNightsRefetch = refreshOptions.skipMinNightsRefetch === true;
             if (isRefreshingCalendarData) return;
             isRefreshingCalendarData = true;
 
@@ -1936,13 +2084,17 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
 
                 // Mark custom min nights as loading to prevent validation from using stale data
-                window.customMinNightsLoaded = false;
+                if (!skipMinNightsRefetch) {
+                    window.customMinNightsLoaded = false;
+                }
 
                 // Rebuild availability sets from freshest data
                 disabledDates.clear();
                 checkoutOnlyDates.clear();
                 unclickableCheckInDates.clear();
-                customMinNightsByDate.clear();
+                if (!skipMinNightsRefetch) {
+                    customMinNightsByDate.clear();
+                }
 
                 if (calendarData && Array.isArray(calendarData.data)) {
                     calendarData.data.forEach(item => {
@@ -1956,10 +2108,12 @@ document.addEventListener('DOMContentLoaded', function () {
                     });
                 }
 
-                // Fetch custom min nights from availability endpoint as well
-                await hydrateCustomMinNights(propertyData);
+                // Fetch custom min nights from Xano (skip on first paint refresh — initial hydrate already ran)
+                if (!skipMinNightsRefetch) {
+                    await hydrateCustomMinNights(propertyData);
+                }
 
-                // hydrateCustomMinNights will set customMinNightsLoaded = true and trigger validation
+                // hydrateCustomMinNights sets customMinNightsLoaded = true and triggers validation when run
 
 
                 // Recompute derived state and re-render calendars
@@ -2403,6 +2557,12 @@ document.addEventListener('DOMContentLoaded', function () {
             const effectiveMinNights = selectedStartDate
                 ? getHighestMinNightsBetween(selectedStartDate, date)
                 : minNights;
+            window.kbLog && window.kbLog('handleDateSelection: enter', {
+                date: dateString,
+                isCheckoutOnly,
+                selectingCheckOut,
+                hasStart: !!selectedStartDate
+            });
 
             // If no check-in selected yet, select this as check-in
             if (!selectedStartDate) {
@@ -2430,6 +2590,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Update Wized parameters
                 Wized.data.n.parameter.checkin = "";
                 Wized.data.n.parameter.checkout = "";
+
+                window.kbLog && window.kbLog('handleDateSelection: branch=first-check-in — cleared checkin/checkout in URL+Wized', { picked: dateString });
 
                 updateInputs();
                 createCalendar();
@@ -2465,6 +2627,8 @@ document.addEventListener('DOMContentLoaded', function () {
                     // Update Wized parameters
                     Wized.data.n.parameter.checkin = "";
                     Wized.data.n.parameter.checkout = "";
+
+                    window.kbLog && window.kbLog('handleDateSelection: branch=restart-check-in (date<start) — cleared checkin/checkout in URL+Wized', { picked: dateString });
 
                     updateInputs();
                     createCalendar();
@@ -2510,6 +2674,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Valid check-out selection
                 selectedEndDate = date;
                 selectingCheckOut = false;
+                window.kbLog && window.kbLog('handleDateSelection: branch=valid-checkout', {
+                    checkin: formatDate(selectedStartDate),
+                    checkout: dateString
+                });
                 updateInputs();
                 updateURL();
             } else {
@@ -2538,6 +2706,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Update Wized parameters
                 Wized.data.n.parameter.checkin = "";
                 Wized.data.n.parameter.checkout = "";
+
+                window.kbLog && window.kbLog('handleDateSelection: branch=new-range-start — cleared checkin/checkout in URL+Wized', { picked: dateString });
 
                 updateInputs();
             }
@@ -2697,7 +2867,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Add slight delay to ensure DOM is ready and proper styling is applied
         setTimeout(() => {
-            refreshStayCalendarData();
+            refreshStayCalendarData(false, { skipMinNightsRefetch: true });
         }, 10);
 
         // Add clear dates functionality
@@ -4227,6 +4397,7 @@ document.addEventListener('DOMContentLoaded', () => {
         function handleBoatFunctionality() {
             const urlParams = new URLSearchParams(window.location.search);
             const boatId = urlParams.get('boatId');
+            window.kbLog && window.kbLog('handleBoatFunctionality()', { boatId: boatId || null });
             const selectedBoatBlocks = document.querySelectorAll('[data-element="selectedBoatBlock"]');
 
             if (boatId) {
@@ -4255,6 +4426,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Check if we already have the correct boat data cached (avoid unnecessary fetch)
                 const needsFetch = !window.selectedBoatData || window.selectedBoatData.id !== parseInt(boatId);
+                window.kbLog && window.kbLog('handleBoatFunctionality: branch decision', { needsFetch, cachedId: window.selectedBoatData?.id || null, urlBoatId: boatId });
 
                 if (!needsFetch) {
                     // Data already cached for this boat - just update UI
@@ -4266,8 +4438,11 @@ document.addEventListener('DOMContentLoaded', () => {
                             window.updateAllButtonVisibility();
                         }
                         if (window.validateExtrasAvailabilityOnLoad) {
+                            const endVal = window.kbStart && window.kbStart('handleBoat (cached): validateExtrasAvailabilityOnLoad');
                             await window.validateExtrasAvailabilityOnLoad();
+                            endVal && endVal();
                         }
+                        window.kbLog && window.kbLog('handleBoat (cached): about to notifyExtrasProcessed');
                         if (window.notifyExtrasProcessed) window.notifyExtrasProcessed();
                     });
                     return;
@@ -4275,33 +4450,52 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Need to fetch boat data
                 // Make direct fetch request for boat data
+                const endBoatFetch = window.kbStart && window.kbStart('handleBoat (fetch): GET boats/' + boatId);
                 fetch(`https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/boats/${boatId}`)
                     .then(response => {
                         if (!response.ok) {
+                            endBoatFetch && endBoatFetch({ status: response.status, ok: false });
                             throw new Error(`HTTP error! status: ${response.status}`);
                         }
                         return response.json();
                     })
                     .then(async (boatData) => {
+                        endBoatFetch && endBoatFetch({ ok: true });
                         // Store the boat data directly
                         window.selectedBoatData = boatData;
 
                         populateSelectedBoatBlock();
 
                         try {
-                            // Wait for calendar data to be available before updating pricing
-                            await Wized.requests.waitFor('Load_Property_Calendar_Query');
+                            const calParams = new URLSearchParams(window.location.search);
+                            const hasStayDatesForBoat = !!(calParams.get('checkin') && calParams.get('checkout') &&
+                                String(calParams.get('checkin')).trim() !== '' && String(calParams.get('checkout')).trim() !== '');
+
+                            if (hasStayDatesForBoat) {
+                                const endWait = window.kbStart && window.kbStart('handleBoat (fetch): waitFor Load_Property_Calendar_Query');
+                                try {
+                                    await Promise.race([
+                                        Wized.requests.waitFor('Load_Property_Calendar_Query'),
+                                        new Promise((_, reject) => setTimeout(() => reject(new Error('calendar query wait timeout')), 10000))
+                                    ]);
+                                } catch (waitErr) {
+                                    window.kbLog && window.kbLog('handleBoat (fetch): calendar wait ended', { message: waitErr && waitErr.message });
+                                } finally {
+                                    endWait && endWait();
+                                }
+                            } else {
+                                window.kbLog && window.kbLog('handleBoat (fetch): skip waitFor Load_Property_Calendar_Query (no stay dates)');
+                            }
+
                             await updatePricingDisplayForExtras();
 
-                            // Also update button visibility and UI state after pricing is calculated
                             if (window.updateAllButtonVisibility) {
                                 window.updateAllButtonVisibility();
                             }
                         } catch (error) {
-                            // Still try to update pricing even if wait fails
+                            window.kbLog && window.kbLog('handleBoat (fetch): pricing/wait error → fallback pricing only', { message: error && error.message });
                             await updatePricingDisplayForExtras();
 
-                            // Also update button visibility
                             if (window.updateAllButtonVisibility) {
                                 window.updateAllButtonVisibility();
                             }
@@ -4309,11 +4503,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         // Validate calendar availability for pre-loaded extras
                         if (window.validateExtrasAvailabilityOnLoad) {
+                            const endVal = window.kbStart && window.kbStart('handleBoat (fetch): validateExtrasAvailabilityOnLoad');
                             await window.validateExtrasAvailabilityOnLoad();
+                            endVal && endVal();
                         }
+                        window.kbLog && window.kbLog('handleBoat (fetch): about to notifyExtrasProcessed');
                         if (window.notifyExtrasProcessed) window.notifyExtrasProcessed();
                     })
                     .catch(error => {
+                        window.kbLog && window.kbLog('handleBoat (fetch): catch → notifyExtrasProcessed (error path)', { message: error && error.message });
                         if (window.notifyExtrasProcessed) window.notifyExtrasProcessed();
                     });
             } else {
@@ -4494,9 +4692,6 @@ document.addEventListener('DOMContentLoaded', () => {
         // Make populateSelectedBoatBlock globally available
         window.populateSelectedBoatBlock = populateSelectedBoatBlock;
 
-        // Initialize boat functionality on page load
-        handleBoatFunctionality();
-
         // Setup edit and remove boat handlers
         function setupBoatHandlers() {
             // Ensure the dates popup is visible before the modal opens for auto "add dates" flows
@@ -4612,7 +4807,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // Initialize boat handlers
         setupBoatHandlers();
 
-        // Handle boat functionality on initial load
+        // Single initial run (avoid duplicate GET boats/… and parallel waitFor chains)
+        window.kbLog && window.kbLog('boat init: after setupBoatHandlers');
         handleBoatFunctionality();
 
         // Also handle boat functionality when URL parameters change
@@ -5476,8 +5672,12 @@ document.addEventListener('DOMContentLoaded', () => {
 // like Reservation_Total can reuse it without recalculating.
 let lastExtrasGrandTotal = null;
 
-// Update pricing display when extras (boat or fishing charter) are selected
-async function updatePricingDisplayForExtras() {
+// Coalesce overlapping pricing runs (many listeners fire together on load)
+let _extrasPricingRunPromise = null;
+let _extrasPricingRerunWanted = false;
+
+async function updatePricingDisplayForExtrasBody() {
+    window.kbLog && window.kbLog('updatePricingDisplayForExtras: enter');
     const listingOnlyPricingSections = document.querySelectorAll('[data-element="ListingOnly_Query_Price_Details"]');
     const listingExtrasPricingSections = document.querySelectorAll('[data-element="ListingExtras_Query_Price_Details"]');
 
@@ -5498,6 +5698,7 @@ async function updatePricingDisplayForExtras() {
                 section.style.display = 'none';
             }
         });
+        window.kbLog && window.kbLog('updatePricingDisplayForExtras: exit early (no extras selected)');
         return;
     }
 
@@ -5543,6 +5744,7 @@ async function updatePricingDisplayForExtras() {
         const n = window.Wized.data.n;
 
         if (!r || !r.Load_Property_Calendar_Query || !r.Load_Property_Calendar_Query.data) {
+            window.kbLog && window.kbLog('updatePricingDisplayForExtras: exit early (no Load_Property_Calendar_Query.data yet)');
             return;
         }
 
@@ -5551,10 +5753,14 @@ async function updatePricingDisplayForExtras() {
             const stayPricing = calculateStayPricing(r);
 
             // Calculate boat pricing components
+            const endBoatP = window.kbStart && window.kbStart('updatePricing: calculateBoatPricing');
             const boatPricing = await calculateBoatPricing();
+            endBoatP && endBoatP({ totalWithFees: boatPricing.totalWithFees });
 
             // Calculate fishing charter pricing components
+            const endFcP = window.kbStart && window.kbStart('updatePricing: calculateFishingCharterPricing');
             const fishingCharterPricing = await calculateFishingCharterPricing();
+            endFcP && endFcP({ totalWithFees: fishingCharterPricing.totalWithFees });
 
             // Calculate boat taxes only (stay taxes already included in stayPricing.total)
             // Support both nested _boat_company and flat structure
@@ -5577,6 +5783,13 @@ async function updatePricingDisplayForExtras() {
             // Update all pricing elements
             updatePricingElements(stayPricing, boatPricing, fishingCharterPricing, combinedTaxes, grandTotal);
 
+            window.kbLog && window.kbLog('updatePricingDisplayForExtras: totals updated', {
+                grandTotal: lastExtrasGrandTotal,
+                stayTotal: stayPricing.total,
+                boatTotal: boatPricing.totalWithFees,
+                charterTotal: fishingCharterPricing.totalWithFees
+            });
+
             // Sync the main reservation total with the combined amount immediately
             if (typeof window.updateReservationTotal === 'function') {
                 window.updateReservationTotal();
@@ -5586,10 +5799,27 @@ async function updatePricingDisplayForExtras() {
             await updateExtrasCancellationPolicies();
 
         } catch (error) {
-
+            window.kbLog && window.kbLog('updatePricingDisplayForExtras: catch', { message: error && error.message });
         }
     } else {
     }
+}
+
+async function updatePricingDisplayForExtras() {
+    if (_extrasPricingRunPromise) {
+        _extrasPricingRerunWanted = true;
+        return _extrasPricingRunPromise;
+    }
+    _extrasPricingRerunWanted = false;
+    _extrasPricingRunPromise = (async () => {
+        do {
+            _extrasPricingRerunWanted = false;
+            await updatePricingDisplayForExtrasBody();
+        } while (_extrasPricingRerunWanted);
+    })().finally(() => {
+        _extrasPricingRunPromise = null;
+    });
+    return _extrasPricingRunPromise;
 }
 
 // Calculate stay pricing (use API's dateRange_totalPrice which includes ALL fees and taxes)
@@ -5777,9 +6007,44 @@ function computeBoatBasePriceFromTiers(boat, daysToCalculate) {
     return Math.round(dailyRate * targetDays);
 }
 
+const __kbFishingCharterJsonCache = new Map();
+const __kbFishingCharterInflight = new Map();
+
+function fetchFishingCharterJsonForPricing(charterId) {
+    const pref = window.prefetchedCharterData && window.prefetchedCharterData[charterId];
+    if (pref) {
+        return Promise.resolve(pref);
+    }
+    if (__kbFishingCharterJsonCache.has(charterId)) {
+        return Promise.resolve(__kbFishingCharterJsonCache.get(charterId));
+    }
+    if (__kbFishingCharterInflight.has(charterId)) {
+        return __kbFishingCharterInflight.get(charterId);
+    }
+    const url = `https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/fishingcharters/${encodeURIComponent(charterId)}`;
+    const p = fetch(url)
+        .then(async (response) => {
+            if (!response.ok) {
+                return null;
+            }
+            const json = await response.json();
+            __kbFishingCharterJsonCache.set(charterId, json);
+            if (window.prefetchedCharterData) {
+                window.prefetchedCharterData[charterId] = json;
+            }
+            return json;
+        })
+        .finally(() => {
+            __kbFishingCharterInflight.delete(charterId);
+        });
+    __kbFishingCharterInflight.set(charterId, p);
+    return p;
+}
+
 // Calculate fishing charter pricing based on selected charters
 async function calculateFishingCharterPricing() {
     if (!window.fishingCharterService) {
+        window.kbLog && window.kbLog('calculateFishingCharterPricing: skip (no fishingCharterService)');
         return { totalWithFees: 0 };
     }
 
@@ -5792,6 +6057,7 @@ async function calculateFishingCharterPricing() {
             window.fishingCharterCancellationData = [];
             return { totalWithFees: 0 };
         }
+        window.kbLog && window.kbLog('calculateFishingCharterPricing: start', { charterNumbers: allNumbers });
 
         let totalPrice = 0;
         const cancellationData = []; // Cache charter data for cancellation policies
@@ -5807,11 +6073,11 @@ async function calculateFishingCharterPricing() {
             if (!charterId || !tripId) continue;
 
             try {
-                // Fetch charter data to get pricing info
-                const response = await fetch(`https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/fishingcharters/${charterId}`);
-                if (!response.ok) continue;
+                const endCharterFetch = window.kbStart && window.kbStart('charter fetch GET fishingcharters/' + charterId, { number });
+                const charter = await fetchFishingCharterJsonForPricing(charterId);
+                endCharterFetch && endCharterFetch({ status: charter ? 200 : 0 });
+                if (!charter) continue;
 
-                const charter = await response.json();
                 const selectedTrip = charter.tripOptions?.find(t => String(t.id) === String(tripId));
 
                 if (selectedTrip) {
@@ -5856,10 +6122,6 @@ async function calculateFishingCharterPricing() {
             }
         }
 
-        // Cache the charter data for cancellation policies
-        window.fishingCharterCancellationData = cancellationData;
-
-        // Cache the charter data for cancellation policies
         window.fishingCharterCancellationData = cancellationData;
 
         return {
@@ -25275,10 +25537,13 @@ document.addEventListener('DOMContentLoaded', () => {
             // Prevent concurrent async runs from producing duplicates
             if (_validationRunning) {
                 _validationQueued = true;
+                window.kbLog && window.kbLog('validateExtrasAvailabilityOnLoad: queued (already running)');
                 return;
             }
             _validationRunning = true;
             _validationQueued = false;
+            const _validateT0 = performance.now();
+            window.kbLog && window.kbLog('validateExtrasAvailabilityOnLoad: start');
 
             const urlParams = new URLSearchParams(window.location.search);
             extrasUnavailableState = {
@@ -25289,6 +25554,12 @@ document.addEventListener('DOMContentLoaded', () => {
             };
 
             if (!window.CalendarAvailabilityService) {
+                window.kbLog && window.kbLog('validateExtrasAvailabilityOnLoad: ⚠ skip (no CalendarAvailabilityService)');
+                _validationRunning = false;
+                if (_validationQueued) {
+                    _validationQueued = false;
+                    validateExtrasAvailabilityOnLoad();
+                }
                 return;
             }
 
@@ -25296,71 +25567,75 @@ document.addEventListener('DOMContentLoaded', () => {
             const checkout = urlParams.get('checkout');
             const hasStayDates = !!(checkin && checkout && checkin.trim() !== '' && checkout.trim() !== '');
 
-            // Validate boat
             const boatId = urlParams.get('boatId');
             const boatDatesRaw = urlParams.get('boatDates');
+            const charterNumbers = getAllFishingCharterNumbersForValidation();
+
+            const validationTasks = [];
+
             if (boatId) {
-                if (boatDatesRaw && boatDatesRaw.trim() !== '') {
-                    const boatDates = boatDatesRaw.split(',').filter(Boolean);
-                    if (boatDates.length > 0) {
+                validationTasks.push((async () => {
+                    if (boatDatesRaw && boatDatesRaw.trim() !== '') {
+                        const boatDates = boatDatesRaw.split(',').filter(Boolean);
+                        if (boatDates.length > 0) {
+                            try {
+                                const result = await window.CalendarAvailabilityService.validateBoatAvailability(boatId, boatDates);
+                                if (!result.available) {
+                                    clearBoatDatesFromReservation();
+                                }
+                            } catch (e) { /* fail open */ }
+                        }
+                    } else if (hasStayDates) {
                         try {
-                            const result = await window.CalendarAvailabilityService.validateBoatAvailability(boatId, boatDates);
-                            if (!result.available) {
-                                // Dates are unavailable — clear them so boat goes to "needs dates" state
-                                clearBoatDatesFromReservation();
-                            }
-                        } catch (e) { /* fail open */ }
-                    }
-                } else if (hasStayDates) {
-                    try {
-                        const stayDates = generateDateRangeForValidation(checkin, checkout);
-                        if (stayDates.length > 0) {
-                            const result = await window.CalendarAvailabilityService.fetchBoatBatchAvailability([Number(boatId)], stayDates);
-                            const boatAvail = result?.boats?.find(b => b.boat_id == boatId);
-                            if (boatAvail) {
-                                const unavailDates = boatAvail.unavailable_dates || [];
-                                const availDates = stayDates.filter(d => !unavailDates.includes(d));
-                                const effectiveMinDays = getEffectiveMinDaysForBoatFromUrl(boatId);
-                                if (effectiveMinDays <= 1) {
-                                    if (availDates.length === 0) {
-                                        extrasUnavailableState.boatNoDatesAvailable = true;
-                                    }
-                                } else {
-                                    let maxConsecutive = 0;
-                                    let currentConsecutive = 0;
-                                    const sortedStay = [...stayDates].sort();
-                                    for (const d of sortedStay) {
-                                        if (unavailDates.includes(d)) {
-                                            currentConsecutive = 0;
-                                        } else {
-                                            currentConsecutive++;
-                                            if (currentConsecutive > maxConsecutive) maxConsecutive = currentConsecutive;
+                            const stayDates = generateDateRangeForValidation(checkin, checkout);
+                            if (stayDates.length > 0) {
+                                const result = await window.CalendarAvailabilityService.fetchBoatBatchAvailability([Number(boatId)], stayDates);
+                                const boatAvail = result?.boats?.find(b => b.boat_id == boatId);
+                                if (boatAvail) {
+                                    const unavailDates = boatAvail.unavailable_dates || [];
+                                    const availDates = stayDates.filter(d => !unavailDates.includes(d));
+                                    const effectiveMinDays = getEffectiveMinDaysForBoatFromUrl(boatId);
+                                    if (effectiveMinDays <= 1) {
+                                        if (availDates.length === 0) {
+                                            extrasUnavailableState.boatNoDatesAvailable = true;
                                         }
-                                    }
-                                    if (maxConsecutive < effectiveMinDays) {
-                                        extrasUnavailableState.boatNoDatesAvailable = true;
+                                    } else {
+                                        let maxConsecutive = 0;
+                                        let currentConsecutive = 0;
+                                        const sortedStay = [...stayDates].sort();
+                                        for (const d of sortedStay) {
+                                            if (unavailDates.includes(d)) {
+                                                currentConsecutive = 0;
+                                            } else {
+                                                currentConsecutive++;
+                                                if (currentConsecutive > maxConsecutive) maxConsecutive = currentConsecutive;
+                                            }
+                                        }
+                                        if (maxConsecutive < effectiveMinDays) {
+                                            extrasUnavailableState.boatNoDatesAvailable = true;
+                                        }
                                     }
                                 }
                             }
-                        }
-                    } catch (e) { /* fail open */ }
-                }
+                        } catch (e) { /* fail open */ }
+                    }
+                })());
             }
 
-            // Validate fishing charters
-            const charterNumbers = getAllFishingCharterNumbersForValidation();
-            for (const number of charterNumbers) {
-                const charterId = urlParams.get(`fishingCharterId${number}`);
-                const charterDatesRaw = urlParams.get(`fishingCharterDates${number}`);
-                const charterTripId = urlParams.get(`fishingCharterTripId${number}`);
-                if (charterId) {
+            charterNumbers.forEach((number) => {
+                validationTasks.push((async () => {
+                    const charterId = urlParams.get(`fishingCharterId${number}`);
+                    const charterDatesRaw = urlParams.get(`fishingCharterDates${number}`);
+                    const charterTripId = urlParams.get(`fishingCharterTripId${number}`);
+                    if (!charterId) {
+                        return;
+                    }
                     if (charterDatesRaw && charterDatesRaw.trim() !== '') {
                         const charterDates = charterDatesRaw.split(',').filter(Boolean);
                         if (charterDates.length > 0) {
                             try {
                                 const result = await window.CalendarAvailabilityService.validateCharterAvailability(charterId, charterDates);
                                 if (!result.available) {
-                                    // Dates are unavailable — clear them so charter goes to "needs dates" state
                                     clearCharterDatesFromReservation(number);
                                 }
                             } catch (e) { /* fail open */ }
@@ -25378,7 +25653,6 @@ document.addEventListener('DOMContentLoaded', () => {
                                 if (Array.isArray(tripsData) && tripsData.length > 0) {
                                     const tripInfo = tripsData.find(t => t.trip_id == charterTripId || t.id == charterTripId);
                                     if (!tripInfo) {
-                                        // Trip not found in available trips - mark as unavailable
                                         extrasUnavailableState.fishingChartersNoDatesAvailable.push(number);
                                     } else if (!tripInfo.available_on_all_dates) {
                                         const hasAnyAvailable = tripInfo.availability_by_date?.some(d => d.available);
@@ -25387,7 +25661,6 @@ document.addEventListener('DOMContentLoaded', () => {
                                         }
                                     }
                                 } else {
-                                    // No trips returned at all - mark as unavailable
                                     extrasUnavailableState.fishingChartersNoDatesAvailable.push(number);
                                 }
                             } else {
@@ -25396,8 +25669,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         } catch (e) {
                         }
                     }
-                }
-            }
+                })());
+            });
+
+            await Promise.all(validationTasks);
 
             // Deduplicate arrays to guard against any remaining race conditions
             extrasUnavailableState.fishingChartersUnavailable = [...new Set(extrasUnavailableState.fishingChartersUnavailable)];
@@ -25414,6 +25689,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Release concurrency guard and re-run if another call was queued
             _validationRunning = false;
+            window.kbLog && window.kbLog('validateExtrasAvailabilityOnLoad: end', {
+                durationMs: Math.round(performance.now() - _validateT0),
+                state: extrasUnavailableState
+            });
             if (_validationQueued) {
                 _validationQueued = false;
                 validateExtrasAvailabilityOnLoad();
@@ -25806,6 +26085,42 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }, 50);
 
+        // Charter in URL, no boat, no stay: never gate notifyExtrasProcessed on full Load_Property_Details
+        // (Wized/Xano can take 15s+; loader fallbacks are a symptom, not the fix).
+        (function scheduleCharterOnlyNoStayExtrasGate() {
+            const ups = new URLSearchParams(window.location.search);
+            const hasBoatInUrl = !!ups.get('boatId');
+            const hasChartersInUrl = (() => {
+                for (const key of ups.keys()) {
+                    if (/^fishingCharterId\d+$/.test(key) && ups.get(key)) return true;
+                }
+                return false;
+            })();
+            const hasStayDates = !!(ups.get('checkin') && ups.get('checkout'));
+            if (hasBoatInUrl || !hasChartersInUrl || hasStayDates) return;
+
+            const endKb = window.kbStart && window.kbStart('charter-only no-stay: extras gate (parallel, cap wait Details 2s)');
+            (async () => {
+                try {
+                    await Promise.race([
+                        Wized.requests.waitFor('Load_Property_Details'),
+                        new Promise((resolve) => setTimeout(() => resolve('details-wait-cap-2000ms'), 2000))
+                    ]);
+                } catch (e) {
+                    window.kbLog && window.kbLog('charter-only no-stay: waitFor Details rejected/catch', { message: e && e.message });
+                }
+                try {
+                    await validateExtrasAvailabilityOnLoad();
+                } catch (e) { /* fail open */ }
+                updateAllButtonVisibility();
+                if (window.notifyExtrasProcessed) window.notifyExtrasProcessed();
+                endKb && endKb({ done: true });
+            })().catch(() => {
+                if (window.notifyExtrasProcessed) window.notifyExtrasProcessed();
+                endKb && endKb({ done: true, catch: true });
+            });
+        })();
+
         Wized.requests.waitFor('Load_Property_Details').then(() => {
             setTimeout(() => {
                 updateAllButtonVisibility();
@@ -25815,33 +26130,29 @@ document.addEventListener('DOMContentLoaded', () => {
             // run validateExtrasAvailabilityOnLoad now that services are ready
             const urlParams = new URLSearchParams(window.location.search);
             const hasBoatInUrl = !!urlParams.get('boatId');
-            const hasChartersInUrl = !!urlParams.get('fishingCharterId1');
+            const hasChartersInUrl = (() => {
+                for (const key of urlParams.keys()) {
+                    if (/^fishingCharterId\d+$/.test(key) && urlParams.get(key)) return true;
+                }
+                return false;
+            })();
             const hasStayDates = !!(urlParams.get('checkin') && urlParams.get('checkout'));
 
             if (!hasBoatInUrl && hasChartersInUrl && hasStayDates) {
-                // Charter-only case: boat flow won't run validateExtrasAvailabilityOnLoad, so do it here
-                // Wait a bit to ensure calendar data may be available
+                // Charter + stay: validation uses URL + CalendarAvailabilityService only (no Wized calendar wait).
                 const runCharterValidation = async () => {
                     try {
-                        // Try to wait for calendar query if it's pending
-                        await Promise.race([
-                            Wized.requests.waitFor('Load_Property_Calendar_Query'),
-                            new Promise(resolve => setTimeout(resolve, 2000))
-                        ]);
-                    } catch (e) { /* continue anyway */ }
-
-                    await validateExtrasAvailabilityOnLoad();
-
-                    // Update UI after validation
+                        await validateExtrasAvailabilityOnLoad();
+                    } catch (e) { /* fail open */ }
                     updateAllButtonVisibility();
-
                     if (window.notifyExtrasProcessed) window.notifyExtrasProcessed();
                 };
 
-                runCharterValidation().catch(err => {
+                runCharterValidation().catch(() => {
                     if (window.notifyExtrasProcessed) window.notifyExtrasProcessed();
                 });
             }
+            // Charter-only + no stay: handled by scheduleCharterOnlyNoStayExtrasGate() (parallel, not chained here)
         });
 
         // Update when calendar data changes
