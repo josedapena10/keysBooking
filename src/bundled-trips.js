@@ -466,18 +466,20 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Browse Stays button click handler
-    const browseStaysButton = document.querySelector('[data-element="browseStays_button"]');
+    const browseStaysButton = document.querySelectorAll('[data-element="browseStays_button"]');
     if (browseStaysButton) {
-        browseStaysButton.addEventListener('click', (e) => {
-            e.preventDefault();
-            logEvent({
-                on_link_click: true,
-                link_clicked: '/',
-                link_clicked_trip_name: 'Browse Stays',
-                link_used: referenceRaw,
-                linked_used_name: referenceNormalized ? toTitleLike(referenceRaw) : ''
+        browseStaysButton.forEach(button => {
+            button.addEventListener('click', (e) => {
+                e.preventDefault();
+                logEvent({
+                    on_link_click: true,
+                    link_clicked: '/',
+                    link_clicked_trip_name: 'Browse Stays',
+                    link_used: referenceRaw,
+                    linked_used_name: referenceNormalized ? toTitleLike(referenceRaw) : ''
+                });
+                window.location.href = '/';
             });
-            window.location.href = '/';
         });
     }
 });
