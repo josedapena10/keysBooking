@@ -4619,7 +4619,14 @@ document.addEventListener('DOMContentLoaded', () => {
             // Read directly from URL parameters instead of Wized data store
             const urlParams = new URLSearchParams(window.location.search);
             const rawDates = urlParams.get('boatDates') || n.parameter?.boatDates || "";
-            const boatDelivery = urlParams.get('boatDelivery') === "true" || n.parameter?.boatDelivery === "true";
+            const urlBoatDelivery = urlParams.get('boatDelivery') === 'true' || n.parameter?.boatDelivery === 'true';
+            const svc = window.boatRentalService;
+            // In edit mode updateURLParams() skips URL writes, so boatDelivery in the URL can lag
+            // behind the filter / details checkbox; prefer live service state for the summary line.
+            let boatDelivery = urlBoatDelivery;
+            if (svc && svc.isEditMode) {
+                boatDelivery = !!(svc.deliverySelected || svc.selectedPrivateDock);
+            }
 
             // Decode if needed
             const decodedDates = decodeURIComponent(rawDates);
@@ -4744,6 +4751,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 document.body.classList.add('no-scroll');
 
                                 // Wait for boatRentalService to be available and trigger boat details loading
+                                let waitAttempts = 0;
                                 const waitForService = () => {
                                     if (window.boatRentalService && window.boatRentalService.handleEditBoat) {
                                         const done = window.boatRentalService.handleEditBoat(boatId, window.prefetchedBoatData || null);
@@ -4767,8 +4775,11 @@ document.addEventListener('DOMContentLoaded', () => {
                                                 }
                                             }
                                         });
-                                    } else {
+                                    } else if (waitAttempts < 150) {
+                                        waitAttempts += 1;
                                         setTimeout(waitForService, 100);
+                                    } else if (window._hideDetailsLoader) {
+                                        window._hideDetailsLoader('boat');
                                     }
                                 };
                                 waitForService();
@@ -7823,8 +7834,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         return;
                     }
 
-                    // User is signed in, wait for Load_user to complete
-                    await Wized.requests.waitFor('Load_user');
+                    // User is signed in, wait for Load_user to complete (bounded — avoid hanging edit/details loader)
+                    await Promise.race([
+                        Wized.requests.waitFor('Load_user'),
+                        new Promise((_, reject) => setTimeout(() => reject(new Error('Load_user wait timeout')), 8000))
+                    ]).catch(() => { });
 
                     if (r?.Load_user?.status === 200 && r?.Load_user?.data?.Birth_Date) {
                         const birthDate = new Date(r.Load_user.data.Birth_Date);
@@ -8486,6 +8500,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         });
 
                         this.refilterBoatsIfModalOpen('privateDockToggle');
+
+                        if (window.populateSelectedBoatBlock) {
+                            window.populateSelectedBoatBlock();
+                        }
                     });
 
                     // Show tooltip on hover when disabled
@@ -10515,7 +10533,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                         // Get the current boat data from the card (in case it was updated)
                         const currentBoat = card.boatData || boat;
-                        this.showBoatDetails(currentBoat);
+                        this.showBoatDetails(currentBoat).catch(() => { });
                     });
                 } else {
                     // Update the boat data reference for the existing listener
@@ -10528,7 +10546,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     moreDetailsButton.addEventListener('click', (e) => {
                         e.stopPropagation(); // Prevent card click
                         const currentBoat = card.boatData || boat;
-                        this.showBoatDetails(currentBoat);
+                        this.showBoatDetails(currentBoat).catch(() => { });
                     });
                 }
 
@@ -10687,6 +10705,8 @@ document.addEventListener('DOMContentLoaded', () => {
             closeModal() {
                 // Invalidate any in-flight showBoatDetails calls.
                 this._showBoatDetailsSeq = (this._showBoatDetailsSeq || 0) + 1;
+
+                if (window._hideDetailsLoader) window._hideDetailsLoader('boat');
 
                 // Close all popups first
                 this.closeAllPopups();
@@ -12471,6 +12491,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 this.refilterBoatsIfModalOpen('clearPrivateDockFilter');
+
+                if (window.populateSelectedBoatBlock) {
+                    window.populateSelectedBoatBlock();
+                }
             }
 
             // ==========================================
@@ -12491,123 +12515,136 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Store the current boat data
                 this.currentBoatData = boat;
 
-                // Fetch disabled dates for this specific boat
-                const urlParams = new URLSearchParams(window.location.search);
-                const checkin = urlParams.get('checkin');
-                const checkout = urlParams.get('checkout');
-                if (checkin && checkout && boat.id) {
-                    try {
-                        const disabledDates = await CalendarAvailabilityService.fetchBoatDisabledDates(boat.id, checkin, checkout);
-                        this.boatDisabledDatesCache[boat.id] = disabledDates;
-                    } catch (e) {
-                        this.boatDisabledDatesCache[boat.id] = [];
+                try {
+                    // Fetch disabled dates for this specific boat (bounded — hung fetch leaves details spinner forever)
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const checkin = urlParams.get('checkin');
+                    const checkout = urlParams.get('checkout');
+                    if (checkin && checkout && boat.id) {
+                        try {
+                            const fetchDis = CalendarAvailabilityService.fetchBoatDisabledDates(boat.id, checkin, checkout);
+                            const disabledDates = await Promise.race([
+                                fetchDis,
+                                new Promise((_, reject) => setTimeout(() => reject(new Error('disabled dates timeout')), 12000))
+                            ]);
+                            this.boatDisabledDatesCache[boat.id] = disabledDates;
+                        } catch (e) {
+                            this.boatDisabledDatesCache[boat.id] = [];
+                        }
                     }
-                }
 
-                if (sessionSeq !== this._showBoatDetailsSeq) return;
+                    if (sessionSeq !== this._showBoatDetailsSeq) return;
 
-                if (!this._resetBoatAddScrollOnBack) {
-                    this._boatAddSectionScrollTop = this.selectWrapper ? this.selectWrapper.scrollTop : 0;
-                    this._boatAddCardScrollTop = this.cardWrapper ? this.cardWrapper.scrollTop : 0;
-                }
-
-                // Hide the select wrapper (but keep details wrapper hidden until populated)
-                this.selectWrapper.style.display = 'none';
-
-                // Sync pickup time visual state from add boat wrapper to boat details
-                // First, clear all boat details pickup time pill borders
-                Object.values(this.boatDetailsPickupTimePills).forEach(pill => {
-                    if (pill) {
-                        pill.style.borderColor = '';
-                        pill.style.borderWidth = '';
+                    if (!this._resetBoatAddScrollOnBack) {
+                        this._boatAddSectionScrollTop = this.selectWrapper ? this.selectWrapper.scrollTop : 0;
+                        this._boatAddCardScrollTop = this.cardWrapper ? this.cardWrapper.scrollTop : 0;
                     }
-                });
 
-                // Then, apply the selected pickup time visual state
-                if (this.selectedPickupTime && this.boatDetailsPickupTimePills[this.selectedPickupTime]) {
-                    this.boatDetailsPickupTimePills[this.selectedPickupTime].style.borderColor = '#000000';
-                    this.boatDetailsPickupTimePills[this.selectedPickupTime].style.borderWidth = '2px';
-                }
+                    // Hide the select wrapper (but keep details wrapper hidden until populated)
+                    if (this.selectWrapper) {
+                        this.selectWrapper.style.display = 'none';
+                    }
 
-                // Apply pickup time gating when boat details opens
-                this.applyPickupTimeGating(this.pickupTimePills, false);
-                this.applyPickupTimeGating(this.boatDetailsPickupTimePills, true);
+                    // Sync pickup time visual state from add boat wrapper to boat details
+                    // First, clear all boat details pickup time pill borders
+                    Object.values(this.boatDetailsPickupTimePills).forEach(pill => {
+                        if (pill) {
+                            pill.style.borderColor = '';
+                            pill.style.borderWidth = '';
+                        }
+                    });
 
-                // Re-apply selection visual state after gating to ensure it's not lost
-                // This ensures the selected pickup time is always visible even after gating is applied
-                requestAnimationFrame(() => {
+                    // Then, apply the selected pickup time visual state
                     if (this.selectedPickupTime && this.boatDetailsPickupTimePills[this.selectedPickupTime]) {
                         this.boatDetailsPickupTimePills[this.selectedPickupTime].style.borderColor = '#000000';
                         this.boatDetailsPickupTimePills[this.selectedPickupTime].style.borderWidth = '2px';
                     }
-                    // Also sync back to main wrapper pills to ensure consistency
-                    if (this.selectedPickupTime && this.pickupTimePills[this.selectedPickupTime]) {
-                        this.pickupTimePills[this.selectedPickupTime].style.borderColor = '#000000';
-                        this.pickupTimePills[this.selectedPickupTime].style.borderWidth = '2px';
+
+                    // Apply pickup time gating when boat details opens
+                    this.applyPickupTimeGating(this.pickupTimePills, false);
+                    this.applyPickupTimeGating(this.boatDetailsPickupTimePills, true);
+
+                    // Re-apply selection visual state after gating to ensure it's not lost
+                    // This ensures the selected pickup time is always visible even after gating is applied
+                    requestAnimationFrame(() => {
+                        if (this.selectedPickupTime && this.boatDetailsPickupTimePills[this.selectedPickupTime]) {
+                            this.boatDetailsPickupTimePills[this.selectedPickupTime].style.borderColor = '#000000';
+                            this.boatDetailsPickupTimePills[this.selectedPickupTime].style.borderWidth = '2px';
+                        }
+                        // Also sync back to main wrapper pills to ensure consistency
+                        if (this.selectedPickupTime && this.pickupTimePills[this.selectedPickupTime]) {
+                            this.pickupTimePills[this.selectedPickupTime].style.borderColor = '#000000';
+                            this.pickupTimePills[this.selectedPickupTime].style.borderWidth = '2px';
+                        }
+                        // Update text elements to show current selection
+                        this.updatePickupTimeFilterText();
+                        this.updateBoatDetailsPickupTimeFilterText();
+                    });
+
+                    // Populate the boat details
+                    await this.populateBoatDetails(boat);
+
+                    if (sessionSeq !== this._showBoatDetailsSeq) return;
+
+                    // Handle min days requirement (public dock, private dock if selected, or boat minimum)
+                    const publicDockDetails = this.getPublicDockDeliveryDetails(boat);
+                    const publicDockMinDays = publicDockDetails?.minDays ? Number(publicDockDetails.minDays) : 0;
+                    const boatMinDays = boat.minReservationLength || 0;
+
+                    // Only consider private dock minimum if private dock delivery is selected
+                    let privateDockMinDays = 0;
+                    if (this.selectedPrivateDock) {
+                        const privateDockDetails = this.getPrivateDockDeliveryDetails(boat);
+                        privateDockMinDays = privateDockDetails?.minDays ? Number(privateDockDetails.minDays) : 0;
                     }
-                    // Update text elements to show current selection
-                    this.updatePickupTimeFilterText();
-                    this.updateBoatDetailsPickupTimeFilterText();
-                });
 
-                // Populate the boat details
-                await this.populateBoatDetails(boat);
+                    const effectiveMinDays = Math.max(publicDockMinDays, privateDockMinDays, boatMinDays);
 
-                if (sessionSeq !== this._showBoatDetailsSeq) return;
-
-                // Handle min days requirement (public dock, private dock if selected, or boat minimum)
-                const publicDockDetails = this.getPublicDockDeliveryDetails(boat);
-                const publicDockMinDays = publicDockDetails?.minDays ? Number(publicDockDetails.minDays) : 0;
-                const boatMinDays = boat.minReservationLength || 0;
-
-                // Only consider private dock minimum if private dock delivery is selected
-                let privateDockMinDays = 0;
-                if (this.selectedPrivateDock) {
-                    const privateDockDetails = this.getPrivateDockDeliveryDetails(boat);
-                    privateDockMinDays = privateDockDetails?.minDays ? Number(privateDockDetails.minDays) : 0;
-                }
-
-                const effectiveMinDays = Math.max(publicDockMinDays, privateDockMinDays, boatMinDays);
-
-                // Hide half-day option if minimum days > 0.5
-                if (effectiveMinDays > 0.5 && this.boatDetailsFullHalfDaysContainer) {
-                    this.boatDetailsFullHalfDaysContainer.style.display = 'none';
-                    // Force full day type
-                    this.selectedLengthType = 'full';
-                    // Update URL to reflect full type
-                    const urlParams = new URLSearchParams(window.location.search);
-                    urlParams.set('type', 'full');
-                    const newUrl = `${window.location.pathname}?${urlParams.toString()}`;
-                    window.history.replaceState(null, '', newUrl);
-                } else if (this.boatDetailsFullHalfDaysContainer) {
-                    // Show half-day option if allowed
-                    this.boatDetailsFullHalfDaysContainer.style.display = 'flex';
-                }
-
-                // Update mobile footer
-                this.updateMobileFooter(boat);
-
-                // Update dates done button text
-                this.updateDatesDoneButtonText();
-
-                // // Update X button visibility
-                // this.updateBoatDetailsXButtonVisibility();
-
-                // Update reservation block visibility
-                this.updateReservationBlockVisibility();
-
-                if (sessionSeq !== this._showBoatDetailsSeq) return;
-
-                // Hide loader and show content now that everything is populated
-                if (window._hideDetailsLoader) window._hideDetailsLoader('boat');
-
-                // Use requestAnimationFrame to ensure DOM updates are painted before showing modal
-                // This prevents flash of unstyled content
-                requestAnimationFrame(() => {
-                    if (sessionSeq === this._showBoatDetailsSeq) {
-                        this.detailsWrapper.style.display = 'flex';
+                    // Hide half-day option if minimum days > 0.5
+                    if (effectiveMinDays > 0.5 && this.boatDetailsFullHalfDaysContainer) {
+                        this.boatDetailsFullHalfDaysContainer.style.display = 'none';
+                        // Force full day type
+                        this.selectedLengthType = 'full';
+                        // Update URL to reflect full type
+                        const urlParamsMin = new URLSearchParams(window.location.search);
+                        urlParamsMin.set('type', 'full');
+                        const newUrl = `${window.location.pathname}?${urlParamsMin.toString()}`;
+                        window.history.replaceState(null, '', newUrl);
+                    } else if (this.boatDetailsFullHalfDaysContainer) {
+                        // Show half-day option if allowed
+                        this.boatDetailsFullHalfDaysContainer.style.display = 'flex';
                     }
-                });
+
+                    // Update mobile footer
+                    this.updateMobileFooter(boat);
+
+                    // Update dates done button text
+                    this.updateDatesDoneButtonText();
+
+                    // // Update X button visibility
+                    // this.updateBoatDetailsXButtonVisibility();
+
+                    // Update reservation block visibility
+                    this.updateReservationBlockVisibility();
+
+                    if (sessionSeq !== this._showBoatDetailsSeq) return;
+
+                    // Hide loader and show content now that everything is populated
+                    if (window._hideDetailsLoader) window._hideDetailsLoader('boat');
+
+                    // Use requestAnimationFrame to ensure DOM updates are painted before showing modal
+                    // This prevents flash of unstyled content
+                    requestAnimationFrame(() => {
+                        if (sessionSeq === this._showBoatDetailsSeq) {
+                            this.detailsWrapper.style.display = 'flex';
+                        }
+                    });
+                } catch (err) {
+                    if (sessionSeq === this._showBoatDetailsSeq && window._hideDetailsLoader) {
+                        window._hideDetailsLoader('boat');
+                    }
+                    throw err;
+                }
             }
 
             hideBoatDetails() {
@@ -12729,7 +12766,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (boatDetailsReviewsAVG && boatDetailsReviewsAmount) {
                     if (!boat.reviews || boat.reviews.length === 0) {
                         boatDetailsReviewsAVG.textContent = '';
-                        boatDetailsReviewsIcon.style.display = 'none';
+                        if (boatDetailsReviewsIcon) boatDetailsReviewsIcon.style.display = 'none';
                         boatDetailsReviewsAmount.textContent = '';
                         if (boatDetailsReviewsDot) {
                             boatDetailsReviewsDot.style.display = 'none';
@@ -12887,10 +12924,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const boatDetailsBoatYear = document.querySelector('[data-element="boatDetails_boatYear"]');
                 const boatDetailsBoatYearContainer = document.querySelector('[data-element="boatDetails_boatYearContainer"]');
                 if (boat.year) {
-                    boatDetailsBoatYear.textContent = boat.year;
+                    if (boatDetailsBoatYear) boatDetailsBoatYear.textContent = boat.year;
                     if (boatDetailsBoatYearContainer) boatDetailsBoatYearContainer.style.display = 'flex';
                 } else {
-                    boatDetailsBoatYear.textContent = '';
+                    if (boatDetailsBoatYear) boatDetailsBoatYear.textContent = '';
                     if (boatDetailsBoatYearContainer) boatDetailsBoatYearContainer.style.display = 'none';
                 }
 
@@ -13923,7 +13960,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     imageWrapper.addEventListener('touchend', (e) => {
                         if (didSwipe) return; // let swipe handlers (if any) handle it
                         const currentBoat = card.boatData || boat;
-                        this.showBoatDetails(currentBoat);
+                        this.showBoatDetails(currentBoat).catch(() => { });
                     });
 
                     imageWrapper.appendChild(img);
@@ -14812,6 +14849,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         // Update public dock address visibility
                         this.updatePublicDockAddressVisibility(boat);
+
+                        if (window.populateSelectedBoatBlock) {
+                            window.populateSelectedBoatBlock();
+                        }
                     }
 
                     return;
@@ -14822,13 +14863,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     blockElement.style.display = '';
                 }
 
-                // Initialize delivery state first - prioritize actual delivery selection over private dock auto-selection
+                // Initialize delivery state: when not editing, URL drives selection. In edit mode,
+                // updateURLParams() skips writes so boatPrivateDock can lag behind the filter chip;
+                // use selectedPrivateDock so details match the add-boat section after toggling there.
                 const urlParams = new URLSearchParams(window.location.search);
                 const isDeliverySelected = urlParams.get('boatDelivery') === 'true';
                 const isPrivateDockSelected = urlParams.get('boatPrivateDock') === 'true';
 
-                // Only auto-select delivery if private dock is selected AND delivery isn't explicitly set to false
-                if (isPrivateDockSelected && urlParams.get('boatDelivery') !== 'false') {
+                if (this.isEditMode) {
+                    this.deliverySelected = !!this.selectedPrivateDock;
+                } else if (isPrivateDockSelected && urlParams.get('boatDelivery') !== 'false') {
                     this.deliverySelected = true;
                 } else {
                     this.deliverySelected = isDeliverySelected;
@@ -14890,6 +14934,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         // Update public dock address visibility
                         this.updatePublicDockAddressVisibility(boat);
+
+                        if (window.populateSelectedBoatBlock) {
+                            window.populateSelectedBoatBlock();
+                        }
                     }
 
                     // Add tooltip handlers - only when disabled
@@ -15001,6 +15049,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     // Update public dock address visibility
                     this.updatePublicDockAddressVisibility(boat);
+
+                    if (window.populateSelectedBoatBlock) {
+                        window.populateSelectedBoatBlock();
+                    }
                 });
             }
 
@@ -15729,6 +15781,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     }
 
+                    // Minimum-stay-only soft states should not mimic calendar "unavailable" styling.
+                    const isMinStayRentalSoft = isSoftDisabled && disabledTooltip && (
+                        disabledTooltip.includes('day rental required') ||
+                        disabledTooltip.includes('consecutive days from this date')
+                    );
+
                     // Create date button
                     const dateBtn = document.createElement('button');
                     dateBtn.textContent = day;
@@ -15739,6 +15797,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     dateBtn.style.borderRadius = '1000px';
 
                     // Style based on state
+                    dateBtn.removeAttribute('data-min-stay-soft');
+                    dateBtn.removeAttribute('data-soft-disabled');
                     if (isDisabled) {
                         dateBtn.style.background = '#f5f5f5';
                         dateBtn.style.color = '#ccc';
@@ -15746,12 +15806,22 @@ document.addEventListener('DOMContentLoaded', () => {
                         dateBtn.style.opacity = '0.5';
                         dateBtn.disabled = true;
                     } else if (isSoftDisabled) {
-                        // Match unavailable visual styling for blocked-but-informational dates.
-                        dateBtn.style.background = '#f5f5f5';
-                        dateBtn.style.color = '#ccc';
-                        dateBtn.style.cursor = 'not-allowed';
-                        dateBtn.style.opacity = '0.5';
-                        dateBtn.style.border = '1px solid #ddd';
+                        if (isMinStayRentalSoft) {
+                            dateBtn.setAttribute('data-min-stay-soft', 'true');
+                            dateBtn.style.background = '#fafafa';
+                            dateBtn.style.color = 'black';
+                            dateBtn.style.border = '1px solid #ddd';
+                            dateBtn.style.cursor = 'pointer';
+                            dateBtn.style.opacity = '0.5';
+                        } else {
+                            dateBtn.setAttribute('data-soft-disabled', 'true');
+                            // Match unavailable visual styling for blocked-but-informational dates.
+                            dateBtn.style.background = '#f5f5f5';
+                            dateBtn.style.color = '#ccc';
+                            dateBtn.style.cursor = 'not-allowed';
+                            dateBtn.style.opacity = '0.5';
+                            dateBtn.style.border = '1px solid #ddd';
+                        }
                     } else {
                         dateBtn.style.background = this.selectedDates.includes(dateStr) ? '#000000' : 'white';
                         dateBtn.style.color = this.selectedDates.includes(dateStr) ? 'white' : 'black';
@@ -15940,14 +16010,42 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 dateButtons.forEach(btn => {
                     const btnDateStr = btn.getAttribute('data-date');
-                    if (btnDateStr && this.selectedDates.includes(btnDateStr)) {
+                    if (!btnDateStr) return;
+                    if (this.selectedDates.includes(btnDateStr)) {
                         btn.style.background = '#000000';
                         btn.style.color = 'white';
                         btn.style.borderColor = '#000000';
-                    } else if (btnDateStr) {
+                        btn.style.borderStyle = 'solid';
+                        btn.style.opacity = '1';
+                        btn.style.cursor = 'pointer';
+                    } else if (btn.disabled) {
+                        btn.style.background = '#f5f5f5';
+                        btn.style.color = '#ccc';
+                        btn.style.borderColor = '#ddd';
+                        btn.style.borderStyle = 'solid';
+                        btn.style.opacity = '0.5';
+                        btn.style.cursor = 'not-allowed';
+                    } else if (btn.getAttribute('data-min-stay-soft') === 'true') {
+                        btn.style.background = '#fafafa';
+                        btn.style.color = 'black';
+                        btn.style.borderColor = '#ddd';
+                        btn.style.borderStyle = 'solid';
+                        btn.style.opacity = '0.5';
+                        btn.style.cursor = 'pointer';
+                    } else if (btn.getAttribute('data-soft-disabled') === 'true') {
+                        btn.style.background = '#f5f5f5';
+                        btn.style.color = '#ccc';
+                        btn.style.borderColor = '#ddd';
+                        btn.style.borderStyle = 'solid';
+                        btn.style.opacity = '0.5';
+                        btn.style.cursor = 'not-allowed';
+                    } else {
                         btn.style.background = 'white';
                         btn.style.color = 'black';
                         btn.style.borderColor = '#ddd';
+                        btn.style.borderStyle = 'solid';
+                        btn.style.opacity = '1';
+                        btn.style.cursor = 'pointer';
                     }
                 });
             }
@@ -16652,8 +16750,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         this.boatDetailsGuestNumber.textContent = this.selectedGuests;
                     }
 
-                    // Fetch all boat options to get the complete boat data
-                    const allBoats = await this.fetchBoatOptions();
+                    // Fetch all boat options to get the complete boat data (bounded — avoid infinite loader)
+                    const allBoats = await Promise.race([
+                        this.fetchBoatOptions(),
+                        new Promise((_, reject) => setTimeout(() => reject(new Error('fetchBoatOptions timeout')), 20000))
+                    ]).catch(() => []);
+
                     if (sessionSeq !== this._showBoatDetailsSeq) return;
                     const boatToEdit = allBoats.find(boat => boat.id == boatId);
 
@@ -23256,7 +23358,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else if (this.detailsSelectedDates.length === 2) {
                     const startDate = this.formatDateForDisplay(this.detailsSelectedDates[0]);
                     const endDate = this.formatDateForDisplay(this.detailsSelectedDates[1]);
-                    this.detailsDatesText.textContent = `${startDate} - ${endDate}`;
+                    this.detailsDatesText.textContent = `${startDate}, ${endDate}`;
                 } else {
                     const startDate = this.formatDateForDisplay(this.detailsSelectedDates[0]);
                     const secondDate = this.formatDateForDisplay(this.detailsSelectedDates[1]);
@@ -24992,6 +25094,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Check if dates are valid
             let datesValid = false;
+            let calendarStayValidationReady = false;
             let allAvailable = false;
             let meetsMinNights = false;
             let nightsFromParams = 0;
@@ -25000,6 +25103,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 r.Load_Property_Calendar_Query.data && r.Load_Property_Details &&
                 r.Load_Property_Details.data) {
 
+                calendarStayValidationReady = true;
                 const propertyCalendarRange = r.Load_Property_Calendar_Query.data.property_calendar_range;
                 const minNights = getEffectiveMinNightsForSelection(r);
                 minNightsUsed = minNights;
@@ -25063,11 +25167,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const unavailableState = window.getExtrasUnavailableState ? window.getExtrasUnavailableState() : { boatUnavailable: false, boatNoDatesAvailable: false, fishingChartersUnavailable: [], fishingChartersNoDatesAvailable: [] };
             const extrasHaveUnavailableDates = unavailableState.boatUnavailable || unavailableState.boatNoDatesAvailable || unavailableState.fishingChartersUnavailable.length > 0 || (unavailableState.fishingChartersNoDatesAvailable?.length > 0);
 
+            // Avoid flashing "Change dates" while calendar data is still loading but extras already need dates
+            const suppressChangeDatesForExtrasFlow = extrasNeedDates && datesSelected && !calendarStayValidationReady;
+
             return {
                 datesSelected,
                 datesValid,
                 guestsValid,
-                datesUnavailable: datesSelected && !datesValid,
+                calendarStayValidationReady,
+                datesUnavailable: datesSelected && !datesValid && !suppressChangeDatesForExtrasFlow,
                 guestsIncorrect: !guestsValid,
                 extrasNeedDates,
                 extrasNeedingDates,
@@ -25119,6 +25227,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const shouldShowForNoDates = !validation.datesSelected;
             const shouldShowForExtrasDates = validation.datesSelected && validation.datesValid && validation.guestsValid && validation.extrasNeedDates;
+            const shouldShowForExtrasDatesWhileStayValidating = validation.datesSelected && validation.guestsValid && validation.extrasNeedDates &&
+                !validation.calendarStayValidationReady;
             const shouldShowForUnavailable = validation.datesSelected && hasUnavailableExtras;
             const isMobile = window.innerWidth <= 991;
 
@@ -25173,13 +25283,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (button) button.style.display = 'none';
                 });
 
-                const shouldShow = shouldShowForNoDates || shouldShowForExtrasDates || shouldShowForUnavailable;
+                const shouldShow = shouldShowForNoDates || shouldShowForExtrasDates || shouldShowForExtrasDatesWhileStayValidating || shouldShowForUnavailable;
 
                 checkAvailabilityButtons.forEach((button, index) => {
                     if (button) {
                         button.style.display = shouldShow ? 'flex' : 'none';
 
                         const buttonText = button.querySelector('[data-element="listing_checkAvailability_buttonText"]');
+                        const showExtrasDatePrompt = shouldShowForExtrasDates || shouldShowForExtrasDatesWhileStayValidating;
                         if (buttonText) {
                             if (shouldShowForUnavailable && hasUnavailableExtras) {
                                 if (boatIsUnavailable && uniqueUnavailableCharterNumbers.length > 0) {
@@ -25195,17 +25306,29 @@ document.addEventListener('DOMContentLoaded', () => {
                                     buttonText.textContent = 'Remove charters';
                                     button.style.backgroundColor = '#dc2626';
                                 }
-                            } else if (shouldShowForExtrasDates) {
+                            } else if (showExtrasDatePrompt) {
                                 button.style.backgroundColor = '';
                                 const extrasInfo = validation.extrasNeedingDates;
-                                const chartersNeedingDates = extrasInfo.fishingChartersNeedingDates.length;
+                                const needingCharterSlots = extrasInfo.fishingChartersNeedingDates || [];
+                                const chartersNeedingDates = needingCharterSlots.length;
+                                let allCharterSlots = typeof getAllFishingCharterNumbersForValidation === 'function'
+                                    ? getAllFishingCharterNumbersForValidation()
+                                    : [];
+                                allCharterSlots = [...allCharterSlots].map(n => Number(n)).filter(n => !Number.isNaN(n)).sort((a, b) => a - b);
+                                const totalChartersInUrl = allCharterSlots.length;
+                                const nextCharterSlot = needingCharterSlots[0];
+                                const charterOrdinalAmongUrl = nextCharterSlot != null && allCharterSlots.length > 0
+                                    ? allCharterSlots.findIndex(n => String(n) === String(nextCharterSlot)) + 1
+                                    : 1;
 
                                 if (extrasInfo.boatNeedsDates) {
                                     buttonText.textContent = 'Add boat dates';
-                                } else if (chartersNeedingDates === 1) {
-                                    buttonText.textContent = 'Add charter dates';
-                                } else if (chartersNeedingDates > 1) {
-                                    buttonText.textContent = `Add charter dates (1 of ${chartersNeedingDates})`;
+                                } else if (chartersNeedingDates > 0) {
+                                    if (totalChartersInUrl > 1) {
+                                        buttonText.textContent = `Add charter dates (${charterOrdinalAmongUrl} of ${totalChartersInUrl})`;
+                                    } else {
+                                        buttonText.textContent = 'Add charter dates';
+                                    }
                                 } else {
                                     buttonText.textContent = 'Add dates';
                                 }
