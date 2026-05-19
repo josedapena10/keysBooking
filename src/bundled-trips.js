@@ -465,11 +465,11 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Browse Stays button click handler
-    const browseStaysButton = document.querySelectorAll('[data-element="browseStays_button"]');
-    if (browseStaysButton) {
-        browseStaysButton.forEach(button => {
-            button.addEventListener('click', (e) => {
+    // Browse Stays button click handler for multiple buttons
+    const browseStaysButtons = document.querySelectorAll('[data-element="browseStays_button"]');
+    if (browseStaysButtons.length) {
+        browseStaysButtons.forEach((browseStaysButton) => {
+            browseStaysButton.addEventListener('click', (e) => {
                 e.preventDefault();
                 logEvent({
                     on_link_click: true,
