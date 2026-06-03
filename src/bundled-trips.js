@@ -638,12 +638,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
 
-            // visit page button
+            // visit page button + clickable stay/boat/charter blocks
+            const packageListingUrl = buildPackageListingUrl(trip);
+            const tripName = trip?.trip_name || '';
+
             setButtonLink(
                 card.querySelector('[data-element="card_visitPage_button"]'),
-                buildPackageListingUrl(trip),
-                trip?.trip_name || ''
+                packageListingUrl,
+                tripName
             );
+            setButtonLink(stayBlock, packageListingUrl, tripName);
+            if (trip?.hasBoatRental) {
+                setButtonLink(boatBlock, packageListingUrl, tripName);
+            }
+            card.querySelectorAll('[data-element="card_charter_block"]').forEach((block) => {
+                setButtonLink(block, packageListingUrl, tripName);
+            });
 
             // trip details toggle
             const detailsContainer = card.querySelector('[data-element="detailsText_container"]');
