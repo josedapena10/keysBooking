@@ -151,6 +151,291 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    /**
+     * Package schedule for listing autofill (see docs/bundled-trips-database.md).
+     * Resolution order:
+     * 1. `package_schedule` JSON on bundled_trips (`charterSlots` preferred, legacy `charterOffsets`)
+     * 2. `boat_start_offset`, `boat_length`, `charter_offsets` on bundled_trips
+     * 3. `day_offset` on each bundled_trips ↔ fishingcharters junction row (API order = charter 1, 2, …)
+     * 4. PACKAGE_SCHEDULE_FALLBACK_BY_TRIP_ID (until every row is filled in Xano)
+     *
+     * `charterSlots`: [{ tripId, offsets: [1] }, { tripId: 8, offsets: [1, 3, 5] }, …]
+     * — one entry per URL charter slot; offsets can be multiple for multi-day single charters.
+     *
+     * Boat delivery / private dock / charter pickup stay on trip_link — not duplicated here.
+     */
+    const PACKAGE_SCHEDULE_FALLBACK_BY_TRIP_ID = {
+        3: {
+            boatStartOffset: 1,
+            boatLength: 7,
+            charterSlots: [
+                { tripId: 1, offsets: [1] },
+                { tripId: 3, offsets: [3] },
+            ],
+        },
+        214: { boatStartOffset: 1, boatLength: 7, charterSlots: [] },
+        307: {
+            boatStartOffset: 2,
+            boatLength: 5,
+            charterSlots: [{ tripId: 5, offsets: [1] }],
+        },
+        216: {
+            boatStartOffset: 1,
+            boatLength: 7,
+            charterSlots: [
+                { tripId: 1, offsets: [1] },
+                { tripId: 9, offsets: [3] },
+            ],
+        },
+        303: { boatStartOffset: 1, boatLength: 7, charterSlots: [] },
+        308: {
+            boatStartOffset: 1,
+            boatLength: 7,
+            charterSlots: [
+                { tripId: 1, offsets: [1] },
+                { tripId: 1, offsets: [3] },
+            ],
+        },
+        285: {
+            charterSlots: [{ tripId: 8, offsets: [0, 3, 5] }],
+        },
+        302: {
+            boatStartOffset: 1,
+            boatLength: 7,
+            charterSlots: [
+                { tripId: 1, offsets: [1] },
+                { tripId: 4, offsets: [3] },
+            ],
+        },
+        297: {
+            boatStartOffset: 1,
+            boatLength: 7,
+            charterSlots: [
+                { tripId: 3, offsets: [1] },
+                { tripId: 8, offsets: [3] },
+            ],
+        },
+    };
+    const parseJsonField = (value) => {
+        if (value == null || value === '') return null;
+        if (typeof value === 'object') return value;
+        if (typeof value === 'string') {
+            try {
+                return JSON.parse(value);
+            } catch {
+                return null;
+            }
+        }
+        return null;
+    };
+
+    const parseCharterOffsetsValue = (value) => {
+        if (Array.isArray(value)) {
+            return value.map((n) => Number(n)).filter((n) => !Number.isNaN(n));
+        }
+        if (typeof value === 'string' && value.trim()) {
+            return value.split(',').map((s) => Number(s.trim())).filter((n) => !Number.isNaN(n));
+        }
+        return [];
+    };
+
+    const normalizeCharterSlotEntry = (raw) => {
+        if (!raw || typeof raw !== 'object') return null;
+        const tripIdRaw = raw.tripId ?? raw.trip_id;
+        const tripId = tripIdRaw != null && tripIdRaw !== '' ? Number(tripIdRaw) : null;
+        const offsets = parseCharterOffsetsValue(raw.offsets ?? raw.dayOffsets ?? raw.day_offsets);
+        if (offsets.length === 0) return null;
+        return { tripId: Number.isNaN(tripId) ? null : tripId, offsets };
+    };
+
+    const parseCharterSlotsFromSchedule = (scheduleJson) => {
+        if (!scheduleJson || typeof scheduleJson !== 'object') return [];
+        const raw = scheduleJson.charterSlots ?? scheduleJson.charter_slots;
+        if (!Array.isArray(raw)) return [];
+        return raw.map(normalizeCharterSlotEntry).filter(Boolean);
+    };
+
+    const charterSlotsToFlatOffsets = (slots) => {
+        if (!Array.isArray(slots) || slots.length === 0) return [];
+        return slots.flatMap((slot) => slot.offsets);
+    };
+
+    /** Legacy: pair flat offsets with junction rows (one offset per slot). */
+    const buildCharterSlotsFromJunction = (fishingcharters, flatOffsets) => {
+        if (!Array.isArray(fishingcharters) || fishingcharters.length === 0) {
+            return flatOffsets.map((offset) => ({ tripId: null, offsets: [offset] }));
+        }
+        return fishingcharters
+            .map((charter, index) => {
+                const offset = flatOffsets[index];
+                if (offset == null || Number.isNaN(Number(offset))) return null;
+                return {
+                    tripId: charter?.trip_id != null ? Number(charter.trip_id) : null,
+                    offsets: [Number(offset)],
+                };
+            })
+            .filter(Boolean);
+    };
+
+    const getCharterOffsetsFromFishingCharters = (trip) => {
+        if (!Array.isArray(trip?.fishingcharters) || trip.fishingcharters.length === 0) {
+            return [];
+        }
+
+        const offsets = trip.fishingcharters.map((charter) => {
+            const raw = charter?.day_offset ?? charter?.charter_day_offset ?? charter?.dayOffset;
+            if (raw == null || raw === '') return NaN;
+            return Number(raw);
+        });
+
+        if (offsets.some((n) => Number.isNaN(n))) {
+            return [];
+        }
+
+        return offsets;
+    };
+
+    const getPackageScheduleFromTrip = (trip) => {
+        const packageNights = Number(trip?.trip_nights) || 7;
+        const scheduleFromJson = parseJsonField(trip?.package_schedule);
+
+        let boatStartOffset = null;
+        let boatLength = null;
+        let charterOffsets = [];
+        let charterSlots = [];
+
+        if (scheduleFromJson && typeof scheduleFromJson === 'object') {
+            boatStartOffset = scheduleFromJson.boatStartOffset ?? scheduleFromJson.boat_start_offset;
+            boatLength = scheduleFromJson.boatLength ?? scheduleFromJson.boat_length;
+            charterSlots = parseCharterSlotsFromSchedule(scheduleFromJson);
+            charterOffsets = parseCharterOffsetsValue(
+                scheduleFromJson.charterOffsets ?? scheduleFromJson.charter_offsets
+            );
+        } else {
+            const rowBoatStart = trip?.boat_start_offset ?? trip?.package_boat_start_offset;
+            const rowBoatLength = trip?.boat_length ?? trip?.package_boat_length;
+            const rowCharterOffsets = trip?.charter_offsets ?? trip?.package_charter_offsets;
+
+            if (rowBoatStart != null && rowBoatStart !== '') {
+                boatStartOffset = Number(rowBoatStart);
+            }
+            if (rowBoatLength != null && rowBoatLength !== '') {
+                boatLength = Number(rowBoatLength);
+            }
+            charterOffsets = parseCharterOffsetsValue(rowCharterOffsets);
+        }
+
+        if (!charterSlots.length && charterOffsets.length > 0 && Array.isArray(trip?.fishingcharters)) {
+            charterSlots = buildCharterSlotsFromJunction(trip.fishingcharters, charterOffsets);
+        }
+
+        if (!charterOffsets.length && trip?.hasFishingCharter) {
+            charterOffsets = getCharterOffsetsFromFishingCharters(trip);
+            if (!charterSlots.length && charterOffsets.length > 0) {
+                charterSlots = buildCharterSlotsFromJunction(trip.fishingcharters, charterOffsets);
+            }
+        }
+
+        const fallback = PACKAGE_SCHEDULE_FALLBACK_BY_TRIP_ID[trip?.id];
+
+        if (fallback) {
+            if (trip?.hasBoatRental) {
+                if (
+                    (boatStartOffset == null || Number.isNaN(boatStartOffset)) &&
+                    fallback.boatStartOffset != null
+                ) {
+                    boatStartOffset = fallback.boatStartOffset;
+                }
+                if (
+                    (boatLength == null || Number.isNaN(boatLength) || boatLength <= 0) &&
+                    fallback.boatLength != null
+                ) {
+                    boatLength = fallback.boatLength;
+                }
+            }
+            if (trip?.hasFishingCharter && !charterSlots.length) {
+                if (Array.isArray(fallback.charterSlots) && fallback.charterSlots.length > 0) {
+                    charterSlots = fallback.charterSlots.map(normalizeCharterSlotEntry).filter(Boolean);
+                } else if (Array.isArray(fallback.charterOffsets) && fallback.charterOffsets.length > 0) {
+                    charterOffsets = fallback.charterOffsets;
+                    charterSlots = buildCharterSlotsFromJunction(trip.fishingcharters, charterOffsets);
+                }
+            }
+        }
+
+        if (charterSlots.length > 0) {
+            charterOffsets = charterSlotsToFlatOffsets(charterSlots);
+        }
+
+        if (trip?.hasBoatRental) {
+            if (boatStartOffset == null || Number.isNaN(boatStartOffset)) {
+                boatStartOffset = 1;
+            }
+            if (boatLength == null || Number.isNaN(boatLength) || boatLength <= 0) {
+                boatLength = packageNights;
+            }
+        } else {
+            boatStartOffset = null;
+            boatLength = 0;
+        }
+
+        return {
+            packageNights,
+            boatStartOffset,
+            boatLength,
+            charterOffsets,
+            charterSlots,
+        };
+    };
+
+    const buildPackageListingUrl = (trip) => {
+        if (!trip?.trip_link) return trip?.trip_link || '';
+
+        let url;
+        try {
+            url = new URL(trip.trip_link);
+        } catch {
+            try {
+                url = new URL(trip.trip_link, window.location.origin);
+            } catch {
+                return trip.trip_link;
+            }
+        }
+
+        const schedule = getPackageScheduleFromTrip(trip);
+
+        url.searchParams.set('package', 'true');
+        url.searchParams.set('packageNights', String(schedule.packageNights));
+        url.searchParams.set('scheduleNights', String(schedule.packageNights));
+
+        if (trip.hasBoatRental && schedule.boatLength > 0) {
+            url.searchParams.set('boatStartOffset', String(schedule.boatStartOffset ?? 1));
+            url.searchParams.set('boatLength', String(schedule.boatLength));
+        }
+
+        if (trip.hasFishingCharter && schedule.charterOffsets.length > 0) {
+            url.searchParams.set('charterOffsets', schedule.charterOffsets.join(','));
+        }
+
+        if (trip.hasFishingCharter && schedule.charterSlots.length > 0) {
+            url.searchParams.set(
+                'charterSlots',
+                JSON.stringify(
+                    schedule.charterSlots.map((slot) => ({
+                        tripId: slot.tripId,
+                        offsets: slot.offsets,
+                    }))
+                )
+            );
+        }
+
+        if (trip.id != null) {
+            url.searchParams.set('bundledTripId', String(trip.id));
+        }
+
+        return url.toString();
+    };
+
     const setButtonLink = (el, url, tripName = '') => {
         if (!el || !url) return;
         const handleClick = () => {
@@ -354,7 +639,11 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // visit page button
-            setButtonLink(card.querySelector('[data-element="card_visitPage_button"]'), trip?.trip_link, trip?.trip_name || '');
+            setButtonLink(
+                card.querySelector('[data-element="card_visitPage_button"]'),
+                buildPackageListingUrl(trip),
+                trip?.trip_name || ''
+            );
 
             // trip details toggle
             const detailsContainer = card.querySelector('[data-element="detailsText_container"]');

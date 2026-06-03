@@ -18,6 +18,7 @@
     } catch (e) { /* ignore */ }
 })();
 
+
 (function bootstrapPropertyIdFromCms() {
     function run() {
         try {
@@ -64,14 +65,16 @@
     }
 })();
 
-// kbLog / kbStart: no-op stubs (call sites use optional chaining; avoids console noise).
-(function () {
+// kbLog / kbStart: no-op stubs (call sites use optional chaining).
+(function initKbPropsLogger() {
     if (window.__kbPropsLogger) return;
     function noop() { }
     function noopStart() { return noop; }
-    window.__kbPropsLogger = { enabled: false, log: noop, start: noopStart };
+    window.__kbPropsLogger = { enabled: false, log: noop, start: noopStart, mark: noop };
     window.kbLog = noop;
     window.kbStart = noopStart;
+    window.kbLoadMark = noop;
+    window.kbLoadPrintSummary = noop;
 })();
 
 // for background 2nd click modal - mirror click
@@ -278,6 +281,9 @@ function truncateToFit(element) {
         const loader = document.querySelector('[data-element="loader"]');
         if (loader && loader.style.display !== 'none') {
             window.kbLog && window.kbLog('loader: fade out + display:none');
+            if (window.kbLoadPrintSummary) {
+                window.kbLoadPrintSummary(loadingTracker);
+            }
             // Add fade out effect
             loader.style.opacity = '0';
             setTimeout(() => {
@@ -509,6 +515,56 @@ function truncateToFit(element) {
     document.head.appendChild(calendarStyles);
 })();
 
+// Reservation panel: smooth transitions during package stay sync / calendar validation
+(function addReservationTransitionStyles() {
+    if (document.getElementById('kb-reservation-transition-styles')) return;
+    const style = document.createElement('style');
+    style.id = 'kb-reservation-transition-styles';
+    style.textContent = `
+    body.kb-reservation-settling [data-element="Listing_Query_Price_Details"],
+    body.kb-reservation-settling [data-element="Listing_Reservation_Amount_Total_Container"],
+    body.kb-reservation-settling [data-element="ListingExtras_Query_Price_Details"],
+    body.kb-reservation-settling [data-element="ListingOnly_Query_Price_Details"],
+    body.kb-reservation-settling [data-element="ListingReservation_WontBeCharged_Text"] {
+      display: none !important;
+      pointer-events: none;
+    }
+    body.kb-reservation-settling [data-element="selectedBoatBlock"],
+    body.kb-reservation-settling [data-element="selectedFishingCharterBlock"] {
+      opacity: 0.4;
+      pointer-events: none;
+      transition: opacity 0.4s ease;
+    }
+    body.kb-reservation-settling [data-element="Listing_Reservaton_AddDates_Heading"] {
+      display: flex !important;
+      opacity: 1;
+      transition: opacity 0.3s ease;
+    }
+    [data-element="Listing_Query_Price_Details"],
+    [data-element="Listing_Reservation_Amount_Total_Container"],
+    [data-element="ListingExtras_Query_Price_Details"],
+    [data-element="ListingOnly_Query_Price_Details"],
+    [data-element="ListingReservation_WontBeCharged_Text"],
+    [data-element="selectedBoatBlock"],
+    [data-element="selectedFishingCharterBlock"] {
+      transition: opacity 0.35s ease;
+    }
+    [data-element="listing_checkAvailability_button"],
+    [data-element="listing_changeDates_button"],
+    [data-element="listing_changeGuests_button"],
+    [data-element="listing_reserve_button"] {
+      transition: opacity 0.3s ease, background-color 0.3s ease;
+    }
+    [data-element="listing_checkAvailability_buttonText"] {
+      transition: opacity 0.25s ease;
+    }
+    [data-element="listing_checkAvailability_buttonText"].kb-cta-label-fade {
+      opacity: 0;
+    }
+    `;
+    document.head.appendChild(style);
+})();
+
 // for no scroll background when modal is open
 // when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
@@ -568,52 +624,134 @@ document.addEventListener('DOMContentLoaded', () => {
                     e.stopPropagation();
                     e.stopImmediatePropagation();
 
-                    // Remove boat first if unavailable (wrapped in try-catch to not block charter removal)
-                    if (boatIsUnavailable) {
-                        try {
-                            if (window.removeBoatFromReservation) window.removeBoatFromReservation();
-                        } catch (err) {
+                    const footerMode = button.dataset.footerCtaMode || '';
+                    const canRescheduleCharters = (unavailableState.fishingChartersCanReschedule || []).map(String);
+                    const canChangeTripCharters = (unavailableState.fishingChartersCanChangeTrip || []).map(String);
+                    const mustRemoveCharters = unavailableCharters.filter(
+                        (n) => !canRescheduleCharters.includes(String(n)) && !canChangeTripCharters.includes(String(n))
+                    );
+
+                    const shouldRemove = footerMode === 'removeExtras';
+
+                    extrasReservationTrace('footer', 'unavailable CTA click', {
+                        footerMode,
+                        boatIsUnavailable,
+                        unavailableCharters,
+                        canRescheduleCharters,
+                        mustRemoveCharters,
+                        shouldRemove,
+                        action: shouldRemove ? 'remove' : 'edit',
+                    });
+
+                    if (shouldRemove) {
+                        extrasReservationTrace('footer', 'executing remove', {
+                            removingBoat: boatIsUnavailable,
+                            removingCharters: mustRemoveCharters,
+                        });
+                        if (boatIsUnavailable) {
+                            try {
+                                if (window.removeBoatFromReservation) window.removeBoatFromReservation();
+                            } catch (err) { /* ignore */ }
                         }
-                    }
-
-                    // Then remove all unavailable charters using the service methods (same path as X button)
-                    if (unavailableCharters.length > 0) {
-                        try {
-                            const svc = window.fishingCharterService;
-                            const mobileHandler = window.mobileFishingCharterButtonHandler;
-                            const currentCharterNumbers = svc
-                                ? svc.getAllFishingCharterNumbers().map(String)
-                                : [];
-                            const chartersToRemove = unavailableCharters.filter(n => currentCharterNumbers.includes(String(n)));
-
-                            if (chartersToRemove.length > 0) {
-                                // If ALL charters in URL are being removed, use the bulk removal (fully handles pricing/UI)
-                                if (chartersToRemove.length >= currentCharterNumbers.length && mobileHandler) {
-                                    await mobileHandler.handleRemoveAllFishingCharters();
-                                } else if (svc) {
-                                    // Remove individually in reverse order using the service method (same as X button)
-                                    const sortedDesc = [...chartersToRemove].sort((a, b) => Number(b) - Number(a));
-                                    for (const charterNum of sortedDesc) {
-                                        await svc.handleRemoveSpecificFishingCharter(Number(charterNum));
+                        if (mustRemoveCharters.length > 0) {
+                            try {
+                                const svc = window.fishingCharterService;
+                                const mobileHandler = window.mobileFishingCharterButtonHandler;
+                                const currentCharterNumbers = svc
+                                    ? svc.getAllFishingCharterNumbers().map(String)
+                                    : [];
+                                const chartersToRemove = mustRemoveCharters.filter((n) =>
+                                    currentCharterNumbers.includes(String(n))
+                                );
+                                if (chartersToRemove.length > 0) {
+                                    if (chartersToRemove.length >= currentCharterNumbers.length && mobileHandler) {
+                                        await mobileHandler.handleRemoveAllFishingCharters();
+                                    } else if (svc) {
+                                        const sortedDesc = [...chartersToRemove].sort((a, b) => Number(b) - Number(a));
+                                        for (const charterNum of sortedDesc) {
+                                            await svc.handleRemoveSpecificFishingCharter(Number(charterNum));
+                                        }
                                     }
                                 }
-                            }
-                        } catch (err) {
+                            } catch (err) { /* ignore */ }
                         }
-                    }
-
-                    // Force UI update after removal
-                    setTimeout(() => {
-                        try {
+                        setTimeout(() => {
                             if (window.updateAllButtonVisibility) window.updateAllButtonVisibility();
                             if (window.updatePricingDisplayForExtras) window.updatePricingDisplayForExtras();
-                            if (window.updateListingOnlyPricing) window.updateListingOnlyPricing();
-                            if (window.mobileFishingCharterButtonHandler) window.mobileFishingCharterButtonHandler.updateMobileFishingCharterButtonState();
-                            if (window.mobileBoatButtonHandler) window.mobileBoatButtonHandler.updateMobileBoatButtonState();
-                            if (window.updateMobileHandlersState) window.updateMobileHandlersState();
-                        } catch (err) {
+                            if (window.validateExtrasAvailabilityOnLoad) window.validateExtrasAvailabilityOnLoad();
+                        }, 150);
+                        return;
+                    }
+
+                    const reservationContainer = document.querySelector('[data-element="reservationBlock_phoneContainer"]');
+                    if (reservationContainer) {
+                        reservationContainer.style.display = 'flex';
+                    }
+                    if (window.updateAllButtonVisibility) window.updateAllButtonVisibility();
+
+                    const tryOpenUnavailableBoatEdit = () => {
+                        const editButton = document.querySelector('[data-element="editSelectedBoat"]');
+                        if (editButton) {
+                            editButton.click();
+                            return true;
                         }
-                    }, 150);
+                        const boatId = urlParams.get('boatId');
+                        if (boatId && window.boatRentalService && typeof window.boatRentalService.handleEditBoat === 'function') {
+                            window.boatRentalService.handleEditBoat(boatId);
+                            return true;
+                        }
+                        return false;
+                    };
+
+                    const tryOpenUnavailableCharterEdit = () => {
+                        const firstUnavailable = unavailableCharters[0];
+                        if (!firstUnavailable) return false;
+                        const charterBlocks = document.querySelectorAll('[data-element="selectedFishingCharterBlock"]');
+                        for (const block of charterBlocks) {
+                            const num = block?.tripData?.number || block?.dataset?.charterSlotNumber;
+                            if (num && String(num) === String(firstUnavailable)) {
+                                const editBtn = block.querySelector('[data-element="editSelectedFishingCharter"]');
+                                if (editBtn) {
+                                    editBtn.click();
+                                    return true;
+                                }
+                            }
+                        }
+                        return false;
+                    };
+
+                    if (footerMode === 'browseBoats' || boatIsUnavailable) {
+                        extrasReservationTrace('footer', 'opening boat browse', {
+                            boatId: urlParams.get('boatId'),
+                            boatUnavailable: unavailableState.boatUnavailable,
+                            boatNoDatesAvailable: unavailableState.boatNoDatesAvailable,
+                        });
+                        if (typeof openBoatBrowseForReservation === 'function') {
+                            openBoatBrowseForReservation();
+                        }
+                        return;
+                    }
+                    if (
+                        footerMode === 'changeCharterTrip' ||
+                        (unavailableCharters.some((n) => canChangeTripCharters.includes(String(n))) &&
+                            !unavailableCharters.some((n) => canRescheduleCharters.includes(String(n))) &&
+                            !boatIsUnavailable)
+                    ) {
+                        const firstChangeTrip = unavailableCharters.find((n) => canChangeTripCharters.includes(String(n)));
+                        extrasReservationTrace('footer', 'opening charter trip change', {
+                            firstChangeTrip,
+                            footerMode,
+                        });
+                        if (typeof openCharterTripChangeForReservation === 'function') {
+                            openCharterTripChangeForReservation(firstChangeTrip);
+                        }
+                        return;
+                    }
+                    extrasReservationTrace('footer', 'opening charter edit for unavailable', {
+                        firstUnavailable: unavailableCharters[0],
+                        footerMode,
+                    });
+                    tryOpenUnavailableCharterEdit();
                     return;
                 }
             }
@@ -646,9 +784,20 @@ document.addEventListener('DOMContentLoaded', () => {
                         const firstNeedingNumber = extrasInfo.fishingChartersNeedingDates && extrasInfo.fishingChartersNeedingDates[0];
                         if (!firstNeedingNumber) return false;
 
+                        const unavailableState = window.getExtrasUnavailableState
+                            ? window.getExtrasUnavailableState()
+                            : {};
+                        const canChangeTripCharters = (unavailableState.fishingChartersCanChangeTrip || []).map(String);
+                        if (
+                            canChangeTripCharters.includes(String(firstNeedingNumber)) &&
+                            typeof openCharterTripChangeForReservation === 'function'
+                        ) {
+                            return openCharterTripChangeForReservation(firstNeedingNumber);
+                        }
+
                         const charterBlocks = document.querySelectorAll('[data-element="selectedFishingCharterBlock"]');
                         for (const block of charterBlocks) {
-                            const num = block?.tripData?.number;
+                            const num = block?.tripData?.number || block?.dataset?.charterSlotNumber;
                             if (num && String(num) === String(firstNeedingNumber)) {
                                 const editBtn = block.querySelector('[data-element="editSelectedFishingCharter"]');
                                 if (editBtn && editBtn.dataset.unavailableAction !== 'remove') {
@@ -696,6 +845,7 @@ if (phoneContainerForObserver) {
                 const display = phoneContainerForObserver.style.display;
                 if (display === 'none' || display === '') {
                     if (window.updateAllButtonVisibility) window.updateAllButtonVisibility();
+                    if (window.updatePhoneReservationFooter) window.updatePhoneReservationFooter();
                 }
             }
         }
@@ -737,6 +887,1804 @@ function hasExtrasMissingDatesInURL() {
 }
 // Make globally accessible
 window.hasExtrasMissingDatesInURL = hasExtrasMissingDatesInURL;
+
+// --- Extras stay sync: offset-based boat/charter dates when stay changes (Step 1) ---
+
+function parseYmd(dateStr) {
+    const [y, m, d] = String(dateStr).split('-').map(Number);
+    return new Date(y, m - 1, d);
+}
+
+function formatYmd(date) {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+}
+
+function addDaysToYmd(dateStr, days) {
+    const d = parseYmd(dateStr);
+    d.setDate(d.getDate() + days);
+    return formatYmd(d);
+}
+
+function getStayNightsFromUrl(params) {
+    const checkin = params.get('checkin');
+    const checkout = params.get('checkout');
+    if (!checkin || !checkout || !String(checkin).trim() || !String(checkout).trim()) return 0;
+    try {
+        const a = parseYmd(checkin);
+        const b = parseYmd(checkout);
+        if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) return 0;
+        return Math.max(0, Math.round((b - a) / (1000 * 60 * 60 * 24)));
+    } catch (e) {
+        return 0;
+    }
+}
+
+function getCharterNumbersFromUrl(params) {
+    const numbers = [];
+    for (const key of params.keys()) {
+        const match = key.match(/^fishingCharterId(\d+)$/);
+        if (match && params.get(key)) {
+            numbers.push(parseInt(match[1], 10));
+        }
+    }
+    return numbers.sort((a, b) => a - b);
+}
+
+function daysFromCheckin(checkin, dateStr) {
+    const a = parseYmd(checkin);
+    const b = parseYmd(dateStr);
+    return Math.round((b - a) / (1000 * 60 * 60 * 24));
+}
+
+function buildInclusiveDateCsv(startYmd, endYmd) {
+    const out = [];
+    let cur = startYmd;
+    while (cur <= endYmd) {
+        out.push(cur);
+        if (cur === endYmd) break;
+        cur = addDaysToYmd(cur, 1);
+    }
+    return out.join(',');
+}
+
+function isDateWithinStay(dateStr, checkin, checkout) {
+    const t = parseYmd(dateStr).getTime();
+    return t >= parseYmd(checkin).getTime() && t <= parseYmd(checkout).getTime();
+}
+
+function parseCharterOffsetsParam(params) {
+    return (params.get('charterOffsets') || '')
+        .split(',')
+        .map((s) => Number(s.trim()))
+        .filter((n) => !Number.isNaN(n));
+}
+
+/** One charter reservation slot: optional trip id + day-offset(s) from check-in. */
+function normalizeCharterSlotEntry(raw) {
+    if (!raw || typeof raw !== 'object') return null;
+    const tripIdRaw = raw.tripId ?? raw.trip_id;
+    const tripId = tripIdRaw != null && tripIdRaw !== '' ? Number(tripIdRaw) : null;
+    let offsets = [];
+    const offsetsRaw = raw.offsets ?? raw.dayOffsets ?? raw.day_offsets;
+    if (Array.isArray(offsetsRaw)) {
+        offsets = offsetsRaw.map((n) => Number(n)).filter((n) => !Number.isNaN(n));
+    } else if (typeof offsetsRaw === 'string' && offsetsRaw.trim()) {
+        offsets = parseOffsetCsv(offsetsRaw);
+    }
+    if (offsets.length === 0) return null;
+    return { tripId: Number.isNaN(tripId) ? null : tripId, offsets };
+}
+
+/** Rich package schedule from URL (`charterSlots` JSON param). */
+function parseCharterSlotsParam(params) {
+    const raw = params.get('charterSlots');
+    if (!raw || !String(raw).trim()) return null;
+    try {
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return null;
+        const slots = parsed.map(normalizeCharterSlotEntry).filter(Boolean);
+        return slots.length > 0 ? slots : null;
+    } catch {
+        return null;
+    }
+}
+
+function charterSlotsToFlatOffsets(slots) {
+    if (!Array.isArray(slots) || slots.length === 0) return [];
+    return slots.flatMap((slot) => slot.offsets);
+}
+
+/** Bundled-trip marketing link (`package=true` from bundled-trips.js). */
+function isPackageExtrasUrl(params) {
+    const v = params.get('package');
+    return v === 'true' || v === '1';
+}
+
+function extrasScheduleLog() { }
+
+/** Snapshot charter/boat schedule params from current URL (for debug traces). */
+function snapshotExtrasScheduleUrl(searchOverride) {
+    const p = searchOverride || new URLSearchParams(window.location.search);
+    const charterNums = getCharterNumbersFromUrl(p);
+    const charters = {};
+    charterNums.forEach((num, index) => {
+        charters[num] = {
+            index,
+            fishingCharterDates: p.get(`fishingCharterDates${num}`),
+            fishingCharterDayOffsets: p.get(`fishingCharterDayOffsets${num}`),
+        };
+    });
+    return {
+        checkin: p.get('checkin'),
+        checkout: p.get('checkout'),
+        package: p.get('package'),
+        charterOffsets: p.get('charterOffsets'),
+        charterSlots: p.get('charterSlots'),
+        boatStartOffset: p.get('boatStartOffset'),
+        boatLength: p.get('boatLength'),
+        boatDates: p.get('boatDates'),
+        charters,
+    };
+}
+
+function extrasScheduleTrace() { }
+
+function extrasAvailabilityTrace() { }
+
+function snapshotExtrasUnavailableState() {
+    const st = window.getExtrasUnavailableState ? window.getExtrasUnavailableState() : null;
+    if (!st) {
+        return {
+            boatUnavailable: false,
+            boatNoDatesAvailable: false,
+            fishingChartersUnavailable: [],
+            fishingChartersNoDatesAvailable: [],
+            fishingChartersCanReschedule: [],
+            fishingChartersCanChangeTrip: [],
+        };
+    }
+    return {
+        boatUnavailable: !!st.boatUnavailable,
+        boatNoDatesAvailable: !!st.boatNoDatesAvailable,
+        fishingChartersUnavailable: [...(st.fishingChartersUnavailable || [])].map(String),
+        fishingChartersNoDatesAvailable: [...(st.fishingChartersNoDatesAvailable || [])].map(String),
+        fishingChartersCanReschedule: [...(st.fishingChartersCanReschedule || [])].map(String),
+        fishingChartersCanChangeTrip: [...(st.fishingChartersCanChangeTrip || [])].map(String),
+    };
+}
+
+function snapshotExtrasUrlExtras() {
+    const p = new URLSearchParams(window.location.search);
+    const charters = {};
+    getCharterNumbersFromUrl(p).forEach((num) => {
+        charters[num] = {
+            fishingCharterId: p.get(`fishingCharterId${num}`),
+            fishingCharterTripId: p.get(`fishingCharterTripId${num}`),
+            fishingCharterDates: p.get(`fishingCharterDates${num}`),
+            fishingCharterGuests: p.get(`fishingCharterGuests${num}`),
+        };
+    });
+    return {
+        checkin: p.get('checkin'),
+        checkout: p.get('checkout'),
+        boatId: p.get('boatId'),
+        boatDates: p.get('boatDates'),
+        boatGuests: p.get('boatGuests'),
+        boatLengthType: p.get('boatLengthType'),
+        charters,
+    };
+}
+
+function extrasReservationTrace() { }
+window.extrasReservationTrace = extrasReservationTrace;
+window.snapshotExtrasUnavailableState = snapshotExtrasUnavailableState;
+
+/** Whether the boat has enough consecutive available days in the stay for required rental length. */
+function evaluateBoatViableRangeOnStay(stayDates, unavailableDates, requiredMinDays) {
+    if (!Array.isArray(stayDates) || stayDates.length === 0) {
+        return { hasViableRange: false, maxConsecutive: 0 };
+    }
+    const unavail = unavailableDates || [];
+    const minDays = Math.max(1, Number(requiredMinDays) || 1);
+    const availCount = stayDates.filter((d) => !unavail.includes(d)).length;
+    if (minDays <= 1) {
+        return { hasViableRange: availCount > 0, maxConsecutive: availCount };
+    }
+    let maxConsecutive = 0;
+    let currentConsecutive = 0;
+    const sortedStay = [...stayDates].sort();
+    for (const d of sortedStay) {
+        if (unavail.includes(d)) {
+            currentConsecutive = 0;
+        } else {
+            currentConsecutive += 1;
+            if (currentConsecutive > maxConsecutive) {
+                maxConsecutive = currentConsecutive;
+            }
+        }
+    }
+    return {
+        hasViableRange: maxConsecutive >= minDays,
+        maxConsecutive,
+    };
+}
+window.evaluateBoatViableRangeOnStay = evaluateBoatViableRangeOnStay;
+
+/** Same required rental length as extras availability validation (boat min + URL boatLength + learned schedule). */
+function getRequiredBoatDaysForStay(urlParams, boatOrId, stayDayCount) {
+    const svc = window.boatRentalService;
+    let boat = null;
+    if (typeof boatOrId === 'object' && boatOrId) {
+        boat = boatOrId;
+    } else if (boatOrId != null && boatOrId !== '') {
+        if (svc?.initialBoats?.length) {
+            boat = svc.initialBoats.find((b) => String(b.id) === String(boatOrId));
+        }
+        if (!boat && window.selectedBoatData && String(window.selectedBoatData.id) === String(boatOrId)) {
+            boat = window.selectedBoatData;
+        }
+    }
+    let fromBoat = 1;
+    if (boat && svc && typeof svc.getEffectiveMinDaysForBoat === 'function') {
+        fromBoat = svc.getEffectiveMinDaysForBoat(boat);
+    } else if (boat) {
+        fromBoat = Math.max(boat.minReservationLength || 0, 1);
+    }
+    let boatLength = Number(urlParams.get('boatLength') || 0);
+    const stayNights = getStayNightsFromUrl(urlParams);
+    const scheduleNights = getRequiredScheduleNights(urlParams);
+    const isPackage = isPackageExtrasUrl(urlParams);
+    let scheduleBasedNights = isPackage
+        ? Number(urlParams.get('packageNights') || scheduleNights || 0)
+        : (scheduleNights > 0 && stayNights === scheduleNights ? scheduleNights : 0);
+    // DIY: explicit boatLength is the guest's chosen rental span — don't also require a full scheduleNights block.
+    if (!isPackage && boatLength > 0) {
+        scheduleBasedNights = 0;
+    }
+    if (stayDayCount > 0 && boatLength > stayDayCount) {
+        boatLength = stayDayCount;
+    }
+    let required = Math.max(fromBoat, boatLength, scheduleBasedNights) || 1;
+    if (stayDayCount > 0) {
+        required = Math.min(required, stayDayCount);
+    }
+    return required;
+}
+window.getRequiredBoatDaysForStay = getRequiredBoatDaysForStay;
+
+function openBoatBrowseForReservation() {
+    extrasReservationTrace('boat', 'openBoatBrowseForReservation', {});
+    if (window.boatRentalService) {
+        window.boatRentalService.isEditMode = false;
+        window.boatRentalService.originalEditParams = null;
+        const unavailableState = window.getExtrasUnavailableState
+            ? window.getExtrasUnavailableState()
+            : {};
+        const urlParams = new URLSearchParams(window.location.search);
+        const currentBoatId = urlParams.get('boatId');
+        if (
+            currentBoatId &&
+            (unavailableState.boatUnavailable || unavailableState.boatNoDatesAvailable)
+        ) {
+            window.boatRentalService.browseExcludeBoatId = currentBoatId;
+        } else {
+            window.boatRentalService.browseExcludeBoatId = null;
+        }
+    }
+    if (window.boatRentalService && typeof window.boatRentalService.handleButtonClick === 'function') {
+        window.boatRentalService.handleButtonClick();
+        return true;
+    }
+    const boatModal = document.querySelector('[data-element="addBoatModal"]');
+    if (boatModal && window.boatRentalService) {
+        boatModal.style.display = 'flex';
+        document.body.classList.add('no-scroll');
+        return true;
+    }
+    return false;
+}
+window.openBoatBrowseForReservation = openBoatBrowseForReservation;
+
+function openCharterTripChangeForReservation(charterNumber) {
+    extrasReservationTrace('charter', 'openCharterTripChangeForReservation', { charterNumber });
+    if (!charterNumber) return false;
+    const charterBlocks = document.querySelectorAll('[data-element="selectedFishingCharterBlock"]');
+    for (const block of charterBlocks) {
+        const num = block?.tripData?.number || block?.dataset?.charterSlotNumber;
+        if (num && String(num) === String(charterNumber)) {
+            if (block.tripData && window.fishingCharterService?.handleEditSpecificFishingCharter) {
+                window.fishingCharterService.handleEditSpecificFishingCharter(block.tripData, { intent: 'changeTrip' });
+                return true;
+            }
+            const editBtn = block.querySelector('[data-element="editSelectedFishingCharter"]');
+            if (editBtn) {
+                editBtn.click();
+                return true;
+            }
+        }
+    }
+    return false;
+}
+window.openCharterTripChangeForReservation = openCharterTripChangeForReservation;
+
+function normalizeAvailabilityYmd(dateStr) {
+    if (!dateStr) return '';
+    return String(dateStr).trim().slice(0, 10);
+}
+
+function isTripDateAvailable(tripInfo, ymd) {
+    if (!tripInfo || !ymd) return false;
+    if (tripInfo.available_on_all_dates === true) return true;
+    if (!Array.isArray(tripInfo.availability_by_date) || tripInfo.availability_by_date.length === 0) {
+        return false;
+    }
+    const row = tripInfo.availability_by_date.find(
+        (d) => normalizeAvailabilityYmd(d.date) === ymd
+    );
+    return row?.available === true;
+}
+
+/** Keep only dates the selected trip can actually be booked on (per-date API — same as charter modal). */
+async function filterCharterDatesAvailableForTrip(charterId, charterTripId, charterDates, options = {}) {
+    if (!charterId || !charterTripId || !Array.isArray(charterDates) || charterDates.length === 0) {
+        return [];
+    }
+    const requested = charterDates.map(normalizeAvailabilityYmd).filter(Boolean);
+    try {
+        const tripsData = await window.CalendarAvailabilityService.fetchCharterAvailableTrips(
+            Number(charterId),
+            requested,
+            { forceRefresh: !!options.forceRefresh }
+        );
+        const tripInfo = findCharterTripInAvailabilityList(tripsData, charterTripId);
+        return requested.filter((ymd) => isTripDateAvailable(tripInfo, ymd));
+    } catch (e) {
+        return [];
+    }
+}
+
+async function charterTripHasReschedulableStayDates(charterId, charterTripId, checkin, checkout, charterPickup) {
+    if (!charterId || !charterTripId || !checkin || !checkout) return false;
+    const stayDates = generateDateRangeForValidation(checkin, checkout);
+    let datesToCheck = stayDates;
+    if (charterPickup === 'true' && stayDates.length > 2) {
+        datesToCheck = stayDates.slice(1, -1);
+    }
+    if (datesToCheck.length === 0) return false;
+    try {
+        const tripsData = await window.CalendarAvailabilityService.fetchCharterAvailableTrips(
+            Number(charterId),
+            datesToCheck
+        );
+        const tripInfo = tripsData.find((t) => t.trip_id == charterTripId || t.id == charterTripId);
+        if (!tripInfo) return false;
+        return tripInfo.availability_by_date?.some((d) => d.available) ?? false;
+    } catch (e) {
+        return false;
+    }
+}
+
+function getCharterStayDatesForAvailability(checkin, checkout, charterPickup) {
+    let stayDates = generateDateRangeForValidation(checkin, checkout);
+    if (charterPickup === 'true' && stayDates.length > 2) {
+        stayDates = stayDates.slice(1, -1);
+    }
+    return stayDates;
+}
+
+function findCharterTripInAvailabilityList(tripsData, charterTripId) {
+    if (!Array.isArray(tripsData) || !charterTripId) return null;
+    return tripsData.find((t) => t.trip_id == charterTripId || t.id == charterTripId) || null;
+}
+
+function charterTripHasAnyReschedulableDate(tripInfo) {
+    if (!tripInfo) return false;
+    if (tripInfo.available_on_all_dates === true) return true;
+    return tripInfo.availability_by_date?.some((d) => d.available) ?? false;
+}
+
+/** Same charter company has a different trip with at least one bookable day on the stay. */
+function charterHasAlternateAvailableTripsOnStay(tripsData, charterTripId) {
+    if (!Array.isArray(tripsData) || tripsData.length === 0 || !charterTripId) return false;
+    const currentId = String(charterTripId);
+    return tripsData.some((t) => {
+        const tid = String(t.trip_id ?? t.id ?? '');
+        if (!tid || tid === currentId) return false;
+        return charterTripHasAnyReschedulableDate(t);
+    });
+}
+
+async function charterHasAlternateTripsForStay(charterId, charterTripId, checkin, checkout, charterPickup) {
+    if (!charterId || !charterTripId || !checkin || !checkout) return false;
+    const datesToCheck = getCharterStayDatesForAvailability(checkin, checkout, charterPickup);
+    if (datesToCheck.length === 0) return false;
+    try {
+        const tripsData = await window.CalendarAvailabilityService.fetchCharterAvailableTrips(
+            Number(charterId),
+            datesToCheck
+        );
+        return charterHasAlternateAvailableTripsOnStay(tripsData, charterTripId);
+    } catch (e) {
+        return false;
+    }
+}
+
+function markCharterCanChangeTripIfApplicable(nextState, number, canReschedule, tripsData, charterTripId) {
+    if (canReschedule || !charterTripId) return;
+    if (charterHasAlternateAvailableTripsOnStay(tripsData, charterTripId)) {
+        nextState.fishingChartersCanChangeTrip.push(number);
+    }
+}
+
+/** Short copy when the selected trip is off-season for the stay (≤3 words). */
+const CHARTER_OUT_OF_SEASON_LABEL = 'Out of season';
+
+function isCharterOutOfSeasonForStay(charterNumber) {
+    const st = window.getExtrasUnavailableState ? window.getExtrasUnavailableState() : null;
+    if (!st || charterNumber == null || charterNumber === '') return false;
+    const num = String(charterNumber);
+    if (!(st.fishingChartersCanChangeTrip || []).map(String).includes(num)) return false;
+    if ((st.fishingChartersCanReschedule || []).map(String).includes(num)) return false;
+    // Out-of-season is the no-dates trip scan (choose another trip), not a bad committed date.
+    return (st.fishingChartersNoDatesAvailable || []).map(String).includes(num);
+}
+
+function reservationHasCharterOutOfSeason() {
+    const st = window.getExtrasUnavailableState ? window.getExtrasUnavailableState() : null;
+    if (!st) return false;
+    const flagged = [
+        ...(st.fishingChartersUnavailable || []),
+        ...(st.fishingChartersNoDatesAvailable || []),
+    ].map(String);
+    return flagged.some((n) => isCharterOutOfSeasonForStay(n));
+}
+
+function getCharterUnavailableDatesDeliveryText(charterNumber, urlParams, hasStayDates) {
+    const urlDates = (urlParams.get(`fishingCharterDates${charterNumber}`) || '').trim();
+    const outOfSeason = isCharterOutOfSeasonForStay(charterNumber);
+
+    if (outOfSeason && !urlDates && hasStayDates && typeof getPlannedCharterDatesFromSchedule === 'function') {
+        const planned = getPlannedCharterDatesFromSchedule(
+            urlParams,
+            charterNumber,
+            urlParams.get('checkin'),
+            urlParams.get('checkout')
+        );
+        const fmt = window.fishingCharterService?.formatDateForDisplay;
+        if (planned.length > 0 && fmt) {
+            const formatted = planned.length === 1
+                ? fmt(planned[0])
+                : `${fmt(planned[0])} +${planned.length - 1} more`;
+            return `${formatted} • ${CHARTER_OUT_OF_SEASON_LABEL}`;
+        }
+    }
+    if (outOfSeason) {
+        return CHARTER_OUT_OF_SEASON_LABEL;
+    }
+    return 'Not available for selected dates';
+}
+
+function sanitizeCharterDatesWithinStay(url) {
+    const params = url.searchParams;
+    const checkin = params.get('checkin');
+    const checkout = params.get('checkout');
+    if (!checkin || !checkout) return false;
+
+    let changed = false;
+    getCharterNumbersFromUrl(params).forEach((num) => {
+        const key = `fishingCharterDates${num}`;
+        const raw = params.get(key);
+        if (!raw || !raw.trim()) return;
+
+        const charterPickup = params.get(`fishingCharterPickup${num}`);
+        const allowed = new Set(
+            getCharterStayDatesForAvailability(checkin, checkout, charterPickup).map(normalizeAvailabilityYmd)
+        );
+        const kept = raw.split(',')
+            .map((d) => d.trim())
+            .filter(Boolean)
+            .filter((d) => allowed.has(normalizeAvailabilityYmd(d)));
+        const next = kept.join(',');
+        if (next !== raw) {
+            url.searchParams.set(key, next);
+            changed = true;
+        }
+    });
+    return changed;
+}
+
+/** DIY: shift committed charter dates when check-in changes but learned offsets still apply. */
+function realignDiyCharterDatesToStay(url) {
+    const params = url.searchParams;
+    if (isPackageExtrasUrl(params)) return false;
+    const checkin = params.get('checkin');
+    const checkout = params.get('checkout');
+    if (!checkin || !checkout || !hasDiyLearnedSchedule(params)) return false;
+
+    const charterNumbers = getCharterNumbersFromUrl(params);
+    let changed = false;
+
+    charterNumbers.forEach((num, index) => {
+        let offsets = parseOffsetCsv(params.get(charterDayOffsetsKey(num)));
+        if (!offsets.length) {
+            offsets = getPlannedCharterDayOffsets(params, num, index, charterNumbers.length).offsets;
+        }
+        if (!offsets.length) return;
+
+        const nextDates = datesFromDayOffsets(checkin, checkout, offsets).join(',');
+        const key = `fishingCharterDates${num}`;
+        const prev = params.get(key) || '';
+        if (prev !== nextDates) {
+            url.searchParams.set(key, nextDates);
+            changed = true;
+            extrasScheduleTrace('realignDiyCharterDatesToStay: updated', {
+                charterNumber: num,
+                prev,
+                nextDates,
+                offsets,
+            });
+        }
+    });
+    return changed;
+}
+
+/** Trip-level check for URL charter dates — always uses the same per-date trips API as the modal. */
+async function isCharterTripAvailableOnSelectedDates(charterId, charterTripId, charterDates, options = {}) {
+    const requested = (charterDates || []).map(normalizeAvailabilityYmd).filter(Boolean);
+    if (requested.length === 0) {
+        return { available: false, reason: 'no_dates' };
+    }
+
+    const kept = await filterCharterDatesAvailableForTrip(
+        charterId,
+        charterTripId,
+        requested,
+        options
+    );
+    const available = kept.length === requested.length;
+    return {
+        available,
+        keptDates: kept,
+        reason: available ? null : 'selected_dates_unavailable',
+    };
+}
+
+function clearCharterFromExtrasUnavailableState(charterNumber) {
+    const st = window.getExtrasUnavailableState ? window.getExtrasUnavailableState() : null;
+    if (!st) return;
+    const num = String(charterNumber);
+    st.fishingChartersUnavailable = (st.fishingChartersUnavailable || []).filter((n) => String(n) !== num);
+    st.fishingChartersNoDatesAvailable = (st.fishingChartersNoDatesAvailable || []).filter((n) => String(n) !== num);
+    st.fishingChartersCanReschedule = (st.fishingChartersCanReschedule || []).filter((n) => String(n) !== num);
+    st.fishingChartersCanChangeTrip = (st.fishingChartersCanChangeTrip || []).filter((n) => String(n) !== num);
+}
+window.clearCharterFromExtrasUnavailableState = clearCharterFromExtrasUnavailableState;
+
+function clearBoatFromExtrasUnavailableState() {
+    const st = window.getExtrasUnavailableState ? window.getExtrasUnavailableState() : null;
+    if (!st) return;
+    st.boatUnavailable = false;
+    st.boatNoDatesAvailable = false;
+}
+window.clearBoatFromExtrasUnavailableState = clearBoatFromExtrasUnavailableState;
+
+/** Fingerprint of stay + extras URL params — coalesce duplicate validation runs. */
+function buildExtrasAvailabilityUrlKey() {
+    const p = new URLSearchParams(window.location.search);
+    const parts = [
+        p.get('checkin') || '',
+        p.get('checkout') || '',
+        p.get('boatId') || '',
+        p.get('boatDates') || '',
+    ];
+    getCharterNumbersFromUrl(p).forEach((num) => {
+        parts.push(
+            p.get(`fishingCharterId${num}`) || '',
+            p.get(`fishingCharterTripId${num}`) || '',
+            p.get(`fishingCharterDates${num}`) || ''
+        );
+    });
+    return parts.join('|');
+}
+window.buildExtrasAvailabilityUrlKey = buildExtrasAvailabilityUrlKey;
+
+/** Stay + boat or charter in URL — worth running extras availability validation. */
+function urlHasExtrasToValidate() {
+    const p = new URLSearchParams(window.location.search);
+    if (!p.get('checkin') || !p.get('checkout')) return false;
+    if (p.get('boatId')) return true;
+    return getCharterNumbersFromUrl(p).length > 0;
+}
+window.urlHasExtrasToValidate = urlHasExtrasToValidate;
+
+let _extrasAvailabilityPending = 0;
+
+function beginExtrasAvailabilityValidation() {
+    _extrasAvailabilityPending += 1;
+    window._extrasAvailabilityValidating = true;
+    if (typeof window.syncReservationSettlingClass === 'function') {
+        window.syncReservationSettlingClass();
+    }
+}
+window.beginExtrasAvailabilityValidation = beginExtrasAvailabilityValidation;
+
+function endExtrasAvailabilityValidation() {
+    _extrasAvailabilityPending = Math.max(0, _extrasAvailabilityPending - 1);
+    window._extrasAvailabilityValidating = _extrasAvailabilityPending > 0;
+    if (typeof window.syncReservationSettlingClass === 'function') {
+        window.syncReservationSettlingClass();
+    }
+}
+window.endExtrasAvailabilityValidation = endExtrasAvailabilityValidation;
+
+function isExtrasAvailabilityValidating() {
+    return _extrasAvailabilityPending > 0 || !!window._extrasAvailabilityValidating;
+}
+window.isExtrasAvailabilityValidating = isExtrasAvailabilityValidating;
+
+function charterDayOffsetsKey(charterNum) {
+    return `fishingCharterDayOffsets${charterNum}`;
+}
+
+function parseOffsetCsv(raw) {
+    return (raw || '')
+        .split(',')
+        .map((s) => Number(s.trim()))
+        .filter((n) => !Number.isNaN(n));
+}
+
+/**
+ * Day-offsets for one charter slot on stay sync.
+ * Prefers rich `charterSlots` JSON; falls back to flat `charterOffsets` heuristics.
+ */
+function getMarketingOffsetsForCharterSlot(params, charterIndex, charterCount) {
+    const slots = parseCharterSlotsParam(params);
+    if (slots) {
+        if (charterIndex < slots.length) {
+            return slots[charterIndex].offsets;
+        }
+        return [];
+    }
+
+    const marketing = parseCharterOffsetsParam(params);
+    if (marketing.length === 0) return [];
+
+    if (charterCount === 1) {
+        return marketing;
+    }
+    if (marketing.length === charterCount) {
+        const offset = marketing[charterIndex];
+        return offset !== undefined && !Number.isNaN(offset) ? [offset] : [];
+    }
+    const offset = marketing[charterIndex];
+    return offset !== undefined && !Number.isNaN(offset) ? [offset] : [];
+}
+
+/**
+ * Day-offsets for planned/display charter dates — read-only, no URL cleanup.
+ * Used for change-trip UI before committed dates exist.
+ */
+function getPlannedCharterDayOffsets(params, charterNum, charterIndex, charterCount) {
+    const slotCount = charterCount || getCharterNumbersFromUrl(params).length;
+    const slots = parseCharterSlotsParam(params);
+    if (slots && charterIndex >= 0 && charterIndex < slots.length && slots[charterIndex].offsets?.length) {
+        return { offsets: slots[charterIndex].offsets, source: 'charterSlots' };
+    }
+    const perCharter = parseOffsetCsv(params.get(charterDayOffsetsKey(charterNum)));
+    if (perCharter.length > 0) {
+        return { offsets: perCharter, source: 'fishingCharterDayOffsets' };
+    }
+    const marketingOffsets = getMarketingOffsetsForCharterSlot(params, charterIndex, slotCount);
+    if (marketingOffsets.length > 0) {
+        return { offsets: marketingOffsets, source: 'charterOffsets' };
+    }
+    return { offsets: [], source: 'none' };
+}
+
+/**
+ * Which day-offsets to apply on stay sync.
+ * - No committed charter dates yet → marketing `charterOffsets` only (ignore stale `fishingCharterDayOffsets` in URL).
+ * - After guest saved dates → use `fishingCharterDayOffsets` from that save.
+ */
+function getCharterDayOffsetsForSync(params, charterNum, charterIndex, urlForCleanup, charterCount) {
+    const marketing = parseCharterOffsetsParam(params);
+    const slotCount = charterCount || getCharterNumbersFromUrl(params).length;
+    const marketingOffsets = getMarketingOffsetsForCharterSlot(params, charterIndex, slotCount);
+    const marketingOffset = marketing[charterIndex];
+    const dayKey = charterDayOffsetsKey(charterNum);
+    const learnedRaw = params.get(dayKey);
+    const learned = parseOffsetCsv(learnedRaw);
+    const datesRaw = params.get(`fishingCharterDates${charterNum}`);
+    const hasCommittedDates = !!(datesRaw && datesRaw.trim());
+    let didCleanup = false;
+
+    const removeStaleDayOffsets = () => {
+        if (learnedRaw && urlForCleanup) {
+            urlForCleanup.searchParams.delete(dayKey);
+            didCleanup = true;
+        }
+    };
+
+    const marketingResult = () => {
+        if (marketingOffsets.length === 0) {
+            return { offsets: [], source: 'none', didCleanup };
+        }
+        const offsetSource = parseCharterSlotsParam(params) ? 'charterSlots' : 'charterOffsets';
+        return { offsets: marketingOffsets, source: offsetSource, didCleanup };
+    };
+
+    if (!hasCommittedDates) {
+        if (learnedRaw && urlForCleanup) {
+            removeStaleDayOffsets();
+            if (didCleanup) {
+                extrasScheduleTrace('getCharterDayOffsetsForSync: removed stale day offsets (no charter dates yet)', {
+                    charterNum,
+                    removed: learnedRaw,
+                });
+            }
+        }
+        return marketingResult();
+    }
+
+    if (learned.length > 0) {
+        const checkin = params.get('checkin');
+        const firstCommittedDate = (datesRaw || '').split(',').map((s) => s.trim()).filter(Boolean)[0];
+        const committedOnCheckin = !!(checkin && firstCommittedDate
+            && daysFromCheckin(checkin, firstCommittedDate) === 0);
+        const poisoned =
+            learned.length === 1 &&
+            learned[0] === 0 &&
+            marketingOffset !== undefined &&
+            marketingOffset > 0 &&
+            !committedOnCheckin;
+        if (!poisoned) {
+            return { offsets: learned, source: 'fishingCharterDayOffsets', didCleanup };
+        }
+        removeStaleDayOffsets();
+        if (didCleanup) {
+            extrasScheduleTrace('getCharterDayOffsetsForSync: removed poisoned day offsets (0)', {
+                charterNum,
+                marketingOffset,
+            });
+        }
+    }
+
+    return marketingResult();
+}
+
+function datesFromDayOffsets(checkin, checkout, dayOffsets) {
+    const unique = new Set();
+    dayOffsets.forEach((offset) => {
+        const dateStr = addDaysToYmd(checkin, offset);
+        if (isDateWithinStay(dateStr, checkin, checkout)) {
+            unique.add(dateStr);
+        }
+    });
+    return Array.from(unique).sort();
+}
+
+/** Charter dates from URL or, when empty, from package/marketing day offsets on the stay. */
+function getPlannedCharterDatesFromSchedule(params, charterNum, checkin, checkout) {
+    if (!params || !charterNum || !checkin || !checkout) return [];
+    const committed = (params.get(`fishingCharterDates${charterNum}`) || '').trim();
+    if (committed) {
+        return committed.split(',').filter(Boolean);
+    }
+    const charterNumbers = getCharterNumbersFromUrl(params);
+    const charterIndex = charterNumbers.indexOf(Number(charterNum));
+    if (charterIndex < 0) return [];
+    const { offsets } = getPlannedCharterDayOffsets(
+        params,
+        charterNum,
+        charterIndex,
+        charterNumbers.length
+    );
+    if (!offsets.length) return [];
+    return datesFromDayOffsets(checkin, checkout, offsets);
+}
+window.getPlannedCharterDatesFromSchedule = getPlannedCharterDatesFromSchedule;
+
+/** Only on charter modal save — never during stay sync. */
+function learnCharterDayOffsetsFromDates(url, params, checkin) {
+    let changed = false;
+    getCharterNumbersFromUrl(params).forEach((num) => {
+        const key = charterDayOffsetsKey(num);
+        const datesRaw = params.get(`fishingCharterDates${num}`);
+        if (!datesRaw || !datesRaw.trim()) {
+            if (params.get(key)) {
+                url.searchParams.delete(key);
+                changed = true;
+            }
+            return;
+        }
+        const dates = datesRaw.split(',').filter(Boolean);
+        if (dates.length === 0) {
+            if (params.get(key)) {
+                url.searchParams.delete(key);
+                changed = true;
+            }
+            return;
+        }
+        const next = dates.map((d) => String(daysFromCheckin(checkin, d))).join(',');
+        if (params.get(key) !== next) {
+            url.searchParams.set(key, next);
+            changed = true;
+        }
+    });
+    return changed;
+}
+
+
+function hasAnyExtraDatesInUrl(params) {
+    const boatDates = params.get('boatDates');
+    if (params.get('boatId') && boatDates && boatDates.trim()) return true;
+
+    return getCharterNumbersFromUrl(params).some((num) => {
+        const raw = params.get(`fishingCharterDates${num}`);
+        return !!(raw && raw.trim());
+    });
+}
+
+function hasScheduleOffsetsForExtras(params) {
+    const boatId = params.get('boatId');
+    const boatLength = Number(params.get('boatLength') || 0);
+    const charterNumbers = getCharterNumbersFromUrl(params);
+    const charterOffsets = parseCharterOffsetsParam(params);
+
+    if (boatId && boatLength > 0 && params.has('boatStartOffset')) {
+        return true;
+    }
+    if (charterNumbers.length > 0 && charterOffsets.length > 0) {
+        return true;
+    }
+    return false;
+}
+
+/** DIY: offsets were learned from user-saved dates (not a marketing package link). */
+function hasDiyLearnedSchedule(params) {
+    if (isPackageExtrasUrl(params)) return false;
+    if (!params.get('scheduleNights')) return false;
+    return hasScheduleOffsetsForExtras(params);
+}
+
+/** Nights the bundled package requires (`packageNights`); DIY uses learned `scheduleNights`. */
+function getRequiredScheduleNights(params) {
+    if (isPackageExtrasUrl(params)) {
+        return Number(params.get('packageNights') || params.get('scheduleNights') || 0);
+    }
+    return Number(params.get('scheduleNights') || 0);
+}
+
+function isPackageStayNightMismatch(params) {
+    if (!isPackageExtrasUrl(params)) return false;
+    const checkin = params.get('checkin');
+    const checkout = params.get('checkout');
+    if (!checkin || !checkout) return false;
+    const required = getRequiredScheduleNights(params);
+    if (!required) return false;
+    return getStayNightsFromUrl(params) !== required;
+}
+
+/** Clear boat/charter date params when stay dates are removed (keep schedule/offset params for re-sync). */
+function clearExtraDatesWhenStayRemoved() {
+    const url = new URL(window.location);
+    const params = url.searchParams;
+    let changed = false;
+    const isPackage = isPackageExtrasUrl(params);
+
+    if (params.get('boatId') && params.get('boatDates')) {
+        url.searchParams.set('boatDates', '');
+        changed = true;
+    }
+
+    getCharterNumbersFromUrl(params).forEach((num) => {
+        const dateKey = `fishingCharterDates${num}`;
+        if (params.get(dateKey)) {
+            url.searchParams.set(dateKey, '');
+            changed = true;
+        }
+        if (isPackage) {
+            const dayKey = charterDayOffsetsKey(num);
+            if (params.get(dayKey)) {
+                url.searchParams.delete(dayKey);
+                changed = true;
+            }
+        }
+    });
+
+    if (changed) {
+        extrasScheduleTrace('clearExtraDatesWhenStayRemoved', { isPackage });
+        window.history.replaceState(null, '', url);
+    }
+
+    if (window.boatRentalService && typeof window.boatRentalService.initializeFromURL === 'function') {
+        window.boatRentalService.initializeFromURL();
+    }
+    if (window.fishingCharterService && typeof window.fishingCharterService.initializeFromURL === 'function') {
+        window.fishingCharterService.initializeFromURL();
+    }
+    if (window.populateSelectedBoatBlock) {
+        window.populateSelectedBoatBlock();
+    }
+    if (window.fishingCharterService && typeof window.fishingCharterService.populateSelectedFishingCharterBlock === 'function') {
+        const charterPopulate = window.fishingCharterService.populateSelectedFishingCharterBlock();
+        if (charterPopulate && typeof charterPopulate.catch === 'function') {
+            charterPopulate.catch(() => { });
+        }
+    }
+    if (window.updateExtrasNeedingDatesState) {
+        window.updateExtrasNeedingDatesState();
+    }
+
+    return changed;
+}
+
+/** Remove DIY-learned schedule params so a new stay length can be learned from the next save. */
+function clearDiyLearnedScheduleFromUrl(url) {
+    const params = url.searchParams;
+    let changed = false;
+    ['scheduleNights', 'boatStartOffset', 'boatLength', 'charterOffsets'].forEach((key) => {
+        if (params.has(key)) {
+            url.searchParams.delete(key);
+            changed = true;
+        }
+    });
+    getCharterNumbersFromUrl(params).forEach((num) => {
+        const dayKey = charterDayOffsetsKey(num);
+        if (params.has(dayKey)) {
+            url.searchParams.delete(dayKey);
+            changed = true;
+        }
+    });
+    return changed;
+}
+
+/** Clear boat/charter date params (keep marketing offsets). Used when package stay length changes. */
+function clearAutofilledExtraDatesInUrl(reason) {
+    const url = new URL(window.location);
+    const params = url.searchParams;
+    let changed = false;
+
+    if (params.get('boatId') && params.get('boatDates')) {
+        url.searchParams.set('boatDates', '');
+        changed = true;
+    }
+    getCharterNumbersFromUrl(params).forEach((num) => {
+        const key = `fishingCharterDates${num}`;
+        if (params.get(key)) {
+            url.searchParams.set(key, '');
+            changed = true;
+        }
+    });
+
+    if (reason === 'diyStayNightMismatch' && !isPackageExtrasUrl(params)) {
+        if (clearDiyLearnedScheduleFromUrl(url)) {
+            changed = true;
+        }
+    }
+
+    if (!changed) return false;
+
+    extrasScheduleLog('clearAutofilledExtraDatesInUrl', {
+        reason: reason || 'unknown',
+        boatDates: url.searchParams.get('boatDates'),
+        fishingCharterDates1: url.searchParams.get('fishingCharterDates1'),
+        fishingCharterDates2: url.searchParams.get('fishingCharterDates2'),
+        charterOffsets: url.searchParams.get('charterOffsets'),
+        packageNights: url.searchParams.get('packageNights'),
+        scheduleNights: url.searchParams.get('scheduleNights'),
+        boatStartOffset: url.searchParams.get('boatStartOffset'),
+        boatLength: url.searchParams.get('boatLength'),
+    });
+    window.history.replaceState(null, '', url);
+    return true;
+}
+
+function canSyncExtrasToStay() {
+    const params = new URLSearchParams(window.location.search);
+    const checkin = params.get('checkin');
+    const checkout = params.get('checkout');
+    if (!checkin || !checkout) return false;
+
+    const isPackage = isPackageExtrasUrl(params);
+    const diyLearned = hasDiyLearnedSchedule(params);
+    if (!isPackage && !diyLearned) {
+        extrasScheduleLog('canSync: blocked (not package, no DIY learned offsets)', {
+            package: params.get('package'),
+            scheduleNights: params.get('scheduleNights'),
+            boatStartOffset: params.get('boatStartOffset'),
+            charterOffsets: params.get('charterOffsets'),
+        });
+        return false;
+    }
+
+    const stayNights = getStayNightsFromUrl(params);
+    const requiredNights = getRequiredScheduleNights(params);
+    if (!requiredNights || stayNights !== requiredNights) {
+        extrasScheduleLog('canSync: blocked (night count mismatch)', {
+            stayNights,
+            requiredNights,
+            isPackage,
+            packageNights: params.get('packageNights'),
+            scheduleNights: params.get('scheduleNights'),
+        });
+        return false;
+    }
+
+    const boatId = params.get('boatId');
+    const charterNumbers = getCharterNumbersFromUrl(params);
+    if (!boatId && charterNumbers.length === 0) return false;
+
+    const canSync = hasScheduleOffsetsForExtras(params);
+    extrasScheduleLog('canSync', { isPackage, diyLearned, canSync });
+    return canSync;
+}
+
+function syncExtrasToStay() {
+    extrasScheduleTrace('syncExtrasToStay: enter', { href: window.location.href });
+
+    if (!canSyncExtrasToStay()) {
+        extrasScheduleTrace('syncExtrasToStay: exit (canSyncExtrasToStay=false)', {});
+        return false;
+    }
+
+    const stayCal = getStayCalendarValidation();
+    if (stayCal.calendarStayValidationReady && !stayCal.stayDatesValid) {
+        extrasScheduleTrace('syncExtrasToStay: exit (stay dates unavailable)', stayCal);
+        return false;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const checkin = params.get('checkin');
+    const checkout = params.get('checkout');
+    const url = new URL(window.location);
+    let changed = false;
+
+    const boatId = params.get('boatId');
+    const boatLength = Number(params.get('boatLength') || 0);
+    const boatStartOffset = Number(params.get('boatStartOffset') || 0);
+
+    if (boatId && boatLength > 0) {
+        const boatStart = addDaysToYmd(checkin, boatStartOffset);
+        const boatEnd = addDaysToYmd(boatStart, boatLength - 1);
+        if (isDateWithinStay(boatStart, checkin, checkout) && isDateWithinStay(boatEnd, checkin, checkout)) {
+            const nextBoatDates = buildInclusiveDateCsv(boatStart, boatEnd);
+            if (params.get('boatDates') !== nextBoatDates) {
+                url.searchParams.set('boatDates', nextBoatDates);
+                changed = true;
+            }
+        }
+    }
+
+    // DIY links: never autofill charter dates from offsets (only marketing package links).
+    const isPackage = isPackageExtrasUrl(params);
+    if (isPackage) {
+        let charterParams = params;
+        const charterNumbers = getCharterNumbersFromUrl(charterParams);
+        const charterCount = charterNumbers.length;
+
+        charterNumbers.forEach((num, index) => {
+            const { offsets: dayOffsets, source: offsetSource, didCleanup } = getCharterDayOffsetsForSync(
+                charterParams,
+                num,
+                index,
+                url,
+                charterCount
+            );
+            if (didCleanup) {
+                changed = true;
+                charterParams = url.searchParams;
+            }
+            if (dayOffsets.length === 0) {
+                extrasScheduleTrace('syncExtrasToStay: skip charter (no offsets)', { num, index });
+                return;
+            }
+
+            const nextDates = datesFromDayOffsets(checkin, checkout, dayOffsets).join(',');
+            if (!nextDates) {
+                extrasScheduleTrace('syncExtrasToStay: skip charter (no dates in stay)', {
+                    num,
+                    index,
+                    offsetSource,
+                    dayOffsets,
+                    checkin,
+                    checkout,
+                });
+                return;
+            }
+
+            const key = `fishingCharterDates${num}`;
+            const prev = charterParams.get(key);
+            if (prev !== nextDates) {
+                url.searchParams.set(key, nextDates);
+                changed = true;
+                extrasScheduleTrace('syncExtrasToStay: set charter dates', {
+                    num,
+                    index,
+                    offsetSource,
+                    dayOffsets,
+                    prev,
+                    nextDates,
+                });
+            } else {
+                extrasScheduleTrace('syncExtrasToStay: charter dates unchanged (no URL write)', {
+                    num,
+                    index,
+                    offsetSource,
+                    dayOffsets,
+                    prev,
+                    nextDates,
+                });
+            }
+        });
+    }
+
+    if (!changed) {
+        extrasScheduleTrace('syncExtrasToStay: exit (nothing to change)', {});
+        markExtrasStaySyncRan();
+        return false;
+    }
+
+    extrasScheduleTrace('syncExtrasToStay: applying replaceState', {
+        after: snapshotExtrasScheduleUrl(url.searchParams),
+    });
+
+    window._extrasSyncJustRan = true;
+    window._extrasSyncJustRanAt = Date.now();
+    window.history.replaceState(null, '', url);
+    return true;
+}
+
+function markExtrasStaySyncRan() {
+    window._extrasSyncJustRan = true;
+    window._extrasSyncJustRanAt = Date.now();
+}
+
+/**
+ * Learn offset params from calendar dates in the URL.
+ * @param {{ fromUserSave?: boolean }} [options] - set when guest saved boat/charter dates in a modal
+ */
+function learnExtrasScheduleFromUrl(options = {}) {
+    const end = window.kbStart && window.kbStart('extras-schedule: learnExtrasScheduleFromUrl');
+    try {
+        const params = new URLSearchParams(window.location.search);
+        const checkin = params.get('checkin');
+        const checkout = params.get('checkout');
+        if (!checkin || !checkout) {
+            end && end({ skipped: true, reason: 'noStay' });
+            return false;
+        }
+
+        const stayNights = getStayNightsFromUrl(params);
+        if (stayNights <= 0) {
+            end && end({ skipped: true, reason: 'noNights' });
+            return false;
+        }
+
+        const isPackage = isPackageExtrasUrl(params);
+        const hasExtraDates = hasAnyExtraDatesInUrl(params);
+        const fromUserSave = !!options.fromUserSave;
+        const source = options.source || 'load';
+
+        if (isPackage && isPackageStayNightMismatch(params)) {
+            extrasScheduleLog('learn: skipped (package night mismatch — keep bundled offsets)', {
+                stayNights,
+                requiredNights: getRequiredScheduleNights(params),
+                source,
+                fromUserSave,
+            });
+            end && end({ skipped: true, reason: 'packageNightMismatch', source });
+            return false;
+        }
+
+        if (!isPackage && !fromUserSave && !hasExtraDates) {
+            extrasScheduleLog('learn: skipped (DIY link, stay only — no package autofill)', {
+                checkin,
+                checkout,
+                stayNights,
+            });
+            end && end({ skipped: true, reason: 'diyStayOnly', source });
+            return false;
+        }
+
+        const url = new URL(window.location);
+        let changed = false;
+
+        const currentScheduleNights = params.get('scheduleNights');
+        const nextScheduleNights = String(stayNights);
+        // Package links: keep marketing `packageNights` / `scheduleNights` — do not rewrite from a mismatched stay.
+        const shouldSetScheduleNights = !isPackage && (hasExtraDates || fromUserSave);
+        if (shouldSetScheduleNights && currentScheduleNights !== nextScheduleNights) {
+            url.searchParams.set('scheduleNights', nextScheduleNights);
+            changed = true;
+        }
+
+        const boatDatesRaw = params.get('boatDates');
+        if (!isPackage && params.get('boatId') && boatDatesRaw && boatDatesRaw.trim()) {
+            const boatDates = boatDatesRaw.split(',').filter(Boolean);
+            if (boatDates.length > 0) {
+                const startOffset = String(daysFromCheckin(checkin, boatDates[0]));
+                const length = String(boatDates.length);
+                if (params.get('boatStartOffset') !== startOffset) {
+                    url.searchParams.set('boatStartOffset', startOffset);
+                    changed = true;
+                }
+                if (params.get('boatLength') !== length) {
+                    url.searchParams.set('boatLength', length);
+                    changed = true;
+                }
+            }
+        }
+
+        const charterDatesSnapshot = options.charterDatesSnapshot || null;
+        const charterNumbers = getCharterNumbersFromUrl(params);
+
+        // Boat-only DIY save: drop charter dates that appeared without the guest saving a charter modal
+        if (!isPackage && source === 'boat' && charterDatesSnapshot) {
+            charterNumbers.forEach((num) => {
+                const before = String(charterDatesSnapshot[num] || '').trim();
+                const now = String(params.get(`fishingCharterDates${num}`) || '').trim();
+                if (!before && now) {
+                    url.searchParams.set(`fishingCharterDates${num}`, '');
+                    changed = true;
+                    extrasScheduleLog('learn: cleared phantom charter date after boat save', { num, removed: now });
+                }
+            });
+            if (params.get('charterOffsets')) {
+                url.searchParams.delete('charterOffsets');
+                changed = true;
+            }
+        }
+
+        // Guest charter save: store per-charter day offsets (keeps package `charterOffsets` marketing defaults).
+        if (source === 'charter' && fromUserSave) {
+            extrasScheduleTrace('learn: charter save (before day offsets)', { checkin });
+            if (learnCharterDayOffsetsFromDates(url, params, checkin)) {
+                changed = true;
+                extrasScheduleTrace('learn: updated fishingCharterDayOffsets', {});
+            }
+        }
+
+        // DIY only: legacy one-offset-per-charter in `charterOffsets`.
+        const shouldLearnCharterOffsets = !isPackage && (source === 'charter' || (source === 'load' && hasExtraDates));
+        const learnedOffsets = [];
+        let hasCharterDates = false;
+
+        if (shouldLearnCharterOffsets && source !== 'boat') {
+            charterNumbers.forEach((num) => {
+                const datesRaw = params.get(`fishingCharterDates${num}`);
+                if (!datesRaw || !datesRaw.trim()) return;
+                const firstDate = datesRaw.split(',').filter(Boolean)[0];
+                if (!firstDate) return;
+                hasCharterDates = true;
+                learnedOffsets.push(String(daysFromCheckin(checkin, firstDate)));
+            });
+
+            if (hasCharterDates && learnedOffsets.length > 0) {
+                const nextCharterOffsets = learnedOffsets.join(',');
+                if (params.get('charterOffsets') !== nextCharterOffsets) {
+                    url.searchParams.set('charterOffsets', nextCharterOffsets);
+                    changed = true;
+                    extrasScheduleLog('learn: updated charterOffsets from saved dates', {
+                        nextCharterOffsets,
+                        checkin,
+                        isPackage,
+                    });
+                }
+            } else if (params.get('charterOffsets')) {
+                url.searchParams.delete('charterOffsets');
+                changed = true;
+                extrasScheduleLog('learn: removed stale charterOffsets (no charter dates in URL)');
+            }
+        }
+
+        if (!changed) {
+            extrasScheduleTrace('learn: exit (no URL changes)', { source, fromUserSave, isPackage });
+            end && end({ changed: false, source });
+            return false;
+        }
+
+        extrasScheduleTrace('learn: applying replaceState', {
+            source,
+            fromUserSave,
+            after: snapshotExtrasScheduleUrl(url.searchParams),
+        });
+
+        extrasScheduleLog('learn: updated URL', {
+            isPackage,
+            fromUserSave,
+            scheduleNights: url.searchParams.get('scheduleNights'),
+            boatStartOffset: url.searchParams.get('boatStartOffset'),
+            boatLength: url.searchParams.get('boatLength'),
+            charterOffsets: url.searchParams.get('charterOffsets'),
+        });
+
+        window.history.replaceState(null, '', url);
+        end && end({ changed: true, source, isPackage, fromUserSave });
+        return true;
+    } catch (e) {
+        end && end({ error: e && e.message });
+        throw e;
+    }
+}
+
+function shouldRunExtrasScheduleOnLoad() {
+    const params = new URLSearchParams(window.location.search);
+    if (!params.get('checkin') || !params.get('checkout')) return false;
+    if (isPackageExtrasUrl(params)) return true;
+    if (hasAnyExtraDatesInUrl(params)) return true;
+    if (hasDiyLearnedSchedule(params)) return true;
+    return false;
+}
+
+/** Remove schedule params left from an old session when this is a DIY link with no saved extra dates. */
+function sanitizeOrphanExtrasScheduleParams() {
+    const end = window.kbStart && window.kbStart('extras-schedule: sanitizeOrphanExtrasScheduleParams');
+    try {
+        const params = new URLSearchParams(window.location.search);
+        if (isPackageExtrasUrl(params)) {
+            end && end({ skipped: true, reason: 'package' });
+            return false;
+        }
+        if (hasAnyExtraDatesInUrl(params)) {
+            end && end({ skipped: true, reason: 'hasExtraDates' });
+            return false;
+        }
+        if (hasScheduleOffsetsForExtras(params)) {
+            end && end({ skipped: true, reason: 'hasOffsets' });
+            return false;
+        }
+
+        const url = new URL(window.location);
+        let changed = false;
+        ['scheduleNights', 'packageNights', 'boatStartOffset', 'boatLength', 'charterOffsets'].forEach((key) => {
+            if (url.searchParams.has(key)) {
+                url.searchParams.delete(key);
+                changed = true;
+            }
+        });
+
+        if (!changed) {
+            end && end({ changed: false });
+            return false;
+        }
+
+        extrasScheduleLog('sanitize: removed orphan schedule params from DIY URL (was behaving like package)', {
+            href: url.pathname + url.search,
+        });
+        window.history.replaceState(null, '', url);
+        end && end({ changed: true });
+        return true;
+    } catch (e) {
+        end && end({ error: e && e.message });
+        throw e;
+    }
+}
+
+const FOOTER_LOADING_MIN_MS = 450;
+
+function ensureMinFooterLoadingDuration() {
+    if (!window._footerLoadingSince) {
+        return Promise.resolve();
+    }
+    const elapsed = performance.now() - window._footerLoadingSince;
+    const remaining = FOOTER_LOADING_MIN_MS - elapsed;
+    window._footerLoadingSince = 0;
+    if (remaining <= 0) {
+        return Promise.resolve();
+    }
+    return new Promise((resolve) => setTimeout(resolve, remaining));
+}
+
+/** Stay availability from Wized calendar (for gating extras sync/validation). */
+function getStayCalendarValidation() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const checkin = urlParams.get('checkin');
+    const checkout = urlParams.get('checkout');
+    const datesSelected = !!(checkin && checkout && String(checkin).trim() !== '' && String(checkout).trim() !== '');
+
+    const r = window.Wized && window.Wized.data && window.Wized.data.r;
+    if (!r || !datesSelected) {
+        return {
+            datesSelected: false,
+            calendarStayValidationReady: false,
+            calendarQueryPending: false,
+            stayDatesValid: false,
+        };
+    }
+
+    const cal = r.Load_Property_Calendar_Query;
+    const calendarQueryPending = !!(cal && (!cal.hasRequested || cal.isRequesting));
+
+    if (!cal || !cal.data || !r.Load_Property_Details || !r.Load_Property_Details.data) {
+        return {
+            datesSelected: true,
+            calendarStayValidationReady: false,
+            calendarQueryPending,
+            stayDatesValid: false,
+        };
+    }
+
+    const propertyCalendarRange = cal.data.property_calendar_range;
+    const minNights = typeof window.getEffectiveMinNightsForSelection === 'function'
+        ? window.getEffectiveMinNightsForSelection(r)
+        : 1;
+
+    let allAvailable = true;
+    let consecutiveAvailableDays = 0;
+    let meetsMinNights = false;
+
+    if (Array.isArray(propertyCalendarRange)) {
+        for (let i = 0; i < propertyCalendarRange.length; i++) {
+            if (propertyCalendarRange[i].status === 'available') {
+                consecutiveAvailableDays++;
+                if (consecutiveAvailableDays >= minNights) {
+                    meetsMinNights = true;
+                }
+            } else {
+                consecutiveAvailableDays = 0;
+                allAvailable = false;
+            }
+        }
+    } else {
+        allAvailable = false;
+    }
+
+    if (!meetsMinNights && checkin && checkout && typeof window.createDateFromString === 'function') {
+        try {
+            const start = window.createDateFromString(checkin);
+            const end = window.createDateFromString(checkout);
+            const nights = Math.max(0, Math.round((end - start) / (1000 * 60 * 60 * 24)));
+            if (nights >= minNights) {
+                meetsMinNights = true;
+            }
+        } catch (_) { /* ignore */ }
+    }
+
+    const dowCheck = typeof window.validateCheckinoutDaysFromURL === 'function'
+        ? window.validateCheckinoutDaysFromURL()
+        : { valid: true };
+
+    return {
+        datesSelected: true,
+        calendarStayValidationReady: true,
+        calendarQueryPending: false,
+        stayDatesValid: allAvailable && meetsMinNights && dowCheck.valid,
+    };
+}
+
+async function awaitStayCalendarForExtrasSync(maxMs = 5000) {
+    let stayCal = getStayCalendarValidation();
+    if (!stayCal.datesSelected || stayCal.calendarStayValidationReady) {
+        return stayCal;
+    }
+
+    const wized = window.Wized;
+    if (wized && wized.requests && typeof wized.requests.waitFor === 'function') {
+        try {
+            await Promise.race([
+                Promise.all([
+                    wized.requests.waitFor('Load_Property_Calendar_Query'),
+                    wized.requests.waitFor('Load_Property_Details'),
+                ]),
+                new Promise((resolve) => setTimeout(resolve, maxMs)),
+            ]);
+        } catch (_) { /* ignore */ }
+    } else {
+        await new Promise((resolve) => setTimeout(resolve, Math.min(maxMs, 500)));
+    }
+
+    stayCal = getStayCalendarValidation();
+    return stayCal;
+}
+
+function refreshExtrasUiWithoutAvailabilityCheck() {
+    if (window.boatRentalService && typeof window.boatRentalService.initializeFromURL === 'function') {
+        window.boatRentalService.initializeFromURL();
+    }
+    if (window.fishingCharterService && typeof window.fishingCharterService.initializeFromURL === 'function') {
+        window.fishingCharterService.initializeFromURL();
+    }
+    if (window.fishingCharterService && typeof window.fishingCharterService.populateSelectedFishingCharterBlock === 'function') {
+        const charterResult = window.fishingCharterService.populateSelectedFishingCharterBlock();
+        if (charterResult && typeof charterResult.catch === 'function') {
+            charterResult.catch(() => { });
+        }
+    }
+    if (window.populateSelectedBoatBlock) {
+        window.populateSelectedBoatBlock();
+    }
+    if (window.updateMobileHandlersState) {
+        window.updateMobileHandlersState();
+    }
+    if (window.updateExtrasNeedingDatesState) {
+        window.updateExtrasNeedingDatesState();
+    }
+}
+
+async function runExtrasStaySyncPipeline() {
+    const end = window.kbStart && window.kbStart('extras-schedule: runExtrasStaySyncPipeline');
+    window._extrasStaySyncPipelineRunning = true;
+    window._footerLoadingSince = performance.now();
+    if (typeof window.syncReservationSettlingClass === 'function') {
+        window.syncReservationSettlingClass(true);
+    }
+    if (window.scheduleUpdateAllButtonVisibility) {
+        window.scheduleUpdateAllButtonVisibility();
+    } else if (window.updateAllButtonVisibility) {
+        window.updateAllButtonVisibility();
+    }
+    try {
+        let params = new URLSearchParams(window.location.search);
+        const checkin = params.get('checkin');
+        const checkout = params.get('checkout');
+        if (!checkin || !checkout) {
+            end && end({ skipped: true, reason: 'noStayDates' });
+            return;
+        }
+
+        const isPackage = isPackageExtrasUrl(params);
+        const extrasComplete = typeof hasExtrasMissingDatesInURL === 'function' && !hasExtrasMissingDatesInURL();
+        const canSync = typeof canSyncExtrasToStay === 'function' && canSyncExtrasToStay();
+        const stayNights = getStayNightsFromUrl(params);
+        const requiredNights = getRequiredScheduleNights(params);
+        const packageNightMismatch = isPackageStayNightMismatch(params);
+        const diyNightMismatch = !isPackage && hasDiyLearnedSchedule(params) && requiredNights > 0 && stayNights !== requiredNights;
+
+        if ((isPackage || diyNightMismatch) && !canSync && hasAnyExtraDatesInUrl(params)) {
+            clearAutofilledExtraDatesInUrl(isPackage ? 'packageStayChangedOrNightMismatch' : 'diyStayNightMismatch');
+        }
+
+        const urlForSanitize = new URL(window.location);
+        let pipelineUrlChanged = false;
+        if (sanitizeCharterDatesWithinStay(urlForSanitize)) {
+            pipelineUrlChanged = true;
+            extrasScheduleTrace('pipeline: removed charter dates outside stay', {
+                url: snapshotExtrasScheduleUrl(urlForSanitize.searchParams),
+            });
+        }
+        if (pipelineUrlChanged) {
+            window.history.replaceState(null, '', urlForSanitize);
+            params = urlForSanitize.searchParams;
+            if (window.fishingCharterService && typeof window.fishingCharterService.initializeFromURL === 'function') {
+                window.fishingCharterService.initializeFromURL();
+            }
+            pipelineUrlChanged = false;
+        }
+
+        extrasScheduleLog('pipeline: start', {
+            isPackage,
+            canSync,
+            packageNightMismatch,
+            stayNights,
+            requiredNights,
+            packageNights: params.get('packageNights'),
+            charterOffsets: params.get('charterOffsets'),
+            fishingCharterDates1: params.get('fishingCharterDates1'),
+            fishingCharterDates2: params.get('fishingCharterDates2'),
+            checkin: params.get('checkin'),
+            checkout: params.get('checkout'),
+        });
+
+        if (packageNightMismatch) {
+            window._extrasPipelineSkipMinLoading = true;
+            refreshExtrasUiWithoutAvailabilityCheck();
+            extrasScheduleLog('pipeline: fast path (package night mismatch — extras need manual dates)');
+            end && end({ ran: true, fastPath: 'packageNightMismatch' });
+            return;
+        }
+
+        const stayCal = await awaitStayCalendarForExtrasSync(5000);
+        extrasScheduleTrace('pipeline: stay calendar validation', stayCal);
+
+        if (stayCal.datesSelected && stayCal.calendarStayValidationReady && !stayCal.stayDatesValid) {
+            window._extrasPipelineSkipMinLoading = true;
+            if (hasAnyExtraDatesInUrl(params)) {
+                clearAutofilledExtraDatesInUrl('stayDatesUnavailable');
+            }
+            refreshExtrasUiWithoutAvailabilityCheck();
+            extrasScheduleLog('pipeline: fast path (stay dates unavailable — skip extras sync/validate)');
+            end && end({ ran: true, fastPath: 'stayDatesUnavailable', stayCal });
+            return;
+        }
+
+        if (stayCal.datesSelected && !stayCal.calendarStayValidationReady) {
+            window._extrasPipelineSkipMinLoading = true;
+            refreshExtrasUiWithoutAvailabilityCheck();
+            extrasScheduleLog('pipeline: skipped (stay calendar not ready — skip extras sync/validate)', {
+                calendarQueryPending: stayCal.calendarQueryPending,
+            });
+            window._extrasPipelineLastSkipReason = 'stayCalendarNotReady';
+            end && end({ skipped: true, reason: 'stayCalendarNotReady' });
+            return;
+        }
+
+        if (!isPackage && !canSync && !extrasComplete) {
+            extrasScheduleLog('pipeline: skipped (DIY, incomplete extras, cannot sync)', {
+                package: params.get('package'),
+                scheduleNights: params.get('scheduleNights'),
+            });
+            end && end({ skipped: true, reason: 'diyIncomplete' });
+            return;
+        }
+
+        extrasScheduleTrace('pipeline: before syncExtrasToStay', {
+            canSync,
+            isPackage,
+            stayNights,
+            requiredNights,
+        });
+
+        window._extrasPipelineLastSkipReason = '';
+
+        if (canSync && realignDiyCharterDatesToStay(urlForSanitize)) {
+            pipelineUrlChanged = true;
+        }
+        if (pipelineUrlChanged) {
+            window.history.replaceState(null, '', urlForSanitize);
+            params = urlForSanitize.searchParams;
+            if (window.fishingCharterService && typeof window.fishingCharterService.initializeFromURL === 'function') {
+                window.fishingCharterService.initializeFromURL();
+            }
+        }
+
+        const didSync = canSync && typeof syncExtrasToStay === 'function' && syncExtrasToStay();
+        if (canSync && typeof markExtrasStaySyncRan === 'function') {
+            markExtrasStaySyncRan();
+        }
+
+        extrasScheduleTrace('pipeline: after syncExtrasToStay', { didSync });
+
+        if (!didSync && !extrasComplete && !isPackage) {
+            end && end({ skipped: true, reason: 'noSyncNoComplete' });
+            return;
+        }
+
+        if (window.boatRentalService && typeof window.boatRentalService.initializeFromURL === 'function') {
+            window.boatRentalService.initializeFromURL();
+        }
+        if (window.fishingCharterService && typeof window.fishingCharterService.initializeFromURL === 'function') {
+            window.fishingCharterService.initializeFromURL();
+        }
+
+        const boatId = params.get('boatId');
+        const boatNeedsFetch = boatId && (
+            !window.selectedBoatData || String(window.selectedBoatData.id) !== String(boatId)
+        );
+
+        if (window.fishingCharterService && typeof window.fishingCharterService.populateSelectedFishingCharterBlock === 'function') {
+            const endPopulate = window.kbStart && window.kbStart('extras-schedule: populateSelectedFishingCharterBlock');
+            const charterResult = window.fishingCharterService.populateSelectedFishingCharterBlock();
+            if (charterResult && typeof charterResult.then === 'function') {
+                await charterResult.catch(() => { });
+            }
+            endPopulate && endPopulate();
+        }
+
+        if (boatNeedsFetch && window.handleBoatFunctionality) {
+            window.handleBoatFunctionality();
+            if (window.updateAddDatesHeading) window.updateAddDatesHeading();
+            if (window.updateMobileHandlersState) window.updateMobileHandlersState();
+            end && end({ earlyExit: 'boatNeedsFetch' });
+            return;
+        }
+
+        if (window.populateSelectedBoatBlock) {
+            window.populateSelectedBoatBlock();
+        }
+        if (window.updatePricingDisplayForExtras) {
+            const endPricing = window.kbStart && window.kbStart('extras-schedule: updatePricingDisplayForExtras');
+            await window.updatePricingDisplayForExtras();
+            endPricing && endPricing();
+        }
+        if (window.updateMobileHandlersState) {
+            window.updateMobileHandlersState();
+        }
+        if (window.validateExtrasAvailabilityOnLoad) {
+            await window.validateExtrasAvailabilityOnLoad();
+        }
+        end && end({ ran: true, didSync, isPackage, extrasComplete });
+    } catch (e) {
+        end && end({ error: e && e.message });
+        throw e;
+    } finally {
+        window._extrasStaySyncPipelineRunning = false;
+        if (window._extrasPipelineSkipMinLoading) {
+            window._extrasPipelineSkipMinLoading = false;
+            window._footerLoadingSince = 0;
+        } else {
+            await ensureMinFooterLoadingDuration();
+        }
+        if (typeof window.syncReservationSettlingClass === 'function') {
+            window.syncReservationSettlingClass(false);
+        }
+        if (window.scheduleUpdateAllButtonVisibility) {
+            window.scheduleUpdateAllButtonVisibility();
+        } else if (window.updateAllButtonVisibility) {
+            window.updateAllButtonVisibility();
+        }
+        if (window.updateAddDatesHeading) {
+            window.updateAddDatesHeading();
+        }
+    }
+}
+
+/** True while stay/calendar/extras pipeline is settling — heading and total must not show together. */
+function isReservationPanelSettling() {
+    if (window._extrasStaySyncPipelineRunning) return true;
+
+    const urlParams = new URLSearchParams(window.location.search);
+    if (isPackageStayNightMismatch(urlParams)) return false;
+    const checkin = urlParams.get('checkin');
+    const checkout = urlParams.get('checkout');
+    const datesSelected = !!(checkin && checkout && String(checkin).trim() !== '' && String(checkout).trim() !== '');
+    if (!datesSelected) return false;
+
+    const r = window.Wized && window.Wized.data && window.Wized.data.r;
+    if (!r) return true;
+
+    const cal = r.Load_Property_Calendar_Query;
+    const calendarQueryPending = !!(cal && (!cal.hasRequested || cal.isRequesting));
+    const calendarStayValidationReady = !!(
+        cal && cal.data &&
+        r.Load_Property_Details && r.Load_Property_Details.data
+    );
+
+    return !calendarStayValidationReady || calendarQueryPending;
+}
+window.isReservationPanelSettling = isReservationPanelSettling;
+
+function pruneExtrasScheduleUrlParams() {
+    const url = new URL(window.location);
+    const params = url.searchParams;
+    const charterNumbers = getCharterNumbersFromUrl(params);
+    const hasBoat = !!params.get('boatId');
+
+    if (!hasBoat) {
+        params.delete('boatStartOffset');
+        params.delete('boatLength');
+    }
+    if (charterNumbers.length === 0) {
+        params.delete('charterOffsets');
+    }
+    if (!hasBoat && charterNumbers.length === 0) {
+        params.delete('scheduleNights');
+    }
+
+    window.history.replaceState(null, '', url);
+}
+
+function refreshExtrasScheduleAfterRemoval() {
+    pruneExtrasScheduleUrlParams();
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('checkin') && params.get('checkout') && window.learnExtrasScheduleFromUrl) {
+        window.learnExtrasScheduleFromUrl({ fromUserSave: false });
+    }
+}
+
+window.getCharterNumbersFromUrl = getCharterNumbersFromUrl;
+window.canSyncExtrasToStay = canSyncExtrasToStay;
+window.getRequiredScheduleNights = getRequiredScheduleNights;
+window.clearAutofilledExtraDatesInUrl = clearAutofilledExtraDatesInUrl;
+window.clearExtraDatesWhenStayRemoved = clearExtraDatesWhenStayRemoved;
+window.syncExtrasToStay = syncExtrasToStay;
+window.learnExtrasScheduleFromUrl = learnExtrasScheduleFromUrl;
+window.runExtrasStaySyncPipeline = runExtrasStaySyncPipeline;
+window.getStayCalendarValidation = getStayCalendarValidation;
+window.shouldRunExtrasScheduleOnLoad = shouldRunExtrasScheduleOnLoad;
+window.sanitizeOrphanExtrasScheduleParams = sanitizeOrphanExtrasScheduleParams;
+window.isPackageExtrasUrl = isPackageExtrasUrl;
+window.isPackageStayNightMismatch = isPackageStayNightMismatch;
+window.pruneExtrasScheduleUrlParams = pruneExtrasScheduleUrlParams;
+window.refreshExtrasScheduleAfterRemoval = refreshExtrasScheduleAfterRemoval;
+
+try {
+    window.kbLoadMark && window.kbLoadMark('extras-schedule: boot sanitizeOrphanExtrasScheduleParams');
+    sanitizeOrphanExtrasScheduleParams();
+} catch (e) { /* ignore */ }
 
 
 
@@ -2568,30 +4516,19 @@ document.addEventListener('DOMContentLoaded', function () {
             if (!selectedStartDate) {
                 // Prevent selecting checkout-only dates as check-in
                 if (isCheckoutOnly) {
-                    showError('This date is only available for checkout');
+                    showSelectionFeedback(dateString, 'This date is only available for checkout');
                     return;
                 }
 
                 if (!isCheckinAllowedOnDate(date)) {
-                    showError('Check-in is not available on this day');
+                    showSelectionFeedback(dateString, 'Check-in is not available on this day');
                     return;
                 }
 
                 selectedStartDate = date;
                 selectedEndDate = null;
                 selectingCheckOut = true;
-
-                // Clear URL parameters when starting new selection
-                const url = new URL(window.location);
-                url.searchParams.set('checkin', '');
-                url.searchParams.set('checkout', '');
-                window.history.replaceState({}, '', url);
-
-                // Update Wized parameters
-                Wized.data.n.parameter.checkin = "";
-                Wized.data.n.parameter.checkout = "";
-
-                window.kbLog && window.kbLog('handleDateSelection: branch=first-check-in — cleared checkin/checkout in URL+Wized', { picked: dateString });
+                hideDatesError();
 
                 updateInputs();
                 createCalendar();
@@ -2605,30 +4542,19 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (date < selectedStartDate) {
                     // Prevent selecting checkout-only dates as check-in
                     if (isCheckoutOnly) {
-                        showError('This date is only available for checkout');
+                        showSelectionFeedback(dateString, 'This date is only available for checkout');
                         return;
                     }
 
                     if (!isCheckinAllowedOnDate(date)) {
-                        showError('Check-in is not available on this day');
+                        showSelectionFeedback(dateString, 'Check-in is not available on this day');
                         return;
                     }
 
                     selectedStartDate = date;
                     selectedEndDate = null;
                     selectingCheckOut = true;
-
-                    // Clear URL parameters when restarting selection
-                    const url = new URL(window.location);
-                    url.searchParams.set('checkin', '');
-                    url.searchParams.set('checkout', '');
-                    window.history.replaceState({}, '', url);
-
-                    // Update Wized parameters
-                    Wized.data.n.parameter.checkin = "";
-                    Wized.data.n.parameter.checkout = "";
-
-                    window.kbLog && window.kbLog('handleDateSelection: branch=restart-check-in (date<start) — cleared checkin/checkout in URL+Wized', { picked: dateString });
+                    hideDatesError();
 
                     updateInputs();
                     createCalendar();
@@ -2640,17 +4566,17 @@ document.addEventListener('DOMContentLoaded', function () {
                 const daysDiff = Math.round((date - selectedStartDate) / (1000 * 60 * 60 * 24));
 
                 if (daysDiff < effectiveMinNights) {
-                    showError(`Minimum stay is ${effectiveMinNights} nights`);
+                    showSelectionFeedback(dateString, `Minimum stay is ${effectiveMinNights} nights`);
                     return;
                 }
 
                 if (daysDiff > maxNights) {
-                    showError(`Maximum stay is ${maxNights} nights`);
+                    showSelectionFeedback(dateString, `Maximum stay is ${maxNights} nights`);
                     return;
                 }
 
                 if (!isCheckoutAllowedOnDate(date)) {
-                    showError('Check-out is not available on this day');
+                    showSelectionFeedback(dateString, 'Check-out is not available on this day');
                     return;
                 }
 
@@ -2659,7 +4585,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 let currentDate = new Date(selectedStartDate);
                 while (currentDate < date) {
                     if (isDateDisabled(currentDate, true)) {
-                        showError('Selected dates include unavailable days');
+                        showSelectionFeedback(dateString, 'Selected dates include unavailable days');
                         return;
                     }
                     currentDate = addDays(currentDate, 1);
@@ -2667,7 +4593,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 // Check if date is after first blocked date
                 if (firstBlockedDate && date > firstBlockedDate) {
-                    showError('Cannot book past unavailable dates');
+                    showSelectionFeedback(dateString, 'Cannot book past unavailable dates');
                     return;
                 }
 
@@ -2684,37 +4610,45 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Starting new selection - set as check-in
                 // Prevent selecting checkout-only dates as check-in
                 if (isCheckoutOnly) {
-                    showError('This date is only available for checkout');
+                    showSelectionFeedback(dateString, 'This date is only available for checkout');
                     return;
                 }
 
                 if (!isCheckinAllowedOnDate(date)) {
-                    showError('Check-in is not available on this day');
+                    showSelectionFeedback(dateString, 'Check-in is not available on this day');
                     return;
                 }
 
                 selectedStartDate = date;
                 selectedEndDate = null;
                 selectingCheckOut = true;
-
-                // Clear URL parameters when starting new selection
-                const url = new URL(window.location);
-                url.searchParams.set('checkin', '');
-                url.searchParams.set('checkout', '');
-                window.history.replaceState({}, '', url);
-
-                // Update Wized parameters
-                Wized.data.n.parameter.checkin = "";
-                Wized.data.n.parameter.checkout = "";
-
-                window.kbLog && window.kbLog('handleDateSelection: branch=new-range-start — cleared checkin/checkout in URL+Wized', { picked: dateString });
+                hideDatesError();
 
                 updateInputs();
             }
 
-            // Re-render calendar to update visual state
             createCalendar();
             createMobileCalendar();
+        }
+
+        /** Clear committed stay in URL + Wized using empty strings (never delete — Wized cancellation expressions throw). */
+        function clearStayParamsInUrlAndWized() {
+            try {
+                const url = new URL(window.location);
+                url.searchParams.set('checkin', '');
+                url.searchParams.set('checkout', '');
+                window.history.replaceState(null, '', url);
+            } catch (e) { /* ignore */ }
+            try {
+                const w = window.Wized && window.Wized.data && window.Wized.data.n && window.Wized.data.n.parameter;
+                if (w) {
+                    w.checkin = '';
+                    w.checkout = '';
+                }
+            } catch (e) { /* ignore */ }
+            if (window.clearExtraDatesWhenStayRemoved) {
+                window.clearExtraDatesWhenStayRemoved();
+            }
         }
 
         function updateInputs() {
@@ -2766,16 +4700,20 @@ document.addEventListener('DOMContentLoaded', function () {
                     }, 10);
                 }
 
-                // Also update button visibility immediately
-                if (window.updateAllButtonVisibility) {
-                    setTimeout(() => {
-                        window.updateAllButtonVisibility();
-                    }, 10);
-                }
+                extrasScheduleTrace('stay calendar: updateURL (before pipeline)', {
+                    checkin: formatDate(selectedStartDate),
+                    checkout: formatDate(selectedEndDate),
+                });
 
-                // Re-validate extras availability when stay dates change
-                if (window.validateExtrasAvailabilityOnLoad) {
-                    window.validateExtrasAvailabilityOnLoad();
+                // Extras: sync offsets + pricing/validation/visibility (no modals; pipeline runs sync internally)
+                if (window.runExtrasStaySyncPipeline) {
+                    window.runExtrasStaySyncPipeline()
+                        .then(() => {
+                            extrasScheduleTrace('stay calendar: pipeline finished', {});
+                        })
+                        .catch((err) => {
+                            extrasScheduleTrace('stay calendar: pipeline error', { message: err && err.message });
+                        });
                 }
             }
         }
@@ -2795,7 +4733,28 @@ document.addEventListener('DOMContentLoaded', function () {
             });
         }
 
+        function hideDatesError() {
+            const container = document.querySelector('[data-element="Dates_Error_Container"]');
+            if (container) container.style.display = 'none';
+        }
+
+        /** In-calendar rejections (invalid click) — tooltip only, never the persistent error bar. */
+        function showSelectionFeedback(dateString, message) {
+            hideDatesError();
+            const dayElement = document.querySelector(`.calendar-day[data-date="${dateString}"]`);
+            if (dayElement) {
+                showCheckinoutTooltip(dayElement, message);
+            }
+        }
+
         function showError(message) {
+            const urlParams = new URLSearchParams(window.location.search);
+            const hasCheckin = urlParams.get('checkin') && String(urlParams.get('checkin')).trim() !== '';
+            const hasCheckout = urlParams.get('checkout') && String(urlParams.get('checkout')).trim() !== '';
+            if (!hasCheckin || !hasCheckout) {
+                return;
+            }
+
             const errorContainer = document.querySelector('[data-element="Dates_Error_Container"]');
             const errorTexts = document.querySelectorAll('[data-element="Dates_Error_Text"]');
 
@@ -2808,6 +4767,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 errorContainer.style.display = 'flex';
             }
         }
+
+        window.hideDatesError = hideDatesError;
 
         function showMinNightsTooltip(dayElement, minNights) {
             // Remove any existing tooltips
@@ -2880,17 +4841,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 selectedStartDate = null;
                 selectedEndDate = null;
                 selectingCheckOut = false;
+                clearStayParamsInUrlAndWized();
                 updateInputs();
-
-                // Clear URL parameters
-                const url = new URL(window.location);
-                url.searchParams.set('checkin', '');
-                url.searchParams.set('checkout', '');
-                window.history.replaceState({}, '', url);
-
-                // Update Wized parameters
-                Wized.data.n.parameter.checkin = "";
-                Wized.data.n.parameter.checkout = "";
 
                 createCalendar();
                 createMobileCalendar();
@@ -2935,29 +4887,25 @@ document.addEventListener('DOMContentLoaded', function () {
         const calendarModal = document.querySelector('[data-element="calendarModal"]');
         const mobileCalendarModal = document.querySelector('[data-element="mobileCalendarModal"]');
 
-        // Helper function to clear incomplete date selection
-        function clearIncompleteDateSelection() {
-            // Clear the incomplete date selection
+        /**
+         * @param {{ rebuildCalendars?: boolean }} [options]
+         * rebuildCalendars: true when guest taps Clear dates in the modal; false on dismiss (avoids mobile full rebuild freeze).
+         */
+        function clearIncompleteDateSelection(options = {}) {
+            const rebuildCalendars = options.rebuildCalendars === true;
+
             selectedStartDate = null;
             selectedEndDate = null;
             selectingCheckOut = false;
 
-            // Update URL to clear dates
-            const url = new URL(window.location);
-            url.searchParams.set('checkin', '');
-            url.searchParams.set('checkout', '');
-            window.history.replaceState({}, '', url);
-
-            // Update Wized parameters
-            Wized.data.n.parameter.checkin = "";
-            Wized.data.n.parameter.checkout = "";
-
-            // Update input displays
+            clearStayParamsInUrlAndWized();
             updateInputs();
+            hideDatesError();
 
-            // Recreate calendars to reflect cleared state
-            createCalendar();
-            createMobileCalendar();
+            if (rebuildCalendars) {
+                createCalendar();
+                createMobileCalendar();
+            }
 
             // Update all UI elements
             if (window.updateAvailabilityStatus) {
@@ -2992,25 +4940,19 @@ document.addEventListener('DOMContentLoaded', function () {
                 e.preventDefault();
                 e.stopPropagation();
 
-                // Check if only one date is selected (incomplete selection)
                 if (selectedStartDate && !selectedEndDate) {
-                    clearIncompleteDateSelection();
+                    clearIncompleteDateSelection({ rebuildCalendars: false });
                 }
 
-                // Close desktop modal
                 if (calendarModal) {
                     calendarModal.style.display = 'none';
                 }
-
-                // Close mobile modal
                 if (mobileCalendarModal) {
                     mobileCalendarModal.style.display = 'none';
                 }
 
-                // Re-enable body scroll on mobile (991px or less)
-                if (window.innerWidth <= 991) {
-                    document.body.classList.remove('no-scroll');
-                }
+                document.body.classList.remove('no-scroll');
+                document.documentElement.classList.remove('no-scroll');
 
                 // Trigger calendar query if both dates are selected
                 if (selectedStartDate && selectedEndDate) {
@@ -3039,15 +4981,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (calendarContent && !calendarContent.contains(event.target)) {
                     // Check if only one date is selected (incomplete selection)
                     if (selectedStartDate && !selectedEndDate) {
-                        clearIncompleteDateSelection();
+                        clearIncompleteDateSelection({ rebuildCalendars: false });
                     }
 
                     calendarModal.style.display = 'none';
-
-                    // Re-enable body scroll on mobile (991px or less)
-                    if (window.innerWidth <= 991) {
-                        document.body.classList.remove('no-scroll');
-                    }
+                    document.body.classList.remove('no-scroll');
+                    document.documentElement.classList.remove('no-scroll');
 
                     // Trigger calendar query if both dates are selected
                     if (selectedStartDate && selectedEndDate) {
@@ -3073,15 +5012,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (mobileCalendarContent && !mobileCalendarContent.contains(event.target)) {
                     // Check if only one date is selected (incomplete selection)
                     if (selectedStartDate && !selectedEndDate) {
-                        clearIncompleteDateSelection();
+                        clearIncompleteDateSelection({ rebuildCalendars: false });
                     }
 
                     mobileCalendarModal.style.display = 'none';
-
-                    // Re-enable body scroll on mobile (991px or less)
-                    if (window.innerWidth <= 991) {
-                        document.body.classList.remove('no-scroll');
-                    }
+                    document.body.classList.remove('no-scroll');
+                    document.documentElement.classList.remove('no-scroll');
 
                     // Trigger calendar query if both dates are selected
                     if (selectedStartDate && selectedEndDate) {
@@ -4269,6 +6205,7 @@ document.addEventListener('DOMContentLoaded', () => {
         function runUpdateAddDatesHeading() {
             if (!addDatesHeadings || addDatesHeadings.length === 0) return;
 
+
             const r = Wized.data.r;
             const n = Wized.data.n;
             if (!r) return;
@@ -4296,6 +6233,12 @@ document.addEventListener('DOMContentLoaded', () => {
             // If extras still need dates, keep prompting to add dates (don't flip to change dates)
             const unavailableState = window.getExtrasUnavailableState ? window.getExtrasUnavailableState() : {};
             const extrasHaveUnavailableDates = unavailableState.boatUnavailable || unavailableState.boatNoDatesAvailable || (unavailableState.fishingChartersUnavailable?.length > 0) || (unavailableState.fishingChartersNoDatesAvailable?.length > 0);
+            const stayStillValidating = datesSelected && (
+                window._extrasStaySyncPipelineRunning ||
+                (window.Wized && window.Wized.data && window.Wized.data.r &&
+                    window.Wized.data.r.Load_Property_Calendar_Query &&
+                    window.Wized.data.r.Load_Property_Calendar_Query.isRequesting)
+            );
 
             if (extrasHaveUnavailableDates) {
                 shouldBeVisible = true;
@@ -4303,6 +6246,9 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (extrasNeedDates) {
                 shouldBeVisible = true;
                 headingText = "Add dates for pricing";
+            } else if (stayStillValidating) {
+                shouldBeVisible = true;
+                headingText = 'Building your trip…';
             }
             // Priority 0: If both dates are selected and extras are complete, hide heading immediately (even while waiting for validation)
             // This provides instant feedback when user selects dates
@@ -4361,8 +6307,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 // Dates selected but calendar query hasn't run yet or failed
                 else if (!r.Load_Property_Calendar_Query || !r.Load_Property_Calendar_Query.hasRequested) {
-                    // Hide heading immediately when both dates are selected (optimistic UI)
-                    shouldBeVisible = false;
+                    shouldBeVisible = true;
+                    headingText = stayStillValidating ? 'Building your trip…' : 'Add dates for pricing';
                 }
                 // Calendar query failed
                 else if (r.Load_Property_Calendar_Query.hasRequested && r.Load_Property_Calendar_Query.status != 200) {
@@ -4434,6 +6380,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     // Update pricing (async) and then update button visibility
                     updatePricingDisplayForExtras().then(async () => {
+                        const calParams = new URLSearchParams(window.location.search);
+                        const hasStayDatesForBoat = !!(calParams.get('checkin') && calParams.get('checkout') &&
+                            String(calParams.get('checkin')).trim() !== '' && String(calParams.get('checkout')).trim() !== '');
+
+                        if (hasStayDatesForBoat && Wized.requests && typeof Wized.requests.waitFor === 'function') {
+                            try {
+                                await Promise.race([
+                                    Promise.all([
+                                        Wized.requests.waitFor('Load_Property_Calendar_Query'),
+                                        Wized.requests.waitFor('Load_Property_Details'),
+                                    ]),
+                                    new Promise((_, reject) => setTimeout(() => reject(new Error('calendar/details wait timeout')), 10000))
+                                ]);
+                            } catch (waitErr) {
+                                window.kbLog && window.kbLog('handleBoat (cached): calendar/details wait ended', { message: waitErr && waitErr.message });
+                            }
+                        }
+
                         if (window.updateAllButtonVisibility) {
                             window.updateAllButtonVisibility();
                         }
@@ -4472,19 +6436,22 @@ document.addEventListener('DOMContentLoaded', () => {
                                 String(calParams.get('checkin')).trim() !== '' && String(calParams.get('checkout')).trim() !== '');
 
                             if (hasStayDatesForBoat) {
-                                const endWait = window.kbStart && window.kbStart('handleBoat (fetch): waitFor Load_Property_Calendar_Query');
+                                const endWait = window.kbStart && window.kbStart('handleBoat (fetch): waitFor calendar + details');
                                 try {
                                     await Promise.race([
-                                        Wized.requests.waitFor('Load_Property_Calendar_Query'),
-                                        new Promise((_, reject) => setTimeout(() => reject(new Error('calendar query wait timeout')), 10000))
+                                        Promise.all([
+                                            Wized.requests.waitFor('Load_Property_Calendar_Query'),
+                                            Wized.requests.waitFor('Load_Property_Details'),
+                                        ]),
+                                        new Promise((_, reject) => setTimeout(() => reject(new Error('calendar/details wait timeout')), 10000))
                                     ]);
                                 } catch (waitErr) {
-                                    window.kbLog && window.kbLog('handleBoat (fetch): calendar wait ended', { message: waitErr && waitErr.message });
+                                    window.kbLog && window.kbLog('handleBoat (fetch): calendar/details wait ended', { message: waitErr && waitErr.message });
                                 } finally {
                                     endWait && endWait();
                                 }
                             } else {
-                                window.kbLog && window.kbLog('handleBoat (fetch): skip waitFor Load_Property_Calendar_Query (no stay dates)');
+                                window.kbLog && window.kbLog('handleBoat (fetch): skip waitFor calendar (no stay dates)');
                             }
 
                             await updatePricingDisplayForExtras();
@@ -4553,11 +6520,92 @@ document.addEventListener('DOMContentLoaded', () => {
         // Make handleBoatFunctionality globally available
         window.handleBoatFunctionality = handleBoatFunctionality;
 
+        /** Format and apply boat dates to selectedBoatBlock_datesDelivery from URL (no boat fetch required). */
+        function refreshSelectedBoatBlockDatesDelivery() {
+            const n = Wized.data.n;
+            const urlParams = new URLSearchParams(window.location.search);
+            const boatId = urlParams.get('boatId');
+            if (!boatId) return null;
+
+            const datesDeliveryElements = document.querySelectorAll('[data-element="selectedBoatBlock_datesDelivery"]');
+            if (!datesDeliveryElements.length) return null;
+
+            const rawDates = urlParams.get('boatDates') || n?.parameter?.boatDates || '';
+            const urlBoatDelivery = urlParams.get('boatDelivery') === 'true' || n?.parameter?.boatDelivery === 'true';
+            const svc = window.boatRentalService;
+            let boatDelivery = urlBoatDelivery;
+            if (svc && svc.isEditMode) {
+                boatDelivery = !!(svc.deliverySelected || svc.selectedPrivateDock);
+            }
+
+            const boatDates = decodeURIComponent(rawDates).split(',').filter(Boolean);
+            let formatted = '';
+
+            if (boatDates.length === 0) {
+                datesDeliveryElements.forEach((element) => {
+                    if (element) {
+                        element.textContent = '';
+                        element.style.color = '';
+                        element.style.fontStyle = '';
+                    }
+                });
+            } else {
+                const start = boatDates[0];
+                const end = boatDates[boatDates.length - 1];
+                const getMonthAbbr = (dateStr) => {
+                    const month = parseInt(dateStr.split('-')[1], 10);
+                    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                    return months[month - 1];
+                };
+                const startMonth = getMonthAbbr(start);
+                const startDay = parseInt(start.split('-')[2], 10);
+                const endMonth = getMonthAbbr(end);
+                const endDay = parseInt(end.split('-')[2], 10);
+
+                if (boatDates.length === 1) {
+                    formatted = `${startMonth} ${startDay}`;
+                } else if (startMonth === endMonth) {
+                    formatted = `${startMonth} ${startDay} - ${endDay}`;
+                } else {
+                    formatted = `${startMonth} ${startDay} - ${endMonth} ${endDay}`;
+                }
+                if (boatDelivery) {
+                    formatted += ' - Delivered to dock';
+                }
+
+                datesDeliveryElements.forEach((element) => {
+                    if (element) {
+                        element.textContent = formatted;
+                        element.style.color = '';
+                        element.style.fontStyle = '';
+                    }
+                });
+            }
+
+            extrasReservationTrace('blocks', 'refreshSelectedBoatBlockDatesDelivery', {
+                boatId,
+                urlBoatDates: rawDates,
+                formatted: formatted || '(empty)',
+                elementCount: datesDeliveryElements.length,
+            });
+            return formatted;
+        }
+        window.refreshSelectedBoatBlockDatesDelivery = refreshSelectedBoatBlockDatesDelivery;
+
         // Populate the selectedBoatBlock elements with boat data
         function populateSelectedBoatBlock() {
             const n = Wized.data.n;
+            const urlParams = new URLSearchParams(window.location.search);
+            const hasBoatInUrl = !!urlParams.get('boatId');
+
+            if (hasBoatInUrl) {
+                refreshSelectedBoatBlockDatesDelivery();
+            }
 
             if (!window.selectedBoatData) {
+                extrasReservationTrace('blocks', 'populateSelectedBoatBlock: skip image/name (no selectedBoatData)', {
+                    boatId: urlParams.get('boatId'),
+                });
                 return;
             }
 
@@ -4613,86 +6661,33 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // Update selectedBoatBlock_datesDelivery
-            const datesDeliveryElements = document.querySelectorAll('[data-element="selectedBoatBlock_datesDelivery"]');
             const editButtons = document.querySelectorAll('[data-element="editSelectedBoat"]');
-
-            // Read directly from URL parameters instead of Wized data store
-            const urlParams = new URLSearchParams(window.location.search);
-            const rawDates = urlParams.get('boatDates') || n.parameter?.boatDates || "";
-            const urlBoatDelivery = urlParams.get('boatDelivery') === 'true' || n.parameter?.boatDelivery === 'true';
-            const svc = window.boatRentalService;
-            // In edit mode updateURLParams() skips URL writes, so boatDelivery in the URL can lag
-            // behind the filter / details checkbox; prefer live service state for the summary line.
-            let boatDelivery = urlBoatDelivery;
-            if (svc && svc.isEditMode) {
-                boatDelivery = !!(svc.deliverySelected || svc.selectedPrivateDock);
-            }
-
-            // Decode if needed
-            const decodedDates = decodeURIComponent(rawDates);
-            const boatDates = decodedDates.split(",").filter(Boolean);
-
-            if (datesDeliveryElements.length > 0) {
-                if (boatDates.length === 0) {
-                    // No dates selected - leave text empty (warning styling handled elsewhere)
-                    datesDeliveryElements.forEach(element => {
-                        if (element) {
-                            element.textContent = '';
-                            element.style.color = '';
-                            element.style.fontStyle = '';
-                        }
-                    });
-                } else {
-                    const start = boatDates[0];
-                    const end = boatDates[boatDates.length - 1];
-
-                    // Helper to get month abbreviation from MM
-                    const getMonthAbbr = (dateStr) => {
-                        const month = parseInt(dateStr.split("-")[1], 10);
-                        const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-                        return months[month - 1];
-                    };
-
-                    // Extract month and day
-                    const startMonth = getMonthAbbr(start);
-                    const startDay = parseInt(start.split("-")[2], 10);
-                    const endMonth = getMonthAbbr(end);
-                    const endDay = parseInt(end.split("-")[2], 10);
-
-                    let formatted = "";
-                    if (boatDates.length === 1) {
-                        formatted = `${startMonth} ${startDay}`;
-                    } else if (startMonth === endMonth) {
-                        formatted = `${startMonth} ${startDay} - ${endDay}`;
-                    } else {
-                        formatted = `${startMonth} ${startDay} - ${endMonth} ${endDay}`;
-                    }
-
-                    if (boatDelivery) {
-                        formatted += " - Delivered to dock";
-                    }
-
-                    datesDeliveryElements.forEach(element => {
-                        if (element) {
-                            element.textContent = formatted;
-                            // Reset any warning styling when dates are present
-                            element.style.color = '';
-                            element.style.fontStyle = '';
-                        }
-                    });
-                }
-            }
+            const boatDates = (urlParams.get('boatDates') || n?.parameter?.boatDates || '')
+                .split(',')
+                .filter(Boolean);
 
             // Update edit button text when boat dates are missing but stay dates exist
             if (editButtons.length > 0) {
                 const hasStayDates = !!(urlParams.get('checkin') && urlParams.get('checkout'));
                 const boatDatesMissing = boatDates.length === 0;
+                const unavailableState = window.getExtrasUnavailableState
+                    ? window.getExtrasUnavailableState()
+                    : {};
+                const boatUnavailableUi = !!(
+                    unavailableState.boatUnavailable || unavailableState.boatNoDatesAvailable
+                );
 
                 editButtons.forEach(btn => {
-                    if (btn) {
-                        btn.textContent = (boatDatesMissing && hasStayDates) ? 'Add dates' : 'Edit';
-                    }
+                    if (!btn || boatUnavailableUi) return;
+                    btn.textContent = (boatDatesMissing && hasStayDates) ? 'Add dates' : 'Edit';
                 });
+            }
+
+            if (window.getExtrasUnavailableState && window.updateExtrasNeedingDatesState) {
+                const st = window.getExtrasUnavailableState();
+                if (st.boatUnavailable || st.boatNoDatesAvailable) {
+                    window.updateExtrasNeedingDatesState();
+                }
             }
         }
 
@@ -4725,6 +6720,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         // If marked for removal (unavailable state), trigger removal instead
                         if (editButton.dataset.unavailableAction === 'remove') {
                             if (window.removeBoatFromReservation) window.removeBoatFromReservation();
+                            return;
+                        }
+                        if (editButton.dataset.unavailableAction === 'browse') {
+                            extrasReservationTrace('boat', 'block: choose another boat click', {});
+                            if (typeof openBoatBrowseForReservation === 'function') {
+                                openBoatBrowseForReservation();
+                            }
                             return;
                         }
                         const urlParams = new URLSearchParams(window.location.search);
@@ -4813,6 +6815,23 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 }
             });
+
+            // Clicking the block opens edit (same as editSelectedBoat), except on remove/edit controls
+            const selectedBoatBlocks = document.querySelectorAll('[data-element="selectedBoatBlock"]');
+            selectedBoatBlocks.forEach((block) => {
+                if (!block) return;
+                if (block._selectedBoatBlockClickHandler) {
+                    block.removeEventListener('click', block._selectedBoatBlockClickHandler);
+                }
+                block.style.cursor = 'pointer';
+                block._selectedBoatBlockClickHandler = (e) => {
+                    if (e.target.closest('[data-element="removeSelectedBoat"]')) return;
+                    if (e.target.closest('[data-element="editSelectedBoat"]')) return;
+                    const editBtn = block.querySelector('[data-element="editSelectedBoat"]');
+                    if (editBtn) editBtn.click();
+                };
+                block.addEventListener('click', block._selectedBoatBlockClickHandler);
+            });
         }
 
         // Initialize boat handlers
@@ -4839,6 +6858,13 @@ document.addEventListener('DOMContentLoaded', () => {
         function updateReservationTotalContainer() {
             const containerElements = document.querySelectorAll('[data-element="Listing_Reservation_Amount_Total_Container"]');
             if (!containerElements || containerElements.length === 0) return;
+
+            if (typeof window.isReservationPanelSettling === 'function' && window.isReservationPanelSettling()) {
+                containerElements.forEach(containerElement => {
+                    if (containerElement) containerElement.style.display = 'none';
+                });
+                return;
+            }
 
             const r = Wized.data.r;
             const n = Wized.data.n;
@@ -5079,6 +7105,7 @@ document.addEventListener('DOMContentLoaded', () => {
         function updateListingQueryPriceDetailsVisibility() {
             const priceDetailsElement = document.querySelector('[data-element="Listing_Query_Price_Details"]');
             if (!priceDetailsElement) return;
+
 
             const r = Wized.data.r;
             const n = Wized.data.n;
@@ -5468,9 +7495,33 @@ document.addEventListener('DOMContentLoaded', () => {
             const extrasMissingInURL = typeof hasExtrasMissingDatesInURL === 'function' ? hasExtrasMissingDatesInURL() : false;
             // Prefer URL as source of truth; service state can lag after save
             const extrasNeedDates = extrasMissingInURL;
+            const unavailableState = window.getExtrasUnavailableState
+                ? window.getExtrasUnavailableState()
+                : {};
+            const extrasHaveUnavailableDates = !!(
+                unavailableState.boatUnavailable ||
+                unavailableState.boatNoDatesAvailable ||
+                (unavailableState.fishingChartersUnavailable || []).length > 0 ||
+                (unavailableState.fishingChartersNoDatesAvailable || []).length > 0
+            );
+            const isValidating = typeof window.isExtrasAvailabilityValidating === 'function' &&
+                window.isExtrasAvailabilityValidating();
 
             // Show/hide footer based on date selection
-            if (!datesSelected || extrasNeedDates) {
+            if (!datesSelected || extrasNeedDates || extrasHaveUnavailableDates || isValidating) {
+                extrasReservationTrace('phoneFooter', 'hide datesDetailsContainer', {
+                    datesSelected,
+                    extrasNeedDates,
+                    extrasHaveUnavailableDates,
+                    isValidating,
+                    reason: !datesSelected
+                        ? 'noStayDates'
+                        : extrasNeedDates
+                            ? 'extrasNeedDates'
+                            : extrasHaveUnavailableDates
+                                ? 'extrasUnavailable'
+                                : 'validating',
+                });
                 phoneFooterContainer.style.display = 'none';
                 return;
             }
@@ -5512,6 +7563,12 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             phoneFooterContainer.style.display = shouldShow ? 'flex' : 'none';
+
+            extrasReservationTrace('phoneFooter', shouldShow ? 'show datesDetailsContainer' : 'hide datesDetailsContainer', {
+                shouldShow,
+                allAvailable,
+                meetsMinNights,
+            });
 
             if (!shouldShow) return;
 
@@ -5689,6 +7746,7 @@ let _extrasPricingRerunWanted = false;
 
 async function updatePricingDisplayForExtrasBody() {
     window.kbLog && window.kbLog('updatePricingDisplayForExtras: enter');
+    extrasReservationTrace('pricing', 'updatePricingDisplayForExtras: enter', {});
     const listingOnlyPricingSections = document.querySelectorAll('[data-element="ListingOnly_Query_Price_Details"]');
     const listingExtrasPricingSections = document.querySelectorAll('[data-element="ListingExtras_Query_Price_Details"]');
 
@@ -5799,6 +7857,12 @@ async function updatePricingDisplayForExtrasBody() {
                 stayTotal: stayPricing.total,
                 boatTotal: boatPricing.totalWithFees,
                 charterTotal: fishingCharterPricing.totalWithFees
+            });
+            extrasReservationTrace('pricing', 'updatePricingDisplayForExtras: totals updated', {
+                grandTotal: lastExtrasGrandTotal,
+                stayTotal: stayPricing.total,
+                boatTotal: boatPricing.totalWithFees,
+                charterTotal: fishingCharterPricing.totalWithFees,
             });
 
             // Sync the main reservation total with the combined amount immediately
@@ -6779,11 +8843,32 @@ function clearBoatDatesFromReservation() {
     if (window.updateAllButtonVisibility) window.updateAllButtonVisibility();
 }
 
+function pruneStaleCharterOffsetsFromUrl() {
+    const url = new URL(window.location);
+    const params = url.searchParams;
+    if (!params.get('charterOffsets')) return false;
+
+    const anyCharterDates = getCharterNumbersFromUrl(params).some((num) => {
+        const raw = params.get(`fishingCharterDates${num}`);
+        return !!(raw && raw.trim());
+    });
+
+    if (anyCharterDates) return false;
+
+    params.delete('charterOffsets');
+    window.history.replaceState(null, '', url);
+    extrasScheduleLog('pruneStaleCharterOffsets: removed charterOffsets (no charter dates in URL)');
+    return true;
+}
+
 // Clear just the charter dates from URL (keeps charter selected, goes to "needs dates" state)
 function clearCharterDatesFromReservation(charterNumber) {
     const url = new URL(window.location);
     url.searchParams.set(`fishingCharterDates${charterNumber}`, '');
+    url.searchParams.delete(charterDayOffsetsKey(charterNumber));
+    extrasScheduleTrace('clearCharterDatesFromReservation', { charterNumber });
     window.history.replaceState({}, '', url);
+    pruneStaleCharterOffsetsFromUrl();
 
     // Clear unavailable state for this charter
     const unavailableState = window.getExtrasUnavailableState ? window.getExtrasUnavailableState() : null;
@@ -6805,6 +8890,10 @@ function clearCharterDatesFromReservation(charterNumber) {
 
 // Remove boat from reservation
 function removeBoatFromReservation() {
+    extrasReservationTrace('boat', 'removeBoatFromReservation', {
+        boatId: new URLSearchParams(window.location.search).get('boatId'),
+        boatDates: new URLSearchParams(window.location.search).get('boatDates'),
+    });
 
     const url = new URL(window.location);
     url.searchParams.delete('boatId');
@@ -6814,14 +8903,18 @@ function removeBoatFromReservation() {
     url.searchParams.delete('boatLengthType');
     url.searchParams.delete('boatPrivateDock');
     url.searchParams.delete('boatDelivery');
+    url.searchParams.delete('boatStartOffset');
+    url.searchParams.delete('boatLength');
     window.history.replaceState({}, '', url);
+
+    if (window.refreshExtrasScheduleAfterRemoval) {
+        window.refreshExtrasScheduleAfterRemoval();
+    }
 
     // Clear boat data and unavailable state
     window.selectedBoatData = null;
-    const unavailableState = window.getExtrasUnavailableState ? window.getExtrasUnavailableState() : null;
-    if (unavailableState) {
-        unavailableState.boatUnavailable = false;
-        unavailableState.boatNoDatesAvailable = false;
+    if (typeof window.clearBoatFromExtrasUnavailableState === 'function') {
+        window.clearBoatFromExtrasUnavailableState();
     }
 
     // Hide selected boat blocks
@@ -6877,14 +8970,21 @@ function removeBoatFromReservation() {
     }
 
     if (window.mobileBoatButtonHandler) window.mobileBoatButtonHandler.updateMobileBoatButtonState();
+    if (window.updatePricingDisplayForExtras) {
+        try { window.updatePricingDisplayForExtras(); } catch (err) { }
+    }
     try {
         if (window.updateAllButtonVisibility) window.updateAllButtonVisibility();
     } catch (err) {
+    }
+    if (typeof window.scheduleExtrasValidationAfterUrlChange === 'function') {
+        window.scheduleExtrasValidationAfterUrlChange();
     }
 }
 
 // Remove fishing charter from reservation
 function removeFishingCharterFromReservation(numberToRemove) {
+    extrasReservationTrace('charter', 'removeFishingCharterFromReservation', { numberToRemove });
     // Clear unavailable state for this charter
     const unavailableState = window.getExtrasUnavailableState ? window.getExtrasUnavailableState() : null;
     if (unavailableState) {
@@ -6959,6 +9059,10 @@ function removeFishingCharterFromReservation(numberToRemove) {
     }
 
     window.history.replaceState({}, '', url);
+
+    if (window.refreshExtrasScheduleAfterRemoval) {
+        window.refreshExtrasScheduleAfterRemoval();
+    }
 
     // Reset fishing charter service modal state and filter states if all charters are removed
     if (window.fishingCharterService) {
@@ -7061,6 +9165,9 @@ function removeFishingCharterFromReservation(numberToRemove) {
         if (window.updateAllButtonVisibility) window.updateAllButtonVisibility();
     } catch (err) {
     }
+    if (typeof window.scheduleExtrasValidationAfterUrlChange === 'function') {
+        window.scheduleExtrasValidationAfterUrlChange();
+    }
 }
 
 // Make functions globally available
@@ -7120,6 +9227,31 @@ document.addEventListener('DOMContentLoaded', () => {
                 this._cache = {};
             },
 
+            invalidateCharterAvailableTripsCache(charterId) {
+                const id = String(charterId);
+                const prefix = 'fishingCharters_calendar_availableTrips:';
+                Object.keys(this._cache).forEach((key) => {
+                    if (!key.startsWith(prefix)) return;
+                    if (
+                        key.includes(`"fishingCharters_id":"${id}"`) ||
+                        key.includes(`"fishingCharters_id":${id}`)
+                    ) {
+                        delete this._cache[key];
+                    }
+                });
+            },
+
+            invalidateBoatBatchAvailabilityCache(boatId) {
+                const id = String(boatId);
+                const prefix = 'boats_batchAvailability:';
+                Object.keys(this._cache).forEach((key) => {
+                    if (!key.startsWith(prefix)) return;
+                    if (key.includes(id)) {
+                        delete this._cache[key];
+                    }
+                });
+            },
+
             async _fetch(endpoint, params = {}) {
                 const url = new URL(`${this.BASE_URL}/${endpoint}`);
                 Object.entries(params).forEach(([k, v]) => {
@@ -7133,12 +9265,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 return res.json();
             },
 
-            async fetchBoatBatchAvailability(boatIds, dates) {
+            async fetchBoatBatchAvailability(boatIds, dates, options = {}) {
                 if (!boatIds.length || !dates.length) return { dates: [], boats: [] };
                 const params = { boat_ids: boatIds.join(','), dates: dates.join(',') };
                 const key = this._cacheKey('boats_batchAvailability', params);
-                const cached = this._getCached(key);
-                if (cached) return cached;
+                if (!options.forceRefresh) {
+                    const cached = this._getCached(key);
+                    if (cached) return cached;
+                }
                 try {
                     const data = await this._fetch('boats_batchAvailability', params);
                     this._setCache(key, data);
@@ -7205,15 +9339,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
 
-            async fetchCharterAvailableTrips(charterId, dates) {
+            async fetchCharterAvailableTrips(charterId, dates, options = {}) {
                 if (!charterId || !dates.length) {
                     return [];
                 }
                 const params = { fishingCharters_id: charterId, dates: dates.join(',') };
                 const key = this._cacheKey('fishingCharters_calendar_availableTrips', params);
-                const cached = this._getCached(key);
-                if (cached) {
-                    return cached;
+                if (!options.forceRefresh) {
+                    const cached = this._getCached(key);
+                    if (cached) {
+                        return cached;
+                    }
                 }
                 try {
                     const data = await this._fetch('fishingCharters_calendar_availableTrips', params);
@@ -7225,10 +9361,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
 
-            async validateBoatAvailability(boatId, dates) {
+            async validateBoatAvailability(boatId, dates, options = {}) {
                 if (!boatId || !dates.length) return { available: true, unavailable_dates: [] };
                 try {
-                    const data = await this.fetchBoatBatchAvailability([boatId], dates);
+                    const data = await this.fetchBoatBatchAvailability([boatId], dates, options);
                     const boatResult = data.boats?.find(b => b.boat_id == boatId);
                     return boatResult || { available: true, unavailable_dates: [] };
                 } catch (e) {
@@ -7450,6 +9586,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Edit mode tracking - store original params to restore if user cancels
                 this.isEditMode = false;
                 this.originalEditParams = null;
+                /** When set, browse list hides this boat (user is replacing an unavailable selection). */
+                this.browseExcludeBoatId = null;
 
                 // Flag to prevent multiple rapid calls to handleAddToReservation
                 this.isAddingToReservation = false;
@@ -10166,12 +12304,16 @@ document.addEventListener('DOMContentLoaded', () => {
                         this.hideSkeletonCards();
                     }
 
-                    // Fetch batch availability when dates are selected
-                    if (this.selectedDates.length > 0 && allBoats.length > 0) {
+                    // Fetch batch availability for stay span (or selected boat dates as fallback)
+                    const availabilityDates = this.getDatesForBoatAvailabilityBatch();
+                    if (availabilityDates.length > 0 && allBoats.length > 0) {
                         this.showSkeletonCards();
                         try {
                             const boatIds = allBoats.map(b => b.id);
-                            this.batchAvailabilityData = await CalendarAvailabilityService.fetchBoatBatchAvailability(boatIds, this.selectedDates);
+                            this.batchAvailabilityData = await CalendarAvailabilityService.fetchBoatBatchAvailability(
+                                boatIds,
+                                availabilityDates
+                            );
                         } catch (e) {
                             this.batchAvailabilityData = null;
                         }
@@ -10705,6 +12847,7 @@ document.addEventListener('DOMContentLoaded', () => {
             closeModal() {
                 // Invalidate any in-flight showBoatDetails calls.
                 this._showBoatDetailsSeq = (this._showBoatDetailsSeq || 0) + 1;
+                this.browseExcludeBoatId = null;
 
                 if (window._hideDetailsLoader) window._hideDetailsLoader('boat');
 
@@ -10858,6 +13001,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 this._isOpeningBoatModal = true;
 
                 try {
+                    if (!this.browseExcludeBoatId) {
+                        const unavailableState = window.getExtrasUnavailableState
+                            ? window.getExtrasUnavailableState()
+                            : {};
+                        const urlParamsForExclude = new URLSearchParams(window.location.search);
+                        const currentBoatId = urlParamsForExclude.get('boatId');
+                        if (
+                            currentBoatId &&
+                            (unavailableState.boatUnavailable || unavailableState.boatNoDatesAvailable)
+                        ) {
+                            this.browseExcludeBoatId = currentBoatId;
+                        }
+                    }
                     const urlParams = new URLSearchParams(window.location.search);
                     const checkin = urlParams.get('checkin');
                     const checkout = urlParams.get('checkout');
@@ -11204,6 +13360,9 @@ document.addEventListener('DOMContentLoaded', () => {
             clearDatesFilter() {
                 // Close all popups
                 this.closeAllPopups();
+
+                // User is picking a new date range — allow previously excluded boat back in results
+                this.browseExcludeBoatId = null;
 
                 // Clear date-related filters (excluding pickup time now)
                 this.selectedDates = [];
@@ -11613,12 +13772,45 @@ document.addEventListener('DOMContentLoaded', () => {
                 const availableDays = this.getAvailableDaysForMinCheck();
 
                 const filteredBoats = boats.filter(boat => {
-                    // Filter by calendar availability (completely hide unavailable boats)
-                    if (this.batchAvailabilityData && this.batchAvailabilityData.boats && this.selectedDates.length > 0) {
-                        const boatAvail = this.batchAvailabilityData.boats.find(b => b.boat_id == boat.id);
+                    // Hide current boat only while browse still has the invalid pre-filled date filter
+                    if (
+                        this.browseExcludeBoatId &&
+                        this.selectedDates.length > 0 &&
+                        String(boat.id) === String(this.browseExcludeBoatId)
+                    ) {
+                        return false;
+                    }
+
+                    const availabilityDates = this.getDatesForBoatAvailabilityBatch();
+
+                    if (
+                        this.batchAvailabilityData &&
+                        this.batchAvailabilityData.boats &&
+                        availabilityDates.length > 0
+                    ) {
+                        const boatAvail = this.batchAvailabilityData.boats.find((b) => b.boat_id == boat.id);
+                        if (boatAvail) {
+                            // Browse: boat min days only (user may pick fewer days than learned scheduleNights)
+                            const requiredMinDays = Math.max(
+                                1,
+                                this.getEffectiveMinDaysForBoat(boat) || 1
+                            );
+                            const viability = evaluateBoatViableRangeOnStay(
+                                availabilityDates,
+                                boatAvail.unavailable_dates || [],
+                                requiredMinDays
+                            );
+                            if (!viability.hasViableRange) {
+                                return false;
+                            }
+                        }
+                    } else if (
+                        this.batchAvailabilityData &&
+                        this.batchAvailabilityData.boats &&
+                        this.selectedDates.length > 0
+                    ) {
+                        const boatAvail = this.batchAvailabilityData.boats.find((b) => b.boat_id == boat.id);
                         if (boatAvail && !boatAvail.available) {
-                            // Also check combined minDays + unavailable dates:
-                            // Even if some dates are unavailable, check if a valid contiguous range exists
                             const effectiveMinDays = this.getEffectiveMinDaysForBoat(boat);
                             if (effectiveMinDays <= 1) {
                                 return false;
@@ -11638,7 +13830,6 @@ document.addEventListener('DOMContentLoaded', () => {
                             if (maxConsecutive < effectiveMinDays) {
                                 return false;
                             }
-                            // Has enough consecutive available dates, let it pass this filter
                         }
                     }
 
@@ -11819,6 +14010,63 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 return filteredBoats;
+            }
+
+            /** Stay span for browse batch API + viability (falls back to selected boat dates). */
+            getDatesForBoatAvailabilityBatch() {
+                const urlParams = new URLSearchParams(window.location.search);
+                const checkin = urlParams.get('checkin');
+                const checkout = urlParams.get('checkout');
+                if (checkin && checkout && checkin.trim() !== '' && checkout.trim() !== '') {
+                    const stayDates = generateDateRangeForValidation(checkin, checkout);
+                    if (stayDates.length > 0) {
+                        return stayDates;
+                    }
+                }
+                return this.selectedDates.length > 0 ? [...this.selectedDates] : [];
+            }
+
+            boatMeetsStayViabilityForAdd(boat) {
+                if (!boat) return true;
+                const effectiveMinDays = Math.max(1, this.getEffectiveMinDaysForBoat(boat) || 1);
+                const boatAvail = this.batchAvailabilityData?.boats?.find((b) => b.boat_id == boat.id);
+                const unavailDates =
+                    boatAvail?.unavailable_dates ||
+                    this.boatDisabledDatesCache[boat.id] ||
+                    [];
+
+                if (this.selectedDates?.length > 0) {
+                    if (this.selectedDates.length < effectiveMinDays) {
+                        return false;
+                    }
+                    const hasBlockedDay = this.selectedDates.some((d) => unavailDates.includes(d));
+                    if (hasBlockedDay) {
+                        return false;
+                    }
+                    const sortedSelected = [...this.selectedDates].sort();
+                    let maxConsecutive = 0;
+                    let currentConsecutive = 0;
+                    for (const d of sortedSelected) {
+                        if (unavailDates.includes(d)) {
+                            currentConsecutive = 0;
+                        } else {
+                            currentConsecutive += 1;
+                            if (currentConsecutive > maxConsecutive) {
+                                maxConsecutive = currentConsecutive;
+                            }
+                        }
+                    }
+                    return maxConsecutive >= effectiveMinDays;
+                }
+
+                const stayDates = this.getDatesForBoatAvailabilityBatch();
+                if (!stayDates.length) return true;
+                const viability = evaluateBoatViableRangeOnStay(
+                    stayDates,
+                    unavailDates,
+                    effectiveMinDays
+                );
+                return viability.hasViableRange;
             }
 
             // Helper method to calculate available days for min days check
@@ -12504,6 +14752,18 @@ document.addEventListener('DOMContentLoaded', () => {
             async showBoatDetails(boat, sessionSeq) {
                 if (typeof sessionSeq !== 'number') {
                     sessionSeq = (this._showBoatDetailsSeq = (this._showBoatDetailsSeq || 0) + 1);
+                }
+
+                if (
+                    boat &&
+                    this.browseExcludeBoatId &&
+                    this.selectedDates.length > 0 &&
+                    String(boat.id) === String(this.browseExcludeBoatId)
+                ) {
+                    extrasReservationTrace('boat', 'showBoatDetails: blocked (excluded from browse)', {
+                        boatId: boat.id,
+                    });
+                    return;
                 }
 
                 // Close all popups when entering boat details view
@@ -14675,13 +16935,42 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
+                if (!this.boatMeetsStayViabilityForAdd(boat)) {
+                    if (errorElement) {
+                        errorElement.textContent =
+                            'This boat is not available for the full length of your stay on these dates. Please choose another boat.';
+                        errorElement.style.display = 'flex';
+                    }
+                    this.highlightBoatDetailsErrorFields(['date']);
+                    extrasReservationTrace('boat', 'handleAddToReservation: blocked (stay viability)', {
+                        boatId: boat?.id,
+                        selectedDates: [...(this.selectedDates || [])],
+                    });
+                    return;
+                }
+
                 // All parameters are present, proceed with adding boat to reservation
+                extrasReservationTrace('boat', 'handleAddToReservation: saving', {
+                    boatId: boat?.id,
+                    selectedDates: [...(this.selectedDates || [])],
+                    selectedGuests: this.selectedGuests,
+                    selectedLengthType: this.selectedLengthType,
+                });
 
                 // Hide error element and remove any error highlighting
                 if (errorElement) {
                     errorElement.style.display = 'none';
                 }
                 this.clearBoatDetailsErrorHighlights();
+
+                const charterDatesSnapshot = {};
+                const snapParams = new URLSearchParams(window.location.search);
+                const snapNums = window.getCharterNumbersFromUrl
+                    ? window.getCharterNumbersFromUrl(snapParams)
+                    : [];
+                snapNums.forEach((num) => {
+                    charterDatesSnapshot[num] = snapParams.get(`fishingCharterDates${num}`) || '';
+                });
 
                 // Cache boat data BEFORE URL updates (critical for pricing)
                 window.selectedBoatData = boat;
@@ -14697,6 +16986,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Update all boat URL params
                 this.updateURLParams();
+
+                if (typeof window.clearBoatFromExtrasUnavailableState === 'function') {
+                    window.clearBoatFromExtrasUnavailableState();
+                }
+                if (window.updateExtrasNeedingDatesState) {
+                    window.updateExtrasNeedingDatesState();
+                }
+
+                if (window.learnExtrasScheduleFromUrl) {
+                    window.learnExtrasScheduleFromUrl({
+                        fromUserSave: true,
+                        source: 'boat',
+                        charterDatesSnapshot,
+                    });
+                }
+
+                if (window.fishingCharterService && typeof window.fishingCharterService.populateSelectedFishingCharterBlock === 'function') {
+                    const charterUi = window.fishingCharterService.populateSelectedFishingCharterBlock();
+                    if (charterUi && typeof charterUi.catch === 'function') {
+                        charterUi.catch(() => { });
+                    }
+                }
 
                 // Update service state
                 this.initializeFromURL();
@@ -14740,6 +17051,62 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Update mobile handlers
                 if (window.updateMobileHandlersState) {
                     window.updateMobileHandlersState();
+                }
+
+                void this.finishBoatSaveAfterClose(boat.id);
+            }
+
+            async finishBoatSaveAfterClose(boatId) {
+                const t0 = performance.now();
+                extrasScheduleTrace('boat save: background start', { boatId });
+                try {
+                    if (window.CalendarAvailabilityService?.invalidateBoatBatchAvailabilityCache) {
+                        window.CalendarAvailabilityService.invalidateBoatBatchAvailabilityCache(boatId);
+                    }
+
+                    const tPopulate = performance.now();
+                    if (window.populateSelectedBoatBlock) {
+                        window.populateSelectedBoatBlock();
+                    }
+                    extrasScheduleTrace('boat save: background populate done', {
+                        boatId,
+                        durationMs: Math.round(performance.now() - tPopulate),
+                    });
+
+                    const tValidate = performance.now();
+                    if (window.validateExtrasAvailabilityOnLoad) {
+                        await window.validateExtrasAvailabilityOnLoad({
+                            forceRefresh: true,
+                            skipAvailabilityGate: true,
+                        });
+                    }
+                    extrasScheduleTrace('boat save: background validate done', {
+                        boatId,
+                        durationMs: Math.round(performance.now() - tValidate),
+                    });
+
+                    if (window.updateExtrasNeedingDatesState) {
+                        window.updateExtrasNeedingDatesState();
+                    }
+                    if (window.updateAllButtonVisibility) {
+                        window.updateAllButtonVisibility();
+                    }
+                    if (window.updatePricingDisplayForExtras) {
+                        await window.updatePricingDisplayForExtras();
+                    }
+                    if (window.updateMobileHandlersState) {
+                        window.updateMobileHandlersState();
+                    }
+                } catch (e) {
+                    extrasScheduleTrace('boat save: background error', {
+                        boatId,
+                        message: e?.message,
+                    });
+                } finally {
+                    extrasScheduleTrace('boat save: background complete', {
+                        boatId,
+                        durationMs: Math.round(performance.now() - t0),
+                    });
                 }
             }
 
@@ -15509,6 +17876,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 const urlParams = new URLSearchParams(window.location.search);
                 const checkin = urlParams.get('checkin');
                 const checkout = urlParams.get('checkout');
+                const boatId = this.currentBoatData?.id;
+                const calendarDisabled = boatId
+                    ? (this.boatDisabledDatesCache[boatId] || [])
+                    : [];
+                extrasReservationTrace('boat', 'renderBoatDetailsDateSelection', {
+                    boatId,
+                    checkin,
+                    checkout,
+                    selectedDates: [...(this.selectedDates || [])],
+                    calendarDisabledCount: calendarDisabled.length,
+                    urlBoatDates: urlParams.get('boatDates'),
+                    isEditMode: !!this.isEditMode,
+                });
 
                 // If no stay dates, show a message instead of the calendar
                 if (!checkin || !checkout || checkin.trim() === '' || checkout.trim() === '') {
@@ -16707,6 +19087,30 @@ document.addEventListener('DOMContentLoaded', () => {
             async handleEditBoat(boatId) {
                 const sessionSeq = (this._showBoatDetailsSeq = (this._showBoatDetailsSeq || 0) + 1);
                 try {
+                    const unavailableState = window.getExtrasUnavailableState
+                        ? window.getExtrasUnavailableState()
+                        : {};
+                    const isBoatUnavailable = !!(
+                        unavailableState.boatUnavailable || unavailableState.boatNoDatesAvailable
+                    );
+                    extrasReservationTrace('boat', 'handleEditBoat: enter', {
+                        boatId,
+                        isBoatUnavailable,
+                        boatUnavailable: unavailableState.boatUnavailable,
+                        boatNoDatesAvailable: unavailableState.boatNoDatesAvailable,
+                        urlBoatDates: new URLSearchParams(window.location.search).get('boatDates'),
+                    });
+
+                    if (isBoatUnavailable) {
+                        extrasReservationTrace('boat', 'handleEditBoat: redirect to browse (boat unavailable)', {
+                            boatId,
+                        });
+                        if (typeof openBoatBrowseForReservation === 'function') {
+                            openBoatBrowseForReservation();
+                        }
+                        return;
+                    }
+
                     this._resetBoatAddScrollOnBack = true;
                     this._boatAddSectionScrollTop = 0;
                     this._boatAddCardScrollTop = 0;
@@ -16736,7 +19140,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     // Set the service's internal state to match URL parameters
                     this.selectedGuests = boatGuests ? parseInt(boatGuests) : 0;
-                    this.selectedDates = boatDates ? boatDates.split(',') : [];
+                    let datesFromUrl = boatDates ? boatDates.split(',').filter(Boolean) : [];
+                    if (isBoatUnavailable) {
+                        extrasReservationTrace('boat', 'handleEditBoat: cleared unavailable dates for modal', {
+                            boatId,
+                            removedDates: datesFromUrl,
+                        });
+                        datesFromUrl = [];
+                    }
+                    this.selectedDates = datesFromUrl;
                     this.selectedPickupTime = boatPickupTime || '';
                     this.selectedLengthType = boatLengthType || 'full';
                     this.selectedPrivateDock = boatPrivateDock === 'true';
@@ -17254,15 +19666,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.detailsSelectedDates = [];
                 this.detailsSelectedGuests = 0;
                 this.detailsSelectedPrivateDock = false;
+                this._populateCharterBlocksSeq = 0;
 
                 // Track auto-open state for details date popup (mobile missing dates flow)
                 this.autoOpenDetailsDatesAfterShow = false;
                 this.autoOpenDetailsDatesReason = null;
+                this.scrollToTripTypesAfterShow = false;
 
                 // Editing state
                 this.editingCharterNumber = null;
                 this.editingCharterId = null;
                 this.editingTripId = null;
+                /** 'changeTrip' when user is picking a different trip on the same charter (keep dates, no calendar). */
+                this.charterEditIntent = null;
 
                 // Edit mode tracking - store original params to restore if user cancels
                 this.isEditMode = false;
@@ -17271,6 +19687,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Calendar availability data from batch API
                 this.batchAvailabilityData = null;
                 this.charterAvailableTripsCache = {};
+                this.charterStayTripsCache = {};
                 this.charterDisabledDatesCache = {};
                 this._showCharterDetailsSeq = 0;
                 this._charterAddSectionScrollTop = 0;
@@ -17449,6 +19866,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const selectedTrips = [];
                 const urlParams = new URLSearchParams(window.location.search);
 
+                if (!window.prefetchedCharterData) {
+                    window.prefetchedCharterData = {};
+                }
+
                 for (const number of numbers) {
                     const charterId = urlParams.get(`fishingCharterId${number}`);
                     const tripId = urlParams.get(`fishingCharterTripId${number}`);
@@ -17459,12 +19880,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!charterId) continue;
 
                     try {
-                        const res = await fetch(`${base}/${charterId}`);
-
-                        if (!res.ok) {
-                            continue;
+                        let charter = window.prefetchedCharterData[charterId];
+                        if (!charter) {
+                            const res = await fetch(`${base}/${charterId}`);
+                            if (!res.ok) {
+                                continue;
+                            }
+                            charter = await res.json();
+                            window.prefetchedCharterData[charterId] = charter;
                         }
-                        const charter = await res.json();
 
                         // Find the selected trip for this numbered group
                         const selectedTrip = Array.isArray(charter?.tripOptions)
@@ -17626,8 +20050,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Populate the selected fishing charter block with data
             async populateSelectedFishingCharterBlock() {
+                const seq = ++this._populateCharterBlocksSeq;
                 const selectedTrips = await this.getSelectedFishingCharterData();
+                if (seq !== this._populateCharterBlocksSeq) {
+                    return;
+                }
                 this.renderSelectedFishingCharterBlocks(selectedTrips);
+                if (seq !== this._populateCharterBlocksSeq) {
+                    return;
+                }
 
                 // Update visual state for extras that need dates (after blocks are rendered)
                 if (window.updateExtrasNeedingDatesState) {
@@ -17668,37 +20099,48 @@ document.addEventListener('DOMContentLoaded', () => {
                     const container = templateBlock.parentElement;
                     if (!container) return;
 
-                    // Remove any existing duplicated blocks (keep the template)
-                    const existingBlocks = container.querySelectorAll('[data-element="selectedFishingCharterBlock"]');
-                    existingBlocks.forEach((block, index) => {
-                        if (index !== 0) { // Keep the template block
-                            block.remove();
-                        }
-                    });
+                    const existingBlocks = Array.from(
+                        container.querySelectorAll('[data-element="selectedFishingCharterBlock"]')
+                    );
 
                     if (selectedTrips.length === 0) {
-                        templateBlock.style.display = 'none';
+                        existingBlocks.forEach((block, index) => {
+                            if (index === 0) {
+                                block.style.display = 'none';
+                            } else {
+                                block.remove();
+                            }
+                        });
                         return;
                     }
 
-                    // Show and populate blocks for each selected trip
+                    // Reuse existing blocks (avoid remove/clone cycles that reload images)
                     selectedTrips.forEach((trip, index) => {
-                        let block;
-                        if (index === 0) {
-                            // Use the template block for the first trip
-                            block = templateBlock;
-                        } else {
-                            // Clone the template for additional trips
-                            block = templateBlock.cloneNode(true);
-                            container.appendChild(block);
+                        let block = existingBlocks[index];
+                        if (!block) {
+                            block = index === 0
+                                ? templateBlock
+                                : templateBlock.cloneNode(true);
+                            if (index > 0) {
+                                container.appendChild(block);
+                            }
+                            existingBlocks[index] = block;
                         }
 
-                        // Show the block
                         block.style.display = 'flex';
-
-                        // Populate block with trip data
+                        block.dataset.charterSlotNumber = String(trip.number);
                         this.populateSingleFishingCharterBlock(block, trip);
                     });
+
+                    for (let i = selectedTrips.length; i < existingBlocks.length; i++) {
+                        const extra = existingBlocks[i];
+                        if (!extra) continue;
+                        if (i === 0) {
+                            extra.style.display = 'none';
+                        } else {
+                            extra.remove();
+                        }
+                    }
                 });
             }
 
@@ -17723,16 +20165,22 @@ document.addEventListener('DOMContentLoaded', () => {
                     block.style.borderStyle = '';
                 }
 
-                // Update selectedFishingCharterBlock_image
+                // Update selectedFishingCharterBlock_image (skip src write when unchanged — prevents flicker)
                 const imageElement = block.querySelector('[data-element="selectedFishingCharterBlock_image"]');
                 if (imageElement) {
                     if (trip.image) {
-                        imageElement.src = trip.image;
-                        // Optimize image loading
-                        imageElement.loading = 'eager';
-                        imageElement.fetchPriority = 'high';
+                        const nextSrc = trip.image;
+                        const cachedSrc = imageElement.dataset.kbCharterImageSrc || '';
+                        if (cachedSrc !== nextSrc) {
+                            imageElement.dataset.kbCharterImageSrc = nextSrc;
+                            imageElement.src = nextSrc;
+                            if (!imageElement.loading) {
+                                imageElement.loading = 'eager';
+                            }
+                        }
                         imageElement.style.display = 'block';
                     } else {
+                        delete imageElement.dataset.kbCharterImageSrc;
                         imageElement.style.display = 'none';
                     }
                 }
@@ -17757,16 +20205,38 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Update selectedFishingCharterBlock_datesDelivery
                 const datesDeliveryElement = block.querySelector('[data-element="selectedFishingCharterBlock_datesDelivery"]');
+                const unavailableStateForBlock = window.getExtrasUnavailableState
+                    ? window.getExtrasUnavailableState()
+                    : null;
+                const tripNumStr = String(trip.number);
+                const isCharterUnavailableOnBlock = unavailableStateForBlock && (
+                    (unavailableStateForBlock.fishingChartersUnavailable || []).map(String).includes(tripNumStr) ||
+                    (unavailableStateForBlock.fishingChartersNoDatesAvailable || []).map(String).includes(tripNumStr)
+                );
                 if (datesDeliveryElement) {
-                    datesDeliveryElement.textContent = trip.dates;
-
-                    // Apply warning styling if dates need to be selected
-                    if (trip.needsDates) {
-                        datesDeliveryElement.style.color = '#b45309'; // Amber text
-                        datesDeliveryElement.style.fontStyle = 'italic';
+                    if (isCharterUnavailableOnBlock) {
+                        const urlParamsForBlock = new URLSearchParams(window.location.search);
+                        const hasStayForBlock = !!(urlParamsForBlock.get('checkin') && urlParamsForBlock.get('checkout'));
+                        datesDeliveryElement.textContent = getCharterUnavailableDatesDeliveryText(
+                            trip.number,
+                            urlParamsForBlock,
+                            hasStayForBlock
+                        );
+                        datesDeliveryElement.style.color = '#dc2626';
+                        datesDeliveryElement.style.fontStyle = 'normal';
                     } else {
-                        datesDeliveryElement.style.color = '';
-                        datesDeliveryElement.style.fontStyle = '';
+                        const urlParamsForTripDates = new URLSearchParams(window.location.search);
+                        const committedDates = (urlParamsForTripDates.get(`fishingCharterDates${trip.number}`) || '').trim();
+                        datesDeliveryElement.textContent = committedDates ? trip.dates : '';
+
+                        // Apply warning styling if dates need to be selected
+                        if (trip.needsDates) {
+                            datesDeliveryElement.style.color = '#b45309'; // Amber text
+                            datesDeliveryElement.style.fontStyle = 'italic';
+                        } else {
+                            datesDeliveryElement.style.color = '';
+                            datesDeliveryElement.style.fontStyle = '';
+                        }
                     }
                 }
 
@@ -17788,8 +20258,24 @@ document.addEventListener('DOMContentLoaded', () => {
                             this.handleRemoveSpecificFishingCharter(Number(charterNum));
                             return;
                         }
+                        if (newEditButton.dataset.unavailableAction === 'changeTrip') {
+                            this.handleEditSpecificFishingCharter(trip, { intent: 'changeTrip' });
+                            return;
+                        }
                         this.handleEditSpecificFishingCharter(trip);
                     });
+                    if (window.getExtrasUnavailableState) {
+                        const st = window.getExtrasUnavailableState();
+                        const num = String(trip.number);
+                        const isUnavail =
+                            (st.fishingChartersUnavailable || []).map(String).includes(num) ||
+                            (st.fishingChartersNoDatesAvailable || []).map(String).includes(num);
+                        if (isUnavail) {
+                            newEditButton.textContent = 'Edit dates';
+                            newEditButton.style.color = '#dc2626';
+                            newEditButton.dataset.unavailableAction = 'edit';
+                        }
+                    }
                 }
 
                 // Setup remove button for this specific block
@@ -17803,10 +20289,173 @@ document.addEventListener('DOMContentLoaded', () => {
                         this.handleRemoveSpecificFishingCharter(trip.number);
                     });
                 }
+
+                this.setupSelectedFishingCharterBlockClick(block);
+            }
+
+            setupSelectedFishingCharterBlockClick(block) {
+                if (!block) return;
+                if (block._selectedCharterBlockClickHandler) {
+                    block.removeEventListener('click', block._selectedCharterBlockClickHandler);
+                }
+                block.style.cursor = 'pointer';
+                block._selectedCharterBlockClickHandler = (e) => {
+                    if (e.target.closest('[data-element="removeSelectedFishingCharter"]')) return;
+                    if (e.target.closest('[data-element="editSelectedFishingCharter"]')) return;
+                    const editBtn = block.querySelector('[data-element="editSelectedFishingCharter"]');
+                    if (editBtn) editBtn.click();
+                };
+                block.addEventListener('click', block._selectedCharterBlockClickHandler);
+            }
+
+            pruneInvalidDetailsSelectedDates(charterId, tripId) {
+                if (!charterId) return;
+                const charterDisabled = this.charterDisabledDatesCache[charterId] || [];
+                let dates = [...(this.detailsSelectedDates || [])];
+
+                dates = dates.filter((d) => !charterDisabled.includes(d));
+
+                // When switching trips, keep selected dates — availability is checked for the new trip on save.
+                if (this.charterEditIntent !== 'changeTrip') {
+                    const tripIdToUse = tripId || this.editingTripId;
+                    const trips = this.charterStayTripsCache?.[charterId] ||
+                        this.charterAvailableTripsCache[charterId];
+                    if (trips && tripIdToUse) {
+                        const tripInfo = trips.find((t) => t.trip_id == tripIdToUse || t.id == tripIdToUse);
+                        if (tripInfo) {
+                            dates = dates.filter((d) => isTripDateAvailable(tripInfo, normalizeAvailabilityYmd(d)));
+                        }
+                    }
+                }
+
+                if (dates.length !== this.detailsSelectedDates.length ||
+                    dates.some((d, i) => d !== this.detailsSelectedDates[i])) {
+                    this.detailsSelectedDates = dates;
+                    this.selectedDates = [...dates];
+                    this.updateDetailsDateFilterText();
+                    this.updateDatesFilterText();
+                    this.updateDetailsFilterStyles();
+                    this.updateFilterStyles();
+                }
+            }
+
+            /** True/false from modal trip cache; null if cache cannot answer (needs API). */
+            charterDatesPassModalTripCache(charterId, tripId, dates) {
+                if (!charterId || !tripId || !Array.isArray(dates) || dates.length === 0) {
+                    return null;
+                }
+                const trips = this.charterStayTripsCache?.[charterId] ||
+                    this.charterAvailableTripsCache?.[charterId];
+                if (!Array.isArray(trips) || trips.length === 0) {
+                    return null;
+                }
+                const tripInfo = typeof findCharterTripInAvailabilityList === 'function'
+                    ? findCharterTripInAvailabilityList(trips, tripId)
+                    : trips.find((t) => t.trip_id == tripId || t.id == tripId);
+                if (!tripInfo) {
+                    return null;
+                }
+                const normalized = dates.map((d) => normalizeAvailabilityYmd(d)).filter(Boolean);
+                if (normalized.length !== dates.length) {
+                    return null;
+                }
+                return normalized.every((ymd) => isTripDateAvailable(tripInfo, ymd));
+            }
+
+            async confirmCharterDatesAvailableForTrip(charterId, tripId, dates) {
+                const fromCache = this.charterDatesPassModalTripCache(charterId, tripId, dates);
+                extrasAvailabilityTrace('charter save: trip check', {
+                    charterId,
+                    tripId,
+                    dateCount: dates?.length || 0,
+                    fromCache,
+                });
+                if (fromCache === true) {
+                    return true;
+                }
+                if (fromCache === false) {
+                    return false;
+                }
+                if (typeof filterCharterDatesAvailableForTrip !== 'function') {
+                    return true;
+                }
+                const kept = await filterCharterDatesAvailableForTrip(
+                    charterId,
+                    tripId,
+                    dates,
+                    { forceRefresh: true }
+                );
+                return kept.length === dates.length;
+            }
+
+            async finishCharterSaveAfterClose(charterId, charterNumber) {
+                const t0 = performance.now();
+                extrasScheduleTrace('charter save: background start', { charterNumber, charterId });
+                try {
+                    if (window.CalendarAvailabilityService?.invalidateCharterAvailableTripsCache) {
+                        window.CalendarAvailabilityService.invalidateCharterAvailableTripsCache(charterId);
+                    }
+
+                    const tPopulate = performance.now();
+                    await this.populateSelectedFishingCharterBlock();
+                    extrasScheduleTrace('charter save: background populate done', {
+                        charterNumber,
+                        durationMs: Math.round(performance.now() - tPopulate),
+                    });
+
+                    const tValidate = performance.now();
+                    if (window.validateExtrasAvailabilityOnLoad) {
+                        await window.validateExtrasAvailabilityOnLoad({
+                            forceRefresh: true,
+                            skipAvailabilityGate: true,
+                        });
+                    }
+                    extrasScheduleTrace('charter save: background validate done', {
+                        charterNumber,
+                        durationMs: Math.round(performance.now() - tValidate),
+                    });
+
+                    if (window.updateExtrasNeedingDatesState) {
+                        window.updateExtrasNeedingDatesState();
+                    }
+                    if (window.updateAllButtonVisibility) {
+                        window.updateAllButtonVisibility();
+                    }
+                    if (window.updatePricingDisplayForExtras) {
+                        await window.updatePricingDisplayForExtras();
+                    }
+                    if (window.updateMobileHandlersState) {
+                        window.updateMobileHandlersState();
+                    }
+                } catch (e) {
+                    extrasScheduleTrace('charter save: background error', {
+                        charterNumber,
+                        message: e?.message,
+                    });
+                } finally {
+                    if (typeof window.endExtrasAvailabilityValidation === 'function') {
+                        window.endExtrasAvailabilityValidation();
+                    }
+                    extrasScheduleTrace('charter save: background finished', {
+                        charterNumber,
+                        durationMs: Math.round(performance.now() - t0),
+                    });
+                }
             }
 
             // Handle editing a specific fishing charter
-            async handleEditSpecificFishingCharter(trip) {
+            async handleEditSpecificFishingCharter(trip, options = {}) {
+                const isChangeTripMode = options.intent === 'changeTrip';
+                this.charterEditIntent = isChangeTripMode ? 'changeTrip' : null;
+                this.scrollToTripTypesAfterShow = isChangeTripMode;
+
+                extrasReservationTrace('charter', 'handleEditSpecificFishingCharter: enter', {
+                    charterNumber: trip.number,
+                    charterId: trip.charterId,
+                    tripId: trip.tripId,
+                    urlDates: new URLSearchParams(window.location.search).get(`fishingCharterDates${trip.number}`),
+                    intent: isChangeTripMode ? 'changeTrip' : 'edit',
+                });
                 // Store the charter number being edited
                 this.editingCharterNumber = trip.number;
                 this.editingCharterId = trip.charterId;
@@ -17822,8 +20471,62 @@ document.addEventListener('DOMContentLoaded', () => {
                 const originalCharterId = urlParams.get(`fishingCharterId${trip.number}`);
                 const originalTripId = urlParams.get(`fishingCharterTripId${trip.number}`);
 
+                const unavailableState = window.getExtrasUnavailableState ? window.getExtrasUnavailableState() : null;
+                const isCharterUnavailable = unavailableState && (
+                    (unavailableState.fishingChartersUnavailable || []).map(String).includes(String(trip.number)) ||
+                    (unavailableState.fishingChartersNoDatesAvailable || []).map(String).includes(String(trip.number))
+                );
+
+                const { checkin: stayCheckin, checkout: stayCheckout } = this.getCheckInOutDates();
+
+                let datesFromUrl = originalDates ? originalDates.split(',').filter(Boolean) : [];
+                if (isCharterUnavailable && !isChangeTripMode) {
+                    datesFromUrl = [];
+                    extrasAvailabilityTrace('charter edit: cleared unavailable dates for modal', {
+                        charterNumber: trip.number,
+                    });
+                } else if (isChangeTripMode) {
+                    if (datesFromUrl.length === 0 && stayCheckin && stayCheckout) {
+                        const charterNumbers = getCharterNumbersFromUrl(urlParams);
+                        const charterIndex = charterNumbers.indexOf(Number(trip.number));
+                        const offsetMeta = typeof getPlannedCharterDayOffsets === 'function'
+                            ? getPlannedCharterDayOffsets(
+                                urlParams,
+                                trip.number,
+                                charterIndex,
+                                charterNumbers.length
+                            )
+                            : { offsets: [], source: 'none' };
+                        const plannedDates = typeof getPlannedCharterDatesFromSchedule === 'function'
+                            ? getPlannedCharterDatesFromSchedule(urlParams, trip.number, stayCheckin, stayCheckout)
+                            : [];
+                        const loneFlatZero = offsetMeta.offsets.length === 1
+                            && offsetMeta.offsets[0] === 0
+                            && offsetMeta.source === 'charterOffsets'
+                            && !urlParams.get(charterDayOffsetsKey(trip.number));
+                        if (plannedDates.length > 0 && !loneFlatZero) {
+                            datesFromUrl = plannedDates;
+                            extrasAvailabilityTrace('charter edit: planned dates from stay offsets for trip change', {
+                                charterNumber: trip.number,
+                                datesFromUrl,
+                                offsetSource: offsetMeta.source,
+                                offsets: offsetMeta.offsets,
+                            });
+                        } else if (loneFlatZero) {
+                            extrasAvailabilityTrace('charter edit: skip check-in prefill (ambiguous charterOffsets=0)', {
+                                charterNumber: trip.number,
+                            });
+                        }
+                    } else if (datesFromUrl.length > 0) {
+                        extrasAvailabilityTrace('charter edit: keeping dates for trip change', {
+                            charterNumber: trip.number,
+                            datesFromUrl,
+                        });
+                    }
+                }
+
                 // Determine if charter needs dates
-                const needsDates = !originalDates || originalDates.trim() === '';
+                const needsDates = datesFromUrl.length === 0;
 
                 // Enter edit mode and store original parameters to restore if user cancels
                 this.isEditMode = true;
@@ -17837,7 +20540,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
 
                 // Set the filter values to match the trip being edited
-                this.selectedDates = originalDates ? originalDates.split(',').filter(Boolean) : [];
+                this.selectedDates = [...datesFromUrl];
                 this.selectedGuests = originalGuests ? parseInt(originalGuests) : 0;
                 this.selectedPickupTime = originalPickup === 'true' ? '' : originalPickup;
                 this.selectedPrivateDock = originalPickup === 'true';
@@ -17861,6 +20564,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.renderDateSelection();
                 this.renderDetailsDateSelection();
 
+                if (isChangeTripMode && this.detailsDatesPopup) {
+                    this.detailsDatesPopup.style.display = 'none';
+                    this.autoOpenDetailsDatesAfterShow = false;
+                    this.autoOpenDetailsDatesReason = null;
+                }
+
                 const preflexCharterDatesPopupForAutoOpen = () => {
                     if (this.detailsDatesPopup) {
                         this.detailsDatesPopup.style.display = 'flex';
@@ -17872,7 +20581,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 const { checkin, checkout } = this.getCheckInOutDates();
                 const hasStayDates = !!(checkin && checkout && checkin.trim() !== '' && checkout.trim() !== '');
 
-                if (needsDates && hasStayDates && this.detailsDatesPopup) {
+                if (isCharterUnavailable && hasStayDates && !isChangeTripMode) {
+                    this.autoOpenDetailsDatesAfterShow = true;
+                    this.autoOpenDetailsDatesReason = 'unavailable';
+                }
+
+                if (needsDates && hasStayDates && this.detailsDatesPopup && !isChangeTripMode) {
                     // Move popup to body for mobile stacking before modal opens so it renders in view
                     if (window.innerWidth <= 991 && !this.detailsDatesPopup._originalParent) {
                         this.detailsDatesPopup._originalParent = this.detailsDatesPopup.parentElement;
@@ -17903,12 +20617,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Fetch and show the charter details for editing
                 // Skip scroll reset if we're going to scroll to dates popup to avoid interference
-                const shouldSkipScrollReset = needsDates && hasStayDates;
+                const shouldSkipScrollReset = needsDates && hasStayDates && !isChangeTripMode;
                 await this.fetchAndShowCharterForEdit(trip.charterId, trip.tripId, shouldSkipScrollReset);
 
                 // If charter needs dates, queue the dates popup to open once details are ready
                 // IMPORTANT: This happens AFTER fetchAndShowCharterForEdit completes to avoid race condition
-                if (needsDates) {
+                if (needsDates && !isChangeTripMode) {
                     if (hasStayDates) {
                         this.autoOpenDetailsDatesAfterShow = true;
                         this.autoOpenDetailsDatesReason = 'missingDates';
@@ -17958,6 +20672,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     );
                     if (unavailableState.fishingChartersNoDatesAvailable) {
                         unavailableState.fishingChartersNoDatesAvailable = unavailableState.fishingChartersNoDatesAvailable.filter(
+                            n => String(n) !== String(numberToRemove)
+                        );
+                    }
+                    if (unavailableState.fishingChartersCanReschedule) {
+                        unavailableState.fishingChartersCanReschedule = unavailableState.fishingChartersCanReschedule.filter(
+                            n => String(n) !== String(numberToRemove)
+                        );
+                    }
+                    if (unavailableState.fishingChartersCanChangeTrip) {
+                        unavailableState.fishingChartersCanChangeTrip = unavailableState.fishingChartersCanChangeTrip.filter(
                             n => String(n) !== String(numberToRemove)
                         );
                     }
@@ -18035,6 +20759,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         };
                         unavailableState.fishingChartersUnavailable = renumber(unavailableState.fishingChartersUnavailable);
                         unavailableState.fishingChartersNoDatesAvailable = renumber(unavailableState.fishingChartersNoDatesAvailable);
+                        unavailableState.fishingChartersCanReschedule = renumber(unavailableState.fishingChartersCanReschedule);
+                        unavailableState.fishingChartersCanChangeTrip = renumber(unavailableState.fishingChartersCanChangeTrip);
                     }
                 }
 
@@ -18075,6 +20801,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Update mobile charter button
                 if (window.mobileFishingCharterButtonHandler) {
                     window.mobileFishingCharterButtonHandler.updateMobileFishingCharterButtonState();
+                }
+
+                if (typeof window.scheduleExtrasValidationAfterUrlChange === 'function') {
+                    window.scheduleExtrasValidationAfterUrlChange();
                 }
             }
 
@@ -18300,24 +21030,36 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Update button state
                 this.updateButtonState();
 
-                // Only populate fishing charter blocks if charters exist
+                // Only populate fishing charter blocks if charters exist (pricing via pipeline below)
                 if (this.hasAnyFishingCharters()) {
                     const charterResult = this.populateSelectedFishingCharterBlock();
                     if (charterResult && typeof charterResult.catch === 'function') {
                         charterResult.catch(() => { });
                     }
-
-                    // Update pricing display if any fishing charters are selected
-                    if (window.updatePricingDisplayForExtras) {
-                        const pricingResult = window.updatePricingDisplayForExtras();
-                        if (pricingResult && typeof pricingResult.catch === 'function') {
-                            pricingResult.catch(() => { });
-                        }
-                    }
-
-                    // Charter-only on-load validation is handled in the button visibility block
-                    // (where validateExtrasAvailabilityOnLoad is defined and guaranteed to exist)
                 }
+
+                setTimeout(() => {
+                    const endInit = window.kbStart && window.kbStart('extras-schedule: fishingCharterService init');
+                    if (window.sanitizeOrphanExtrasScheduleParams) {
+                        window.sanitizeOrphanExtrasScheduleParams();
+                    }
+                    const shouldRun = window.shouldRunExtrasScheduleOnLoad && window.shouldRunExtrasScheduleOnLoad();
+                    window.kbLoadMark && window.kbLoadMark('extras-schedule: fishingCharter init shouldRun', { shouldRun });
+                    if (!shouldRun) {
+                        extrasScheduleLog('fishingCharter init: skipped schedule pipeline (no stay dates yet)');
+                        endInit && endInit({ skipped: true });
+                        return;
+                    }
+                    if (window.runExtrasStaySyncPipeline) {
+                        window.runExtrasStaySyncPipeline()
+                            .catch(() => { })
+                            .finally(() => {
+                                endInit && endInit({ ranPipeline: true });
+                            });
+                        return;
+                    }
+                    endInit && endInit({ ranPipeline: false });
+                }, 0);
             }
 
             initializeFromURL() {
@@ -19085,6 +21827,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.editingCharterNumber = null;
                 this.editingTripId = null;
                 this.editingCharterId = null;
+                this.charterEditIntent = null;
+                this.scrollToTripTypesAfterShow = false;
                 this.isEditMode = false;
                 this.originalEditParams = null;
                 this.autoOpenDetailsDatesAfterShow = false;
@@ -20283,6 +23027,25 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (sessionSeq !== this._showCharterDetailsSeq) return;
                         this.charterDisabledDatesCache[charter.id] = [];
                     }
+                    try {
+                        const charterPickup = this.editingCharterNumber
+                            ? urlParams.get(`fishingCharterPickup${this.editingCharterNumber}`)
+                            : null;
+                        const stayDates = typeof getCharterStayDatesForAvailability === 'function'
+                            ? getCharterStayDatesForAvailability(charterCheckin, charterCheckout, charterPickup)
+                            : [];
+                        if (stayDates.length > 0) {
+                            const stayTrips = await CalendarAvailabilityService.fetchCharterAvailableTrips(
+                                charter.id,
+                                stayDates
+                            );
+                            if (sessionSeq !== this._showCharterDetailsSeq) return;
+                            this.charterStayTripsCache[charter.id] = stayTrips;
+                        }
+                    } catch (e) {
+                        if (sessionSeq !== this._showCharterDetailsSeq) return;
+                        this.charterStayTripsCache[charter.id] = [];
+                    }
                 }
                 if (this.detailsSelectedDates.length > 0 && charter.id) {
                     try {
@@ -20296,6 +23059,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 if (sessionSeq !== this._showCharterDetailsSeq) return;
+
+                this.pruneInvalidDetailsSelectedDates(charter.id, this.editingTripId);
 
                 // Re-render date selection now that disabled dates are loaded
                 this.renderDetailsDateSelection();
@@ -20320,6 +23085,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     this.openDetailsDatesPopup({ scrollIntoView: true, reason });
                     // After auto-open, mark it so we don't reopen after user saves/ closes
                     this.autoOpenedFromMissingDates = true;
+                } else if (this.scrollToTripTypesAfterShow && this.tripTypeWrapper) {
+                    this.scrollToTripTypesAfterShow = false;
+                    requestAnimationFrame(() => {
+                        this.tripTypeWrapper.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    });
                 }
             }
 
@@ -23601,6 +26371,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 // (not all other charters - users can book different charters on the same day)
                 const reservedDatesForThisCharter = this.getReservedDatesForThisCharter();
 
+                const urlParamsForTrip = new URLSearchParams(window.location.search);
+                const activeTripId = this.editingTripId ||
+                    (this.editingCharterNumber
+                        ? urlParamsForTrip.get(`fishingCharterTripId${this.editingCharterNumber}`)
+                        : null);
+                const stayTripsForCharter = this.charterStayTripsCache[this.currentCharterData?.id];
+                const activeTripInfo = activeTripId && stayTripsForCharter
+                    ? (typeof findCharterTripInAvailabilityList === 'function'
+                        ? findCharterTripInAvailabilityList(stayTripsForCharter, activeTripId)
+                        : stayTripsForCharter.find((t) => t.trip_id == activeTripId || t.id == activeTripId))
+                    : null;
+
                 // Use check-in and check-out dates for disabling when private dock is selected
                 dateArray.forEach(dateStr => {
                     const [year, month, day] = dateStr.split('-').map(Number);
@@ -23623,15 +26405,21 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Check calendar disabled dates (fully unavailable)
                     const charterDisabledDates = this.charterDisabledDatesCache[this.currentCharterData?.id] || [];
                     const isCalendarUnavailable = charterDisabledDates.includes(dateStr);
+                    const isUnavailableForSelectedTrip = this.charterEditIntent !== 'changeTrip' &&
+                        activeTripInfo &&
+                        typeof isTripDateAvailable === 'function' &&
+                        !isTripDateAvailable(activeTripInfo, dateStr);
 
-                    if (isCalendarUnavailable) {
+                    if (isCalendarUnavailable || isUnavailableForSelectedTrip) {
                         dateBtn.style.background = '#f5f5f5';
                         dateBtn.style.color = '#999';
                         dateBtn.style.cursor = 'not-allowed';
                         dateBtn.style.opacity = '0.5';
                         dateBtn.disabled = true;
                         dateBtn.setAttribute('data-disabled', 'true');
-                        const message = 'Unavailable';
+                        const message = isUnavailableForSelectedTrip && !isCalendarUnavailable
+                            ? 'Not available for this trip'
+                            : 'Unavailable';
                         dateBtn.addEventListener('mouseenter', () => this.showTooltipMessage(dateBtn, message));
                         dateBtn.addEventListener('mouseleave', () => this.hideTooltipMessage());
                         dateBtn.addEventListener('click', (e) => { e.stopPropagation(); this.showTooltipMessage(dateBtn, message); });
@@ -23749,6 +26537,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (seq !== this._detailsTripsFetchSeq) return;
 
+                this.pruneInvalidDetailsSelectedDates(
+                    this.currentCharterData?.id,
+                    this.editingTripId
+                );
+                this.renderDetailsDateSelection();
+
                 this._setTripTypesAvailabilityLoading(false);
                 this.renderTripTypes(this.currentCharterData);
             }
@@ -23826,6 +26620,21 @@ document.addEventListener('DOMContentLoaded', () => {
                     return this.isTripSeasonValid(trip);
                 });
 
+                // When editing a reserved charter, keep the trip with "Confirm Selection" first
+                if (
+                    this.isEditMode &&
+                    this.editingTripId != null &&
+                    String(this.editingCharterId) === String(charter.id)
+                ) {
+                    const editingTripId = String(this.editingTripId);
+                    filteredTripOptions = filteredTripOptions.slice().sort((a, b) => {
+                        const aIsEditing = String(a.id) === editingTripId;
+                        const bIsEditing = String(b.id) === editingTripId;
+                        if (aIsEditing === bIsEditing) return 0;
+                        return aIsEditing ? -1 : 1;
+                    });
+                }
+
                 // Hide template if no valid trips
                 if (filteredTripOptions.length === 0) {
                     this.tripTypeTemplate.style.display = 'none';
@@ -23882,6 +26691,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Normal season within same year
                     return date >= seasonStartDate && date <= seasonEndDate;
                 }
+            }
+
+            getTripTypeReservationButtonCopy(trip, charter) {
+                if (!this.isEditMode || this.editingCharterNumber == null) {
+                    return { label: 'Add to reservation', isPrimary: false };
+                }
+                const isCurrentReservedTrip =
+                    this.editingTripId != null &&
+                    String(this.editingTripId) === String(trip.id) &&
+                    String(this.editingCharterId) === String(charter.id);
+                if (isCurrentReservedTrip) {
+                    return { label: 'Confirm Selection', isPrimary: true };
+                }
+                return { label: 'Choose This Trip Instead', isPrimary: false };
             }
 
             populateTripTypeCard(card, trip, charter) {
@@ -24052,34 +26875,29 @@ document.addEventListener('DOMContentLoaded', () => {
                         newButton.style.pointerEvents = 'none';
                         newButton.disabled = true;
                     } else {
-                        // Check if this specific trip is the one being edited
-                        const isThisTripBeingEdited =
-                            this.isEditMode &&
-                            String(this.editingTripId) === String(trip.id) &&
-                            String(this.editingCharterId) === String(charter.id);
+                        const { label: buttonLabel, isPrimary } =
+                            this.getTripTypeReservationButtonCopy(trip, charter);
 
                         // Update button text and style based on edit mode
                         const buttonTextElement = newButton.querySelector('[data-element="fishingCharterDetails_tripType_addToReservationButtonText"]');
                         if (buttonTextElement) {
-                            if (isThisTripBeingEdited) {
-                                buttonTextElement.textContent = 'Confirm Selection';
+                            buttonTextElement.textContent = buttonLabel;
+                            if (isPrimary) {
                                 buttonTextElement.style.color = '#fff';
                                 newButton.style.backgroundColor = '#07f';
                                 newButton.style.color = '#fff';
                             } else {
-                                buttonTextElement.textContent = 'Add to reservation';
                                 buttonTextElement.style.color = '';
                                 newButton.style.backgroundColor = '';
                                 newButton.style.color = '';
                             }
                         } else {
                             if (newButton.childNodes.length === 1 && newButton.childNodes[0].nodeType === Node.TEXT_NODE) {
-                                if (isThisTripBeingEdited) {
-                                    newButton.textContent = 'Confirm Selection';
+                                newButton.textContent = buttonLabel;
+                                if (isPrimary) {
                                     newButton.style.backgroundColor = '#07f';
                                     newButton.style.color = '#fff';
                                 } else {
-                                    newButton.textContent = 'Add to reservation';
                                     newButton.style.backgroundColor = '';
                                     newButton.style.color = '';
                                 }
@@ -24320,9 +27138,40 @@ document.addEventListener('DOMContentLoaded', () => {
                         charterNumber = this.getNextFishingCharterNumber();
                     }
 
+                    const tripIdForSave = trip.id || '';
+                    if (this.charterEditIntent === 'changeTrip' && tripIdForSave) {
+                        const tripsForSave = this.charterStayTripsCache?.[charterId]
+                            || this.charterAvailableTripsCache?.[charterId];
+                        const tripInfoForSave = tripsForSave && typeof findCharterTripInAvailabilityList === 'function'
+                            ? findCharterTripInAvailabilityList(tripsForSave, tripIdForSave)
+                            : null;
+                        if (tripInfoForSave) {
+                            const validForTrip = (this.detailsSelectedDates || [])
+                                .map((d) => normalizeAvailabilityYmd(d))
+                                .filter((d) => d && isTripDateAvailable(tripInfoForSave, d));
+                            if (validForTrip.length !== (this.detailsSelectedDates || []).length) {
+                                this.detailsSelectedDates = validForTrip;
+                                this.selectedDates = [...validForTrip];
+                                this.updateDetailsDateFilterText();
+                                this.updateDatesFilterText();
+                                this.updateDetailsFilterStyles();
+                                this.updateFilterStyles();
+                            }
+                        }
+                    }
+                    const datesOk = await this.confirmCharterDatesAvailableForTrip(
+                        charterId,
+                        tripIdForSave,
+                        this.detailsSelectedDates
+                    );
+                    if (!datesOk) {
+                        this.highlightFishingCharterErrorFields(['dates']);
+                        return;
+                    }
+
                     // Add/update numbered parameters to URL
                     url.searchParams.set(`fishingCharterId${charterNumber}`, charterId);
-                    url.searchParams.set(`fishingCharterTripId${charterNumber}`, trip.id || '');
+                    url.searchParams.set(`fishingCharterTripId${charterNumber}`, tripIdForSave);
                     url.searchParams.set(`fishingCharterGuests${charterNumber}`, this.detailsSelectedGuests.toString());
                     url.searchParams.set(`fishingCharterDates${charterNumber}`, this.detailsSelectedDates.join(','));
 
@@ -24337,33 +27186,53 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     window.history.replaceState({}, '', url);
 
-                    await this.populateSelectedFishingCharterBlock();
+                    extrasScheduleTrace('charter save: wrote fishingCharterDates to URL', {
+                        charterNumber,
+                        dates: this.detailsSelectedDates.join(','),
+                    });
 
-                    // Update pricing display for extras
-                    if (window.updatePricingDisplayForExtras) {
-                        await window.updatePricingDisplayForExtras();
+                    if (this.currentCharterData?.id != null) {
+                        delete this.charterAvailableTripsCache[this.currentCharterData.id];
+                        delete this.charterStayTripsCache[this.currentCharterData.id];
                     }
 
-                    // Update mobile handlers immediately after charter is added
-                    if (window.updateMobileHandlersState) {
-                        window.updateMobileHandlersState();
+                    if (window.learnExtrasScheduleFromUrl) {
+                        window.learnExtrasScheduleFromUrl({ fromUserSave: true, source: 'charter' });
                     }
+
+                    extrasScheduleTrace('charter save: after learn', {});
 
                     // Exit edit mode - user has successfully saved
                     this.isEditMode = false;
                     this.originalEditParams = null;
 
+                    const savedCharterNumber = charterNumber;
+                    const savedCharterId = charterId;
+
                     // Reset editing state
                     this.editingCharterNumber = null;
                     this.editingTripId = null;
                     this.editingCharterId = null;
+                    this.charterEditIntent = null;
+                    this.scrollToTripTypesAfterShow = false;
 
                     // Clear any queued auto-open state now that dates are saved
                     this.autoOpenDetailsDatesAfterShow = false;
                     this.autoOpenDetailsDatesReason = null;
                     this.autoOpenedFromMissingDates = false;
 
-                    // Close modal first without clearing filters (pass true to skip style updates)
+                    extrasScheduleTrace('charter save: closing modal (background work follows)', {
+                        charterNumber: savedCharterNumber,
+                    });
+
+                    if (typeof window.beginExtrasAvailabilityValidation === 'function') {
+                        window.beginExtrasAvailabilityValidation();
+                    }
+                    if (window.updateAllButtonVisibility) {
+                        window.updateAllButtonVisibility();
+                    }
+
+                    // Close modal immediately; reservation card shows settling while we sync
                     this.closeModal(true);
 
                     // Clear all filters after modal is closed to avoid visual glitches
@@ -24375,6 +27244,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     // Reset details scroll after successful save + filter cleanup (modal already closed).
                     this.resetFishingCharterDetailsScrollPosition();
+
+                    void this.finishCharterSaveAfterClose(savedCharterId, savedCharterNumber);
                 } finally {
                     // Reset the flag after a short delay to prevent legitimate consecutive calls
                     setTimeout(() => {
@@ -24644,6 +27515,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Check if any charters have unavailable dates
                 const unavailableState = window.getExtrasUnavailableState ? window.getExtrasUnavailableState() : { fishingChartersUnavailable: [], fishingChartersNoDatesAvailable: [] };
                 const hasUnavailable = unavailableState.fishingChartersUnavailable.length > 0 || unavailableState.fishingChartersNoDatesAvailable.length > 0;
+                const charterNums = window.fishingCharterService?.getAllFishingCharterNumbers?.() || [];
+                const firstCharterNum = charterNums[0];
+                const outOfSeason = hasUnavailable && isCharterOutOfSeasonForStay(firstCharterNum);
+                const unavailableSuffix = outOfSeason ? CHARTER_OUT_OF_SEASON_LABEL : 'Unavailable';
 
                 // Get charter trip name and update text
                 try {
@@ -24652,7 +27527,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     const hasStayDates = urlParams.get('checkin') && urlParams.get('checkout');
                     if (this.mobileFishingCharterButtonText) {
                         if (hasUnavailable) {
-                            this.mobileFishingCharterButtonText.textContent = tripName ? `🎣 ${tripName} - Unavailable` : 'Fishing Charter - Unavailable';
+                            this.mobileFishingCharterButtonText.textContent = tripName
+                                ? `🎣 ${tripName} - ${unavailableSuffix}`
+                                : `Fishing Charter - ${unavailableSuffix}`;
                             this.mobileFishingCharterButtonText.style.color = '#dc2626';
                         } else if (needsDates && hasStayDates) {
                             this.mobileFishingCharterButtonText.textContent = tripName ? `🎣 ${tripName} - Add dates` : 'Fishing charter - Add dates';
@@ -24665,7 +27542,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 } catch (error) {
                     if (this.mobileFishingCharterButtonText) {
                         if (hasUnavailable) {
-                            this.mobileFishingCharterButtonText.textContent = 'Fishing Charter - Unavailable';
+                            this.mobileFishingCharterButtonText.textContent = `Fishing Charter - ${unavailableSuffix}`;
                             this.mobileFishingCharterButtonText.style.color = '#dc2626';
                         } else {
                             const urlParams = new URLSearchParams(window.location.search);
@@ -24712,13 +27589,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Check if any charters have unavailable dates
                 const unavailableState = window.getExtrasUnavailableState ? window.getExtrasUnavailableState() : { fishingChartersUnavailable: [], fishingChartersNoDatesAvailable: [] };
                 const hasUnavailable = unavailableState.fishingChartersUnavailable.length > 0 || unavailableState.fishingChartersNoDatesAvailable.length > 0;
+                const multiUnavailableSuffix = reservationHasCharterOutOfSeason()
+                    ? CHARTER_OUT_OF_SEASON_LABEL
+                    : 'Unavailable';
 
                 // Update text to show count with a fishing rod emoji
                 if (this.mobileFishingCharterButtonText) {
                     const urlParams = new URLSearchParams(window.location.search);
                     const hasStayDates = urlParams.get('checkin') && urlParams.get('checkout');
                     if (hasUnavailable) {
-                        this.mobileFishingCharterButtonText.textContent = `🎣 ${count} Charters - Unavailable`;
+                        this.mobileFishingCharterButtonText.textContent = `🎣 ${count} Charters - ${multiUnavailableSuffix}`;
                         this.mobileFishingCharterButtonText.style.color = '#dc2626';
                     } else if (needsDates && hasStayDates) {
                         this.mobileFishingCharterButtonText.textContent = `🎣 ${count} Charters - Add dates`;
@@ -24883,6 +27763,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Update all button visibility to sync check availability button
                 if (window.updateAllButtonVisibility) {
                     window.updateAllButtonVisibility();
+                }
+
+                if (typeof window.scheduleExtrasValidationAfterUrlChange === 'function') {
+                    window.scheduleExtrasValidationAfterUrlChange();
                 }
             }
 
@@ -25052,33 +27936,256 @@ document.addEventListener('DOMContentLoaded', () => {
     window.Wized = window.Wized || [];
     window.Wized.push((Wized) => {
 
-        // Central function to manage all button visibility based on validation states
-        function updateAllButtonVisibility() {
-            const validation = getValidationState();
+        function syncReservationSettlingClass(forceSettling) {
+            const settling = forceSettling !== false && (
+                !!forceSettling ||
+                (typeof window.isExtrasAvailabilityValidating === 'function' && window.isExtrasAvailabilityValidating()) ||
+                (typeof window.isReservationPanelSettling === 'function' && window.isReservationPanelSettling())
+            );
+            document.body.classList.toggle('kb-reservation-settling', settling);
+        }
+        window.syncReservationSettlingClass = syncReservationSettlingClass;
 
-            // Update main action buttons
+        /** One primary footer action at a time — avoids empty or duplicate buttons during package/calendar settling. */
+        function resolvePrimaryFooterCta(validation) {
+            const unavailableState = window.getExtrasUnavailableState
+                ? window.getExtrasUnavailableState()
+                : { boatUnavailable: false, boatNoDatesAvailable: false, fishingChartersUnavailable: [], fishingChartersNoDatesAvailable: [] };
+            const boatIsUnavailable = unavailableState.boatUnavailable || unavailableState.boatNoDatesAvailable;
+            const unavailableCharterNumbers = [
+                ...(unavailableState.fishingChartersUnavailable || []),
+                ...(unavailableState.fishingChartersNoDatesAvailable || []),
+            ];
+            const uniqueUnavailableCharterNumbers = [...new Set(unavailableCharterNumbers.map(String))];
+            const canRescheduleCharters = [...new Set((unavailableState.fishingChartersCanReschedule || []).map(String))];
+            const canChangeTripCharters = [...new Set((unavailableState.fishingChartersCanChangeTrip || []).map(String))];
+            const editCharterNumbers = uniqueUnavailableCharterNumbers.filter((n) => canRescheduleCharters.includes(String(n)));
+            const changeTripCharterNumbers = uniqueUnavailableCharterNumbers.filter(
+                (n) => canChangeTripCharters.includes(String(n)) && !canRescheduleCharters.includes(String(n))
+            );
+            const removeCharterNumbers = uniqueUnavailableCharterNumbers.filter(
+                (n) => !canRescheduleCharters.includes(String(n)) && !canChangeTripCharters.includes(String(n))
+            );
+            const hasUnavailableExtras = boatIsUnavailable || uniqueUnavailableCharterNumbers.length > 0;
+
+            if (validation.suppressChangeDatesFlash) {
+                const cta = { mode: 'loading', label: 'Building your trip…' };
+                extrasReservationTrace('footerCta', 'resolve → loading', { cta });
+                return cta;
+            }
+            if (validation.datesSelected && validation.datesValid && validation.guestsValid && validation.extrasNeedDates) {
+                const extrasInfo = validation.extrasNeedingDates || {};
+                const needingCharterSlots = (extrasInfo.fishingChartersNeedingDates || [])
+                    .map(n => Number(n))
+                    .filter(n => !Number.isNaN(n))
+                    .sort((a, b) => a - b);
+                const chartersNeedingDates = needingCharterSlots.length;
+                let allCharterSlots = typeof getAllFishingCharterNumbersForValidation === 'function'
+                    ? getAllFishingCharterNumbersForValidation()
+                    : [];
+                allCharterSlots = [...allCharterSlots].map(n => Number(n)).filter(n => !Number.isNaN(n)).sort((a, b) => a - b);
+                const totalChartersInUrl = allCharterSlots.length;
+                const firstNeedingSlot = needingCharterSlots[0];
+                const charterStepAmongAll = firstNeedingSlot != null && allCharterSlots.length > 0
+                    ? allCharterSlots.indexOf(firstNeedingSlot) + 1
+                    : 1;
+
+                if (extrasInfo.boatNeedsDates) {
+                    const cta = { mode: 'checkAvailability', label: 'Add boat dates' };
+                    extrasReservationTrace('footerCta', 'resolve → add boat dates', { cta });
+                    return cta;
+                }
+                if (chartersNeedingDates > 0) {
+                    const changeTripNeeding = needingCharterSlots.filter(
+                        (n) => canChangeTripCharters.includes(String(n)) && !canRescheduleCharters.includes(String(n))
+                    );
+                    if (changeTripNeeding.length > 0) {
+                        const label = changeTripNeeding.length === 1
+                            ? 'Choose another trip'
+                            : 'Choose other trips';
+                        const cta = {
+                            mode: 'changeCharterTrip',
+                            label,
+                            destructive: false,
+                            changeTripCharterNumbers: changeTripNeeding.map(String),
+                            firstCharterNumber: String(changeTripNeeding[0]),
+                        };
+                        extrasReservationTrace('footerCta', 'resolve → charter change trip (needs dates)', { cta });
+                        return cta;
+                    }
+                    const cta = totalChartersInUrl > 1
+                        ? { mode: 'checkAvailability', label: `Add charter dates (${charterStepAmongAll} of ${totalChartersInUrl})` }
+                        : { mode: 'checkAvailability', label: 'Add charter dates' };
+                    extrasReservationTrace('footerCta', 'resolve → add charter dates', { cta });
+                    return cta;
+                }
+                const cta = { mode: 'checkAvailability', label: 'Add dates' };
+                extrasReservationTrace('footerCta', 'resolve → add dates', { cta });
+                return cta;
+            }
+            if (validation.datesSelected && hasUnavailableExtras) {
+                const boatNeedsFix = unavailableState.boatUnavailable || unavailableState.boatNoDatesAvailable;
+
+                if (boatNeedsFix) {
+                    const cta = {
+                        mode: 'browseBoats',
+                        label: 'Choose another boat',
+                        destructive: false,
+                        boatIsUnavailable: true,
+                        boatNoViableRange: !!unavailableState.boatNoDatesAvailable,
+                    };
+                    extrasReservationTrace('footerCta', 'resolve → boat first', { cta });
+                    return cta;
+                }
+                if (editCharterNumbers.length > 0) {
+                    const label = editCharterNumbers.length === 1
+                        ? 'Edit charter date'
+                        : 'Edit charter dates';
+                    const cta = {
+                        mode: 'editCharterDates',
+                        label,
+                        destructive: false,
+                        editCharterNumbers,
+                        removeCharterNumbers,
+                        uniqueUnavailableCharterNumbers,
+                        firstCharterNumber: editCharterNumbers[0],
+                    };
+                    extrasReservationTrace('footerCta', 'resolve → charter edit', { cta });
+                    return cta;
+                }
+                if (changeTripCharterNumbers.length > 0) {
+                    const label = changeTripCharterNumbers.length === 1
+                        ? 'Choose another trip'
+                        : 'Choose other trips';
+                    const cta = {
+                        mode: 'changeCharterTrip',
+                        label,
+                        destructive: false,
+                        changeTripCharterNumbers,
+                        removeCharterNumbers,
+                        uniqueUnavailableCharterNumbers,
+                        firstCharterNumber: changeTripCharterNumbers[0],
+                    };
+                    extrasReservationTrace('footerCta', 'resolve → charter change trip', { cta });
+                    return cta;
+                }
+                let label = 'Remove unavailable extras';
+                if (removeCharterNumbers.length === 1) {
+                    label = 'Remove charter';
+                } else if (removeCharterNumbers.length > 1) {
+                    label = 'Remove charters';
+                }
+                const cta = {
+                    mode: 'removeExtras',
+                    label,
+                    destructive: true,
+                    boatIsUnavailable,
+                    uniqueUnavailableCharterNumbers,
+                    removeCharterNumbers,
+                    editCharterNumbers,
+                };
+                extrasReservationTrace('footerCta', 'resolve → removeExtras (no edit path)', { cta });
+                return cta;
+            }
+            if (!validation.datesSelected) {
+                const cta = { mode: 'checkAvailability', label: 'Add stay dates' };
+                extrasReservationTrace('footerCta', 'resolve → add stay dates', { cta });
+                return cta;
+            }
+            if (validation.datesUnavailable) {
+                return { mode: 'changeDates', label: 'Change dates' };
+            }
+            if (validation.guestsIncorrect) {
+                return { mode: 'changeGuests', label: 'Change guests' };
+            }
+            if (validation.noErrors) {
+                return { mode: 'reserve' };
+            }
+            return { mode: 'hidden' };
+        }
+
+        function applyCheckAvailabilityButtonLabel(button, cta) {
+            const buttonText = button.querySelector('[data-element="listing_checkAvailability_buttonText"]');
+            if (!buttonText) return;
+
+            const nextLabel = cta.label || 'Add dates';
+            const applyLabel = () => {
+                buttonText.style.display = '';
+                button.style.backgroundColor = cta.destructive ? '#dc2626' : '';
+                buttonText.textContent = nextLabel;
+                button.style.pointerEvents = cta.mode === 'loading' ? 'none' : '';
+                button.style.opacity = '1';
+                button.setAttribute('aria-busy', cta.mode === 'loading' ? 'true' : 'false');
+                if (cta.mode) {
+                    button.dataset.footerCtaMode = cta.mode;
+                } else {
+                    delete button.dataset.footerCtaMode;
+                }
+            };
+
+            if (buttonText.textContent !== nextLabel && buttonText.textContent.trim() !== '') {
+                buttonText.classList.add('kb-cta-label-fade');
+                requestAnimationFrame(() => {
+                    applyLabel();
+                    requestAnimationFrame(() => {
+                        buttonText.classList.remove('kb-cta-label-fade');
+                    });
+                });
+            } else {
+                applyLabel();
+            }
+        }
+
+        let _footerUiUpdateRaf = 0;
+
+        function updateAllButtonVisibilityCore() {
+            const validation = getValidationState();
+            validation.footerCta = resolvePrimaryFooterCta(validation);
+
+            extrasReservationTrace('ui', 'updateAllButtonVisibility', {
+                footerCtaMode: validation.footerCta?.mode,
+                footerCtaLabel: validation.footerCta?.label,
+                suppressChangeDatesFlash: validation.suppressChangeDatesFlash,
+                extrasHaveUnavailableDates: validation.extrasHaveUnavailableDates,
+                extrasNeedDates: validation.extrasNeedDates,
+                noErrors: validation.noErrors,
+            });
+
+            syncReservationSettlingClass(validation.suppressChangeDatesFlash);
+
             updateReserveButtonVisibility(validation);
             updateChangeDatesButtonVisibility(validation);
             updateChangeGuestsButtonVisibility(validation);
             updateCheckAvailabilityButtonVisibility(validation);
 
-            // Update boat and fishing charter button states
             updateBoatButtonState(validation);
             updateFishingCharterButtonState(validation);
 
-            // Update price details visibility
             updatePriceDetailsVisibility(validation);
-
-            // Update "Won't be charged" text visibility
             updateWontBeChargedTextVisibility(validation);
-
-            // Handle boat rental and fishing charter state if dates are cleared
             handleExtrasWhenDatesCleared(validation);
 
-            // Update visual state for extras that need dates
             if (window.updateExtrasNeedingDatesState) {
                 window.updateExtrasNeedingDatesState();
             }
+
+            if (window.updatePhoneReservationFooter) {
+                window.updatePhoneReservationFooter();
+            }
+        }
+
+        function updateAllButtonVisibility() {
+            updateAllButtonVisibilityCore();
+        }
+
+        function scheduleUpdateAllButtonVisibility() {
+            if (_footerUiUpdateRaf) {
+                cancelAnimationFrame(_footerUiUpdateRaf);
+            }
+            _footerUiUpdateRaf = requestAnimationFrame(() => {
+                _footerUiUpdateRaf = 0;
+                updateAllButtonVisibilityCore();
+            });
         }
 
         // Get comprehensive validation state
@@ -25167,15 +28274,37 @@ document.addEventListener('DOMContentLoaded', () => {
             const unavailableState = window.getExtrasUnavailableState ? window.getExtrasUnavailableState() : { boatUnavailable: false, boatNoDatesAvailable: false, fishingChartersUnavailable: [], fishingChartersNoDatesAvailable: [] };
             const extrasHaveUnavailableDates = unavailableState.boatUnavailable || unavailableState.boatNoDatesAvailable || unavailableState.fishingChartersUnavailable.length > 0 || (unavailableState.fishingChartersNoDatesAvailable?.length > 0);
 
-            // Avoid flashing "Change dates" while calendar data is still loading but extras already need dates
+            const urlParamsForPackage = urlParams;
+            const packageNightMismatch = typeof window.isPackageStayNightMismatch === 'function'
+                && window.isPackageStayNightMismatch(urlParamsForPackage);
+            const calendarQueryPending = !!(
+                r.Load_Property_Calendar_Query &&
+                (!r.Load_Property_Calendar_Query.hasRequested || r.Load_Property_Calendar_Query.isRequesting)
+            );
             const suppressChangeDatesForExtrasFlow = extrasNeedDates && datesSelected && !calendarStayValidationReady;
+            const extrasUrlKey = typeof window.buildExtrasAvailabilityUrlKey === 'function'
+                ? window.buildExtrasAvailabilityUrlKey()
+                : '';
+            const extrasAvailabilityStale = datesSelected && datesValid && !!extrasUrlKey && (
+                typeof window.urlHasExtrasToValidate === 'function' && window.urlHasExtrasToValidate()
+                && _extrasLastValidatedUrlKey !== extrasUrlKey
+            );
+            const suppressChangeDatesFlash = datesSelected && !packageNightMismatch && (
+                !calendarStayValidationReady ||
+                calendarQueryPending ||
+                !!window._extrasStaySyncPipelineRunning ||
+                extrasAvailabilityStale ||
+                (typeof window.isExtrasAvailabilityValidating === 'function' && window.isExtrasAvailabilityValidating())
+            );
 
             return {
                 datesSelected,
+                packageNightMismatch,
                 datesValid,
                 guestsValid,
                 calendarStayValidationReady,
-                datesUnavailable: datesSelected && !datesValid && !suppressChangeDatesForExtrasFlow,
+                suppressChangeDatesFlash,
+                datesUnavailable: datesSelected && !datesValid && !suppressChangeDatesForExtrasFlow && !suppressChangeDatesFlash,
                 guestsIncorrect: !guestsValid,
                 extrasNeedDates,
                 extrasNeedingDates,
@@ -25186,40 +28315,63 @@ document.addEventListener('DOMContentLoaded', () => {
 
         }
 
-        // Update reserve button visibility
         function updateReserveButtonVisibility(validation) {
-            const reserveButtons = document.querySelectorAll('[data-element="listing_reserve_button"]');
-            reserveButtons.forEach(button => {
-                if (button) {
-                    button.style.display = validation.noErrors ? 'flex' : 'none';
-                }
+            const cta = validation.footerCta || resolvePrimaryFooterCta(validation);
+            document.querySelectorAll('[data-element="listing_reserve_button"]').forEach(button => {
+                if (button) button.style.display = cta.mode === 'reserve' ? 'flex' : 'none';
             });
         }
 
-        // Update change dates button visibility
         function updateChangeDatesButtonVisibility(validation) {
-            const changeDatesButtons = document.querySelectorAll('[data-element="listing_changeDates_button"]');
-            changeDatesButtons.forEach(button => {
-                if (button) {
-                    button.style.display = validation.datesUnavailable ? 'flex' : 'none';
-                }
+            const cta = validation.footerCta || resolvePrimaryFooterCta(validation);
+            document.querySelectorAll('[data-element="listing_changeDates_button"]').forEach(button => {
+                if (!button) return;
+                button.style.display = cta.mode === 'changeDates' ? 'flex' : 'none';
+                const text = button.querySelector('[data-element="listing_changeDates_buttonText"]');
+                if (text) text.textContent = cta.label || 'Change dates';
             });
         }
 
-        // Update change guests button visibility
         function updateChangeGuestsButtonVisibility(validation) {
-            const changeGuestsButtons = document.querySelectorAll('[data-element="listing_changeGuests_button"]');
-            changeGuestsButtons.forEach(button => {
-                if (button) {
-                    button.style.display = validation.guestsIncorrect ? 'flex' : 'none';
-                }
+            const cta = validation.footerCta || resolvePrimaryFooterCta(validation);
+            document.querySelectorAll('[data-element="listing_changeGuests_button"]').forEach(button => {
+                if (button) button.style.display = cta.mode === 'changeGuests' ? 'flex' : 'none';
             });
         }
 
-        // Update check availability button visibility
         function updateCheckAvailabilityButtonVisibility(validation) {
+            const cta = validation.footerCta || resolvePrimaryFooterCta(validation);
             const checkAvailabilityButtons = document.querySelectorAll('[data-element="listing_checkAvailability_button"]');
             const manageTripButtons = document.querySelectorAll('[data-element="listing_manageTrip_button"]');
+
+            if (
+                cta.mode === 'loading' ||
+                cta.mode === 'checkAvailability' ||
+                cta.mode === 'removeExtras' ||
+                cta.mode === 'editCharterDates' ||
+                cta.mode === 'editBoatDates' ||
+                cta.mode === 'browseBoats' ||
+                cta.mode === 'changeCharterTrip'
+            ) {
+                manageTripButtons.forEach(button => {
+                    if (button) button.style.display = 'none';
+                });
+                const show =
+                    cta.mode === 'loading' ||
+                    cta.mode === 'checkAvailability' ||
+                    cta.mode === 'removeExtras' ||
+                    cta.mode === 'editCharterDates' ||
+                    cta.mode === 'editBoatDates' ||
+                    cta.mode === 'browseBoats' ||
+                    cta.mode === 'changeCharterTrip';
+                checkAvailabilityButtons.forEach(button => {
+                    if (!button) return;
+                    button.style.display = show ? 'flex' : 'none';
+                    if (show) applyCheckAvailabilityButtonLabel(button, cta);
+                });
+                return;
+            }
+
             const unavailableState = window.getExtrasUnavailableState ? window.getExtrasUnavailableState() : { boatUnavailable: false, boatNoDatesAvailable: false, fishingChartersUnavailable: [], fishingChartersNoDatesAvailable: [] };
             const boatIsUnavailable = unavailableState.boatUnavailable || unavailableState.boatNoDatesAvailable;
             const unavailableCharterNumbers = [...(unavailableState.fishingChartersUnavailable || []), ...(unavailableState.fishingChartersNoDatesAvailable || [])];
@@ -25240,30 +28392,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (isMobile && shouldShowForUnavailable) {
                 if (phoneContainerOpen) {
-                    // Phone container is open: show red "Remove boat/charter" in footer so user can remove from here
                     manageTripButtons.forEach(button => {
                         if (button) button.style.display = 'none';
                     });
+                    const unavailableCta = validation.footerCta || resolvePrimaryFooterCta(validation);
                     checkAvailabilityButtons.forEach(button => {
                         if (button) {
                             button.style.display = 'flex';
-                            const buttonText = button.querySelector('[data-element="listing_checkAvailability_buttonText"]');
-                            if (buttonText) {
-                                if (boatIsUnavailable && uniqueUnavailableCharterNumbers.length > 0) {
-                                    buttonText.textContent = 'Remove unavailable extras';
-                                    button.style.backgroundColor = '#dc2626';
-                                } else if (boatIsUnavailable) {
-                                    buttonText.textContent = 'Remove boat';
-                                    button.style.backgroundColor = '#dc2626';
-                                } else if (uniqueUnavailableCharterNumbers.length === 1) {
-                                    buttonText.textContent = 'Remove charter';
-                                    button.style.backgroundColor = '#dc2626';
-                                } else if (uniqueUnavailableCharterNumbers.length > 1) {
-                                    buttonText.textContent = 'Remove charters';
-                                    button.style.backgroundColor = '#dc2626';
-                                }
-                            }
+                            applyCheckAvailabilityButtonLabel(button, unavailableCta);
                         }
+                    });
+                    extrasReservationTrace('ui', 'mobile footer (phone open)', {
+                        ctaMode: unavailableCta.mode,
+                        ctaLabel: unavailableCta.label,
+                        boatIsUnavailable,
+                        uniqueUnavailableCharterNumbers,
                     });
                 } else {
                     // Phone container is closed: show "Manage trip" button
@@ -25293,19 +28436,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         const showExtrasDatePrompt = shouldShowForExtrasDates || shouldShowForExtrasDatesWhileStayValidating;
                         if (buttonText) {
                             if (shouldShowForUnavailable && hasUnavailableExtras) {
-                                if (boatIsUnavailable && uniqueUnavailableCharterNumbers.length > 0) {
-                                    buttonText.textContent = 'Remove unavailable extras';
-                                    button.style.backgroundColor = '#dc2626';
-                                } else if (boatIsUnavailable) {
-                                    buttonText.textContent = 'Remove boat';
-                                    button.style.backgroundColor = '#dc2626';
-                                } else if (uniqueUnavailableCharterNumbers.length === 1) {
-                                    buttonText.textContent = 'Remove charter';
-                                    button.style.backgroundColor = '#dc2626';
-                                } else if (uniqueUnavailableCharterNumbers.length > 1) {
-                                    buttonText.textContent = 'Remove charters';
-                                    button.style.backgroundColor = '#dc2626';
-                                }
+                                const unavailableCta = validation.footerCta || resolvePrimaryFooterCta(validation);
+                                applyCheckAvailabilityButtonLabel(button, unavailableCta);
+                                extrasReservationTrace('ui', 'desktop footer unavailable CTA', {
+                                    ctaMode: unavailableCta.mode,
+                                    ctaLabel: unavailableCta.label,
+                                });
                             } else if (showExtrasDatePrompt) {
                                 button.style.backgroundColor = '';
                                 const extrasInfo = validation.extrasNeedingDates;
@@ -25345,7 +28481,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
         }
-        // Update price details visibility
         function updatePriceDetailsVisibility(validation) {
             const priceDetailsElements = document.querySelectorAll('[data-element="Listing_Query_Price_Details"]');
             const listingOnlyElements = document.querySelectorAll('[data-element="ListingOnly_Query_Price_Details"]');
@@ -25353,20 +28488,48 @@ document.addEventListener('DOMContentLoaded', () => {
             const addDatesHeadings = document.querySelectorAll('[data-element="Listing_Reservaton_AddDates_Heading"]');
             const totalContainers = document.querySelectorAll('[data-element="Listing_Reservation_Amount_Total_Container"]');
 
-            // Show pricing when dates are selected, valid, guests are valid, AND no extras need dates
+            const isSettling = validation.suppressChangeDatesFlash;
+
+            if (isSettling) {
+                addDatesHeadings.forEach(element => {
+                    if (!element) return;
+                    element.style.display = 'flex';
+                    element.textContent = 'Building your trip…';
+                });
+                totalContainers.forEach(element => {
+                    if (element) element.style.display = 'none';
+                });
+                priceDetailsElements.forEach(element => {
+                    if (element) element.style.display = 'none';
+                });
+                listingOnlyElements.forEach(element => {
+                    if (element) element.style.display = 'none';
+                });
+                listingExtrasElements.forEach(element => {
+                    if (element) element.style.display = 'none';
+                });
+                return;
+            }
+
             const stayDatesValid = validation.datesSelected && validation.datesValid && validation.guestsValid;
             const hasExtras = window.hasAnyExtrasSelected && window.hasAnyExtrasSelected();
             const extrasNeedDates = validation.extrasNeedDates || hasExtrasMissingDatesInURL();
 
-            // Check if any extras have unavailable dates
             const unavailableState = window.getExtrasUnavailableState ? window.getExtrasUnavailableState() : { boatUnavailable: false, boatNoDatesAvailable: false, fishingChartersUnavailable: [], fishingChartersNoDatesAvailable: [] };
             const extrasHaveUnavailableDates = unavailableState.boatUnavailable || unavailableState.boatNoDatesAvailable || unavailableState.fishingChartersUnavailable.length > 0 || (unavailableState.fishingChartersNoDatesAvailable?.length > 0);
 
-            // Only show pricing when ALL dates are selected (stay + extras) and no extras are unavailable
-            // If extras need dates or have unavailable dates, keep showing heading instead
-            const shouldShowPricing = stayDatesValid && (!hasExtras || !extrasNeedDates) && !extrasHaveUnavailableDates;
+            const shouldShowPricing = !isSettling && stayDatesValid && (!hasExtras || !extrasNeedDates) && !extrasHaveUnavailableDates;
 
-            // Toggle the add-dates heading
+            extrasReservationTrace('pricing', 'updatePriceDetailsVisibility', {
+                shouldShowPricing,
+                isSettling,
+                stayDatesValid,
+                hasExtras,
+                extrasNeedDates,
+                extrasHaveUnavailableDates,
+                lastExtrasGrandTotal: window.lastExtrasGrandTotal,
+            });
+
             addDatesHeadings.forEach(element => {
                 if (element) {
                     element.style.display = shouldShowPricing ? 'none' : 'flex';
@@ -25436,7 +28599,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
         }
-
         // Update boat rental button state (opacity/cursor)
         function updateBoatButtonState(validation) {
             const boatButtons = document.querySelectorAll('[data-element="addBoatButton"]');
@@ -25476,14 +28638,46 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Handle boat rentals and fishing charters when dates are invalid or cleared
+        let _footerExtrasSyncTimer = null;
         function handleExtrasWhenDatesCleared(validation) {
+            const syncCooldownMs = 1200;
+            if (window._extrasSyncJustRanAt && (Date.now() - window._extrasSyncJustRanAt) < syncCooldownMs) {
+                return;
+            }
+
+            if (window.canSyncExtrasToStay && window.canSyncExtrasToStay() && validation.datesSelected && validation.datesValid) {
+                if (typeof hasExtrasMissingDatesInURL === 'function' && !hasExtrasMissingDatesInURL()) {
+                    return;
+                }
+                if (_footerExtrasSyncTimer) {
+                    clearTimeout(_footerExtrasSyncTimer);
+                }
+                _footerExtrasSyncTimer = setTimeout(() => {
+                    _footerExtrasSyncTimer = null;
+                    if (window._extrasSyncJustRanAt && (Date.now() - window._extrasSyncJustRanAt) < syncCooldownMs) {
+                        return;
+                    }
+                    extrasScheduleTrace('handleExtrasWhenDatesCleared: debounced syncExtrasToStay', {
+                        datesSelected: validation.datesSelected,
+                    });
+                    if (window.syncExtrasToStay) {
+                        window.syncExtrasToStay();
+                    }
+                }, 80);
+                return;
+            }
+
             const urlParams = new URLSearchParams(window.location.search);
 
-            // Case 1: No dates selected - Keep extras but update their visual state
-            // This allows sharing links with extras pre-added without stay dates
+            // Case 1: No stay dates — clear autofilled extra dates but keep extras + schedule offsets
             if (!validation.datesSelected) {
-                // Update extras visual state to show they need dates
-                updateExtrasNeedingDatesState();
+                if (hasAnyExtraDatesInUrl(urlParams)) {
+                    if (window.clearExtraDatesWhenStayRemoved) {
+                        window.clearExtraDatesWhenStayRemoved();
+                    }
+                } else {
+                    updateExtrasNeedingDatesState();
+                }
                 return;
             }
 
@@ -25648,16 +28842,52 @@ document.addEventListener('DOMContentLoaded', () => {
             boatUnavailable: false,
             boatNoDatesAvailable: false,
             fishingChartersUnavailable: [],
-            fishingChartersNoDatesAvailable: []
+            fishingChartersNoDatesAvailable: [],
+            /** Unavailable now but at least one other stay day works for this trip — show Edit, not Remove. */
+            fishingChartersCanReschedule: [],
+            /** Current trip unavailable but another trip on the same charter works — show Choose another trip. */
+            fishingChartersCanChangeTrip: [],
         };
 
         // Guard against concurrent validation runs
         let _validationRunning = false;
         let _validationQueued = false;
+        let _validateDebounceTimer = null;
+        let _validationDeferredForCalendar = false;
+
+        let _extrasLastValidatedUrlKey = '';
+
+        function scheduleValidateExtrasAvailability(options = {}) {
+            if (_validateDebounceTimer) {
+                clearTimeout(_validateDebounceTimer);
+            }
+            _validateDebounceTimer = setTimeout(() => {
+                _validateDebounceTimer = null;
+                const ids = options.invalidateCharterIds || [];
+                if (window.CalendarAvailabilityService?.invalidateCharterAvailableTripsCache) {
+                    ids.forEach((id) => {
+                        window.CalendarAvailabilityService.invalidateCharterAvailableTripsCache(id);
+                    });
+                }
+                validateExtrasAvailabilityOnLoad({ forceRefresh: !!ids.length }).catch(() => { });
+            }, options.invalidateCharterIds?.length ? 200 : 350);
+        }
+        window.scheduleValidateExtrasAvailability = scheduleValidateExtrasAvailability;
+
+        /** After URL extras change (charter removed, etc.) refresh validation so footer stale gate clears. */
+        function scheduleExtrasValidationAfterUrlChange() {
+            if (typeof window.urlHasExtrasToValidate === 'function' && window.urlHasExtrasToValidate()) {
+                scheduleValidateExtrasAvailability();
+                return;
+            }
+            _extrasLastValidatedUrlKey = typeof window.buildExtrasAvailabilityUrlKey === 'function'
+                ? window.buildExtrasAvailabilityUrlKey()
+                : '';
+        }
+        window.scheduleExtrasValidationAfterUrlChange = scheduleExtrasValidationAfterUrlChange;
 
         // Validate availability of pre-loaded URL extras on page load
-        async function validateExtrasAvailabilityOnLoad() {
-            // Prevent concurrent async runs from producing duplicates
+        async function validateExtrasAvailabilityOnLoad(options = {}) {
             if (_validationRunning) {
                 _validationQueued = true;
                 window.kbLog && window.kbLog('validateExtrasAvailabilityOnLoad: queued (already running)');
@@ -25665,23 +28895,77 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             _validationRunning = true;
             _validationQueued = false;
+            const urlKeyAtStart = typeof window.buildExtrasAvailabilityUrlKey === 'function'
+                ? window.buildExtrasAvailabilityUrlKey()
+                : '';
+            if (!options.skipAvailabilityGate && typeof window.beginExtrasAvailabilityValidation === 'function') {
+                window.beginExtrasAvailabilityValidation();
+            }
             const _validateT0 = performance.now();
             window.kbLog && window.kbLog('validateExtrasAvailabilityOnLoad: start');
+            extrasAvailabilityTrace('validateExtrasAvailabilityOnLoad: start', {
+                href: window.location.href,
+            });
 
             const urlParams = new URLSearchParams(window.location.search);
-            extrasUnavailableState = {
+            const stayCal = typeof window.getStayCalendarValidation === 'function'
+                ? window.getStayCalendarValidation()
+                : null;
+            if (stayCal && stayCal.datesSelected) {
+                if (!stayCal.calendarStayValidationReady) {
+                    _validationRunning = false;
+                    _validationDeferredForCalendar = true;
+                    if (!options.skipAvailabilityGate && typeof window.endExtrasAvailabilityValidation === 'function') {
+                        window.endExtrasAvailabilityValidation();
+                    }
+                    extrasAvailabilityTrace('validateExtrasAvailabilityOnLoad: skip (stay calendar not ready)', {});
+                    scheduleValidateExtrasAvailability();
+                    return;
+                }
+                if (!stayCal.stayDatesValid) {
+                    _validationDeferredForCalendar = false;
+                    _extrasLastValidatedUrlKey = '';
+                    extrasUnavailableState = {
+                        boatUnavailable: false,
+                        boatNoDatesAvailable: false,
+                        fishingChartersUnavailable: [],
+                        fishingChartersNoDatesAvailable: [],
+                        fishingChartersCanReschedule: [],
+                        fishingChartersCanChangeTrip: [],
+                    };
+                    _validationRunning = false;
+                    if (!options.skipAvailabilityGate && typeof window.endExtrasAvailabilityValidation === 'function') {
+                        window.endExtrasAvailabilityValidation();
+                    }
+                    extrasAvailabilityTrace('validateExtrasAvailabilityOnLoad: skip (stay dates unavailable)', {});
+                    if (window.updateExtrasNeedingDatesState) {
+                        window.updateExtrasNeedingDatesState();
+                    }
+                    if (window.updateAllButtonVisibility) {
+                        window.updateAllButtonVisibility();
+                    }
+                    return;
+                }
+            }
+
+            const nextExtrasUnavailableState = {
                 boatUnavailable: false,
                 boatNoDatesAvailable: false,
                 fishingChartersUnavailable: [],
-                fishingChartersNoDatesAvailable: []
+                fishingChartersNoDatesAvailable: [],
+                fishingChartersCanReschedule: [],
+                fishingChartersCanChangeTrip: [],
             };
 
             if (!window.CalendarAvailabilityService) {
                 window.kbLog && window.kbLog('validateExtrasAvailabilityOnLoad: ⚠ skip (no CalendarAvailabilityService)');
                 _validationRunning = false;
+                if (!options.skipAvailabilityGate && typeof window.endExtrasAvailabilityValidation === 'function') {
+                    window.endExtrasAvailabilityValidation();
+                }
                 if (_validationQueued) {
                     _validationQueued = false;
-                    validateExtrasAvailabilityOnLoad();
+                    scheduleValidateExtrasAvailability();
                 }
                 return;
             }
@@ -25694,53 +28978,120 @@ document.addEventListener('DOMContentLoaded', () => {
             const boatDatesRaw = urlParams.get('boatDates');
             const charterNumbers = getAllFishingCharterNumbersForValidation();
 
+            const charterStayTripsByCharterId = new Map();
+            if (hasStayDates && charterNumbers.length > 0) {
+                const uniqueCharterIds = [
+                    ...new Set(
+                        charterNumbers
+                            .map((num) => urlParams.get(`fishingCharterId${num}`))
+                            .filter(Boolean)
+                    ),
+                ];
+                await Promise.all(uniqueCharterIds.map(async (charterId) => {
+                    const sampleNum = charterNumbers.find(
+                        (num) => urlParams.get(`fishingCharterId${num}`) === charterId
+                    );
+                    const charterPickup = sampleNum
+                        ? urlParams.get(`fishingCharterPickup${sampleNum}`)
+                        : null;
+                    const stayDates = getCharterStayDatesForAvailability(checkin, checkout, charterPickup);
+                    if (stayDates.length === 0) return;
+                    try {
+                        const tripsData = await window.CalendarAvailabilityService.fetchCharterAvailableTrips(
+                            Number(charterId),
+                            stayDates
+                        );
+                        charterStayTripsByCharterId.set(charterId, tripsData);
+                    } catch (e) {
+                        charterStayTripsByCharterId.set(charterId, []);
+                    }
+                }));
+            }
+
             const validationTasks = [];
 
             if (boatId) {
                 validationTasks.push((async () => {
+                    const applyBoatStayViability = (boatAvail, stayDates, requiredMinDays) => {
+                        if (!boatAvail || !stayDates?.length) {
+                            nextExtrasUnavailableState.boatNoDatesAvailable = true;
+                            return;
+                        }
+                        const viability = evaluateBoatViableRangeOnStay(
+                            stayDates,
+                            boatAvail.unavailable_dates || [],
+                            requiredMinDays
+                        );
+                        if (!viability.hasViableRange) {
+                            nextExtrasUnavailableState.boatNoDatesAvailable = true;
+                        }
+                        extrasAvailabilityTrace('boat: stay viability scan', {
+                            boatId,
+                            stayNights: stayDates.length,
+                            requiredMinDays,
+                            maxConsecutive: viability.maxConsecutive,
+                            hasViableRange: viability.hasViableRange,
+                            unavailCount: (boatAvail.unavailable_dates || []).length,
+                        });
+                    };
+
+                    const getRequiredBoatDays = (stayDayCount) =>
+                        getRequiredBoatDaysForStay(urlParams, boatId, stayDayCount);
+
+                    const boatDatesSelected = !!(boatDatesRaw && boatDatesRaw.trim() !== '');
+                    if (hasStayDates && boatDatesSelected) {
+                        try {
+                            const stayDates = generateDateRangeForValidation(checkin, checkout);
+                            if (stayDates.length > 0) {
+                                const batchResult = await window.CalendarAvailabilityService.fetchBoatBatchAvailability(
+                                    [Number(boatId)],
+                                    stayDates,
+                                    { forceRefresh: !!options.forceRefresh }
+                                );
+                                const boatAvail = batchResult?.boats?.find((b) => b.boat_id == boatId);
+                                const requiredMinDays = getRequiredBoatDays(stayDates.length);
+                                applyBoatStayViability(boatAvail, stayDates, requiredMinDays);
+                            }
+                        } catch (e) {
+                            extrasAvailabilityTrace('boat: stay scan error (fail open)', {
+                                boatId,
+                                message: e?.message,
+                            });
+                        }
+                    }
+
                     if (boatDatesRaw && boatDatesRaw.trim() !== '') {
                         const boatDates = boatDatesRaw.split(',').filter(Boolean);
                         if (boatDates.length > 0) {
                             try {
-                                const result = await window.CalendarAvailabilityService.validateBoatAvailability(boatId, boatDates);
-                                if (!result.available) {
-                                    clearBoatDatesFromReservation();
+                                const result = await window.CalendarAvailabilityService.validateBoatAvailability(
+                                    boatId,
+                                    boatDates,
+                                    { forceRefresh: !!options.forceRefresh }
+                                );
+                                const unavailDates = result?.unavailable_dates || [];
+                                const selectedHasUnavailable = boatDates.some((d) => unavailDates.includes(d));
+                                extrasAvailabilityTrace('boat: validate selected dates', {
+                                    boatId,
+                                    boatDates,
+                                    available: result?.available,
+                                    unavailable_dates: unavailDates,
+                                    selectedHasUnavailable,
+                                    boatNoDatesAvailable: nextExtrasUnavailableState.boatNoDatesAvailable,
+                                });
+                                if ((result && result.available === false) || selectedHasUnavailable) {
+                                    nextExtrasUnavailableState.boatUnavailable = true;
+                                } else {
+                                    // Selected URL dates are bookable — don't block reserve/browse on a longer schedule-only scan.
+                                    nextExtrasUnavailableState.boatNoDatesAvailable = false;
                                 }
-                            } catch (e) { /* fail open */ }
-                        }
-                    } else if (hasStayDates) {
-                        try {
-                            const stayDates = generateDateRangeForValidation(checkin, checkout);
-                            if (stayDates.length > 0) {
-                                const result = await window.CalendarAvailabilityService.fetchBoatBatchAvailability([Number(boatId)], stayDates);
-                                const boatAvail = result?.boats?.find(b => b.boat_id == boatId);
-                                if (boatAvail) {
-                                    const unavailDates = boatAvail.unavailable_dates || [];
-                                    const availDates = stayDates.filter(d => !unavailDates.includes(d));
-                                    const effectiveMinDays = getEffectiveMinDaysForBoatFromUrl(boatId);
-                                    if (effectiveMinDays <= 1) {
-                                        if (availDates.length === 0) {
-                                            extrasUnavailableState.boatNoDatesAvailable = true;
-                                        }
-                                    } else {
-                                        let maxConsecutive = 0;
-                                        let currentConsecutive = 0;
-                                        const sortedStay = [...stayDates].sort();
-                                        for (const d of sortedStay) {
-                                            if (unavailDates.includes(d)) {
-                                                currentConsecutive = 0;
-                                            } else {
-                                                currentConsecutive++;
-                                                if (currentConsecutive > maxConsecutive) maxConsecutive = currentConsecutive;
-                                            }
-                                        }
-                                        if (maxConsecutive < effectiveMinDays) {
-                                            extrasUnavailableState.boatNoDatesAvailable = true;
-                                        }
-                                    }
-                                }
+                            } catch (e) {
+                                extrasAvailabilityTrace('boat: validate error (fail open)', {
+                                    boatId,
+                                    message: e?.message,
+                                });
                             }
-                        } catch (e) { /* fail open */ }
+                        }
                     }
                 })());
             }
@@ -25757,37 +29108,175 @@ document.addEventListener('DOMContentLoaded', () => {
                         const charterDates = charterDatesRaw.split(',').filter(Boolean);
                         if (charterDates.length > 0) {
                             try {
-                                const result = await window.CalendarAvailabilityService.validateCharterAvailability(charterId, charterDates);
-                                if (!result.available) {
-                                    clearCharterDatesFromReservation(number);
+                                const charterPickup = urlParams.get(`fishingCharterPickup${number}`);
+                                const allowedStayDates = new Set(
+                                    getCharterStayDatesForAvailability(checkin, checkout, charterPickup)
+                                        .map(normalizeAvailabilityYmd)
+                                );
+                                const outsideStay = charterDates.some(
+                                    (d) => !allowedStayDates.has(normalizeAvailabilityYmd(d))
+                                );
+                                if (outsideStay) {
+                                    nextExtrasUnavailableState.fishingChartersUnavailable.push(number);
+                                    extrasAvailabilityTrace('charter: selected dates outside stay', {
+                                        number,
+                                        charterDates,
+                                        checkin,
+                                        checkout,
+                                    });
+                                    if (charterTripId) {
+                                        const stayTripsData = charterStayTripsByCharterId.get(charterId);
+                                        const tripInfo = findCharterTripInAvailabilityList(stayTripsData, charterTripId);
+                                        const canReschedule = tripInfo
+                                            ? charterTripHasAnyReschedulableDate(tripInfo)
+                                            : await charterTripHasReschedulableStayDates(
+                                                charterId,
+                                                charterTripId,
+                                                checkin,
+                                                checkout,
+                                                charterPickup
+                                            );
+                                        if (canReschedule) {
+                                            nextExtrasUnavailableState.fishingChartersCanReschedule.push(number);
+                                        } else if (stayTripsData) {
+                                            markCharterCanChangeTripIfApplicable(
+                                                nextExtrasUnavailableState,
+                                                number,
+                                                false,
+                                                stayTripsData,
+                                                charterTripId
+                                            );
+                                        }
+                                    }
+                                } else if (charterTripId) {
+                                    const stayTripsData = charterStayTripsByCharterId.get(charterId);
+                                    const tripInfo = findCharterTripInAvailabilityList(stayTripsData, charterTripId);
+                                    const tripCheck = await isCharterTripAvailableOnSelectedDates(
+                                        charterId,
+                                        charterTripId,
+                                        charterDates,
+                                        {
+                                            forceRefresh: !!options.forceRefresh,
+                                            charterPickup,
+                                        }
+                                    );
+                                    extrasAvailabilityTrace('charter: validate selected dates (trip)', {
+                                        number,
+                                        charterId,
+                                        charterTripId,
+                                        charterDates,
+                                        available: tripCheck.available,
+                                        keptDates: tripCheck.keptDates,
+                                        reason: tripCheck.reason,
+                                    });
+                                    if (!tripCheck.available) {
+                                        nextExtrasUnavailableState.fishingChartersUnavailable.push(number);
+                                        const canReschedule = tripInfo
+                                            ? charterTripHasAnyReschedulableDate(tripInfo)
+                                            : await charterTripHasReschedulableStayDates(
+                                                charterId,
+                                                charterTripId,
+                                                checkin,
+                                                checkout,
+                                                charterPickup
+                                            );
+                                        if (canReschedule) {
+                                            nextExtrasUnavailableState.fishingChartersCanReschedule.push(number);
+                                        } else if (charterTripId) {
+                                            if (stayTripsData) {
+                                                markCharterCanChangeTripIfApplicable(
+                                                    nextExtrasUnavailableState,
+                                                    number,
+                                                    false,
+                                                    stayTripsData,
+                                                    charterTripId
+                                                );
+                                            } else if (hasStayDates) {
+                                                const canChange = await charterHasAlternateTripsForStay(
+                                                    charterId,
+                                                    charterTripId,
+                                                    checkin,
+                                                    checkout,
+                                                    charterPickup
+                                                );
+                                                if (canChange) {
+                                                    nextExtrasUnavailableState.fishingChartersCanChangeTrip.push(number);
+                                                }
+                                            }
+                                        }
+                                        extrasAvailabilityTrace('charter: reschedule options', {
+                                            number,
+                                            canReschedule,
+                                            canChangeTrip: (nextExtrasUnavailableState.fishingChartersCanChangeTrip || []).includes(number),
+                                        });
+                                    }
+                                } else if (!outsideStay) {
+                                    const result = await window.CalendarAvailabilityService.validateCharterAvailability(charterId, charterDates);
+                                    extrasAvailabilityTrace('charter: validate selected dates (charter batch)', {
+                                        number,
+                                        charterId,
+                                        charterDates,
+                                        available: result?.available,
+                                    });
+                                    if (result && result.available === false) {
+                                        nextExtrasUnavailableState.fishingChartersUnavailable.push(number);
+                                    }
                                 }
-                            } catch (e) { /* fail open */ }
+                            } catch (e) {
+                                extrasAvailabilityTrace('charter: validate error (fail open)', {
+                                    number,
+                                    charterId,
+                                    message: e?.message,
+                                });
+                            }
                         }
                     } else if (hasStayDates && charterTripId) {
                         try {
-                            const stayDates = generateDateRangeForValidation(checkin, checkout);
                             const charterPickup = urlParams.get(`fishingCharterPickup${number}`);
-                            let datesToCheck = stayDates;
-                            if (charterPickup === 'true' && stayDates.length > 2) {
-                                datesToCheck = stayDates.slice(1, -1);
+                            let tripsData = charterStayTripsByCharterId.get(charterId);
+                            if (!tripsData) {
+                                const datesToCheck = getCharterStayDatesForAvailability(checkin, checkout, charterPickup);
+                                if (datesToCheck.length > 0) {
+                                    tripsData = await window.CalendarAvailabilityService.fetchCharterAvailableTrips(
+                                        Number(charterId),
+                                        datesToCheck
+                                    );
+                                    charterStayTripsByCharterId.set(charterId, tripsData);
+                                }
                             }
-                            if (datesToCheck.length > 0) {
-                                const tripsData = await window.CalendarAvailabilityService.fetchCharterAvailableTrips(Number(charterId), datesToCheck);
-                                if (Array.isArray(tripsData) && tripsData.length > 0) {
-                                    const tripInfo = tripsData.find(t => t.trip_id == charterTripId || t.id == charterTripId);
-                                    if (!tripInfo) {
-                                        extrasUnavailableState.fishingChartersNoDatesAvailable.push(number);
-                                    } else if (!tripInfo.available_on_all_dates) {
-                                        const hasAnyAvailable = tripInfo.availability_by_date?.some(d => d.available);
-                                        if (!hasAnyAvailable) {
-                                            extrasUnavailableState.fishingChartersNoDatesAvailable.push(number);
-                                        }
+                            if (Array.isArray(tripsData) && tripsData.length > 0) {
+                                const tripInfo = findCharterTripInAvailabilityList(tripsData, charterTripId);
+                                extrasAvailabilityTrace('charter: no dates in URL — trip scan', {
+                                    number,
+                                    charterId,
+                                    charterTripId,
+                                    tripFound: !!tripInfo,
+                                    available_on_all_dates: tripInfo?.available_on_all_dates,
+                                });
+                                if (!tripInfo) {
+                                    nextExtrasUnavailableState.fishingChartersNoDatesAvailable.push(number);
+                                    markCharterCanChangeTripIfApplicable(
+                                        nextExtrasUnavailableState,
+                                        number,
+                                        false,
+                                        tripsData,
+                                        charterTripId
+                                    );
+                                } else if (!tripInfo.available_on_all_dates) {
+                                    const hasAnyAvailable = tripInfo.availability_by_date?.some((d) => d.available);
+                                    if (!hasAnyAvailable) {
+                                        nextExtrasUnavailableState.fishingChartersNoDatesAvailable.push(number);
+                                        markCharterCanChangeTripIfApplicable(
+                                            nextExtrasUnavailableState,
+                                            number,
+                                            false,
+                                            tripsData,
+                                            charterTripId
+                                        );
                                     }
-                                } else {
-                                    extrasUnavailableState.fishingChartersNoDatesAvailable.push(number);
                                 }
                             } else {
-                                extrasUnavailableState.fishingChartersNoDatesAvailable.push(number);
+                                nextExtrasUnavailableState.fishingChartersNoDatesAvailable.push(number);
                             }
                         } catch (e) {
                         }
@@ -25798,27 +29287,56 @@ document.addEventListener('DOMContentLoaded', () => {
             await Promise.all(validationTasks);
 
             // Deduplicate arrays to guard against any remaining race conditions
-            extrasUnavailableState.fishingChartersUnavailable = [...new Set(extrasUnavailableState.fishingChartersUnavailable)];
-            extrasUnavailableState.fishingChartersNoDatesAvailable = [...new Set(extrasUnavailableState.fishingChartersNoDatesAvailable)];
+            nextExtrasUnavailableState.fishingChartersUnavailable = [...new Set(nextExtrasUnavailableState.fishingChartersUnavailable)];
+            nextExtrasUnavailableState.fishingChartersNoDatesAvailable = [...new Set(nextExtrasUnavailableState.fishingChartersNoDatesAvailable)];
+            nextExtrasUnavailableState.fishingChartersCanReschedule = [...new Set(nextExtrasUnavailableState.fishingChartersCanReschedule)];
+            nextExtrasUnavailableState.fishingChartersCanChangeTrip = [...new Set(nextExtrasUnavailableState.fishingChartersCanChangeTrip)];
 
+            extrasUnavailableState = nextExtrasUnavailableState;
+            _extrasLastValidatedUrlKey = urlKeyAtStart;
+            _validationDeferredForCalendar = false;
 
             // Update UI based on availability results
             updateExtrasNeedingDatesState();
+            if (
+                !extrasUnavailableState.boatUnavailable &&
+                !extrasUnavailableState.boatNoDatesAvailable &&
+                boatId &&
+                boatDatesRaw &&
+                typeof refreshSelectedBoatBlockDatesDelivery === 'function'
+            ) {
+                refreshSelectedBoatBlockDatesDelivery();
+            }
             if (window.mobileBoatButtonHandler) window.mobileBoatButtonHandler.updateMobileBoatButtonState();
             if (window.mobileFishingCharterButtonHandler) window.mobileFishingCharterButtonHandler.updateMobileFishingCharterButtonState();
+
+            _validationRunning = false;
+            if (!options.skipAvailabilityGate && typeof window.endExtrasAvailabilityValidation === 'function') {
+                window.endExtrasAvailabilityValidation();
+            }
             if (window.updateAllButtonVisibility) {
                 window.updateAllButtonVisibility();
             }
-
-            // Release concurrency guard and re-run if another call was queued
-            _validationRunning = false;
+            extrasAvailabilityTrace('validateExtrasAvailabilityOnLoad: end', {
+                durationMs: Math.round(performance.now() - _validateT0),
+                state: { ...extrasUnavailableState },
+            });
+            extrasReservationTrace('availability', 'validate complete → UI refresh', {
+                durationMs: Math.round(performance.now() - _validateT0),
+                state: snapshotExtrasUnavailableState(),
+            });
             window.kbLog && window.kbLog('validateExtrasAvailabilityOnLoad: end', {
                 durationMs: Math.round(performance.now() - _validateT0),
                 state: extrasUnavailableState
             });
             if (_validationQueued) {
                 _validationQueued = false;
-                validateExtrasAvailabilityOnLoad();
+                const urlKeyNow = typeof window.buildExtrasAvailabilityUrlKey === 'function'
+                    ? window.buildExtrasAvailabilityUrlKey()
+                    : '';
+                if (urlKeyNow !== urlKeyAtStart) {
+                    validateExtrasAvailabilityOnLoad(options).catch(() => { });
+                }
             }
         }
 
@@ -25869,6 +29387,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Update visual state for extras that need dates
         function updateExtrasNeedingDatesState() {
+            if (typeof window.isExtrasAvailabilityValidating === 'function' && window.isExtrasAvailabilityValidating()) {
+                extrasReservationTrace('blocks', 'updateExtrasNeedingDatesState: skip (validating)', {});
+                return;
+            }
             const urlParams = new URLSearchParams(window.location.search);
             const checkin = urlParams.get('checkin');
             const checkout = urlParams.get('checkout');
@@ -25887,45 +29409,7 @@ document.addEventListener('DOMContentLoaded', () => {
             boatBlocks.forEach(block => {
                 if (!block || !boatId) return;
 
-
-
-                if (extrasUnavailableState.boatNoDatesAvailable) {
-                    block.style.backgroundColor = '';
-                    block.style.borderColor = '';
-                    block.style.boxShadow = '';
-
-                    const editButton = block.querySelector('[data-element="editSelectedBoat"]');
-                    if (editButton) {
-                        editButton.textContent = 'Remove';
-                        editButton.style.color = '#dc2626';
-                        editButton.dataset.unavailableAction = 'remove';
-                    }
-
-                    const datesDeliveryElement = block.querySelector('[data-element="selectedBoatBlock_datesDelivery"]');
-                    if (datesDeliveryElement) {
-                        datesDeliveryElement.textContent = 'Not available for selected dates';
-                        datesDeliveryElement.style.color = '#dc2626';
-                        datesDeliveryElement.style.fontStyle = 'normal';
-                    }
-                } else if (extrasUnavailableState.boatUnavailable) {
-                    block.style.backgroundColor = '';
-                    block.style.borderColor = '';
-                    block.style.boxShadow = '';
-
-                    const editButton = block.querySelector('[data-element="editSelectedBoat"]');
-                    if (editButton) {
-                        editButton.textContent = 'Remove';
-                        editButton.style.color = '#dc2626';
-                        editButton.dataset.unavailableAction = 'remove';
-                    }
-
-                    const datesDeliveryElement = block.querySelector('[data-element="selectedBoatBlock_datesDelivery"]');
-                    if (datesDeliveryElement) {
-                        datesDeliveryElement.textContent = 'Not available for selected dates';
-                        datesDeliveryElement.style.color = '#dc2626';
-                        datesDeliveryElement.style.fontStyle = 'normal';
-                    }
-                } else if (extrasInfo.boatNeedsDates) {
+                if (extrasInfo.boatNeedsDates) {
                     block.style.backgroundColor = '';
                     block.style.borderColor = '';
                     block.style.boxShadow = '';
@@ -25943,7 +29427,40 @@ document.addEventListener('DOMContentLoaded', () => {
                         datesDeliveryElement.style.color = '';
                         datesDeliveryElement.style.fontStyle = '';
                     }
+                } else if (extrasUnavailableState.boatNoDatesAvailable || extrasUnavailableState.boatUnavailable) {
+                    extrasReservationTrace('blocks', 'boat block → unavailable UI', {
+                        boatId,
+                        boatNoDatesAvailable: extrasUnavailableState.boatNoDatesAvailable,
+                        boatUnavailable: extrasUnavailableState.boatUnavailable,
+                        urlBoatDates: urlParams.get('boatDates'),
+                        blockAction: 'browse',
+                    });
+                    block.style.backgroundColor = '';
+                    block.style.borderColor = '';
+                    block.style.boxShadow = '';
+
+                    const editButton = block.querySelector('[data-element="editSelectedBoat"]');
+                    if (editButton) {
+                        editButton.textContent = 'Choose another boat';
+                        editButton.dataset.unavailableAction = 'browse';
+                        editButton.style.color = '#dc2626';
+                        delete editButton.dataset.unavailableCharterNumber;
+                    }
+
+                    const datesDeliveryElement = block.querySelector('[data-element="selectedBoatBlock_datesDelivery"]');
+                    if (datesDeliveryElement) {
+                        datesDeliveryElement.textContent = 'Not available for selected dates';
+                        datesDeliveryElement.style.color = '#dc2626';
+                        datesDeliveryElement.style.fontStyle = 'normal';
+                    }
                 } else {
+                    const datesDeliveryElement = block.querySelector('[data-element="selectedBoatBlock_datesDelivery"]');
+                    const prevDatesText = datesDeliveryElement?.textContent || '';
+                    extrasReservationTrace('blocks', 'boat block → available UI', {
+                        boatId,
+                        urlBoatDates: urlParams.get('boatDates'),
+                        prevDatesDeliveryText: prevDatesText,
+                    });
                     block.style.backgroundColor = '';
                     block.style.borderColor = '';
                     block.style.boxShadow = '';
@@ -25955,8 +29472,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         delete editButton.dataset.unavailableAction;
                     }
 
-                    const datesDeliveryElement = block.querySelector('[data-element="selectedBoatBlock_datesDelivery"]');
-                    if (datesDeliveryElement) {
+                    if (typeof refreshSelectedBoatBlockDatesDelivery === 'function') {
+                        refreshSelectedBoatBlockDatesDelivery();
+                    } else if (datesDeliveryElement) {
                         datesDeliveryElement.style.color = '';
                         datesDeliveryElement.style.fontStyle = '';
                     }
@@ -25969,7 +29487,7 @@ document.addEventListener('DOMContentLoaded', () => {
             charterBlocks.forEach(block => {
                 if (!block) return;
 
-                const charterNumber = block.tripData?.number;
+                const charterNumber = block.tripData?.number || block.dataset.charterSlotNumber;
 
                 const needsCharterDates = charterNumber
                     ? extrasInfo.fishingChartersNeedingDates.map(String).includes(String(charterNumber))
@@ -25981,22 +29499,49 @@ document.addEventListener('DOMContentLoaded', () => {
                 const isCharterNoDates = charterNumber &&
                     extrasUnavailableState.fishingChartersNoDatesAvailable.map(String).includes(String(charterNumber));
 
+                const canRescheduleCharter = charterNumber &&
+                    extrasUnavailableState.fishingChartersCanReschedule.map(String).includes(String(charterNumber));
+
+                const canChangeTripCharter = charterNumber &&
+                    extrasUnavailableState.fishingChartersCanChangeTrip.map(String).includes(String(charterNumber));
+
                 if (isCharterNoDates || isCharterUnavailable) {
+                    extrasReservationTrace('blocks', 'charter block → unavailable UI', {
+                        charterNumber,
+                        isCharterNoDates,
+                        isCharterUnavailable,
+                        canRescheduleCharter,
+                        canChangeTripCharter,
+                        urlCharterDates: urlParams.get(`fishingCharterDates${charterNumber}`),
+                    });
                     block.style.backgroundColor = '';
                     block.style.borderColor = '';
                     block.style.boxShadow = '';
 
                     const editButton = block.querySelector('[data-element="editSelectedFishingCharter"]');
                     if (editButton) {
-                        editButton.textContent = 'Remove';
+                        if (canRescheduleCharter) {
+                            editButton.textContent = 'Edit dates';
+                            editButton.dataset.unavailableAction = 'edit';
+                        } else if (canChangeTripCharter) {
+                            editButton.textContent = 'Choose another trip';
+                            editButton.dataset.unavailableAction = 'changeTrip';
+                        } else {
+                            editButton.textContent = 'Edit dates';
+                            editButton.dataset.unavailableAction = 'edit';
+                        }
                         editButton.style.color = '#dc2626';
-                        editButton.dataset.unavailableAction = 'remove';
                         editButton.dataset.unavailableCharterNumber = charterNumber;
                     }
 
                     const datesDeliveryElement = block.querySelector('[data-element="selectedFishingCharterBlock_datesDelivery"]');
                     if (datesDeliveryElement) {
-                        datesDeliveryElement.textContent = 'Not available for selected dates';
+                        const deliveryText = getCharterUnavailableDatesDeliveryText(
+                            charterNumber,
+                            urlParams,
+                            hasStayDates
+                        );
+                        datesDeliveryElement.textContent = deliveryText;
                         datesDeliveryElement.style.color = '#dc2626';
                         datesDeliveryElement.style.fontStyle = 'normal';
                     }
@@ -26007,16 +29552,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     const editButton = block.querySelector('[data-element="editSelectedFishingCharter"]');
                     if (editButton) {
-                        editButton.textContent = (hasStayDates ? 'Add dates' : 'Edit');
-                        editButton.style.color = '';
-                        delete editButton.dataset.unavailableAction;
-                        delete editButton.dataset.unavailableCharterNumber;
+                        if (canChangeTripCharter && hasStayDates) {
+                            editButton.textContent = 'Choose another trip';
+                            editButton.dataset.unavailableAction = 'changeTrip';
+                            editButton.dataset.unavailableCharterNumber = charterNumber;
+                        } else {
+                            editButton.textContent = (hasStayDates ? 'Add dates' : 'Edit');
+                            delete editButton.dataset.unavailableAction;
+                            delete editButton.dataset.unavailableCharterNumber;
+                        }
+                        editButton.style.color = canChangeTripCharter ? '#dc2626' : '';
                     }
 
                     const datesDeliveryElement = block.querySelector('[data-element="selectedFishingCharterBlock_datesDelivery"]');
                     if (datesDeliveryElement) {
-                        datesDeliveryElement.textContent = '';
-                        datesDeliveryElement.style.color = '';
+                        const urlDates = urlParams.get(`fishingCharterDates${charterNumber}`);
+                        const outOfSeasonNeedsDates = isCharterOutOfSeasonForStay(charterNumber);
+                        if ((!urlDates || !urlDates.trim()) && hasStayDates && outOfSeasonNeedsDates) {
+                            datesDeliveryElement.textContent = getCharterUnavailableDatesDeliveryText(
+                                charterNumber,
+                                urlParams,
+                                hasStayDates
+                            );
+                        } else if (!urlDates || !urlDates.trim()) {
+                            datesDeliveryElement.textContent = '';
+                        }
+                        datesDeliveryElement.style.color = outOfSeasonNeedsDates ? '#dc2626' : '';
                         datesDeliveryElement.style.fontStyle = '';
                     }
                 } else if (charterNumber) {
@@ -26033,7 +29594,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
 
                     const datesDeliveryElement = block.querySelector('[data-element="selectedFishingCharterBlock_datesDelivery"]');
-                    if (datesDeliveryElement) {
+                    if (datesDeliveryElement && block.tripData?.dates && !block.tripData.needsDates) {
+                        datesDeliveryElement.textContent = block.tripData.dates;
                         datesDeliveryElement.style.color = '';
                         datesDeliveryElement.style.fontStyle = '';
                     }
@@ -26051,6 +29613,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Helper function to remove fishing charter from reservation
         function removeFishingCharterFromReservation(numberToRemove) {
+            extrasReservationTrace('charter', 'removeFishingCharterFromReservation (scoped)', { numberToRemove });
             const url = new URL(window.location);
             const allNumbers = window.fishingCharterService ? window.fishingCharterService.getAllFishingCharterNumbers() : [];
 
@@ -26160,35 +29723,18 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        // Helper function to get all fishing charter numbers from URL
-        function getAllFishingCharterNumbersForValidation() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const numbers = [];
+        window.updateAllButtonVisibility = scheduleUpdateAllButtonVisibility;
+        window.scheduleUpdateAllButtonVisibility = scheduleUpdateAllButtonVisibility;
 
-            for (const [key] of urlParams) {
-                const match = key.match(/^fishingCharterId(\d+)$/);
-                if (match) {
-                    numbers.push(match[1]);
-                }
-            }
-
-            return numbers;
-        }
-
-        // Make the function globally accessible
-        window.updateAllButtonVisibility = updateAllButtonVisibility;
-
-        // Hook into existing update functions to trigger button visibility updates
         const originalUpdateAvailabilityStatus = window.updateAvailabilityStatus;
         if (originalUpdateAvailabilityStatus) {
             window.updateAvailabilityStatus = function () {
                 originalUpdateAvailabilityStatus.apply(this, arguments);
-                updateAllButtonVisibility();
+                scheduleUpdateAllButtonVisibility();
             };
         }
 
-        // Initial update when page loads - run immediately and also after data loads
-        updateAllButtonVisibility();
+        scheduleUpdateAllButtonVisibility();
 
         // Force check availability buttons to show if no dates are selected (fallback)
         setTimeout(() => {
@@ -26262,8 +29808,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const hasStayDates = !!(urlParams.get('checkin') && urlParams.get('checkout'));
 
             if (!hasBoatInUrl && hasChartersInUrl && hasStayDates) {
-                // Charter + stay: validation uses URL + CalendarAvailabilityService only (no Wized calendar wait).
                 const runCharterValidation = async () => {
+                    const urlKey = typeof window.buildExtrasAvailabilityUrlKey === 'function'
+                        ? window.buildExtrasAvailabilityUrlKey()
+                        : '';
+                    if (urlKey && urlKey === _extrasLastValidatedUrlKey) {
+                        updateAllButtonVisibility();
+                        if (window.notifyExtrasProcessed) window.notifyExtrasProcessed();
+                        return;
+                    }
                     try {
                         await validateExtrasAvailabilityOnLoad();
                     } catch (e) { /* fail open */ }
@@ -26274,16 +29827,54 @@ document.addEventListener('DOMContentLoaded', () => {
                 runCharterValidation().catch(() => {
                     if (window.notifyExtrasProcessed) window.notifyExtrasProcessed();
                 });
+            } else if ((hasBoatInUrl || hasChartersInUrl) && hasStayDates) {
+                // Boat + stay (or full package): handleBoat may validate before calendar+details are ready — retry here.
+                const runExtrasValidation = async () => {
+                    const urlKey = typeof window.buildExtrasAvailabilityUrlKey === 'function'
+                        ? window.buildExtrasAvailabilityUrlKey()
+                        : '';
+                    if (urlKey && urlKey === _extrasLastValidatedUrlKey && !_validationDeferredForCalendar) {
+                        updateAllButtonVisibility();
+                        return;
+                    }
+                    try {
+                        await validateExtrasAvailabilityOnLoad();
+                    } catch (e) { /* fail open */ }
+                    updateAllButtonVisibility();
+                };
+                runExtrasValidation().catch(() => { });
             }
             // Charter-only + no stay: handled by scheduleCharterOnlyNoStayExtrasGate() (parallel, not chained here)
         });
 
-        // Update when calendar data changes
+        // Update when calendar / property details load (both required for stay validation gating)
+        function onStayCalendarOrDetailsReady() {
+            setTimeout(() => {
+                updateAllButtonVisibility();
+                if (
+                    window._extrasPipelineLastSkipReason === 'stayCalendarNotReady' &&
+                    window.shouldRunExtrasScheduleOnLoad &&
+                    window.shouldRunExtrasScheduleOnLoad() &&
+                    window.runExtrasStaySyncPipeline &&
+                    !window._extrasStaySyncPipelineRunning
+                ) {
+                    window._extrasPipelineLastSkipReason = '';
+                    window.runExtrasStaySyncPipeline().catch(() => { });
+                }
+                if (typeof urlHasExtrasToValidate === 'function' && urlHasExtrasToValidate()) {
+                    const urlKey = typeof window.buildExtrasAvailabilityUrlKey === 'function'
+                        ? window.buildExtrasAvailabilityUrlKey()
+                        : '';
+                    if (_validationDeferredForCalendar || (urlKey && urlKey !== _extrasLastValidatedUrlKey)) {
+                        scheduleValidateExtrasAvailability();
+                    }
+                }
+            }, 100);
+        }
+
         Wized.on('requestend', (event) => {
-            if (event.name === 'Load_Property_Calendar_Query') {
-                setTimeout(() => {
-                    updateAllButtonVisibility();
-                }, 100);
+            if (event.name === 'Load_Property_Calendar_Query' || event.name === 'Load_Property_Details') {
+                onStayCalendarOrDetailsReady();
             }
         });
 
@@ -26314,6 +29905,14 @@ document.addEventListener('DOMContentLoaded', () => {
         // Listen for popstate events (back/forward navigation)
         window.addEventListener('popstate', () => {
             setTimeout(() => {
+                if (window.sanitizeOrphanExtrasScheduleParams) {
+                    window.sanitizeOrphanExtrasScheduleParams();
+                }
+                if (window.shouldRunExtrasScheduleOnLoad && window.shouldRunExtrasScheduleOnLoad()) {
+                    if (window.runExtrasStaySyncPipeline) {
+                        window.runExtrasStaySyncPipeline().catch(() => { });
+                    }
+                }
                 updateAllButtonVisibility();
             }, 100);
         });
