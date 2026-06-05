@@ -403,6 +403,24 @@ function formatSingleDate(ymdStr) {
     return `${month} ${day}, ${year}`;
 }
 
+function formatSingleYMD(ymdStr, includeYear = false) {
+    // Returns "Jan 5" (or "Jan 5, 2025" with year) from "2025-01-05"
+    if (!ymdStr) return '';
+    const [y, m, d] = ymdStr.split('-').map(Number);
+    const date = new Date(Date.UTC(y, m - 1, d));
+    const month = date.toLocaleString('en-US', { month: 'short', timeZone: 'UTC' });
+    const day = date.getUTCDate();
+    return includeYear ? `${month} ${day}, ${y}` : `${month} ${day}`;
+}
+
+function formatCharterDatesList(dates, includeYear = false) {
+    // Fishing charters can have multiple non-contiguous dates, so list them
+    // comma-separated rather than as a range (ranges are only for boat rentals).
+    if (!dates || !dates.length) return '';
+    const sorted = [...dates].sort();
+    return sorted.map(d => formatSingleYMD(d, includeYear)).join(' • ');
+}
+
 function olderThan(aYMD, bYMD) {
     // true if a < b in UTC
     return parseYMD(aYMD).getTime() < parseYMD(bYMD).getTime();
@@ -1629,7 +1647,7 @@ function renderCharterSummary(piData, resCodeData, charterEntry, statusVariant) 
     }
 
     // Dates & Guests
-    const datesStr = formatRangeFromDatesArray(charterEntry.dates.map(d => d.date));
+    const datesStr = formatCharterDatesList(charterEntry.dates.map(d => d.date));
     const guestsStr = (charterEntry.guests !== null && charterEntry.guests !== undefined) ? ` • ${charterEntry.guests} Guest${charterEntry.guests > 1 ? 's' : ''}` : '';
     setText('manageBooking_datesGuests', datesStr + guestsStr);
 
@@ -1832,8 +1850,7 @@ function renderCharterRequestDetails(piData, resCodeData, charterEntry, statusVa
 
     // Dates
     const charterDates = charterEntry.dates.map(d => d.date);
-    const sortedCharterDates = [...charterDates].sort();
-    const charterDatesStr = charterDates.length > 0 ? formatRangeYMD(sortedCharterDates[0], sortedCharterDates[sortedCharterDates.length - 1], true) : '';
+    const charterDatesStr = formatCharterDatesList(charterDates, true);
     setText('manageBooking_requestDetails_charter_dates', charterDatesStr);
 
     // Time (find tripId in _fishingcharter.tripOptions)
