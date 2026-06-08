@@ -2486,8 +2486,22 @@ document.addEventListener('DOMContentLoaded', function () {
         };
         let selectingCheckOut = false;
 
+        // Minimum stay length. Once a check-in is picked, the next
+        // (MINIMUM_NIGHTS - 1) days are blocked so checkout enforces a 7-night stay.
+        const MINIMUM_NIGHTS = 7;
+        const MS_PER_DAY = 1000 * 60 * 60 * 24;
+
         // Initialize temporary storage for in-progress date selections
         let tempSelectedDates = { ...selectedDates };
+
+        // True when a date sits inside the minimum-nights window after the selected
+        // check-in (i.e. it is too soon to be a valid checkout and must be blocked).
+        function isWithinMinNights(date) {
+            if (!tempSelectedDates.checkIn || tempSelectedDates.checkOut) return false;
+            if (date <= tempSelectedDates.checkIn) return false;
+            const nights = Math.round((date - tempSelectedDates.checkIn) / MS_PER_DAY);
+            return nights < MINIMUM_NIGHTS;
+        }
 
         // ... existing code ...
         function renderCalendars() {
@@ -2749,6 +2763,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (date < today) {
                     dayCell.style.color = '#D1D1D6';
                     dayCell.style.cursor = 'default';
+                } else if (isWithinMinNights(date)) {
+                    // Inside the minimum-nights window after check-in: block selection
+                    dayCell.style.color = '#D1D1D6';
+                    dayCell.style.cursor = 'not-allowed';
                 } else {
                     // Style for selected check-in date
                     if (tempSelectedDates.checkIn && date.getTime() === tempSelectedDates.checkIn.getTime()) {
@@ -2886,6 +2904,13 @@ document.addEventListener('DOMContentLoaded', function () {
                     dayElement.style.paddingLeft = '0';
                     dayElement.style.paddingRight = '0';
                 }
+
+                // Block dates inside the minimum-nights window after check-in
+                if (isWithinMinNights(date)) {
+                    dayElement.style.backgroundColor = '';
+                    dayElement.style.color = '#D1D1D6';
+                    dayElement.style.cursor = 'not-allowed';
+                }
             });
         }
 
@@ -2910,10 +2935,26 @@ document.addEventListener('DOMContentLoaded', function () {
                     return;
                 }
 
+                // Enforce the minimum-nights stay: ignore checkouts that are too soon
+                if (date > tempSelectedDates.checkIn && isWithinMinNights(date)) {
+                    return;
+                }
+
                 // Selecting check-out date
                 if (date < tempSelectedDates.checkIn) {
                     // If selected date is before check-in, swap them
                     // This allows users to select checkout date first if they want
+                    const swapNights = Math.round((tempSelectedDates.checkIn - date) / MS_PER_DAY);
+                    if (swapNights < MINIMUM_NIGHTS) {
+                        // Resulting range would be shorter than the minimum stay:
+                        // treat the earlier click as a fresh check-in instead.
+                        tempSelectedDates.checkIn = date;
+                        tempSelectedDates.checkOut = null;
+                        selectingCheckOut = true;
+                        updateDatesButtonText();
+                        updateCalendarStyles();
+                        return;
+                    }
                     tempSelectedDates.checkOut = tempSelectedDates.checkIn;
                     tempSelectedDates.checkIn = date;
                 } else {
@@ -9921,6 +9962,45 @@ document.addEventListener('DOMContentLoaded', function () {
 
 
 
+    // True when the user has any client-side filter applied (price, rooms, dock, amenities, pets)
+    function hasActiveClientFilters() {
+        const f = activeFilters;
+        if (!f) return false;
+        if (f.priceRange && (f.priceRange.min || f.priceRange.max)) return true;
+        if (f.bedrooms || f.beds || f.bathrooms) return true;
+        if (Array.isArray(f.amenities) && f.amenities.length > 0) return true;
+        if (f.petsAllowed === true) return true;
+        if (f.dock && Object.values(f.dock).some(v => v !== null && v !== false)) return true;
+        return false;
+    }
+
+    // Build a context-aware "no results" message so users know *why* nothing showed up:
+    // their filters, their guest count, or no availability on the selected dates.
+    function getNoResultsMessage() {
+        const filtersActive = hasActiveClientFilters();
+        const datesSelected = typeof hasDates === 'function' ? hasDates() : false;
+        const guestsSelected = !!(apiFormats && apiFormats.guests && apiFormats.guests.total > 0);
+        const baseHadResults = Array.isArray(unfilteredListings) && unfilteredListings.length > 0;
+
+        // Client-side filters wiped out a non-empty base result set.
+        if (filtersActive && baseHadResults) {
+            return 'No properties match your selected filters.\nTry adjusting or clearing your filters.';
+        }
+
+        // The base search (location + dates + guests) itself returned nothing.
+        if (datesSelected) {
+            return 'No stays are available for your selected dates.\nTry different dates or a wider date range.';
+        }
+        if (guestsSelected) {
+            return 'No properties can accommodate that many guests.\nTry reducing your guest count.';
+        }
+        if (filtersActive) {
+            return 'No properties match your selected filters.\nTry adjusting or clearing your filters.';
+        }
+
+        return 'No properties found in this area :(\nTry adjusting your search.';
+    }
+
     // Function to render listing cards (with custom carousel)
     function renderListingCards(listings, filteredOnly = false, page = 1) {
 
@@ -9989,14 +10069,14 @@ document.addEventListener('DOMContentLoaded', function () {
 
             const emptyMessage = document.createElement('div');
             emptyMessage.className = 'no-results-message';
-            emptyMessage.textContent = 'No properties found in this area :(\n' +
-                'Try adjusting your search.';
+            emptyMessage.textContent = getNoResultsMessage();
             emptyMessage.style.padding = '20px 40px 0px 20px';
             emptyMessage.style.fontSize = '16px';
             emptyMessage.style.fontFamily = 'TT Fors, sans-serif';
             emptyMessage.style.color = '#000000';
             emptyMessage.style.textAlign = 'center';
             emptyMessage.style.width = '100%';
+            emptyMessage.style.whiteSpace = 'pre-line';
 
             // Create reload button
             const reloadButton = document.createElement('button');
