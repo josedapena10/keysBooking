@@ -556,17 +556,14 @@ function setupTermsContainer(accepted) {
     const termsContainer = document.querySelector('[data-element="terms_container"]');
     const termsCheckbox = document.querySelector('[data-element="terms_checkbox"]');
 
-    console.log('[setupTermsContainer] accepted=', accepted, 'termsContainer=', !!termsContainer, 'termsCheckbox=', !!termsCheckbox);
 
     if (!termsContainer) {
-        console.log('[setupTermsContainer] early return: no terms_container element');
         return;
     }
 
     if (accepted) {
         termsContainer.style.display = 'none';
         if (termsCheckbox) termsCheckbox.style.display = 'none';
-        console.log('[setupTermsContainer] terms already accepted -> container and checkbox hidden');
     } else {
         termsContainer.style.display = 'flex';
         // terms_checkbox was hidden by hideAllContent(); show it when we show the container
@@ -579,9 +576,6 @@ function setupTermsContainer(accepted) {
                 termsCheckboxClicked = !termsCheckboxClicked;
                 termsCheckbox.style.backgroundColor = termsCheckboxClicked ? 'black' : '';
             };
-            console.log('[setupTermsContainer] terms not accepted -> container and checkbox shown');
-        } else {
-            console.log('[setupTermsContainer] terms not accepted but terms_checkbox element not found');
         }
     }
 }

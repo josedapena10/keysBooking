@@ -615,30 +615,8 @@
             if (priceIn) formatPriceInputEl(priceIn);
             const baseAmount = getPriceInputNumericAmount(priceIn);
 
-            console.log('[additional-fee:create] raw inputs', {
-                titleRaw: titleIn ? titleIn.value : null,
-                descriptionRaw: descIn ? descIn.value : null,
-                priceRaw: priceIn ? priceIn.value : null,
-                priceType: priceIn ? priceIn.type : null,
-                reservationId,
-                hostUserId
-            });
-            console.log('[additional-fee:create] parsed inputs', {
-                title,
-                description,
-                baseAmount,
-                isFiniteBaseAmount: Number.isFinite(baseAmount),
-                hasTitle: !!title,
-                hasDescription: !!description
-            });
 
             if (!title || !description || !Number.isFinite(baseAmount) || baseAmount <= 0) {
-                console.warn('[additional-fee:create] validation failed', {
-                    hasTitle: !!title,
-                    hasDescription: !!description,
-                    isFiniteBaseAmount: Number.isFinite(baseAmount),
-                    baseAmount
-                });
                 if (errEl) {
                     errEl.textContent = 'Please enter a title, description, and a valid price.';
                     errEl.style.display = 'block';
@@ -657,19 +635,11 @@
             createBtn.setAttribute('disabled', 'true');
 
             try {
-                console.log('[additional-fee:create] posting request', {
-                    reservationIdParsed: parseInt(reservationId, 10),
-                    hostUserId,
-                    title,
-                    description,
-                    base_amount: baseAmount
-                });
                 await postAdditionalChargeCreate(parseInt(reservationId, 10), hostUserId, {
                     title,
                     description,
                     base_amount: baseAmount
                 });
-                console.log('[additional-fee:create] create success');
                 if (additionalModal) additionalModal.style.display = 'none';
                 const detailsModal = getHostReservationDetailsModal();
                 if (detailsModal) {
@@ -691,10 +661,6 @@
                     }
                 }
             } catch (err) {
-                console.error(err);
-                console.error('[additional-fee:create] create failed', {
-                    message: err && err.message ? err.message : String(err)
-                });
                 if (errEl) {
                     errEl.textContent = err.message || 'Could not create request.';
                     errEl.style.display = 'block';
@@ -958,7 +924,6 @@ document.addEventListener('DOMContentLoaded', () => {
         setupNavigationHandler('hostNavBar_reservations', '/host/reservations');
 
     } catch (err) {
-        console.error('Host navigation dropdown error:', err);
     }
 })();
 
@@ -1072,7 +1037,6 @@ document.addEventListener('DOMContentLoaded', function () {
             // Fetch calendar data once we have the user ID
             fetchCalendarData();
         } catch (error) {
-            console.error('Error loading user or calendar data:', error);
             dataFetchingComplete = true;
             initializeCalendar(); // Initialize calendar even if there's an error
             checkAndHideLoader();
@@ -1109,7 +1073,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
             hostReservations = await response.json();
         } catch (error) {
-            console.error('Error fetching host reservations:', error);
         }
     }
 
@@ -1262,7 +1225,6 @@ document.addEventListener('DOMContentLoaded', function () {
         } catch (error) {
             // Don't log errors for aborted requests
             if (error.name !== 'AbortError') {
-                console.error('Error fetching calendar data:', error);
             }
             // Only initialize calendar if request wasn't aborted
             if (!signal.aborted) {
@@ -2047,17 +2009,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
             });
 
-        } else {
-        }
-
-
-        // Check for events in 2025
-        const events2025 = calendarEvents.filter(event => {
-            const eventYear = event.start.split('-')[0];
-            return eventYear === '2025';
-        });
-        if (events2025.length > 0) {
-        } else {
         }
     }
 
@@ -2084,18 +2035,15 @@ document.addEventListener('DOMContentLoaded', function () {
     // Helper function to safely set display style
     function safeSetDisplay(element, displayValue) {
         if (!element) {
-            console.warn('[safeSetDisplay] Element is null, cannot set display to:', displayValue);
             return false;
         }
         if (!element.style) {
-            console.warn('[safeSetDisplay] Element has no style property:', element);
             return false;
         }
         try {
             element.style.display = displayValue;
             return true;
         } catch (error) {
-            console.error('[safeSetDisplay] Error setting display:', error, element);
             return false;
         }
     }
@@ -2857,7 +2805,6 @@ document.addEventListener('DOMContentLoaded', function () {
                                 // Show reservation modal here using selectedReservation
                                 reservationModal.style.display = 'flex';
                             }
-                        } else {
                         }
                     }
                 } // In the eventClick handler
@@ -3502,7 +3449,6 @@ document.addEventListener('DOMContentLoaded', function () {
         const blockedNightsContainer = document.querySelector('[data-element="toolbarEdit_customDates_blockedNights_container"]');
 
         if (!openNightsContainer || !blockedNightsContainer) {
-            console.error('Night containers not found');
             return;
         }
 
@@ -3511,7 +3457,6 @@ document.addEventListener('DOMContentLoaded', function () {
         const blockedFlexBlocks = blockedNightsContainer.querySelector('[data-element="toolbarEdit_customDates_blockedNights_flexBlocks"]');
 
         if (!openFlexBlocks || !blockedFlexBlocks) {
-            console.error('Flex blocks containers not found');
             return;
         }
 
@@ -3520,7 +3465,6 @@ document.addEventListener('DOMContentLoaded', function () {
         const originalBlockedBlock = document.querySelector('[data-element="toolbarEdit_customDates_blockedNights_block"]');
 
         if (!originalOpenBlock || !originalBlockedBlock) {
-            console.error('Original blocks not found');
             return;
         }
 
@@ -4064,7 +4008,6 @@ document.addEventListener('DOMContentLoaded', function () {
     // Centralized function to switch between pricing and availability views
     function switchView(viewName) {
         if (viewName !== 'pricing' && viewName !== 'availability') {
-            console.error('Invalid view name:', viewName);
             return;
         }
 
@@ -4510,7 +4453,6 @@ document.addEventListener('DOMContentLoaded', function () {
                             fetchCalendarData(currentPropertyIdForPriceRefresh);
                         })
                         .catch(error => {
-                            console.error('Error:', error);
                             alert('Failed to update prices. Please try again.');
                             // Hide loader and show text again
                             if (saveButtonText) saveButtonText.style.display = 'block';
@@ -4699,8 +4641,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
                                 const blockedResult = await blockedResponse.json();
                             }
-                        } else {
-
                         }
 
                         // Refresh calendar data only once after all API calls
@@ -4714,7 +4654,6 @@ document.addEventListener('DOMContentLoaded', function () {
                         // Exit toolbar only after all operations are complete
                         exitCustomDatesToolbar();
                     } catch (error) {
-                        console.error('Error:', error);
                         alert('Failed to update availability. Please try again.');
                         // Hide loader and show text again
                         if (saveButtonText) saveButtonText.style.display = 'block';
@@ -6051,7 +5990,6 @@ document.addEventListener('DOMContentLoaded', function () {
                         fetchCalendarData(currentPropertyIdForBasePriceRefresh);
 
                     } catch (error) {
-                        console.error('Error saving base price:', error);
                         alert('Failed to save the new price. Please try again.');
                     } finally {
                         // Hide loader and show text regardless of outcome
@@ -6233,7 +6171,6 @@ document.addEventListener('DOMContentLoaded', function () {
                         fetchCalendarData(refreshPropertyId);
 
                     } catch (error) {
-                        console.error('Error saving cleaning fee:', error);
                         alert('Failed to save the new cleaning fee. Please try again.');
                     } finally {
                         // Hide loader and show text regardless of outcome
@@ -6296,7 +6233,6 @@ document.addEventListener('DOMContentLoaded', function () {
         const tripLengthExitButton = document.querySelector('[data-element="toolbarEdit_tripLength_exit"]');
 
         if (!tripLengthContainer || !toolbar || !tripLengthEditContainer || !tripLengthMinInput || !tripLengthMaxInput) {
-            console.error('Missing required elements for trip length edit');
             return;
         }
 
@@ -6433,7 +6369,6 @@ document.addEventListener('DOMContentLoaded', function () {
                         fetchCalendarData(refreshPropertyId);
 
                     } catch (error) {
-                        console.error('Error saving trip length:', error);
                         alert('Failed to save the new trip length. Please try again.');
                     } finally {
                         // Hide loader and show text regardless of outcome
@@ -7084,7 +7019,6 @@ document.addEventListener('DOMContentLoaded', function () {
                     fetchCalendarData(refreshPropertyId);
 
                 } catch (error) {
-                    console.error('Error saving check-in/out day rules:', error);
                     alert('Failed to save check-in/out day restrictions. Please try again.');
                 } finally {
                     if (updatedSaveButtonLoader) updatedSaveButtonLoader.style.display = 'none';
@@ -7152,7 +7086,6 @@ document.addEventListener('DOMContentLoaded', function () {
         const connectCalendarBody = document.querySelector('[data-element="toolbarEdit_connectCalender_body"]');
 
         if (!connectCalendarContainer || !toolbar || !connectCalendarEditContainer) {
-            console.error('Missing required elements for connect calendar edit');
             return;
         }
 
@@ -7244,8 +7177,6 @@ document.addEventListener('DOMContentLoaded', function () {
                         const nameElement = container.querySelector('[data-element="toolbarEdit_connectCalender_synced_name"]');
                         if (nameElement && ical.calendar_name) {
                             nameElement.textContent = ical.calendar_name;
-                        } else {
-                            console.warn(`Could not set calendar name for container ${index}. nameElement:`, !!nameElement, 'ical.calendar_name:', ical.calendar_name);
                         }
 
                         // Add last updated date to the synced container
@@ -7254,7 +7185,6 @@ document.addEventListener('DOMContentLoaded', function () {
                             if (ical.last_updated) {
                                 // Parse the date from the ical data
                                 const lastSyncedDate = new Date(ical.last_updated);
-                                console.log('[DEBUG-0422] lastSyncedDate:', lastSyncedDate);
 
                                 // Format the date as "Oct 18th, 2025 at 8:00 PM"
                                 const month = lastSyncedDate.toLocaleString('en-US', { month: 'short' });
@@ -7285,8 +7215,6 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
                 });
             }
-        } else {
-            console.error('Missing synced container elements');
         }
 
         // Get the edit sync container and setup its functionality
@@ -7320,7 +7248,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
 
                 if (!calendarId) {
-                    console.error('No calendar ID found for deletion');
                     alert('Could not delete calendar: Missing calendar ID');
                     return;
                 }
@@ -7372,7 +7299,6 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
 
                 } catch (error) {
-                    console.error('Error deleting calendar:', error);
                     alert('Failed to delete calendar. Please try again.');
                 } finally {
                     // Clear the flag when done
@@ -7470,8 +7396,6 @@ document.addEventListener('DOMContentLoaded', function () {
                             // Ensure the edit container stays visible and toolbar stays hidden
                             if (connectCalendarEditContainer) connectCalendarEditContainer.style.display = 'flex';
                             if (toolbar) toolbar.style.display = 'none';
-                        } else {
-
                         }
 
                         // Clear the flag when done
@@ -7479,7 +7403,6 @@ document.addEventListener('DOMContentLoaded', function () {
                     });
 
                 } catch (error) {
-                    console.error('Error updating calendar:', error);
                     alert('Failed to update calendar. Please try again.');
                 } finally {
                     // Hide loader and show text regardless of outcome
@@ -7628,7 +7551,6 @@ document.addEventListener('DOMContentLoaded', function () {
                             }, 2000);
                         })
                         .catch(err => {
-                            console.error('Failed to copy text: ', err);
                             alert('Failed to copy link. Please try again.');
                         });
                 }
@@ -7747,7 +7669,6 @@ document.addEventListener('DOMContentLoaded', function () {
                     sessionStorage.removeItem('calendarConnectionInProgress');
 
                 } catch (error) {
-                    console.error('Error connecting calendar:', error);
                     alert('Failed to connect calendar. Please try again.');
                 } finally {
                     // Hide loader and show text regardless of outcome
@@ -8060,7 +7981,6 @@ document.addEventListener('DOMContentLoaded', function () {
         // Hide all edit toolbars
         editToolbars.forEach((editToolbar, index) => {
             if (!safeSetDisplay(editToolbar, 'none')) {
-                console.warn('[closeAllEditToolbars] Failed to hide edit toolbar at index', index);
             }
         });
 
@@ -8354,8 +8274,6 @@ document.addEventListener('DOMContentLoaded', function () {
                     // Set a default/placeholder image if needed
                     // imageElement.src = 'path/to/default/image.jpg';
                 }
-            } else {
-
             }
 
             // Clear any previous click event listeners to prevent duplicates

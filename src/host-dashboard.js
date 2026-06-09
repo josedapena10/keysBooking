@@ -615,30 +615,8 @@
             if (priceIn) formatPriceInputEl(priceIn);
             const baseAmount = getPriceInputNumericAmount(priceIn);
 
-            console.log('[additional-fee:create] raw inputs', {
-                titleRaw: titleIn ? titleIn.value : null,
-                descriptionRaw: descIn ? descIn.value : null,
-                priceRaw: priceIn ? priceIn.value : null,
-                priceType: priceIn ? priceIn.type : null,
-                reservationId,
-                hostUserId
-            });
-            console.log('[additional-fee:create] parsed inputs', {
-                title,
-                description,
-                baseAmount,
-                isFiniteBaseAmount: Number.isFinite(baseAmount),
-                hasTitle: !!title,
-                hasDescription: !!description
-            });
 
             if (!title || !description || !Number.isFinite(baseAmount) || baseAmount <= 0) {
-                console.warn('[additional-fee:create] validation failed', {
-                    hasTitle: !!title,
-                    hasDescription: !!description,
-                    isFiniteBaseAmount: Number.isFinite(baseAmount),
-                    baseAmount
-                });
                 if (errEl) {
                     errEl.textContent = 'Please enter a title, description, and a valid price.';
                     errEl.style.display = 'block';
@@ -657,19 +635,11 @@
             createBtn.setAttribute('disabled', 'true');
 
             try {
-                console.log('[additional-fee:create] posting request', {
-                    reservationIdParsed: parseInt(reservationId, 10),
-                    hostUserId,
-                    title,
-                    description,
-                    base_amount: baseAmount
-                });
                 await postAdditionalChargeCreate(parseInt(reservationId, 10), hostUserId, {
                     title,
                     description,
                     base_amount: baseAmount
                 });
-                console.log('[additional-fee:create] create success');
                 if (additionalModal) additionalModal.style.display = 'none';
                 const detailsModal = getHostReservationDetailsModal();
                 if (detailsModal) {
@@ -691,10 +661,6 @@
                     }
                 }
             } catch (err) {
-                console.error(err);
-                console.error('[additional-fee:create] create failed', {
-                    message: err && err.message ? err.message : String(err)
-                });
                 if (errEl) {
                     errEl.textContent = err.message || 'Could not create request.';
                     errEl.style.display = 'block';
@@ -925,7 +891,6 @@ document.addEventListener('DOMContentLoaded', () => {
         setupNavigationHandler('hostNavBar_reservations', '/host/reservations');
 
     } catch (err) {
-        console.error('Host navigation dropdown error:', err);
     }
 })();
 
@@ -1008,7 +973,6 @@ async function initializeReservations(hostId) {
         processAndDisplayReservations(reservations);
 
     } catch (error) {
-        console.error('Error fetching reservations:', error);
     }
 }
 
@@ -1079,7 +1043,6 @@ function displayReservations(reservations, isCurrent) {
 
     // Check if container exists
     if (!container) {
-        console.error('Reservation container not found');
         return;
     }
 
@@ -1138,7 +1101,6 @@ function displayReservations(reservations, isCurrent) {
 
     // If we have reservations but no template block, we can't proceed
     if (!originalTemplateBlock) {
-        console.error('Reservation template block not found');
         return;
     }
 
@@ -1822,7 +1784,6 @@ async function initializeNotifications(hostId) {
                 if (issues) {
                     displayNotification(editListingNotificationContainer, listing);
                     notificationsDisplayed++;
-                } else {
                 }
             });
 
@@ -1929,7 +1890,6 @@ async function initializeNotifications(hostId) {
         }
 
     } catch (error) {
-        console.error('Error fetching notifications:', error);
     }
 }
 
@@ -2036,7 +1996,6 @@ function initializeNewListings(data) {
         const templateBlock = newListingsSection.querySelector('[data-element="hostDashboardNewListing_block"]');
 
         if (!templateBlock) {
-            console.error('New listing block template not found');
             return;
         }
 
@@ -2133,7 +2092,6 @@ function initializeNewListings(data) {
         });
 
     } catch (error) {
-        console.error('Error initializing new listings:', error);
     }
 }
 
