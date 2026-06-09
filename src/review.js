@@ -1,5 +1,10 @@
 const API_BASE = 'https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX';
 
+const GUEST_MESSAGES = {
+    invalidLink: ['Invalid review link', 'We couldn\u2019t find a reservation for this link.'],
+    submitFailed: 'Could not submit your review. Please try again.'
+};
+
 const BRAND = '#9ecaff';
 const STAR_ON = '#f5a623';
 const STAR_OFF = '#d8d8d8';
@@ -165,8 +170,16 @@ async function getReviewSession(token) {
     const url = `${API_BASE}/review-session?token=${encodeURIComponent(token)}`;
     const res = await fetch(url, { method: 'GET', headers: { 'Content-Type': 'application/json' } });
     const text = await res.text();
-    const data = text ? JSON.parse(text) : {};
-    if (!res.ok) throw new Error(data.message || data.error || 'Could not load your review.');
+    let data = {};
+    try {
+        data = text ? JSON.parse(text) : {};
+    } catch (e) {
+        /* ignore malformed response */
+    }
+    if (!res.ok) {
+        console.error('Review session failed:', data.message || data.error || res.status);
+        throw new Error('review_session_failed');
+    }
     return data;
 }
 
@@ -177,7 +190,10 @@ async function submitReview(payload) {
         body: JSON.stringify(payload)
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.message || data.error || 'Could not submit your review.');
+    if (!res.ok) {
+        console.error('Submit review failed:', data.message || data.error || res.status);
+        throw new Error('submit_review_failed');
+    }
     return data;
 }
 
@@ -324,9 +340,10 @@ function renderForm(token, session) {
                 throw new Error('Could not submit your review.');
             }
         } catch (e) {
+            console.error('Review submit failed:', e);
             submitBtn.disabled = false;
             submitBtn.textContent = 'Submit review';
-            showError(e.message || 'Could not submit your review. Please try again.');
+            showError(GUEST_MESSAGES.submitFailed);
         }
     });
 
@@ -339,7 +356,7 @@ async function init() {
 
     const token = getTokenFromUrl();
     if (!token) {
-        renderMessage('Invalid review link', 'This link is missing its review token.', 'error');
+        renderMessage(...GUEST_MESSAGES.invalidLink, 'error');
         return;
     }
 
@@ -355,14 +372,15 @@ async function init() {
             } else if (reason === 'not_yet') {
                 renderMessage('Your review opens after checkout', 'Come back once your trip has ended and we\u2019ll be ready for your feedback.', 'info');
             } else {
-                renderMessage('Invalid review link', 'We couldn\u2019t find a reservation for this link.', 'error');
+                renderMessage(...GUEST_MESSAGES.invalidLink, 'error');
             }
             return;
         }
 
         renderForm(token, session);
     } catch (e) {
-        renderMessage('Something went wrong', e.message || 'Please try opening your review link again.', 'error');
+        console.error('Review init failed:', e);
+        renderMessage(...GUEST_MESSAGES.invalidLink, 'error');
     }
 }
 
