@@ -4,8 +4,6 @@ const BRAND = '#9ecaff';
 const STAR_ON = '#f5a623';
 const STAR_OFF = '#d8d8d8';
 
-let IS_MOCK = false;
-
 function $(name) {
     return document.querySelector(`[data-element="${name}"]`);
 }
@@ -15,52 +13,45 @@ function getTokenFromUrl() {
     return (params.get('token') || '').trim();
 }
 
-function isMockFromUrl() {
-    const params = new URLSearchParams(window.location.search);
-    return params.get('mock') === '1' || params.get('preview') === '1';
-}
-
-function getMockSession() {
-    return {
-        can_review: true,
-        guest_first_name: 'John',
-        reservation_id: 0,
-        stay_name: 'Sombrero Beach Chic',
-        has_stay: true,
-        has_boat: true,
-        has_charter: true,
-        boat_name: '28ft Dusky Center Console',
-        charter_names: ['Big Game Sportfishing']
-    };
-}
-
 function ensureStyles() {
     if (document.getElementById('kb-review-styles')) return;
     const style = document.createElement('style');
     style.id = 'kb-review-styles';
     style.textContent = `
-        .kb-review-wrap { width: 100%; max-width: 560px; margin: 0 auto; padding: 32px 20px 64px; box-sizing: border-box; font-family: Arial, Helvetica, sans-serif; color: #111; }
+        .kb-review-wrap { width: 100%; max-width: 560px; margin: 0 auto; padding: 40px 20px 72px; box-sizing: border-box; font-family: Arial, Helvetica, sans-serif; color: #111; animation: kb-fade .3s ease both; }
         .kb-review-wrap * { box-sizing: border-box; }
-        .kb-review-title { font-size: 26px; line-height: 1.25; font-weight: 700; margin: 0 0 6px; }
-        .kb-review-sub { font-size: 15px; color: #555; margin: 0 0 24px; }
-        .kb-review-card { border: 1px solid #e6e6e6; border-radius: 12px; padding: 20px; margin-bottom: 16px; }
-        .kb-review-card h3 { font-size: 17px; font-weight: 700; margin: 0 0 2px; }
-        .kb-review-card .kb-card-sub { font-size: 13px; color: #777; margin: 0 0 14px; }
-        .kb-stars { display: inline-flex; gap: 4px; margin-bottom: 12px; }
-        .kb-star { font-size: 30px; line-height: 1; background: none; border: none; padding: 0; cursor: pointer; color: ${STAR_OFF}; transition: color .12s ease; }
+        .kb-review-title { font-size: 26px; line-height: 1.25; font-weight: 500; margin: 0 0 6px; }
+        .kb-review-sub { font-size: 15px; color: #555; margin: 0 0 24px; line-height: 1.5; }
+        .kb-review-card { border: 1px solid #e6e6e6; border-radius: 5px; padding: 20px; margin-bottom: 16px; background: #fff; transition: border-color .15s ease, box-shadow .15s ease; }
+        .kb-review-card:focus-within { border-color: ${BRAND}; box-shadow: 0 0 0 3px rgba(158,202,255,.35); }
+        .kb-review-card h3 { font-size: 17px; font-weight: 500; margin: 0 0 2px; }
+        .kb-review-card .kb-card-sub { font-size: 13px; color: #777; margin: 0 0 14px; line-height: 1.4; }
+        .kb-stars { display: inline-flex; gap: 6px; margin-bottom: 14px; }
+        .kb-star { font-size: 30px; line-height: 1; background: none; border: none; padding: 0; cursor: pointer; color: ${STAR_OFF}; transition: color .12s ease, transform .08s ease; }
+        .kb-star:hover { transform: scale(1.12); }
         .kb-star.on { color: ${STAR_ON}; }
-        .kb-review-label { display: block; font-size: 13px; font-weight: 600; color: #444; margin: 4px 0 6px; }
-        .kb-review-input, .kb-review-textarea { width: 100%; border: 1px solid #d8d8d8; border-radius: 8px; padding: 10px 12px; font-size: 14px; font-family: inherit; color: #111; resize: vertical; }
-        .kb-review-input:focus, .kb-review-textarea:focus { outline: none; border-color: ${BRAND}; }
+        .kb-review-label { display: block; font-size: 13px; font-weight: 500; color: #444; margin: 4px 0 6px; }
+        .kb-review-input, .kb-review-textarea { width: 100%; border: 1px solid #d8d8d8; border-radius: 5px; padding: 11px 12px; font-size: 14px; font-family: inherit; color: #111; resize: vertical; transition: border-color .12s ease, box-shadow .12s ease; }
+        .kb-review-input:focus, .kb-review-textarea:focus { outline: none; border-color: ${BRAND}; box-shadow: 0 0 0 3px rgba(158,202,255,.3); }
         .kb-review-textarea { min-height: 84px; }
-        .kb-review-btn { display: block; width: 100%; border: 1px solid #e2e2e2; border-radius: 8px; background: ${BRAND}; color: #000; font-size: 16px; font-weight: 600; padding: 15px 20px; cursor: pointer; margin-top: 8px; transition: opacity .12s ease; }
+        .kb-review-btn { display: block; width: 100%; border: 1px solid #e2e2e2; border-radius: 5px; background: ${BRAND}; color: #000; font-size: 16px; font-weight: 500; padding: 15px 20px; cursor: pointer; margin-top: 8px; transition: filter .15s ease, opacity .15s ease; }
+        .kb-review-btn:hover:not(:disabled) { filter: brightness(.95); }
         .kb-review-btn:disabled { opacity: .6; cursor: default; }
-        .kb-review-error { color: #dc2626; font-size: 14px; margin: 10px 0 0; display: none; }
-        .kb-review-state { width: 100%; max-width: 480px; margin: 0 auto; padding: 60px 24px; text-align: center; font-family: Arial, Helvetica, sans-serif; color: #111; }
-        .kb-review-state h1 { font-size: 24px; font-weight: 700; margin: 0 0 10px; }
-        .kb-review-state p { font-size: 15px; color: #555; margin: 0; }
-        .kb-review-spinner { width: 36px; height: 36px; border: 3px solid rgba(0,0,0,.12); border-top-color: #111; border-radius: 50%; margin: 0 auto; animation: kb-review-spin .8s linear infinite; }
+        .kb-review-error { display: none; align-items: center; gap: 8px; color: #b42318; background: #fef3f2; border: 1px solid #fda29b; border-radius: 5px; font-size: 14px; line-height: 1.4; padding: 11px 12px; margin: 14px 0 0; animation: kb-fade .2s ease both; }
+        .kb-review-error.show { display: flex; }
+        .kb-review-error svg { flex: 0 0 auto; }
+        .kb-review-state { width: 100%; max-width: 480px; margin: 0 auto; padding: 72px 24px; text-align: center; font-family: Arial, Helvetica, sans-serif; color: #111; animation: kb-fade .3s ease both; }
+        .kb-review-state h1 { font-size: 24px; font-weight: 500; margin: 18px 0 10px; }
+        .kb-review-state p { font-size: 15px; color: #555; margin: 0; line-height: 1.5; }
+        .kb-state-badge { width: 64px; height: 64px; border-radius: 50%; margin: 0 auto; display: flex; align-items: center; justify-content: center; animation: kb-pop .35s cubic-bezier(.18,.89,.32,1.28) both; }
+        .kb-state-badge svg { width: 32px; height: 32px; }
+        .kb-state-badge.success { background: #ecfdf3; color: #079455; }
+        .kb-state-badge.error { background: #fef3f2; color: #d92d20; }
+        .kb-state-badge.info { background: #eff8ff; color: #1570ef; }
+        .kb-review-spinner { width: 40px; height: 40px; border: 3px solid rgba(0,0,0,.12); border-top-color: ${BRAND}; border-radius: 50%; margin: 0 auto; animation: kb-review-spin .8s linear infinite; }
         @keyframes kb-review-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes kb-fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+        @keyframes kb-pop { 0% { opacity: 0; transform: scale(.6); } 100% { opacity: 1; transform: scale(1); } }
     `;
     document.head.appendChild(style);
 }
@@ -91,14 +82,38 @@ function renderLoading() {
     body.appendChild(wrap);
 }
 
-function renderMessage(title, subtitle) {
+function scrollToTop() {
+    try {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (e) {
+        window.scrollTo(0, 0);
+    }
+}
+
+function stateIconSvg(variant) {
+    if (variant === 'success') {
+        return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+    }
+    if (variant === 'error') {
+        return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6M9 9l6 6"/></svg>';
+    }
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>';
+}
+
+function renderMessage(title, subtitle, variant) {
     ensureStyles();
     const body = clearBody();
     if (!body) return;
     const wrap = el('div', 'kb-review-state');
+    if (variant) {
+        const badge = el('div', `kb-state-badge ${variant}`);
+        badge.innerHTML = stateIconSvg(variant);
+        wrap.appendChild(badge);
+    }
     wrap.appendChild(el('h1', null, title));
     if (subtitle) wrap.appendChild(el('p', null, subtitle));
     body.appendChild(wrap);
+    scrollToTop();
 }
 
 function buildStars() {
@@ -156,10 +171,6 @@ async function getReviewSession(token) {
 }
 
 async function submitReview(payload) {
-    if (IS_MOCK) {
-        await new Promise((resolve) => setTimeout(resolve, 600));
-        return { success: true };
-    }
     const res = await fetch(`${API_BASE}/submit-review`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -177,7 +188,7 @@ function renderForm(token, session) {
 
     const firstName = session.guest_first_name || '';
     const hasBoat = session.has_boat === true;
-    const hasCharter = session.has_charter === true;
+    const charters = Array.isArray(session.charters) ? session.charters : [];
 
     const wrap = el('div', 'kb-review-wrap');
 
@@ -203,39 +214,39 @@ function renderForm(token, session) {
         wrap.appendChild(boat.card);
     }
 
-    // Charter (optional)
-    let charter = null;
-    if (hasCharter) {
-        const charterTitle = Array.isArray(session.charter_names) && session.charter_names.length
-            ? session.charter_names.join(', ')
-            : 'Fishing charter';
-        charter = buildSection(
-            charterTitle,
-            'How was the fishing charter?',
+    // Charters (one section per booked trip)
+    const charterSections = [];
+    charters.forEach((c) => {
+        const title = c.charter_name || c.trip_label || 'Fishing charter';
+        const subParts = [];
+        if (c.trip_label) subParts.push(c.trip_label);
+        if (c.dates_label) subParts.push(c.dates_label);
+        const section = buildSection(
+            title,
+            subParts.join(' \u2022 ') || 'How was the fishing charter?',
             'How was the charter and the crew?'
         );
-        wrap.appendChild(charter.card);
-    }
+        section.charterId = c.charterId;
+        section.tripLabel = c.trip_label;
+        charterSections.push(section);
+        wrap.appendChild(section.card);
+    });
 
-    // Display name + private feedback
+    // Private feedback
     const extras = el('div', 'kb-review-card');
-    const nameLabel = el('label', 'kb-review-label', 'Display name for your review');
-    const nameInput = el('input', 'kb-review-input');
-    nameInput.type = 'text';
-    nameInput.value = firstName;
-    nameInput.placeholder = 'e.g. John';
-    extras.appendChild(nameLabel);
-    extras.appendChild(nameInput);
-
     const privateLabel = el('label', 'kb-review-label', "Anything you'd like us to know privately? (optional)");
-    privateLabel.style.marginTop = '14px';
     const privateInput = el('textarea', 'kb-review-textarea');
     privateInput.placeholder = 'Private feedback for the Keys Booking team';
     extras.appendChild(privateLabel);
     extras.appendChild(privateInput);
     wrap.appendChild(extras);
 
-    const errorEl = el('p', 'kb-review-error');
+    const errorEl = el('div', 'kb-review-error');
+    const errorIcon = el('span');
+    errorIcon.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>';
+    const errorText = el('span');
+    errorEl.appendChild(errorIcon);
+    errorEl.appendChild(errorText);
     wrap.appendChild(errorEl);
 
     const submitBtn = el('button', 'kb-review-btn', 'Submit review');
@@ -244,12 +255,17 @@ function renderForm(token, session) {
 
     const showError = (msg) => {
         if (!msg) {
-            errorEl.style.display = 'none';
-            errorEl.textContent = '';
+            errorEl.classList.remove('show');
+            errorText.textContent = '';
             return;
         }
-        errorEl.textContent = msg;
-        errorEl.style.display = 'block';
+        errorText.textContent = msg;
+        errorEl.classList.add('show');
+        try {
+            errorEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        } catch (e) {
+            /* no-op */
+        }
     };
 
     submitBtn.addEventListener('click', async () => {
@@ -259,13 +275,27 @@ function renderForm(token, session) {
             showError('Please rate your overall experience.');
             return;
         }
+        if (!stay.comment.value.trim()) {
+            showError('Please write a short review of your stay.');
+            return;
+        }
         if (hasBoat && boat.stars.get() < 1) {
             showError('Please rate your boat rental.');
             return;
         }
-        if (hasCharter && charter.stars.get() < 1) {
-            showError('Please rate your fishing charter.');
+        if (hasBoat && !boat.comment.value.trim()) {
+            showError('Please write a short review of your boat rental.');
             return;
+        }
+        for (const cs of charterSections) {
+            if (cs.stars.get() < 1) {
+                showError(`Please rate your ${cs.tripLabel || 'fishing charter'}.`);
+                return;
+            }
+            if (!cs.comment.value.trim()) {
+                showError(`Please write a short review of your ${cs.tripLabel || 'fishing charter'}.`);
+                return;
+            }
         }
 
         const payload = {
@@ -274,10 +304,13 @@ function renderForm(token, session) {
             stay_comment: stay.comment.value.trim() || null,
             boat_rating: hasBoat ? (boat.stars.get() || null) : null,
             boat_comment: hasBoat ? (boat.comment.value.trim() || null) : null,
-            charter_rating: hasCharter ? (charter.stars.get() || null) : null,
-            charter_comment: hasCharter ? (charter.comment.value.trim() || null) : null,
+            charter_reviews: charterSections.map((cs) => ({
+                charterId: cs.charterId,
+                rating: cs.stars.get() || null,
+                comment: cs.comment.value.trim() || null
+            })),
             private_feedback: privateInput.value.trim() || null,
-            guest_display_name: nameInput.value.trim() || null
+            guest_display_name: null
         };
 
         submitBtn.disabled = true;
@@ -286,7 +319,7 @@ function renderForm(token, session) {
         try {
             const result = await submitReview(payload);
             if (result && result.success) {
-                renderMessage('Thanks for the feedback', 'We really appreciate it.');
+                renderMessage('Thanks for the feedback!', 'Your review has been submitted \u2014 we really appreciate you taking the time.', 'success');
             } else {
                 throw new Error('Could not submit your review.');
             }
@@ -304,15 +337,9 @@ async function init() {
     ensureStyles();
     if (!getBody()) return;
 
-    if (isMockFromUrl()) {
-        IS_MOCK = true;
-        renderForm('mock', getMockSession());
-        return;
-    }
-
     const token = getTokenFromUrl();
     if (!token) {
-        renderMessage('Invalid review link', 'This link is missing its review token.');
+        renderMessage('Invalid review link', 'This link is missing its review token.', 'error');
         return;
     }
 
@@ -324,18 +351,18 @@ async function init() {
         if (!session || session.can_review !== true) {
             const reason = session && session.reason;
             if (reason === 'already_submitted') {
-                renderMessage("You've already reviewed this trip", 'Thanks again for your feedback.');
+                renderMessage("You've already reviewed this trip", 'Thanks again for your feedback.', 'success');
             } else if (reason === 'not_yet') {
-                renderMessage('Your review opens after checkout', 'Come back once your trip has ended and we\u2019ll be ready for your feedback.');
+                renderMessage('Your review opens after checkout', 'Come back once your trip has ended and we\u2019ll be ready for your feedback.', 'info');
             } else {
-                renderMessage('Invalid review link', 'We couldn\u2019t find a reservation for this link.');
+                renderMessage('Invalid review link', 'We couldn\u2019t find a reservation for this link.', 'error');
             }
             return;
         }
 
         renderForm(token, session);
     } catch (e) {
-        renderMessage('Something went wrong', e.message || 'Please try opening your review link again.');
+        renderMessage('Something went wrong', e.message || 'Please try opening your review link again.', 'error');
     }
 }
 

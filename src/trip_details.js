@@ -71,6 +71,70 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 
+// Require sign-in: force the Login-Modal open for signed-out users and block any dismissal
+(function () {
+    const LOGIN_MODAL_SELECTOR = '[data-element="LoginModal"]';
+
+    const hasSessionToken = (Wized) => {
+        const t = Wized && Wized.data && Wized.data.c && Wized.data.c.token;
+        return t != null && String(t).trim() !== '';
+    };
+
+    const forceOpen = (loginModal) => {
+        loginModal.style.setProperty('display', 'flex', 'important');
+        document.body.classList.add('no-scroll');
+    };
+
+    const lockLoginModal = (loginModal) => {
+        forceOpen(loginModal);
+
+        // Re-assert flex if anything (Webflow interactions, close buttons, etc.) tries to hide it
+        const observer = new MutationObserver(() => {
+            if (loginModal.style.display !== 'flex') {
+                forceOpen(loginModal);
+            } else {
+                document.body.classList.add('no-scroll');
+            }
+        });
+        observer.observe(loginModal, { attributes: true, attributeFilter: ['style', 'class'] });
+
+        // Neutralize close triggers inside the modal so there's no way to reach the page
+        loginModal.querySelectorAll('.close_modal').forEach((el) => {
+            el.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                forceOpen(loginModal);
+            }, true);
+        });
+    };
+
+    const whenModalReady = (cb) => {
+        const existing = document.querySelector(LOGIN_MODAL_SELECTOR);
+        if (existing) return cb(existing);
+
+        const start = Date.now();
+        const interval = setInterval(() => {
+            const el = document.querySelector(LOGIN_MODAL_SELECTOR);
+            if (el) {
+                clearInterval(interval);
+                cb(el);
+            } else if (Date.now() - start > 10000) {
+                clearInterval(interval);
+            }
+        }, 100);
+    };
+
+    window.Wized = window.Wized || [];
+    window.Wized.push((Wized) => {
+        if (!hasSessionToken(Wized)) {
+            whenModalReady(lockLoginModal);
+        }
+    });
+})();
+
+
+
+
 
 //Function to copy text to clipboard
 const copyToClipboard = (text) => {
