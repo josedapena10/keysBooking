@@ -15211,6 +15211,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         const averageRating = ratings.reduce((a, b) => a + b, 0) / ratings.length;
                         boatDetailsReviewsAVG.textContent = averageRating.toFixed(2);
                         boatDetailsReviewsAmount.textContent = `${boat.reviews.length} review${boat.reviews.length === 1 ? '' : 's'}`;
+                        if (boatDetailsReviewsIcon) boatDetailsReviewsIcon.style.display = '';
                         if (boatDetailsReviewsDot) {
                             boatDetailsReviewsDot.style.display = '';
                         }
@@ -24718,7 +24719,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         const avgRating = charter.reviews.reduce((sum, review) => sum + (review.rating || 0), 0) / charter.reviews.length;
                         reviewsAvgElement.textContent = avgRating.toFixed(2);
                         reviewsAmountElement.textContent = `${charter.reviews.length} review${charter.reviews.length === 1 ? '' : 's'}`;
-
+                        if (reviewsIconElement) reviewsIconElement.style.display = '';
                         reviewsDot.style.display = 'flex';
                     }
                 }
