@@ -22447,6 +22447,65 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
+            toCoordinate(value) {
+                const n = Number(value);
+                return Number.isFinite(n) ? n : null;
+            }
+
+            getStayCoordinates() {
+                const property = window?.Wized?.data?.r?.Load_Property_Details?.data?.property || null;
+                const lat = this.toCoordinate(property?.latitude ?? window?.Wized?.data?.v?.latitude);
+                const lng = this.toCoordinate(property?.longitude ?? window?.Wized?.data?.v?.longitude);
+                return lat !== null && lng !== null ? { lat, lng } : null;
+            }
+
+            getCharterCoordinates(charter) {
+                const lat = this.toCoordinate(charter?.latitude ?? charter?.lat);
+                const lng = this.toCoordinate(charter?.longitude ?? charter?.lng);
+                return lat !== null && lng !== null ? { lat, lng } : null;
+            }
+
+            haversineMiles(lat1, lng1, lat2, lng2) {
+                const toRad = (deg) => deg * (Math.PI / 180);
+                const R = 3958.8; // Earth radius in miles
+                const dLat = toRad(lat2 - lat1);
+                const dLng = toRad(lng2 - lng1);
+                const aVal =
+                    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+                    Math.sin(dLng / 2) * Math.sin(dLng / 2);
+                const c = 2 * Math.atan2(Math.sqrt(aVal), Math.sqrt(1 - aVal));
+                return R * c;
+            }
+
+            getMilesFromStay(charter) {
+                const stay = this.getStayCoordinates();
+                const charterCoords = this.getCharterCoordinates(charter);
+                if (!stay || !charterCoords) return null;
+                return this.haversineMiles(stay.lat, stay.lng, charterCoords.lat, charterCoords.lng);
+            }
+
+            formatDistanceMiles(miles) {
+                if (miles === null || !Number.isFinite(miles)) return null;
+                if (miles < 1) return '<1 mi away';
+                return `${Math.round(miles)} mi away`;
+            }
+
+            formatCharterDetailsLocation(charter) {
+                const city = (charter?.city || '').trim();
+                const cityState = city ? `${city}, FL` : '';
+                const distanceText = this.formatDistanceMiles(this.getMilesFromStay(charter));
+                if (cityState && distanceText) return `${cityState} · ${distanceText}`;
+                return cityState || distanceText || '';
+            }
+
+            formatCharterLocationSubtitle(charter) {
+                if (this.selectedPrivateDock) {
+                    return 'Private dock pickup';
+                }
+                return this.formatCharterDetailsLocation(charter);
+            }
+
             sortChartersByProximity(charters) {
                 // Get listing city from property data (used as fallback tie-breaker)
                 let listingCity = '';
@@ -22461,61 +22520,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 }
 
-                const toNum = (value) => {
-                    const n = Number(value);
-                    return Number.isFinite(n) ? n : null;
-                };
-
                 const normalizeCity = (value) => (value || '').toLowerCase().replace(/,\s*fl\b/g, '').trim();
-
-                // Prefer Wized location vars first, then property coordinates
-                const listingLat = toNum(
-                    window?.Wized?.data?.v?.latitude ??
-                    window?.Wized?.data?.r?.Load_Property_Details?.data?.property?.latitude
-                );
-                const listingLng = toNum(
-                    window?.Wized?.data?.v?.longitude ??
-                    window?.Wized?.data?.r?.Load_Property_Details?.data?.property?.longitude
-                );
-
-                const hasListingCoords = listingLat !== null && listingLng !== null;
-
-                const haversineMiles = (lat1, lng1, lat2, lng2) => {
-                    const toRad = (deg) => deg * (Math.PI / 180);
-                    const R = 3958.8; // Earth radius in miles
-                    const dLat = toRad(lat2 - lat1);
-                    const dLng = toRad(lng2 - lng1);
-                    const aVal =
-                        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                        Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-                        Math.sin(dLng / 2) * Math.sin(dLng / 2);
-                    const c = 2 * Math.atan2(Math.sqrt(aVal), Math.sqrt(1 - aVal));
-                    return R * c;
-                };
+                const stay = this.getStayCoordinates();
 
                 return charters.sort((a, b) => {
                     const cityA = a.city || '';
                     const cityB = b.city || '';
 
                     // 1) Primary sort by true distance when coordinates are available.
-                    if (hasListingCoords) {
-                        const aLat = toNum(a.latitude);
-                        const aLng = toNum(a.longitude);
-                        const bLat = toNum(b.latitude);
-                        const bLng = toNum(b.longitude);
+                    if (stay) {
+                        const aCoords = this.getCharterCoordinates(a);
+                        const bCoords = this.getCharterCoordinates(b);
 
-                        const aHasCoords = aLat !== null && aLng !== null;
-                        const bHasCoords = bLat !== null && bLng !== null;
-
-                        if (aHasCoords && bHasCoords) {
-                            const distA = haversineMiles(listingLat, listingLng, aLat, aLng);
-                            const distB = haversineMiles(listingLat, listingLng, bLat, bLng);
+                        if (aCoords && bCoords) {
+                            const distA = this.haversineMiles(stay.lat, stay.lng, aCoords.lat, aCoords.lng);
+                            const distB = this.haversineMiles(stay.lat, stay.lng, bCoords.lat, bCoords.lng);
                             if (Math.abs(distA - distB) > 0.001) {
                                 return distA - distB;
                             }
-                        } else if (aHasCoords !== bHasCoords) {
+                        } else if (!!aCoords !== !!bCoords) {
                             // Prefer entries with usable coordinates
-                            return aHasCoords ? -1 : 1;
+                            return aCoords ? -1 : 1;
                         }
                     }
 
@@ -22544,30 +22569,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             filterFishingCharters(charters) {
-                const toNum = (value) => {
-                    const n = Number(value);
-                    return Number.isFinite(n) ? n : null;
-                };
-                const haversineMiles = (lat1, lng1, lat2, lng2) => {
-                    const toRad = (deg) => deg * (Math.PI / 180);
-                    const R = 3958.8;
-                    const dLat = toRad(lat2 - lat1);
-                    const dLng = toRad(lng2 - lng1);
-                    const aVal =
-                        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                        Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-                        Math.sin(dLng / 2) * Math.sin(dLng / 2);
-                    const c = 2 * Math.atan2(Math.sqrt(aVal), Math.sqrt(1 - aVal));
-                    return R * c;
-                };
-                const property = window?.Wized?.data?.r?.Load_Property_Details?.data?.property || null;
-                const listingLat = toNum(property?.latitude ?? window?.Wized?.data?.v?.latitude);
-                const listingLng = toNum(property?.longitude ?? window?.Wized?.data?.v?.longitude);
-                const hasListingCoords = listingLat !== null && listingLng !== null;
-
                 const debugReasons = {
-                    outOfRadius: 0,
-                    missingCoords: 0,
                     capacity: 0,
                     noTripsMatchFilters: 0,
                     priceOutOfRange: 0,
@@ -22581,48 +22583,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     privateDockVesselTooLarge: 0
                 };
                 const debugSamples = {
-                    outOfRadius: [],
-                    missingCoords: [],
                     privateDockMismatch: []
                 };
 
                 const filtered = charters.filter(charter => {
-                    // Hard radius filter: keep only charters within 30 miles when both
-                    // listing and charter coordinates are available.
-                    if (hasListingCoords) {
-                        const charterLat = toNum(charter?.latitude ?? charter?.lat);
-                        const charterLng = toNum(charter?.longitude ?? charter?.lng);
-                        const hasCharterCoords = charterLat !== null && charterLng !== null;
-
-                        if (!hasCharterCoords) {
-                            debugReasons.missingCoords++;
-                            if (debugSamples.missingCoords.length < 5) {
-                                debugSamples.missingCoords.push({
-                                    charterId: charter?.id,
-                                    charterName: charter?.name || charter?.companyName || '',
-                                    latitude: charter?.latitude ?? charter?.lat ?? null,
-                                    longitude: charter?.longitude ?? charter?.lng ?? null
-                                });
-                            }
-                            return false;
-                        }
-
-                        const miles = haversineMiles(listingLat, listingLng, charterLat, charterLng);
-                        if (miles > 30) {
-                            debugReasons.outOfRadius++;
-                            if (debugSamples.outOfRadius.length < 5) {
-                                debugSamples.outOfRadius.push({
-                                    charterId: charter?.id,
-                                    charterName: charter?.name || charter?.companyName || '',
-                                    miles: Number(miles.toFixed(2)),
-                                    charterLat,
-                                    charterLng
-                                });
-                            }
-                            return false;
-                        }
-                    }
-
                     // Filter by calendar availability (completely hide unavailable charters)
                     if (this.batchAvailabilityData && this.batchAvailabilityData.charters && this.selectedDates.length > 0) {
                         const charterAvail = this.batchAvailabilityData.charters.find(c => c.fishingCharters_id == charter.id);
@@ -22944,7 +22908,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const subtitleCityElement = card.querySelector('[data-element="addFishingCharterModal_selectFishingCharter_card_subTitleCity"]');
                 if (subtitleCityElement) {
-                    subtitleCityElement.textContent = charter.city + ", FL" || '';
+                    subtitleCityElement.textContent = this.formatCharterLocationSubtitle(charter);
                 }
 
                 // Filter trip options based on current filters
@@ -22999,7 +22963,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (reviews.length === 0) {
                         // No reviews
                         ratingAvgElement.textContent = '';
-                        ratingIconElement.style.display = 'none';
+                        if (ratingIconElement) ratingIconElement.style.display = 'none';
                         ratingNumberElement.textContent = '';
                     } else {
                         // Calculate average rating
@@ -23009,6 +22973,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         // Display average rating with one decimal place
                         ratingAvgElement.textContent = averageRating.toFixed(2);
                         ratingNumberElement.textContent = `(${reviews.length})`;
+                        if (ratingIconElement) ratingIconElement.style.display = '';
                     }
                 }
             }
@@ -23696,7 +23661,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Location
                 const locationElement = document.querySelector('[data-element="fishingCharterDetails_location"]');
                 if (locationElement) {
-                    locationElement.textContent = (charter.city || '') + ', FL';
+                    locationElement.textContent = this.formatCharterDetailsLocation(charter);
                 }
 
                 // Reviews
