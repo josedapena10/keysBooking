@@ -1178,3 +1178,280 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
+
+
+// Trip updates email lead popup
+document.addEventListener('DOMContentLoaded', () => {
+    const popup = document.querySelector('[data-element="email-lead-popup"]');
+    if (!popup) return;
+
+    const closeButton = popup.querySelector('[data-element="email-lead-closeButton"]');
+    const emailInput = popup.querySelector('[data-element="email-lead-input"]');
+    const errorText = popup.querySelector('[data-element="email-lead-errorText"]');
+    const submitButton = popup.querySelector('[data-element="email-lead-submit-button"]');
+    const submitButtonText = popup.querySelector('[data-element="email-lead-submit-button-text"]');
+    const submitButtonLoader = popup.querySelector('[data-element="email-lead-submit-button-loader"]');
+
+    let successPopup = document.querySelector('[data-element="email-lead-success-popup"]');
+
+    if (!closeButton || !emailInput || !errorText || !submitButton || !submitButtonText || !submitButtonLoader) {
+        return;
+    }
+
+    const SUCCESS_VISIBLE_MS = 1000;
+    const SUCCESS_FADE_MS = 400;
+
+    if (!document.getElementById('email-lead-success-styles')) {
+        const successStyle = document.createElement('style');
+        successStyle.id = 'email-lead-success-styles';
+        successStyle.textContent = `
+            [data-element="email-lead-success-popup"],
+            [data-element="email-lead-success-popup"] * {
+                font-family: 'TT Fors', sans-serif;
+            }
+            [data-element="email-lead-success-popup"] {
+                position: fixed;
+                inset: 0;
+                display: none;
+                align-items: center;
+                justify-content: center;
+                z-index: 10001;
+                padding: 20px;
+                box-sizing: border-box;
+                background: rgba(0, 0, 0, 0.45);
+                backdrop-filter: blur(2px);
+                opacity: 1;
+                transition: opacity ${SUCCESS_FADE_MS}ms ease;
+                pointer-events: none;
+            }
+            [data-element="email-lead-success-popup"].email-lead-success-fade-out {
+                opacity: 0;
+            }
+            [data-element="email-lead-success-popup"] .email-lead-success-card {
+                position: relative;
+                width: 100%;
+                max-width: 360px;
+                padding: 28px 24px;
+                border-radius: 8px;
+                background: #ffffff;
+                border: 1px solid #e2e2e2;
+                box-shadow: 0 16px 40px rgba(0, 0, 0, 0.18);
+                text-align: center;
+            }
+            [data-element="email-lead-success-popup"] .email-lead-success-title {
+                margin: 0;
+                font-size: 22px;
+                font-weight: 600;
+                color: #000;
+            }
+            [data-element="email-lead-success-popup"] [data-element="email-lead-success-closeButton"],
+            [data-element="email-lead-success-popup"] .email-lead-success-message,
+            [data-element="email-lead-success-popup"] [data-element="email-lead-success-message"] {
+                display: none !important;
+            }
+        `;
+        document.head.appendChild(successStyle);
+    }
+
+    if (!successPopup) {
+        successPopup = document.createElement('div');
+        successPopup.setAttribute('data-element', 'email-lead-success-popup');
+        successPopup.innerHTML = `
+            <div class="email-lead-success-card">
+                <p class="email-lead-success-title">You're in!</p>
+            </div>
+        `;
+        document.body.appendChild(successPopup);
+    } else {
+        const successCloseButton = successPopup.querySelector('[data-element="email-lead-success-closeButton"]');
+        const successMessage = successPopup.querySelector('.email-lead-success-message, [data-element="email-lead-success-message"]');
+        if (successCloseButton) successCloseButton.style.display = 'none';
+        if (successMessage) successMessage.style.display = 'none';
+    }
+
+    const STORAGE_KEY = 'kb_trip_updates_popup';
+    const VISITOR_KEY = 'kb_visitor_id';
+    const EMAIL_LEADS_API = 'https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/email-leads';
+    const SHOW_DELAY_MS = 10_000;
+    const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+    const POPUP_TYPE = 'trip_packages_timed';
+
+    const getPopupState = () => {
+        try {
+            return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+        } catch {
+            return {};
+        }
+    };
+
+    const setPopupState = (state) => {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    };
+
+    const shouldShowPopup = () => {
+        const state = getPopupState();
+        if (state.submitted) return false;
+        if (state.lastShown && Date.now() - state.lastShown < THIRTY_DAYS_MS) return false;
+        return true;
+    };
+
+    const markShown = () => {
+        const state = getPopupState();
+        setPopupState({ ...state, lastShown: Date.now() });
+    };
+
+    const markSubmitted = () => {
+        setPopupState({ submitted: true, submittedAt: Date.now() });
+    };
+
+    const getVisitorId = () => {
+        let id = localStorage.getItem(VISITOR_KEY);
+        if (!id) {
+            id = (crypto && crypto.randomUUID)
+                ? crypto.randomUUID()
+                : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+            localStorage.setItem(VISITOR_KEY, id);
+        }
+        return id;
+    };
+
+    const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+
+    const hideError = () => {
+        errorText.style.display = 'none';
+    };
+
+    const showError = (message) => {
+        errorText.textContent = message;
+        errorText.style.display = 'block';
+    };
+
+    const setSubmitLoading = (isLoading) => {
+        submitButton.disabled = isLoading;
+        submitButtonText.style.display = isLoading ? 'none' : 'block';
+        submitButtonLoader.style.display = isLoading ? 'flex' : 'none';
+    };
+
+    const openPopup = () => {
+        popup.style.display = 'flex';
+        document.body.classList.add('no-scroll');
+        hideError();
+        emailInput.focus();
+    };
+
+    const closePopup = () => {
+        popup.style.display = 'none';
+        document.body.classList.remove('no-scroll');
+        hideError();
+        emailInput.value = '';
+        setSubmitLoading(false);
+    };
+
+    let successDismissTimer = null;
+    let successFadeTimer = null;
+
+    const closeSuccessPopup = () => {
+        if (successDismissTimer) {
+            clearTimeout(successDismissTimer);
+            successDismissTimer = null;
+        }
+        if (successFadeTimer) {
+            clearTimeout(successFadeTimer);
+            successFadeTimer = null;
+        }
+        successPopup.style.display = 'none';
+        successPopup.classList.remove('email-lead-success-fade-out');
+    };
+
+    const showSuccessPopup = () => {
+        closeSuccessPopup();
+        successPopup.style.display = 'flex';
+        successDismissTimer = setTimeout(() => {
+            successPopup.classList.add('email-lead-success-fade-out');
+            successFadeTimer = setTimeout(closeSuccessPopup, SUCCESS_FADE_MS);
+        }, SUCCESS_VISIBLE_MS);
+    };
+
+    popup.style.display = 'none';
+    successPopup.style.display = 'none';
+    hideError();
+    setSubmitLoading(false);
+
+    if (!shouldShowPopup()) return;
+
+    let showTimer = null;
+
+    const schedulePopup = () => {
+        showTimer = setTimeout(() => {
+            if (!shouldShowPopup()) return;
+            openPopup();
+            markShown();
+        }, SHOW_DELAY_MS);
+    };
+
+    schedulePopup();
+
+    closeButton.addEventListener('click', closePopup);
+
+    popup.addEventListener('click', (event) => {
+        if (event.target === popup) {
+            closePopup();
+        }
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && popup.style.display === 'flex') {
+            closePopup();
+        }
+    });
+
+    emailInput.addEventListener('input', hideError);
+
+    submitButton.addEventListener('click', async () => {
+        const email = emailInput.value.trim();
+
+        if (!email) {
+            showError('Please enter your email address');
+            return;
+        }
+
+        if (!isValidEmail(email)) {
+            showError('Please enter a valid email address');
+            return;
+        }
+
+        hideError();
+        setSubmitLoading(true);
+
+        try {
+            const response = await fetch(EMAIL_LEADS_API, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email,
+                    visitor_id: getVisitorId(),
+                    source_page: 'bundled-trips',
+                    page_url: window.location.href,
+                    popup_type: POPUP_TYPE,
+                }),
+            });
+
+            const data = await response.json().catch(() => ({}));
+
+            if (!response.ok) {
+                throw new Error(data.message || 'Something went wrong. Please try again.');
+            }
+
+            markSubmitted();
+            if (showTimer) {
+                clearTimeout(showTimer);
+                showTimer = null;
+            }
+            closePopup();
+            showSuccessPopup();
+        } catch (err) {
+            showError(err.message || 'Something went wrong. Please try again.');
+            setSubmitLoading(false);
+        }
+    });
+});
