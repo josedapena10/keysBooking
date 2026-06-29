@@ -638,6 +638,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
 
+            const bundleBlocks = [stayBlock].filter(Boolean);
+            if (trip?.hasBoatRental && boatBlock) {
+                bundleBlocks.push(boatBlock);
+            }
+            card.querySelectorAll('[data-element="card_charter_block"]').forEach((block) => {
+                bundleBlocks.push(block);
+            });
+            // Stay is always first — when the total is odd, full-width stay fills row 1
+            // and the remaining blocks pair cleanly on the rows below (1+2, 1+4, etc.).
+            if (stayBlock && bundleBlocks.length % 2 === 1) {
+                stayBlock.style.width = '100%';
+            }
+
             // visit page button + clickable stay/boat/charter blocks
             const packageListingUrl = buildPackageListingUrl(trip);
             const tripName = trip?.trip_name || '';
