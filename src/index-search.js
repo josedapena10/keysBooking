@@ -1,3 +1,5 @@
+import { xanoListingCardImageUrl } from './utils/xano-image-url.js';
+
 /* Hide phone map/list footer on first paint until listing load logic runs (DOMContentLoaded is too late for one frame of flash). */
 (function () {
     try {
@@ -8878,6 +8880,10 @@ document.addEventListener('DOMContentLoaded', function () {
         };
     }
 
+    function listingCardImageUrl(rawUrl) {
+        return xanoListingCardImageUrl(rawUrl);
+    }
+
     function attachSingleImageRetry(img) {
         if (!img || img.dataset.retryHandlerBound === '1') {
             return;
@@ -8885,11 +8891,21 @@ document.addEventListener('DOMContentLoaded', function () {
 
         img.dataset.retryHandlerBound = '1';
         img.addEventListener('error', function () {
+            const currentSrc = img.getAttribute('src') || img.src;
+            const fullSrc = img.dataset.fullSrc;
+
+            if (fullSrc && currentSrc && currentSrc !== fullSrc && /[?&]tpl=/i.test(currentSrc)) {
+                if (img.dataset.tplFallbackUsed !== '1') {
+                    img.dataset.tplFallbackUsed = '1';
+                    img.src = fullSrc;
+                    return;
+                }
+            }
+
             if (img.dataset.retryAttempted === '1') {
                 return;
             }
 
-            const currentSrc = img.getAttribute('src') || img.src;
             if (!currentSrc) {
                 return;
             }
@@ -9037,7 +9053,9 @@ document.addEventListener('DOMContentLoaded', function () {
             } catch (_) {
                 /* ignore */
             }
-            img.src = url;
+            img.dataset.fullSrc = url;
+            img.src = listingCardImageUrl(url);
+            attachSingleImageRetry(img);
             pool.appendChild(img);
         });
 
@@ -9090,7 +9108,9 @@ document.addEventListener('DOMContentLoaded', function () {
             } catch (_) {
                 /* ignore */
             }
-            img.src = url;
+            img.dataset.fullSrc = url;
+            img.src = listingCardImageUrl(url);
+            attachSingleImageRetry(img);
             pool.appendChild(img);
         }
     }
@@ -9169,7 +9189,9 @@ document.addEventListener('DOMContentLoaded', function () {
                     } catch (_) {
                         /* ignore */
                     }
-                    img.src = url;
+                    img.dataset.fullSrc = url;
+                    img.src = listingCardImageUrl(url);
+                    attachSingleImageRetry(img);
                     pool.appendChild(img);
                 }, i * STAGGER_MS);
             });
@@ -9275,10 +9297,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 "></div>
                 <div class="carousel-track" style="display: flex; width: 100%; height: 100%; transition: transform 0.3s ease;">
                     ${slideUrls.map((url, slideIndex) => {
+            const displayUrl = listingCardImageUrl(url);
             if (slideIndex === 0) {
                 return `
                                 <div class="carousel-slide" style="flex: 0 0 100%; height: 100%;">
-                                    <img src="${url}" 
+                                    <img src="${displayUrl}" 
+                                         data-full-src="${url}"
                                          alt="${altText}"
                                          loading="eager"
                                          fetchpriority="high"
@@ -9290,7 +9314,8 @@ document.addEventListener('DOMContentLoaded', function () {
             return `
                                 <div class="carousel-slide" style="flex: 0 0 100%; height: 100%;">
                                     <img src="${transparentPixel}"
-                                         data-pending-src="${url}"
+                                         data-pending-src="${displayUrl}"
+                                         data-full-src="${url}"
                                          alt="${altText}"
                                          loading="eager"
                                          style="width: 100%; height: 100%; object-fit: cover;">
@@ -10159,7 +10184,10 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (subtitle) subtitle.textContent = listing.listing_city_state || '';
                     if (image) {
                         attachSingleImageRetry(image);
-                        if (listing.image_url) image.src = listing.image_url;
+                        if (listing.image_url) {
+                            image.dataset.fullSrc = listing.image_url;
+                            image.src = listingCardImageUrl(listing.image_url);
+                        }
                     }
 
                     // Set review info
@@ -10988,18 +11016,25 @@ document.addEventListener('DOMContentLoaded', function () {
                         <div class="map-custom-carousel" style="position: relative; width: 100%; height: 200px; border-radius: 5px 5px 0 0; overflow: hidden;">
                             <div class="map-carousel-track" style="display: flex; width: 100%; height: 100%; transition: transform 0.3s ease;">
                                 ${this.listing._images && this.listing._images.length > 0 ?
-                        this.listing._images.map((img, index) =>
-                            `<div class="map-carousel-slide" style="flex: 0 0 100%; height: 100%;">
-                                <img src="${img.property_image?.url || vaultUrlFromPropertyImageMeta(img.property_image) || ''}" 
+                        this.listing._images.map((img, index) => {
+                            const rawUrl =
+                                img.property_image?.url ||
+                                vaultUrlFromPropertyImageMeta(img.property_image) ||
+                                '';
+                            const displayUrl = listingCardImageUrl(rawUrl);
+                            return `<div class="map-carousel-slide" style="flex: 0 0 100%; height: 100%;">
+                                <img src="${displayUrl}" 
+                                     data-full-src="${rawUrl}"
                                      alt="${this.listing.property_name}" 
                                      loading="${index === 0 ? 'eager' : 'lazy'}"
                                      decoding="async"
                                      ${index === 0 ? 'fetchpriority="high"' : ''}
                                      style="width: 100%; height: 200px; object-fit: cover;">
-                            </div>`
-                        ).join('') :
+                            </div>`;
+                        }).join('') :
                         `<div class="map-carousel-slide" style="flex: 0 0 100%; height: 100%;">
-                            <img src="${this.listing.image_url || ''}" 
+                            <img src="${listingCardImageUrl(this.listing.image_url || '')}" 
+                                 data-full-src="${this.listing.image_url || ''}"
                                  alt="${this.listing.property_name}" 
                                  loading="eager"
                                  decoding="async"

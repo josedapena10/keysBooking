@@ -1,3 +1,8 @@
+import {
+    scheduleOptimizePropertyPageImages,
+    xanoPropertyPreviewImageUrl,
+} from './utils/xano-image-url.js';
+
 // Remove `?checkin=&checkout=` (empty values) so Wized expressions that parse dates do not throw
 // RangeError: Invalid time value (cancellation / reserve conditions expect real YYYY-MM-DD or absent keys).
 (function normalizeEmptyStayQueryParams() {
@@ -78,9 +83,19 @@
 })();
 
 // for background 2nd click modal - mirror click
-var script = document.createElement('script');
-script.src = 'https://cdn.jsdelivr.net/npm/@finsweet/attributes-mirrorclick@1/mirrorclick.js';
-document.body.appendChild(script);
+(function appendMirrorClickScript() {
+    const load = () => {
+        if (!document.body) return;
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/@finsweet/attributes-mirrorclick@1/mirrorclick.js';
+        document.body.appendChild(script);
+    };
+    if (document.body) {
+        load();
+    } else {
+        document.addEventListener('DOMContentLoaded', load, { once: true });
+    }
+})();
 
 // Show/hide a loading overlay inside boat or charter details while content loads on first open
 window._showDetailsLoader = function (type) {
@@ -351,6 +366,7 @@ function truncateToFit(element) {
                         duration: event && event.duration
                     });
                     loadingTracker.propertyDetailsLoaded = true;
+                    scheduleOptimizePropertyPageImages();
                     checkAllContentLoaded();
                 }
                 if (event.name === 'Load_Property_Calendar_Query') {
@@ -5513,14 +5529,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                         document.head.appendChild(preload);
                     };
-                    const firstPhotoUrl = propertyPhotos[0].property_image.url;
+                    const firstPhotoUrl = xanoPropertyPreviewImageUrl(propertyPhotos[0].property_image.url);
                     appendImagePreload(firstPhotoUrl, 'high');
                     // Desktop: warm next slides without starving the LCP image
                     if (!isMobile && propertyPhotos[1] && propertyPhotos[1].property_image && propertyPhotos[1].property_image.url) {
-                        appendImagePreload(propertyPhotos[1].property_image.url, 'low');
+                        appendImagePreload(xanoPropertyPreviewImageUrl(propertyPhotos[1].property_image.url), 'low');
                     }
                     if (!isMobile && propertyPhotos[2] && propertyPhotos[2].property_image && propertyPhotos[2].property_image.url) {
-                        appendImagePreload(propertyPhotos[2].property_image.url, 'low');
+                        appendImagePreload(xanoPropertyPreviewImageUrl(propertyPhotos[2].property_image.url), 'low');
                     }
                 } else {
                 }
@@ -5558,19 +5574,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Add slides for each image with optimized loading
                 propertyPhotos.forEach((photoUrl, index) => {
+                    const rawUrl = photoUrl?.property_image?.url;
+                    if (!rawUrl) {
+                        return;
+                    }
                     var li = document.createElement('li');
                     li.classList.add('splide__slide');
+                    const src = xanoPropertyPreviewImageUrl(rawUrl);
 
                     // Mobile: only the first image eager/high priority; others lazy
                     // Desktop: first 3 eager for faster initial carousel
                     if (index === 0) {
-                        li.innerHTML = `<img src="${photoUrl.property_image.url}" 
+                        li.innerHTML = `<img src="${src}" 
+                             data-full-src="${rawUrl}"
                              alt="Property Photo"
                              loading="eager"
                              fetchpriority="high"
                              decoding="async">`;
                     } else if (!isMobile && index < 3) {
-                        li.innerHTML = `<img src="${photoUrl.property_image.url}" 
+                        li.innerHTML = `<img src="${src}" 
+                             data-full-src="${rawUrl}"
                              alt="Property Photo"
                              loading="eager"
                              fetchpriority="low"
@@ -5579,7 +5602,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         }
                     } else {
-                        li.innerHTML = `<img src="${photoUrl.property_image.url}" 
+                        li.innerHTML = `<img src="${src}" 
+                             data-full-src="${rawUrl}"
                              alt="Property Photo"
                              loading="lazy"
                              decoding="async">`;
@@ -5622,6 +5646,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Refresh the slider after adding slides
                 slider.refresh();
+
+                scheduleOptimizePropertyPageImages();
 
                 window._listingSplideGalleryInitialized = true;
 
