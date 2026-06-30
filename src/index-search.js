@@ -1,4 +1,51 @@
-import { xanoListingCardImageUrl } from './utils/xano-image-url.js';
+/* Xano vault ?tpl= — listing card / map images (~800px via large.jpg) */
+const XANO_VAULT_PATH = '/vault/';
+const XANO_PHOTO_EXT = /\.(jpe?g|png|webp|gif|heic|heif)(\?|#|$)/i;
+
+function isXanoVaultPhotoUrl(url) {
+    if (!url || typeof url !== 'string' || url.startsWith('data:') || url.startsWith('blob:')) {
+        return false;
+    }
+    try {
+        const parsed = new URL(url, window.location.href);
+        if (!parsed.hostname.includes('xano.io') || !parsed.pathname.includes(XANO_VAULT_PATH)) {
+            return false;
+        }
+        const path = url.split('?')[0].split('#')[0];
+        if (/\.svg(\?|#|$)/i.test(path)) {
+            return false;
+        }
+        return XANO_PHOTO_EXT.test(path);
+    } catch (_) {
+        return false;
+    }
+}
+
+function stripXanoImageTpl(url) {
+    if (!url || typeof url !== 'string') {
+        return url || '';
+    }
+    return url
+        .replace(/([?&])tpl=[^&#]*/gi, '$1')
+        .replace(/[?&]$/, '')
+        .replace(/\?&/, '?');
+}
+
+function withXanoImageTpl(rawUrl, tpl) {
+    if (!rawUrl || typeof rawUrl !== 'string') {
+        return rawUrl || '';
+    }
+    const trimmed = stripXanoImageTpl(rawUrl.trim());
+    if (!trimmed || !isXanoVaultPhotoUrl(trimmed)) {
+        return trimmed;
+    }
+    const joiner = trimmed.includes('?') ? '&' : '?';
+    return `${trimmed}${joiner}tpl=${tpl}`;
+}
+
+function xanoListingCardImageUrl(rawUrl) {
+    return withXanoImageTpl(rawUrl, 'large.jpg');
+}
 
 /* Hide phone map/list footer on first paint until listing load logic runs (DOMContentLoaded is too late for one frame of flash). */
 (function () {

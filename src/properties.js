@@ -1,7 +1,164 @@
-import {
-    scheduleOptimizePropertyPageImages,
-    xanoPropertyPreviewImageUrl,
-} from './utils/xano-image-url.js';
+/* Xano vault ?tpl= — property page images (preview large.jpg, gallery xlarge.jpg) */
+const XANO_VAULT_PATH = '/vault/';
+const XANO_PHOTO_EXT = /\.(jpe?g|png|webp|gif|heic|heif)(\?|#|$)/i;
+let propertyOptimizeRunning = false;
+
+function isXanoVaultPhotoUrl(url) {
+    if (!url || typeof url !== 'string' || url.startsWith('data:') || url.startsWith('blob:')) {
+        return false;
+    }
+    try {
+        const parsed = new URL(url, window.location.href);
+        if (!parsed.hostname.includes('xano.io') || !parsed.pathname.includes(XANO_VAULT_PATH)) {
+            return false;
+        }
+        const path = url.split('?')[0].split('#')[0];
+        if (/\.svg(\?|#|$)/i.test(path)) {
+            return false;
+        }
+        return XANO_PHOTO_EXT.test(path);
+    } catch (_) {
+        return false;
+    }
+}
+
+function stripXanoImageTpl(url) {
+    if (!url || typeof url !== 'string') {
+        return url || '';
+    }
+    return url
+        .replace(/([?&])tpl=[^&#]*/gi, '$1')
+        .replace(/[?&]$/, '')
+        .replace(/\?&/, '?');
+}
+
+function withXanoImageTpl(rawUrl, tpl) {
+    if (!rawUrl || typeof rawUrl !== 'string') {
+        return rawUrl || '';
+    }
+    const trimmed = stripXanoImageTpl(rawUrl.trim());
+    if (!trimmed || !isXanoVaultPhotoUrl(trimmed)) {
+        return trimmed;
+    }
+    const joiner = trimmed.includes('?') ? '&' : '?';
+    return `${trimmed}${joiner}tpl=${tpl}`;
+}
+
+function xanoPropertyPreviewImageUrl(rawUrl) {
+    return withXanoImageTpl(rawUrl, 'large.jpg');
+}
+
+function xanoPropertyGalleryImageUrl(rawUrl) {
+    return withXanoImageTpl(rawUrl, 'xlarge.jpg');
+}
+
+function getRawVaultUrlFromImg(img) {
+    if (!img) {
+        return '';
+    }
+    const candidates = [
+        img.dataset.fullSrc,
+        img.getAttribute('setsrc'),
+        img.getAttribute('src'),
+        img.getAttribute('srcset'),
+        img.currentSrc,
+        img.src,
+    ];
+    for (const candidate of candidates) {
+        if (!candidate || typeof candidate !== 'string' || candidate.startsWith('data:')) {
+            continue;
+        }
+        const raw = stripXanoImageTpl(candidate.trim());
+        if (isXanoVaultPhotoUrl(raw)) {
+            return raw;
+        }
+    }
+    return '';
+}
+
+function urlAlreadyHasTpl(url, tpl) {
+    if (!url || typeof url !== 'string') {
+        return false;
+    }
+    return new RegExp(`[?&]tpl=${tpl.replace('.', '\\.')}`, 'i').test(url);
+}
+
+function setOptimizedImgSrc(img, rawUrl, transformFn, tplName) {
+    if (!img || !rawUrl) {
+        return false;
+    }
+    const raw = stripXanoImageTpl(String(rawUrl).trim());
+    if (!isXanoVaultPhotoUrl(raw)) {
+        return false;
+    }
+    const displayUrl = transformFn(raw);
+    const currentSrc = img.currentSrc || img.getAttribute('src') || img.src || '';
+    const currentSetsrc = img.getAttribute('setsrc') || '';
+
+    if (
+        urlAlreadyHasTpl(currentSrc, tplName) &&
+        urlAlreadyHasTpl(currentSetsrc || currentSrc, tplName)
+    ) {
+        if (!img.dataset.fullSrc) {
+            img.dataset.fullSrc = raw;
+        }
+        return false;
+    }
+
+    if (!img.dataset.fullSrc) {
+        img.dataset.fullSrc = raw;
+    }
+
+    if (img.src && !img.src.startsWith('data:') && currentSrc !== displayUrl) {
+        img.src = displayUrl;
+    }
+    if (img.hasAttribute('setsrc') && currentSetsrc !== displayUrl) {
+        img.setAttribute('setsrc', displayUrl);
+    }
+    const srcset = img.getAttribute('srcset');
+    if (srcset && isXanoVaultPhotoUrl(stripXanoImageTpl(srcset)) && srcset !== displayUrl) {
+        img.setAttribute('srcset', displayUrl);
+    }
+    return true;
+}
+
+function optimizePropertyPageImages(root) {
+    if (propertyOptimizeRunning) {
+        return;
+    }
+    propertyOptimizeRunning = true;
+    const docRoot = root || document;
+    try {
+        docRoot.querySelectorAll(
+            '.images-stack .listingheader_image, [data-element^="ListingImage"]'
+        ).forEach((img) => {
+            const raw = getRawVaultUrlFromImg(img);
+            if (raw) {
+                setOptimizedImgSrc(img, raw, xanoPropertyPreviewImageUrl, 'large.jpg');
+            }
+        });
+
+        docRoot.querySelectorAll('.allphotos_image, [w-el="ImageModulPage"]').forEach((img) => {
+            const raw = getRawVaultUrlFromImg(img);
+            if (raw) {
+                setOptimizedImgSrc(img, raw, xanoPropertyGalleryImageUrl, 'xlarge.jpg');
+            }
+        });
+    } catch (_) {
+        /* never block property page load */
+    } finally {
+        propertyOptimizeRunning = false;
+    }
+}
+
+function scheduleOptimizePropertyPageImages() {
+    const run = () => optimizePropertyPageImages();
+    run();
+    requestAnimationFrame(() => run());
+    setTimeout(run, 100);
+    setTimeout(run, 400);
+    setTimeout(run, 1200);
+}
 
 // Remove `?checkin=&checkout=` (empty values) so Wized expressions that parse dates do not throw
 // RangeError: Invalid time value (cancellation / reserve conditions expect real YYYY-MM-DD or absent keys).
