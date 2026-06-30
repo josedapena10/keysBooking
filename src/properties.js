@@ -52,6 +52,21 @@ function xanoPropertyGalleryImageUrl(rawUrl) {
     return withXanoImageTpl(rawUrl, 'xlarge.jpg');
 }
 
+/** Desktop hero (ListingImage1) + mobile Splide slide 1 — full-quality xlarge */
+function xanoPropertyHeroImageUrl(rawUrl) {
+    return xanoPropertyGalleryImageUrl(rawUrl);
+}
+
+function isListingHeroImage(img) {
+    if (!img) {
+        return false;
+    }
+    if (img.matches('[data-element="ListingImage1"], [w-el="ListingImage1"]')) {
+        return true;
+    }
+    return !!img.closest('.image_1');
+}
+
 function getRawVaultUrlFromImg(img) {
     if (!img) {
         return '';
@@ -133,7 +148,12 @@ function optimizePropertyPageImages(root) {
             '.images-stack .listingheader_image, [data-element^="ListingImage"]'
         ).forEach((img) => {
             const raw = getRawVaultUrlFromImg(img);
-            if (raw) {
+            if (!raw) {
+                return;
+            }
+            if (isListingHeroImage(img)) {
+                setOptimizedImgSrc(img, raw, xanoPropertyHeroImageUrl, 'xlarge.jpg');
+            } else {
                 setOptimizedImgSrc(img, raw, xanoPropertyPreviewImageUrl, 'large.jpg');
             }
         });
@@ -5686,7 +5706,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                         document.head.appendChild(preload);
                     };
-                    const firstPhotoUrl = xanoPropertyPreviewImageUrl(propertyPhotos[0].property_image.url);
+                    const firstPhotoUrl = xanoPropertyHeroImageUrl(propertyPhotos[0].property_image.url);
                     appendImagePreload(firstPhotoUrl, 'high');
                     // Desktop: warm next slides without starving the LCP image
                     if (!isMobile && propertyPhotos[1] && propertyPhotos[1].property_image && propertyPhotos[1].property_image.url) {
@@ -5737,7 +5757,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     var li = document.createElement('li');
                     li.classList.add('splide__slide');
-                    const src = xanoPropertyPreviewImageUrl(rawUrl);
+                    const src = index === 0
+                        ? xanoPropertyHeroImageUrl(rawUrl)
+                        : xanoPropertyPreviewImageUrl(rawUrl);
 
                     // Mobile: only the first image eager/high priority; others lazy
                     // Desktop: first 3 eager for faster initial carousel
