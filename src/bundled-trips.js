@@ -1338,7 +1338,7 @@ window.Wized.push((Wized) => {
             .bt2-hero__text { margin: 0 0 22px; font-size: 18px; color: rgba(255,255,255,.9); line-height: 1.5; max-width: 38ch; }
             .bt2-hero__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 8px; }
             .bt2-hero__contact {
-                margin: 28px 0 0; padding: 0; border: 0; background: transparent;
+                margin: 28px 0 5px; padding: 0; border: 0; background: transparent;
                 font-size: 14px; line-height: 1.45; font-weight: 500;
                 color: rgba(255,255,255,.7); white-space: nowrap;
             }
@@ -1680,7 +1680,7 @@ window.Wized.push((Wized) => {
                     width: auto; min-height: 40px; align-self: center; padding: 4px 8px;
                 }
                 .bt2-hero__contact {
-                    width: 100%; margin-top: 24px; font-size: 13px; white-space: normal;
+                    width: 100%; margin: 24px 0 5px; font-size: 13px; white-space: normal;
                 }
                 .bt2-trust { padding: 0 16px 24px; margin-top: -20px; }
                 .bt2-trust__panel { padding: 14px 12px; }
