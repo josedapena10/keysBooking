@@ -769,7 +769,7 @@ window.Wized.push((Wized) => {
     /**
      * Location rules:
      * - boatDelivery=true (and stay has private dock) → delivered to private dock, left docked there.
-     * - Stay has private dock but boatDelivery is false → pickup at a nearby dock (not the stay dock).
+     * - Stay has private dock but boatDelivery is false → pickup at a nearby dock; leave docked at the stay private dock.
      * - Stay without private dock → pickup / leave docked at the boat rental location.
      * - Charter fishingCharterPickupN=true → pickup at stay dock; otherwise pickup at charter location.
      */
@@ -810,11 +810,11 @@ window.Wized.push((Wized) => {
                 boatPickupLabel = boatPickupTimeLabel
                     ? `${boatPickupTimeLabel} at nearby dock`
                     : 'Pickup at nearby dock';
-                boatOvernightLabel = 'Leave docked at nearby dock';
+                boatOvernightLabel = 'Leave docked at stay private dock';
                 boatLocation = boatPickupTimeLabel
-                    ? `You'll pick the boat up at a nearby dock (${boatPickupTimeLabel}). Between uses, leave it docked there, not at the stay’s private dock.`
-                    : "You'll pick the boat up at a nearby dock. Between uses, leave it docked there, not at the stay’s private dock.";
-                boatStatLabel = 'Pickup at nearby dock · leave docked there';
+                    ? `You'll pick the boat up at a nearby dock (${boatPickupTimeLabel}). Between uses, leave it docked at the stay’s private dock.`
+                    : "You'll pick the boat up at a nearby dock. Between uses, leave it docked at the stay’s private dock.";
+                boatStatLabel = 'Pickup at nearby dock · leave docked at stay private dock';
             } else {
                 boatPickupLabel = boatPickupTimeLabel
                     ? `${boatPickupTimeLabel} at boat rental location`
@@ -1047,8 +1047,8 @@ window.Wized.push((Wized) => {
                 detail = 'Private dock delivery';
             } else if (locationInfo?.hasPrivateDock) {
                 detail = locationInfo.boatPickupTimeLabel
-                    ? `Pickup at nearby dock · leave docked there · ${locationInfo.boatPickupTimeLabel}`
-                    : 'Pickup at nearby dock · leave docked there';
+                    ? `Pickup at nearby dock · leave docked at stay private dock · ${locationInfo.boatPickupTimeLabel}`
+                    : 'Pickup at nearby dock · leave docked at stay private dock';
             } else {
                 detail = locationInfo.boatPickupTimeLabel
                     ? `Pickup at boat rental location · leave docked there · ${locationInfo.boatPickupTimeLabel}`
