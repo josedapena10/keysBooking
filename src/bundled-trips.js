@@ -1258,7 +1258,9 @@ window.Wized.push((Wized) => {
         const style = document.createElement('style');
         style.id = 'bt2-styles';
         style.textContent = `
-            [data-element="bundled-trips-body-container"] {
+            [data-element="bundled-trips-body-container"],
+            .bt2-email-overlay,
+            .bt2-email-success {
                 --bt2-primary: ${BLUE};
                 --bt2-primary-hover: ${BLUE_HOVER};
                 --bt2-primary-light: ${BLUE_LIGHT};
@@ -1271,18 +1273,20 @@ window.Wized.push((Wized) => {
                 --bt2-section-light: ${SECTION_LIGHT};
                 --bt2-blue-soft: ${BLUE_SOFT};
                 font-family: ${FONT};
+                -webkit-font-smoothing: antialiased;
+            }
+            [data-element="bundled-trips-body-container"] {
                 color: var(--bt2-text);
                 background: var(--bt2-page);
                 line-height: 1.6;
                 font-size: 16px;
-                -webkit-font-smoothing: antialiased;
             }
             [data-element="bundled-trips-body-container"] *, [data-element="bundled-trips-body-container"] *::before, [data-element="bundled-trips-body-container"] *::after { box-sizing: border-box; }
             .bt2-wrap { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
             .bt2-btn {
                 display: inline-flex; align-items: center; justify-content: center; gap: 8px;
                 min-height: 50px; padding: 0 26px; border-radius: 8px;
-                font-family: ${FONT}; font-size: 16px; font-weight: 700;
+                font-family: ${FONT}; font-size: 16px; font-weight: 500;
                 text-decoration: none; cursor: pointer; border: none;
                 transition: background .18s ease, color .18s ease, border-color .18s ease, transform .18s ease;
             }
@@ -1294,7 +1298,7 @@ window.Wized.push((Wized) => {
             .bt2-btn--outline:hover { background: rgba(255,255,255,.1); }
             .bt2-btn--ghost {
                 background: transparent; color: rgba(255,255,255,.92); border: 0; min-height: 44px;
-                padding: 0 10px; font-weight: 600; text-decoration: underline; text-underline-offset: 3px;
+                padding: 0 10px; font-weight: 500; text-decoration: underline; text-underline-offset: 3px;
             }
             .bt2-btn--ghost:hover { color: #fff; background: transparent; }
             .bt2-btn--full { width: 100%; }
@@ -1317,34 +1321,34 @@ window.Wized.push((Wized) => {
             .bt2-hero__inner {
                 position: relative; z-index: 1; width: 100%;
                 display: flex; flex-direction: column; align-items: flex-start; gap: 18px;
-                padding: 72px 24px 56px; max-width: 1200px; margin: 0 auto;
+                padding: 72px 24px 28px; max-width: 1200px; margin: 0 auto;
             }
             .bt2-hero__content { max-width: 640px; width: 100%; }
             .bt2-hero__pill {
                 display: inline-flex; align-items: center; gap: 6px;
                 background: rgba(10,115,255,.22); color: #c6dbff;
                 border: 1px solid rgba(158,197,255,.4); border-radius: 999px;
-                padding: 7px 14px; font-size: 11px; font-weight: 800;
+                padding: 7px 14px; font-size: 11px; font-weight: 500;
                 letter-spacing: .06em; text-transform: uppercase; margin-bottom: 16px;
             }
             .bt2-hero h1 {
-                margin: 0 0 12px; font-size: 46px; font-weight: 700; color: #fff;
+                margin: 0 0 12px; font-size: 46px; font-weight: 500; color: #fff;
                 line-height: 1.08; letter-spacing: -.03em; max-width: 11ch;
             }
             .bt2-hero__text { margin: 0 0 22px; font-size: 18px; color: rgba(255,255,255,.9); line-height: 1.5; max-width: 38ch; }
             .bt2-hero__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 8px; }
             .bt2-hero__contact {
-                margin: 16px 0 0; padding: 0; border: 0; background: transparent;
+                margin: 28px 0 0; padding: 0; border: 0; background: transparent;
                 font-size: 14px; line-height: 1.45; font-weight: 500;
                 color: rgba(255,255,255,.7); white-space: nowrap;
             }
             .bt2-hero__contact a {
-                color: #fff; font-weight: 650; text-decoration: underline;
+                color: #fff; font-weight: 500; text-decoration: underline;
                 text-underline-offset: 3px; text-decoration-thickness: 1px;
             }
             .bt2-hero__contact a:hover { opacity: .9; }
             .bt2-trust {
-                position: relative; z-index: 2; margin-top: -20px;
+                position: relative; z-index: 2; margin-top: -28px;
                 padding: 0 24px 28px; background: transparent;
             }
             .bt2-trust__panel {
@@ -1362,16 +1366,16 @@ window.Wized.push((Wized) => {
                 gap: 4px; text-align: center; padding: 4px 6px; min-width: 0;
             }
             .bt2-trust__num {
-                font-size: 18px; font-weight: 800; color: var(--bt2-navy); margin: 0; line-height: 1.15;
+                font-size: 18px; font-weight: 500; color: var(--bt2-navy); margin: 0; line-height: 1.15;
             }
             .bt2-trust__label {
-                font-size: 12px; font-weight: 600; color: var(--bt2-muted); margin: 0; line-height: 1.3;
+                font-size: 12px; font-weight: 500; color: var(--bt2-muted); margin: 0; line-height: 1.3;
             }
             .bt2-section { padding: 80px 0; }
             .bt2-section--packages { padding-top: 56px; }
             .bt2-section--alt { background: var(--bt2-section-light); }
             .bt2-section__head { text-align: center; max-width: 720px; margin: 0 auto 48px; }
-            .bt2-section__head h2 { margin: 0 0 12px; font-size: 34px; font-weight: 700; color: var(--bt2-navy); line-height: 1.2; }
+            .bt2-section__head h2 { margin: 0 0 12px; font-size: 34px; font-weight: 500; color: var(--bt2-navy); line-height: 1.2; }
             .bt2-section__head p { margin: 0 0 8px; font-size: 16px; color: var(--bt2-text); line-height: 1.6; }
             .bt2-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 24px; }
             .bt2-card {
@@ -1389,14 +1393,14 @@ window.Wized.push((Wized) => {
                 display: inline-flex; align-items: center; gap: 6px;
                 margin: 0 0 10px; padding: 5px 10px;
                 background: #EEF5FF; border: 1px solid #C8DCFF; border-radius: 999px;
-                font-size: 12px; font-weight: 700; color: #175CD3;
+                font-size: 12px; font-weight: 500; color: #175CD3;
             }
             .bt2-card__media { position: relative; aspect-ratio: 16/10; background: #e8edf2; }
             .bt2-card__media img { width: 100%; height: 100%; object-fit: cover; display: block; }
             .bt2-card__badge {
                 position: absolute; top: 12px; left: 12px;
                 padding: 6px 10px; border-radius: 999px;
-                font-size: 11px; font-weight: 800; text-transform: uppercase;
+                font-size: 11px; font-weight: 500; text-transform: uppercase;
                 letter-spacing: .04em; color: #fff;
             }
             .bt2-card__badge--blue { background: #0A73FF; }
@@ -1411,10 +1415,10 @@ window.Wized.push((Wized) => {
                 display: inline-flex; align-items: center; gap: 4px;
                 padding: 5px 8px; border-radius: 999px;
                 background: rgba(5,18,35,.78); color: #fff;
-                font-size: 11px; font-weight: 700; line-height: 1; backdrop-filter: blur(4px);
+                font-size: 11px; font-weight: 500; line-height: 1; backdrop-filter: blur(4px);
             }
             .bt2-card__body { padding: 18px; flex: 1; display: flex; flex-direction: column; }
-            .bt2-card__title { margin: 0 0 6px; font-size: 19px; font-weight: 700; color: var(--bt2-navy); line-height: 1.25; }
+            .bt2-card__title { margin: 0 0 6px; font-size: 19px; font-weight: 500; color: var(--bt2-navy); line-height: 1.25; }
             .bt2-card__meta {
                 display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px;
                 font-size: 13px; color: var(--bt2-muted); margin-bottom: 10px;
@@ -1427,16 +1431,16 @@ window.Wized.push((Wized) => {
                 background: #F4F8FF; border: 1px solid #DCEBFF; border-radius: 10px;
                 padding: 12px 14px; margin: 0 0 12px;
             }
-            .bt2-pricing__from { font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--bt2-muted); }
+            .bt2-pricing__from { font-size: 11px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--bt2-muted); }
             .bt2-pricing__total { margin: 2px 0 4px; line-height: 1; color: var(--bt2-navy); }
-            .bt2-pricing__amount { font-size: 30px; font-weight: 700; }
-            .bt2-pricing__suffix { font-size: 13px; font-weight: 700; margin-left: 4px; }
-            .bt2-pricing__pp { font-size: 13px; font-weight: 600; color: var(--bt2-text); margin: 0; }
+            .bt2-pricing__amount { font-size: 30px; font-weight: 500; }
+            .bt2-pricing__suffix { font-size: 13px; font-weight: 500; margin-left: 4px; }
+            .bt2-pricing__pp { font-size: 13px; font-weight: 500; color: var(--bt2-text); margin: 0; }
             .bt2-pricing__note { font-size: 12px; color: var(--bt2-muted); margin: 6px 0 0; line-height: 1.35; }
             .bt2-card__cta { margin: 0 0 14px; }
             .bt2-card__reassure {
                 margin: 8px 0 0; text-align: center; font-size: 12px;
-                font-weight: 600; color: var(--bt2-muted); line-height: 1.3;
+                font-weight: 500; color: var(--bt2-muted); line-height: 1.3;
             }
             .bt2-btn--secondary {
                 background: #fff; color: var(--bt2-navy);
@@ -1448,7 +1452,7 @@ window.Wized.push((Wized) => {
                 border-radius: 0; padding: 12px 0 4px; margin: 0 0 4px;
             }
             .bt2-included__label {
-                margin: 0 0 8px; font-size: 11px; font-weight: 800; letter-spacing: .05em;
+                margin: 0 0 8px; font-size: 11px; font-weight: 500; letter-spacing: .05em;
                 text-transform: uppercase; color: var(--bt2-muted);
             }
             .bt2-included__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
@@ -1463,14 +1467,14 @@ window.Wized.push((Wized) => {
                 display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 10px;
             }
             .bt2-included__type {
-                font-size: 11px; font-weight: 800; letter-spacing: .04em;
+                font-size: 11px; font-weight: 500; letter-spacing: .04em;
                 text-transform: uppercase; color: var(--bt2-primary);
             }
             .bt2-included__timing {
-                font-size: 11px; font-weight: 700; color: var(--bt2-muted); white-space: nowrap;
+                font-size: 11px; font-weight: 500; color: var(--bt2-muted); white-space: nowrap;
             }
             .bt2-included__title {
-                margin: 1px 0 0; font-size: 13px; font-weight: 700; color: var(--bt2-navy); line-height: 1.3;
+                margin: 1px 0 0; font-size: 13px; font-weight: 500; color: var(--bt2-navy); line-height: 1.3;
             }
             .bt2-mid-cta {
                 display: none; grid-column: 1 / -1;
@@ -1484,7 +1488,7 @@ window.Wized.push((Wized) => {
                 position: static; display: inline-flex; margin: 0 0 8px;
             }
             .bt2-mid-cta__copy h3 {
-                margin: 0 0 6px; font-size: 20px; font-weight: 700; color: #fff; line-height: 1.2;
+                margin: 0 0 6px; font-size: 20px; font-weight: 500; color: #fff; line-height: 1.2;
             }
             .bt2-mid-cta__copy > p {
                 margin: 0; font-size: 14px; color: rgba(255,255,255,.88); line-height: 1.45; max-width: 42ch;
@@ -1495,13 +1499,13 @@ window.Wized.push((Wized) => {
             }
             .bt2-mid-cta__steps li {
                 display: grid; grid-template-columns: 20px minmax(0,1fr); gap: 8px;
-                align-items: center; font-size: 13px; font-weight: 650; color: #fff; line-height: 1.3;
+                align-items: center; font-size: 13px; font-weight: 500; color: #fff; line-height: 1.3;
             }
             .bt2-mid-cta__num {
                 width: 20px; height: 20px; border-radius: 50%;
                 background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.35);
                 display: grid; place-items: center;
-                font-size: 10px; font-weight: 800; line-height: 1; color: #fff;
+                font-size: 10px; font-weight: 500; line-height: 1; color: #fff;
             }
             .bt2-mid-cta .bt2-btn {
                 flex-shrink: 0; white-space: nowrap; align-self: center;
@@ -1519,7 +1523,7 @@ window.Wized.push((Wized) => {
             .bt2-accordion-btn {
                 display: flex; align-items: center; justify-content: center; gap: 6px;
                 width: 100%; background: transparent; border: 0; padding: 8px 0 0;
-                font-family: ${FONT}; font-size: 13px; font-weight: 600;
+                font-family: ${FONT}; font-size: 13px; font-weight: 500;
                 text-decoration: underline; color: var(--bt2-muted); cursor: pointer; margin-top: auto;
             }
             .bt2-accordion-btn:hover { color: var(--bt2-navy); }
@@ -1529,7 +1533,7 @@ window.Wized.push((Wized) => {
             .bt2-accordion-panel.is-open { max-height: 2800px; }
             .bt2-details { padding: 14px 0 2px; border-top: 1px solid var(--bt2-border-light); margin-top: 10px; }
             .bt2-details h4 {
-                margin: 20px 0 10px; font-size: 12px; font-weight: 800; color: var(--bt2-muted);
+                margin: 20px 0 10px; font-size: 12px; font-weight: 500; color: var(--bt2-muted);
                 letter-spacing: .06em; text-transform: uppercase;
             }
             .bt2-details h4:first-child { margin-top: 0; }
@@ -1555,11 +1559,11 @@ window.Wized.push((Wized) => {
             .bt2-itinerary li:last-child { border-bottom: 0; }
             .bt2-itinerary li:nth-child(even) { background: #F8FAFC; }
             .bt2-itinerary__day {
-                font-size: 11px; font-weight: 800; color: var(--bt2-muted);
+                font-size: 11px; font-weight: 500; color: var(--bt2-muted);
                 letter-spacing: .04em; text-transform: uppercase;
             }
             .bt2-itinerary__body { min-width: 0; }
-            .bt2-itinerary__title { margin: 0; font-weight: 650; color: var(--bt2-navy); line-height: 1.35; }
+            .bt2-itinerary__title { margin: 0; font-weight: 500; color: var(--bt2-navy); line-height: 1.35; }
             .bt2-itinerary__detail { margin: 3px 0 0; font-size: 13px; color: var(--bt2-muted); line-height: 1.45; }
             .bt2-steps {
                 list-style: none; margin: 0 0 4px; padding: 0; counter-reset: bt2how;
@@ -1574,14 +1578,14 @@ window.Wized.push((Wized) => {
                 content: counter(bt2how);
                 position: absolute; left: 0; top: 0;
                 width: 18px; height: 18px;
-                font-size: 11px; font-weight: 800; line-height: 18px; text-align: center;
+                font-size: 11px; font-weight: 500; line-height: 18px; text-align: center;
                 color: var(--bt2-muted); background: transparent; border: 0;
             }
             .bt2-customize-box {
                 background: #F8FAFC; border: 1px solid var(--bt2-border-light);
                 border-radius: 10px; padding: 14px 16px; margin-top: 4px;
             }
-            .bt2-customize-box p { margin: 0 0 8px; font-size: 14px; font-weight: 650; color: var(--bt2-navy); }
+            .bt2-customize-box p { margin: 0 0 8px; font-size: 14px; font-weight: 500; color: var(--bt2-navy); }
             .bt2-customize-box ul { margin: 0; }
             .bt2-customize-box li { margin-bottom: 6px; }
             .bt2-customize-box li:last-child { margin-bottom: 0; }
@@ -1592,7 +1596,7 @@ window.Wized.push((Wized) => {
                 background: var(--bt2-blue-soft); border-radius: 10px;
                 display: grid; place-items: center; font-size: 24px; line-height: 1;
             }
-            .bt2-benefit h3 { margin: 0 0 8px; font-size: 15px; font-weight: 700; color: var(--bt2-navy); }
+            .bt2-benefit h3 { margin: 0 0 8px; font-size: 15px; font-weight: 500; color: var(--bt2-navy); }
             .bt2-benefit p { margin: 0; font-size: 13px; color: var(--bt2-muted); line-height: 1.5; }
             .bt2-faq { max-width: 760px; margin: 0 auto; border: 1px solid var(--bt2-border); border-radius: 10px; overflow: hidden; background: #fff; }
             .bt2-faq-item { border-bottom: 1px solid var(--bt2-border-light); }
@@ -1600,7 +1604,7 @@ window.Wized.push((Wized) => {
             .bt2-faq-btn {
                 width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 16px;
                 padding: 18px 20px; background: #fff; border: none; text-align: left;
-                font-family: ${FONT}; font-size: 15px; font-weight: 650; color: var(--bt2-navy); cursor: pointer;
+                font-family: ${FONT}; font-size: 15px; font-weight: 500; color: var(--bt2-navy); cursor: pointer;
             }
             .bt2-faq-btn svg { flex-shrink: 0; transition: transform .2s; color: var(--bt2-muted); }
             .bt2-faq-btn[aria-expanded="true"] svg { transform: rotate(180deg); }
@@ -1627,7 +1631,7 @@ window.Wized.push((Wized) => {
                 display: flex; flex-direction: column; align-items: center;
             }
             .bt2-final-cta h2 {
-                margin: 0 0 12px; font-size: 40px; font-weight: 700; color: #fff;
+                margin: 0 0 12px; font-size: 40px; font-weight: 500; color: #fff;
                 line-height: 1.15; letter-spacing: -.02em;
             }
             .bt2-final-cta p {
@@ -1666,7 +1670,7 @@ window.Wized.push((Wized) => {
             @media (max-width: 767px) {
                 .bt2-wrap { padding: 0 16px; }
                 .bt2-hero { min-height: auto; }
-                .bt2-hero__inner { padding: 48px 16px 64px; gap: 16px; }
+                .bt2-hero__inner { padding: 48px 16px 24px; gap: 16px; }
                 .bt2-hero__content { max-width: none; }
                 .bt2-hero h1 { font-size: 34px; line-height: 1.1; max-width: none; }
                 .bt2-hero__text { font-size: 16px; margin-bottom: 18px; max-width: none; }
@@ -1676,9 +1680,9 @@ window.Wized.push((Wized) => {
                     width: auto; min-height: 40px; align-self: center; padding: 4px 8px;
                 }
                 .bt2-hero__contact {
-                    width: 100%; margin-top: 14px; font-size: 13px; white-space: normal;
+                    width: 100%; margin-top: 24px; font-size: 13px; white-space: normal;
                 }
-                .bt2-trust { padding: 0 16px 24px; margin-top: -16px; }
+                .bt2-trust { padding: 0 16px 24px; margin-top: -20px; }
                 .bt2-trust__panel { padding: 14px 12px; }
                 .bt2-trust__grid { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px 10px; }
                 .bt2-trust__item { align-items: center; }
@@ -1707,15 +1711,20 @@ window.Wized.push((Wized) => {
                 position: fixed; inset: 0; z-index: 10000;
                 display: none; align-items: flex-end; justify-content: center;
                 padding: 0; background: rgba(16,24,40,.55); backdrop-filter: blur(4px);
+                font-family: ${FONT};
             }
             .bt2-email-overlay.is-open { display: flex; }
             .bt2-email-modal {
                 position: relative; width: 100%; max-width: 440px;
+                max-height: min(92dvh, 640px);
+                display: flex; flex-direction: column;
                 background: #fff; border-radius: 16px 16px 0 0; overflow: hidden;
                 box-shadow: 0 -8px 40px rgba(16,24,40,.2);
+                font-family: ${FONT};
             }
             .bt2-email-modal__hero {
-                height: 100px; background: var(--bt2-navy) center/cover no-repeat; position: relative;
+                height: 100px; flex-shrink: 0;
+                background: var(--bt2-navy) center/cover no-repeat; position: relative;
             }
             .bt2-email-modal__hero::after {
                 content: ''; position: absolute; inset: 0;
@@ -1725,18 +1734,38 @@ window.Wized.push((Wized) => {
                 position: absolute; top: 12px; right: 12px; z-index: 2;
                 width: 36px; height: 36px; border-radius: 50%; border: none;
                 background: rgba(255,255,255,.2); color: #fff; font-size: 20px;
-                cursor: pointer; display: flex; align-items: center; justify-content: center;
+                font-family: ${FONT}; cursor: pointer;
+                display: flex; align-items: center; justify-content: center;
             }
-            .bt2-email-modal__body { padding: 24px 20px 28px; }
-            .bt2-email-modal__body h3 { margin: 0 0 8px; font-size: 20px; font-weight: 700; color: var(--bt2-navy); }
-            .bt2-email-modal__body p { margin: 0 0 16px; font-size: 14px; color: var(--bt2-muted); line-height: 1.55; }
+            .bt2-email-modal__body {
+                padding: 24px 20px max(28px, env(safe-area-inset-bottom));
+                font-family: ${FONT}; overflow-y: auto; -webkit-overflow-scrolling: touch;
+                flex: 1 1 auto; min-height: 0; box-sizing: border-box;
+            }
+            .bt2-email-modal__body h3 {
+                margin: 0 0 8px; font-size: 20px; font-weight: 500; color: var(--bt2-navy);
+                font-family: ${FONT};
+            }
+            .bt2-email-modal__body p {
+                margin: 0 0 16px; font-size: 14px; color: var(--bt2-muted); line-height: 1.55;
+                font-family: ${FONT};
+            }
             .bt2-email-input {
                 width: 100%; min-height: 50px; padding: 0 16px; border: 1px solid var(--bt2-border);
                 border-radius: 8px; font-size: 16px; font-family: ${FONT}; margin-bottom: 8px;
+                box-sizing: border-box;
             }
             .bt2-email-input:focus { outline: none; border-color: var(--bt2-primary); box-shadow: 0 0 0 3px rgba(10,115,255,.15); }
-            .bt2-email-error { display: none; font-size: 13px; color: #d93025; margin-bottom: 8px; }
-            .bt2-email-submit { width: 100%; min-height: 50px; border-radius: 8px; }
+            .bt2-email-error { display: none; font-size: 13px; color: #d93025; margin-bottom: 8px; font-family: ${FONT}; }
+            .bt2-email-submit {
+                display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+                width: 100%; min-height: 50px; margin-top: 4px; padding: 0 26px;
+                border: none; border-radius: 8px; cursor: pointer;
+                background: ${BLUE}; color: #fff;
+                font-family: ${FONT}; font-size: 16px; font-weight: 500;
+            }
+            .bt2-email-submit:hover { background: ${BLUE_HOVER}; }
+            .bt2-email-submit:disabled { opacity: .55; cursor: not-allowed; }
             .bt2-email-submit .bt2-spinner {
                 display: none; width: 20px; height: 20px;
                 border: 2px solid rgba(255,255,255,.35); border-top-color: #fff;
@@ -1747,15 +1776,24 @@ window.Wized.push((Wized) => {
                 position: fixed; inset: 0; z-index: 10001;
                 display: none; align-items: center; justify-content: center;
                 padding: 20px; background: rgba(16,24,40,.45);
+                font-family: ${FONT};
             }
             .bt2-email-success.is-open { display: flex; }
             .bt2-email-success__card {
                 background: #fff; border-radius: 14px; padding: 32px 28px;
                 text-align: center; box-shadow: 0 16px 48px rgba(16,24,40,.2);
-                max-width: 320px; width: 100%;
+                max-width: 320px; width: 100%; font-family: ${FONT};
             }
-            .bt2-email-success__card h4 { margin: 0; font-size: 22px; font-weight: 700; color: var(--bt2-navy); }
+            .bt2-email-success__card h4 {
+                margin: 0; font-size: 22px; font-weight: 500; color: var(--bt2-navy);
+                font-family: ${FONT};
+            }
             body.bt2-no-scroll { overflow: hidden; }
+            @media (max-width: 767px) {
+                .bt2-email-modal__hero { height: 72px; }
+                .bt2-email-modal { max-height: 88dvh; }
+                .bt2-email-modal__body { padding: 20px 16px max(20px, env(safe-area-inset-bottom)); }
+            }
             @media (min-width: 768px) {
                 .bt2-email-overlay { align-items: center; padding: 20px; }
                 .bt2-email-modal { border-radius: 16px; max-width: 420px; }
@@ -2220,7 +2258,9 @@ window.Wized.push((Wized) => {
         const open = () => {
             overlay.classList.add('is-open');
             document.body.classList.add('bt2-no-scroll');
-            emailInput.focus();
+            if (!window.matchMedia('(max-width: 767px)').matches) {
+                emailInput.focus();
+            }
         };
         const close = () => {
             overlay.classList.remove('is-open');
@@ -2244,6 +2284,17 @@ window.Wized.push((Wized) => {
             if (e.key === 'Escape' && overlay.classList.contains('is-open')) close();
         });
         emailInput.addEventListener('input', () => { errorEl.style.display = 'none'; });
+        emailInput.addEventListener('focus', () => {
+            setTimeout(() => {
+                submitBtn.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            }, 350);
+        });
+        emailInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                submitBtn.click();
+            }
+        });
 
         submitBtn.addEventListener('click', async () => {
             const email = emailInput.value.trim();
