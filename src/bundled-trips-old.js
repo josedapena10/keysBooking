@@ -1,0 +1,1470 @@
+
+
+
+
+// for background 2nd click modal - mirror click
+var script = document.createElement('script');
+script.src = 'https://cdn.jsdelivr.net/npm/@finsweet/attributes-mirrorclick@1/mirrorclick.js';
+document.body.appendChild(script);
+
+// for no scroll background when modal is open
+// when DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+    // on .open-modal click
+    document.querySelectorAll('.open_modal').forEach(trigger => {
+        trigger.addEventListener('click', function () {
+            // on every click
+            document.querySelectorAll('body').forEach(target => target.classList.add('no-scroll'));
+        });
+    });
+
+    // on .close-modal click
+    document.querySelectorAll('.close_modal').forEach(trigger => {
+        trigger.addEventListener('click', function () {
+            // on every click
+            document.querySelectorAll('body').forEach(target => target.classList.remove('no-scroll'));
+        });
+    });
+});
+
+
+// Bundled trips card renderer
+document.addEventListener('DOMContentLoaded', () => {
+    const apiUrl = 'https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/bundled_trips';
+    const templateCard = document.querySelector('[data-element="card_block"]');
+
+    // simple truncate to keep names in a single line
+    const truncateToFit = (el) => {
+        if (!el) return;
+        if (!el.dataset.fullText) {
+            el.dataset.fullText = (el.textContent || '').trim();
+        }
+        const full = el.dataset.fullText;
+        const parent = el.parentElement;
+        if (!full || !parent) return;
+
+        el.textContent = '';
+        el.style.whiteSpace = 'nowrap';
+        el.style.overflow = 'hidden';
+        el.style.display = 'block';
+        el.style.maxWidth = '100%';
+
+        const measure = document.createElement('span');
+        measure.style.visibility = 'hidden';
+        measure.style.position = 'absolute';
+        measure.style.whiteSpace = 'nowrap';
+        measure.style.font = window.getComputedStyle(el).font;
+        document.body.appendChild(measure);
+
+        measure.textContent = full;
+        const parentWidth = parent.clientWidth;
+        if (parentWidth <= 0) {
+            document.body.removeChild(measure);
+            el.textContent = full;
+            setTimeout(() => truncateToFit(el), 100);
+            return;
+        }
+
+        if (measure.offsetWidth <= parentWidth) {
+            el.textContent = full;
+            document.body.removeChild(measure);
+            return;
+        }
+
+        let text = full;
+        while (text.length > 0) {
+            measure.textContent = `${text}…`;
+            if (measure.offsetWidth <= parentWidth) {
+                el.textContent = `${text}…`;
+                document.body.removeChild(measure);
+                return;
+            }
+            text = text.slice(0, -1);
+        }
+
+        el.textContent = '…';
+        document.body.removeChild(measure);
+    };
+
+    // If there is no template card on the page, bail out silently
+    if (!templateCard) {
+        return;
+    }
+
+    const cardsContainer = templateCard.parentElement;
+    const baseTemplate = templateCard.cloneNode(true);
+    templateCard.remove();
+
+    // Loader element
+    const loaderEl = document.querySelector('[data-element="loader"]');
+    const setLoading = (isLoading) => {
+        if (!loaderEl) return;
+        loaderEl.style.display = isLoading ? 'flex' : 'none';
+    };
+
+    const setImageOrText = (el, value) => {
+        if (!el) return;
+
+        if (el.tagName === 'IMG') {
+            if (value) {
+                el.src = value;
+                if (!el.alt) el.alt = '';
+            } else {
+                el.removeAttribute('src');
+            }
+        } else {
+            el.textContent = value || '';
+        }
+    };
+
+    // Session + helpers for matching/logging
+    const sessionId = (crypto && crypto.randomUUID) ? crypto.randomUUID() :
+        `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+
+    const normalizeForMatch = (str = '') =>
+        str.toLowerCase().replace(/-/g, ' ').replace(/\s+/g, ' ').trim();
+
+    const toTitleLike = (str = '') =>
+        normalizeForMatch(str).replace(/\b\w/g, c => c.toUpperCase());
+
+    const logEvent = (payload = {}) => {
+        const body = {
+            session_id: sessionId,
+            on_load: false,
+            link_used: '',
+            linked_used_name: '',
+            on_link_click: false,
+            link_clicked: '',
+            link_clicked_trip_name: '',
+            ...payload
+        };
+
+        try {
+            fetch('https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/bundled_trips_eventlog', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+                keepalive: true
+            }).catch(() => { });
+        } catch (e) {
+            // ignore network errors
+        }
+    };
+
+    /**
+     * Package schedule for listing autofill (see docs/bundled-trips-database.md).
+     * Resolution order:
+     * 1. `package_schedule` JSON on bundled_trips (`charterSlots` preferred, legacy `charterOffsets`)
+     * 2. `boat_start_offset`, `boat_length`, `charter_offsets` on bundled_trips
+     * 3. `day_offset` on each bundled_trips ↔ fishingcharters junction row (API order = charter 1, 2, …)
+     * 4. PACKAGE_SCHEDULE_FALLBACK_BY_TRIP_ID (until every row is filled in Xano)
+     *
+     * `charterSlots`: [{ tripId, offsets: [1] }, { tripId: 8, offsets: [1, 3, 5] }, …]
+     * — one entry per URL charter slot; offsets can be multiple for multi-day single charters.
+     *
+     * Boat delivery / private dock / charter pickup stay on trip_link — not duplicated here.
+     */
+    const PACKAGE_SCHEDULE_FALLBACK_BY_TRIP_ID = {
+        3: {
+            boatStartOffset: 1,
+            boatLength: 7,
+            charterSlots: [
+                { tripId: 1, offsets: [1] },
+                { tripId: 3, offsets: [3] },
+            ],
+        },
+        214: { boatStartOffset: 1, boatLength: 7, charterSlots: [] },
+        307: {
+            boatStartOffset: 2,
+            boatLength: 5,
+            charterSlots: [{ tripId: 5, offsets: [1] }],
+        },
+        216: {
+            boatStartOffset: 1,
+            boatLength: 7,
+            charterSlots: [
+                { tripId: 1, offsets: [1] },
+                { tripId: 9, offsets: [3] },
+            ],
+        },
+        303: { boatStartOffset: 1, boatLength: 7, charterSlots: [] },
+        308: {
+            boatStartOffset: 1,
+            boatLength: 7,
+            charterSlots: [
+                { tripId: 1, offsets: [1] },
+                { tripId: 1, offsets: [3] },
+            ],
+        },
+        285: {
+            charterSlots: [{ tripId: 8, offsets: [0, 3, 5] }],
+        },
+        302: {
+            boatStartOffset: 1,
+            boatLength: 7,
+            charterSlots: [
+                { tripId: 1, offsets: [1] },
+                { tripId: 4, offsets: [3] },
+            ],
+        },
+        297: {
+            boatStartOffset: 1,
+            boatLength: 7,
+            charterSlots: [
+                { tripId: 3, offsets: [1] },
+                { tripId: 8, offsets: [3] },
+            ],
+        },
+    };
+    const parseJsonField = (value) => {
+        if (value == null || value === '') return null;
+        if (typeof value === 'object') return value;
+        if (typeof value === 'string') {
+            try {
+                return JSON.parse(value);
+            } catch {
+                return null;
+            }
+        }
+        return null;
+    };
+
+    const parseCharterOffsetsValue = (value) => {
+        if (Array.isArray(value)) {
+            return value.map((n) => Number(n)).filter((n) => !Number.isNaN(n));
+        }
+        if (typeof value === 'string' && value.trim()) {
+            return value.split(',').map((s) => Number(s.trim())).filter((n) => !Number.isNaN(n));
+        }
+        return [];
+    };
+
+    const normalizeCharterSlotEntry = (raw) => {
+        if (!raw || typeof raw !== 'object') return null;
+        const tripIdRaw = raw.tripId ?? raw.trip_id;
+        const tripId = tripIdRaw != null && tripIdRaw !== '' ? Number(tripIdRaw) : null;
+        const offsets = parseCharterOffsetsValue(raw.offsets ?? raw.dayOffsets ?? raw.day_offsets);
+        if (offsets.length === 0) return null;
+        return { tripId: Number.isNaN(tripId) ? null : tripId, offsets };
+    };
+
+    const parseCharterSlotsFromSchedule = (scheduleJson) => {
+        if (!scheduleJson || typeof scheduleJson !== 'object') return [];
+        const raw = scheduleJson.charterSlots ?? scheduleJson.charter_slots;
+        if (!Array.isArray(raw)) return [];
+        return raw.map(normalizeCharterSlotEntry).filter(Boolean);
+    };
+
+    const charterSlotsToFlatOffsets = (slots) => {
+        if (!Array.isArray(slots) || slots.length === 0) return [];
+        return slots.flatMap((slot) => slot.offsets);
+    };
+
+    /** Legacy: pair flat offsets with junction rows (one offset per slot). */
+    const buildCharterSlotsFromJunction = (fishingcharters, flatOffsets) => {
+        if (!Array.isArray(fishingcharters) || fishingcharters.length === 0) {
+            return flatOffsets.map((offset) => ({ tripId: null, offsets: [offset] }));
+        }
+        return fishingcharters
+            .map((charter, index) => {
+                const offset = flatOffsets[index];
+                if (offset == null || Number.isNaN(Number(offset))) return null;
+                return {
+                    tripId: charter?.trip_id != null ? Number(charter.trip_id) : null,
+                    offsets: [Number(offset)],
+                };
+            })
+            .filter(Boolean);
+    };
+
+    const getCharterOffsetsFromFishingCharters = (trip) => {
+        if (!Array.isArray(trip?.fishingcharters) || trip.fishingcharters.length === 0) {
+            return [];
+        }
+
+        const offsets = trip.fishingcharters.map((charter) => {
+            const raw = charter?.day_offset ?? charter?.charter_day_offset ?? charter?.dayOffset;
+            if (raw == null || raw === '') return NaN;
+            return Number(raw);
+        });
+
+        if (offsets.some((n) => Number.isNaN(n))) {
+            return [];
+        }
+
+        return offsets;
+    };
+
+    const getPackageScheduleFromTrip = (trip) => {
+        const packageNights = Number(trip?.trip_nights) || 7;
+        const scheduleFromJson = parseJsonField(trip?.package_schedule);
+
+        let boatStartOffset = null;
+        let boatLength = null;
+        let charterOffsets = [];
+        let charterSlots = [];
+
+        if (scheduleFromJson && typeof scheduleFromJson === 'object') {
+            boatStartOffset = scheduleFromJson.boatStartOffset ?? scheduleFromJson.boat_start_offset;
+            boatLength = scheduleFromJson.boatLength ?? scheduleFromJson.boat_length;
+            charterSlots = parseCharterSlotsFromSchedule(scheduleFromJson);
+            charterOffsets = parseCharterOffsetsValue(
+                scheduleFromJson.charterOffsets ?? scheduleFromJson.charter_offsets
+            );
+        } else {
+            const rowBoatStart = trip?.boat_start_offset ?? trip?.package_boat_start_offset;
+            const rowBoatLength = trip?.boat_length ?? trip?.package_boat_length;
+            const rowCharterOffsets = trip?.charter_offsets ?? trip?.package_charter_offsets;
+
+            if (rowBoatStart != null && rowBoatStart !== '') {
+                boatStartOffset = Number(rowBoatStart);
+            }
+            if (rowBoatLength != null && rowBoatLength !== '') {
+                boatLength = Number(rowBoatLength);
+            }
+            charterOffsets = parseCharterOffsetsValue(rowCharterOffsets);
+        }
+
+        if (!charterSlots.length && charterOffsets.length > 0 && Array.isArray(trip?.fishingcharters)) {
+            charterSlots = buildCharterSlotsFromJunction(trip.fishingcharters, charterOffsets);
+        }
+
+        if (!charterOffsets.length && trip?.hasFishingCharter) {
+            charterOffsets = getCharterOffsetsFromFishingCharters(trip);
+            if (!charterSlots.length && charterOffsets.length > 0) {
+                charterSlots = buildCharterSlotsFromJunction(trip.fishingcharters, charterOffsets);
+            }
+        }
+
+        const fallback = PACKAGE_SCHEDULE_FALLBACK_BY_TRIP_ID[trip?.id];
+
+        if (fallback) {
+            if (trip?.hasBoatRental) {
+                if (
+                    (boatStartOffset == null || Number.isNaN(boatStartOffset)) &&
+                    fallback.boatStartOffset != null
+                ) {
+                    boatStartOffset = fallback.boatStartOffset;
+                }
+                if (
+                    (boatLength == null || Number.isNaN(boatLength) || boatLength <= 0) &&
+                    fallback.boatLength != null
+                ) {
+                    boatLength = fallback.boatLength;
+                }
+            }
+            if (trip?.hasFishingCharter && !charterSlots.length) {
+                if (Array.isArray(fallback.charterSlots) && fallback.charterSlots.length > 0) {
+                    charterSlots = fallback.charterSlots.map(normalizeCharterSlotEntry).filter(Boolean);
+                } else if (Array.isArray(fallback.charterOffsets) && fallback.charterOffsets.length > 0) {
+                    charterOffsets = fallback.charterOffsets;
+                    charterSlots = buildCharterSlotsFromJunction(trip.fishingcharters, charterOffsets);
+                }
+            }
+        }
+
+        if (charterSlots.length > 0) {
+            charterOffsets = charterSlotsToFlatOffsets(charterSlots);
+        }
+
+        if (trip?.hasBoatRental) {
+            if (boatStartOffset == null || Number.isNaN(boatStartOffset)) {
+                boatStartOffset = 1;
+            }
+            if (boatLength == null || Number.isNaN(boatLength) || boatLength <= 0) {
+                boatLength = packageNights;
+            }
+        } else {
+            boatStartOffset = null;
+            boatLength = 0;
+        }
+
+        return {
+            packageNights,
+            boatStartOffset,
+            boatLength,
+            charterOffsets,
+            charterSlots,
+        };
+    };
+
+    const buildPackageListingUrl = (trip) => {
+        if (!trip?.trip_link) return trip?.trip_link || '';
+
+        let url;
+        try {
+            url = new URL(trip.trip_link);
+        } catch {
+            try {
+                url = new URL(trip.trip_link, window.location.origin);
+            } catch {
+                return trip.trip_link;
+            }
+        }
+
+        const schedule = getPackageScheduleFromTrip(trip);
+
+        url.searchParams.set('package', 'true');
+        url.searchParams.set('packageNights', String(schedule.packageNights));
+        url.searchParams.set('scheduleNights', String(schedule.packageNights));
+
+        if (trip.hasBoatRental && schedule.boatLength > 0) {
+            url.searchParams.set('boatStartOffset', String(schedule.boatStartOffset ?? 1));
+            url.searchParams.set('boatLength', String(schedule.boatLength));
+        }
+
+        if (trip.hasFishingCharter && schedule.charterOffsets.length > 0) {
+            url.searchParams.set('charterOffsets', schedule.charterOffsets.join(','));
+        }
+
+        if (trip.hasFishingCharter && schedule.charterSlots.length > 0) {
+            url.searchParams.set(
+                'charterSlots',
+                JSON.stringify(
+                    schedule.charterSlots.map((slot) => ({
+                        tripId: slot.tripId,
+                        offsets: slot.offsets,
+                    }))
+                )
+            );
+        }
+
+        if (trip.id != null) {
+            url.searchParams.set('bundledTripId', String(trip.id));
+        }
+
+        return url.toString();
+    };
+
+    const setButtonLink = (el, url, tripName = '') => {
+        if (!el || !url) return;
+        const handleClick = () => {
+            logEvent({
+                on_link_click: true,
+                link_clicked: url.toLowerCase(),
+                link_clicked_trip_name: tripName
+            });
+        };
+
+        if (el.tagName === 'A') {
+            el.href = url;
+            el.target = '_blank';
+            el.rel = 'noopener';
+            el.addEventListener('click', handleClick);
+        } else {
+            el.addEventListener('click', () => {
+                handleClick();
+                window.open(url, '_blank', 'noopener');
+            });
+        }
+    };
+
+    const getFirstPhotoUrl = (photos) => {
+        if (!Array.isArray(photos)) return '';
+        const ordered = photos.find((p) => p?.order === 1 && p?.image?.url);
+        if (ordered && ordered.image.url) return ordered.image.url;
+        const fallback = photos.find((p) => p?.image?.url);
+        return fallback?.image?.url || '';
+    };
+
+    const getCharterImage = (charter) => {
+        const charterImages = charter?._fishingcharter?.images;
+        if (!Array.isArray(charterImages)) return '';
+
+        const primary = charterImages.find((img) => img?.order === 1 && img?.image?.url) ||
+            charterImages.find((img) => img?.image?.url);
+
+        return primary?.image?.url || '';
+    };
+
+    const waitForImages = (root) => {
+        const imgs = Array.from(root.querySelectorAll('img'));
+        if (!imgs.length) return Promise.resolve();
+        const toPromise = (img) => new Promise((resolve) => {
+            if (img.complete && img.naturalWidth > 0) return resolve();
+            img.addEventListener('load', () => resolve(), { once: true });
+            img.addEventListener('error', () => resolve(), { once: true });
+        });
+        return Promise.all(imgs.map(toPromise)).then(() => undefined);
+    };
+
+    // Render trip overview HTML with a small allowed-tag set.
+    const formatDetailsHtml = (rawHtml = '') => {
+        const wrapper = document.createElement('div');
+        wrapper.innerHTML = rawHtml;
+
+        const allowedTags = new Set(['H4', 'P', 'UL', 'OL', 'LI', 'BR', 'STRONG', 'EM', 'B', 'I']);
+        const nodes = Array.from(wrapper.querySelectorAll('*'));
+
+        nodes.forEach((node) => {
+            if (!allowedTags.has(node.tagName)) {
+                const text = document.createTextNode(node.textContent || '');
+                node.replaceWith(text);
+            }
+        });
+
+        wrapper.querySelectorAll('h4').forEach((el) => {
+            el.style.margin = '14px 0 6px';
+            el.style.fontSize = '16px';
+            el.style.fontWeight = '500';
+            el.style.lineHeight = '1.35';
+        });
+
+        wrapper.querySelectorAll('p').forEach((el) => {
+            el.style.margin = '0 0 10px';
+            el.style.lineHeight = '1.55';
+        });
+
+        wrapper.querySelectorAll('ul, ol').forEach((el) => {
+            el.style.margin = '0 0 10px 20px';
+            el.style.padding = '0';
+            el.style.lineHeight = '1.55';
+        });
+
+        wrapper.querySelectorAll('li').forEach((el) => {
+            el.style.marginBottom = '4px';
+        });
+
+        return wrapper.innerHTML.trim();
+    };
+
+    const renderTrips = (trips) => {
+        trips.forEach((trip) => {
+            const card = baseTemplate.cloneNode(true);
+            const toTruncate = [];
+
+            // trip name
+            setImageOrText(card.querySelector('[data-element="card_title"]'), trip?.trip_name || '');
+
+            // cover image
+            setImageOrText(card.querySelector('[data-element="card_image"]'), trip?.post_coverImage?.url || '');
+
+            // nights
+            const nightsEl = card.querySelector('[data-element="card_city_nights"]');
+            if (nightsEl) {
+                const nights = trip?.trip_nights;
+                const city = trip?._property?.listing_city_state || '';
+                const nightsText = typeof nights === 'number' ? `${nights} night${nights === 1 ? '' : 's'}` : '';
+
+                if (city && nightsText) {
+                    nightsEl.textContent = `${city} · ${nightsText}`;
+                } else if (city) {
+                    nightsEl.textContent = city;
+                } else {
+                    nightsEl.textContent = nightsText;
+                }
+            }
+
+            // bundle overview
+            const bundleOverviewEl = card.querySelector('[data-element="card_bundle_overview"]');
+            if (bundleOverviewEl) {
+                const hasBoatRental = Boolean(trip?.hasBoatRental);
+                const hasFishingCharter = Boolean(trip?.hasFishingCharter);
+                const charterCount = Array.isArray(trip?.fishingcharters) ? trip.fishingcharters.length : 0;
+                const overviewParts = ['Stay'];
+
+                if (hasBoatRental) {
+                    overviewParts.push('Boat');
+                }
+
+                if (hasFishingCharter && charterCount > 0) {
+                    if (charterCount === 1) {
+                        overviewParts.push('Fishing Charter');
+                    } else {
+                        overviewParts.push(`${charterCount} Fishing Charters`);
+                    }
+                }
+
+                bundleOverviewEl.textContent = `${overviewParts.join(' + ')} Included`;
+            }
+
+            // stay image
+            setImageOrText(
+                card.querySelector('[data-element="card_stay_image"]'),
+                trip?._property?._property_main_image?.property_image?.url || ''
+            );
+            const stayBlock = card.querySelector('[data-element="card_stay_block"]');
+            const stayNameEl = card.querySelector('[data-element="card_stay_name"]');
+            if (stayNameEl) {
+                stayNameEl.textContent = trip?._property?.property_name || '';
+                toTruncate.push(stayNameEl);
+            }
+
+            // boat image
+            const boatBlock = card.querySelector('[data-element="card_boat_block"]');
+            const boatImageEl = card.querySelector('[data-element="card_boat_image"]');
+            const boatNameEl = card.querySelector('[data-element="card_boat_name"]');
+            if (!trip?.hasBoatRental) {
+                boatBlock?.remove();
+            } else {
+                setImageOrText(
+                    boatImageEl,
+                    getFirstPhotoUrl(trip?._boat?.photos)
+                );
+                if (boatNameEl) {
+                    boatNameEl.textContent = trip?._boat?.name || '';
+                    toTruncate.push(boatNameEl);
+                }
+            }
+
+            // charter images (duplicate element for multiple charters)
+            const charterBlockTemplate = card.querySelector('[data-element="card_charter_block"]');
+            if (!trip?.hasFishingCharter || !Array.isArray(trip?.fishingcharters) || !charterBlockTemplate) {
+                charterBlockTemplate?.remove();
+            } else {
+                const charterParent = charterBlockTemplate.parentElement || card;
+                charterBlockTemplate.remove();
+
+                const charterCount = trip.fishingcharters.length;
+                trip.fishingcharters.forEach((charter, charterIndex) => {
+                    const block = charterBlockTemplate.cloneNode(true);
+                    const charterImageEl = block.querySelector('[data-element="card_charter_image"]');
+                    const charterTitleEl = block.querySelector('[data-element="card_charter_title"]');
+                    const charterNameEl = block.querySelector('[data-element="card_charter_name"]');
+
+                    setImageOrText(charterImageEl, getCharterImage(charter));
+
+                    const tripId = charter?.trip_id;
+                    const tripOptionName = charter?._fishingcharter?.tripOptions?.find((opt) => opt?.id === tripId)?.name || '';
+                    if (charterTitleEl && charterCount > 1) {
+                        charterTitleEl.textContent = `Fishing Charter ${charterIndex + 1}`;
+                    }
+                    if (charterNameEl) {
+                        charterNameEl.textContent = tripOptionName;
+                        toTruncate.push(charterNameEl);
+                    }
+
+                    charterParent.appendChild(block);
+                });
+            }
+
+            const bundleBlocks = [stayBlock].filter(Boolean);
+            if (trip?.hasBoatRental && boatBlock) {
+                bundleBlocks.push(boatBlock);
+            }
+            card.querySelectorAll('[data-element="card_charter_block"]').forEach((block) => {
+                bundleBlocks.push(block);
+            });
+            // Stay is always first — when the total is odd, full-width stay fills row 1
+            // and the remaining blocks pair cleanly on the rows below (1+2, 1+4, etc.).
+            if (stayBlock && bundleBlocks.length % 2 === 1) {
+                stayBlock.style.width = '100%';
+            }
+
+            // visit page button + clickable stay/boat/charter blocks
+            const packageListingUrl = buildPackageListingUrl(trip);
+            const tripName = trip?.trip_name || '';
+
+            setButtonLink(
+                card.querySelector('[data-element="card_visitPage_button"]'),
+                packageListingUrl,
+                tripName
+            );
+            setButtonLink(stayBlock, packageListingUrl, tripName);
+            if (trip?.hasBoatRental) {
+                setButtonLink(boatBlock, packageListingUrl, tripName);
+            }
+            card.querySelectorAll('[data-element="card_charter_block"]').forEach((block) => {
+                setButtonLink(block, packageListingUrl, tripName);
+            });
+
+            // trip details toggle
+            const detailsContainer = card.querySelector('[data-element="detailsText_container"]');
+            const detailsButton = card.querySelector('[data-element="detailsText_button"]');
+            const detailsText = card.querySelector('[data-element="detailsText_text"]');
+
+            if (trip?.details_text && detailsContainer && detailsButton && detailsText) {
+                // Show container and set up elements
+                detailsContainer.style.display = 'flex';
+                detailsText.style.display = 'none';
+                detailsText.style.whiteSpace = 'normal';
+                detailsText.innerHTML = formatDetailsHtml(trip.details_text);
+                detailsButton.textContent = 'Trip overview ↓';
+
+                // Add click handler for toggle
+                detailsButton.style.cursor = 'pointer';
+                detailsButton.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const isHidden = detailsText.style.display === 'none';
+                    if (isHidden) {
+                        detailsText.style.display = 'block';
+                        detailsButton.textContent = 'Hide overview ↑';
+                    } else {
+                        detailsText.style.display = 'none';
+                        detailsButton.textContent = 'Trip overview ↓';
+                    }
+                });
+            } else if (detailsContainer) {
+                // Hide container if no details_text
+                detailsContainer.style.display = 'none';
+            }
+
+            cardsContainer.appendChild(card);
+
+            // defer truncation until after layout
+            if (toTruncate.length) {
+                requestAnimationFrame(() => {
+                    toTruncate.forEach(truncateToFit);
+                });
+            }
+        });
+
+        // wait for images to settle before hiding loader
+        return waitForImages(cardsContainer);
+    };
+
+    setLoading(true);
+
+    // Parse reference from URL (used for on-load and button click events)
+    const params = new URLSearchParams(window.location.search);
+    const referenceRaw = params.get('reference') || '';
+    const referenceNormalized = normalizeForMatch(referenceRaw);
+
+    fetch(apiUrl)
+        .then((res) => res.json())
+        .then((data) => {
+            if (!Array.isArray(data)) {
+                setLoading(false);
+                return;
+            }
+
+            // Filter to only include active trips
+            const activeTrips = data.filter(trip => trip?.active === true);
+
+            // baseline order: most recent publish_date first
+            const sorted = [...activeTrips].sort((a, b) => {
+                const da = a?.publish_date ? new Date(a.publish_date).getTime() : -Infinity;
+                const db = b?.publish_date ? new Date(b.publish_date).getTime() : -Infinity;
+                return db - da;
+            });
+
+            let tripsToRender = sorted;
+            if (referenceNormalized) {
+                const idx = sorted.findIndex(trip => normalizeForMatch(trip?.trip_name || '') === referenceNormalized);
+                if (idx > -1) {
+                    const [match] = sorted.splice(idx, 1);
+                    tripsToRender = [match, ...sorted];
+                }
+            }
+
+            // log on-load event
+            logEvent({
+                on_load: true,
+                link_used: referenceRaw || '',
+                linked_used_name: referenceNormalized ? toTitleLike(referenceRaw) : '',
+            });
+
+            renderTrips(tripsToRender).finally(() => setLoading(false));
+        })
+        .catch((err) => {
+            setLoading(false);
+            console.error('Failed to load bundled trips', err);
+        });
+
+    // Learn More button click handler
+    const learnMoreButton = document.querySelector('[data-element="learnMore_button"]');
+    if (learnMoreButton) {
+        learnMoreButton.addEventListener('click', (e) => {
+            e.preventDefault();
+            logEvent({
+                on_link_click: true,
+                link_clicked: '/help',
+                link_clicked_trip_name: 'Learn More',
+                link_used: referenceRaw,
+                linked_used_name: referenceNormalized ? toTitleLike(referenceRaw) : ''
+            });
+            window.open('/help', '_blank', 'noopener');
+        });
+    }
+
+    // Browse Stays button click handler for multiple buttons
+    const browseStaysButtons = document.querySelectorAll('[data-element="browseStays_button"]');
+    if (browseStaysButtons.length) {
+        browseStaysButtons.forEach((browseStaysButton) => {
+            browseStaysButton.addEventListener('click', (e) => {
+                e.preventDefault();
+                logEvent({
+                    on_link_click: true,
+                    link_clicked: '/',
+                    link_clicked_trip_name: 'Browse Stays',
+                    link_used: referenceRaw,
+                    linked_used_name: referenceNormalized ? toTitleLike(referenceRaw) : ''
+                });
+                window.location.href = '/';
+            });
+        });
+    }
+});
+
+
+(async function () {
+    try {
+        const profileButton = document.querySelector('[data-element="profile_button"]');
+        const profileButtonDropdown = document.querySelector('[data-element="profile_button_dropdown"]');
+        let isPopupOpen = false;
+
+        // Close the dropdown initially
+        profileButtonDropdown.style.display = 'none';
+
+        // Function to toggle the dropdown
+        const togglePopup = () => {
+            isPopupOpen = !isPopupOpen;
+            profileButtonDropdown.style.display = isPopupOpen ? 'flex' : 'none';
+        };
+
+        // Event listener for profile button click and toggling the dropdown
+        profileButton.addEventListener('click', function () {
+            togglePopup();
+        });
+
+        // Event listener for body click to close the dropdown
+        document.body.addEventListener('click', function (evt) {
+            if (!profileButton.contains(evt.target) && !profileButtonDropdown.contains(evt.target)) {
+                isPopupOpen = false;
+                profileButtonDropdown.style.display = 'none';
+            }
+        });
+
+        // Event listeners to close the popup when buttons inside are clicked
+        const popupButtons = profileButtonDropdown.querySelectorAll('[data-element*="Button"]');
+        popupButtons.forEach(button => {
+            button.addEventListener('click', function () {
+                isPopupOpen = false;
+                profileButtonDropdown.style.display = 'none';
+            });
+        });
+
+    } catch (err) {
+
+    }
+})();
+
+
+window.Wized = window.Wized || [];
+window.Wized.push((Wized) => {
+
+
+    const passwordInput = Wized.elements.get('SignUp_Password');
+    const emailInput = Wized.elements.get('SignUp_Email');
+    const firstNameInput = Wized.elements.get('SignUp_FirstName');
+    const lastNameInput = Wized.elements.get('SignUp_LastName');
+    const phoneNumberInput = Wized.elements.get('SignUp_PhoneNumber');
+    //const birthdateInput = Wized.elements.get('SignUp_BirthDate');
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    // Function to capitalize the first letter of a string
+    function capitalizeFirstLetter(string) {
+        return string.charAt(0).toUpperCase() + string.slice(1).toLowerCase();
+    }
+
+    // Event listener for when the user leaves the first name input field
+    firstNameInput.node.addEventListener('blur', (event) => {
+        const inputElement = event.target;
+        inputElement.value = capitalizeFirstLetter(inputElement.value);
+    });
+
+    // Event listener for when the user leaves the last name input field
+    lastNameInput.node.addEventListener('blur', (event) => {
+        const inputElement = event.target;
+        inputElement.value = capitalizeFirstLetter(inputElement.value);
+    });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    phoneNumberInput.node.addEventListener('focus', (event) => {
+        const inputElement = event.target;
+        if (inputElement.value === '') {
+            inputElement.value = '';  // Clear the field when focused if empty
+        }
+    });
+
+    phoneNumberInput.node.addEventListener('input', handlePhoneNumberInput);
+    phoneNumberInput.node.addEventListener('keydown', handlePhoneKeyDown);
+    phoneNumberInput.node.addEventListener('change', handlePhoneNumberInput);
+
+    function handlePhoneNumberInput(event) {
+        const inputElement = event.target;
+        let input = inputElement.value.replace(/[\D-]/g, ''); // Strip non-numeric characters and hyphens
+        if (input.length > 10) {
+            input = input.substr(0, 10); // Limit to 10 digits
+        }
+
+        // Formatting the phone number as the user types
+        let formattedNumber = formatPhoneNumber(input);
+        inputElement.value = formattedNumber; // Update the field with formatted input
+    }
+
+    function handlePhoneKeyDown(event) {
+        const key = event.key;
+        const inputElement = event.target;
+
+        // Allow control keys such as backspace, tab, enter, etc.
+        if (key.length === 1 && !/[0-9]/.test(key)) {
+            event.preventDefault(); // Prevent default action for non-numeric keys
+        }
+
+        // Prevent input if the current length of digits is 10 or more
+        const currentInput = inputElement.value.replace(/[\D-]/g, '');
+        if (currentInput.length >= 10 && /[0-9]/.test(key)) {
+            event.preventDefault();
+        }
+    }
+
+    function formatPhoneNumber(input) {
+        let formattedNumber = input;
+        if (input.length > 2) {
+            formattedNumber = input.substr(0, 3) + (input.length > 3 ? '-' : '') + input.substr(3);
+        }
+        if (input.length > 5) {
+            formattedNumber = input.substr(0, 3) + '-' + input.substr(3, 3) + (input.length > 6 ? '-' : '') + input.substr(6);
+        }
+        return formattedNumber;
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    // // Event listener for focusing on the input field
+    // birthdateInput.node.addEventListener('focus', (event) => {
+    //     const inputElement = event.target;
+    //     if (!inputElement.value.trim()) {
+    //         inputElement.value = 'mm/dd/yyyy'; // Set initial placeholder text
+    //         highlightText(inputElement, 0, 2); // Highlight 'mm' initially
+    //     }
+    // });
+
+    // // Function to highlight text within the input
+    // function highlightText(inputElement, start, end) {
+    //     setTimeout(() => {
+    //         inputElement.setSelectionRange(start, end);
+    //     }, 10);
+    // }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    const charactersMin = document.querySelector('#charactersMin');
+    const containsSymbol = document.querySelector('#containsSymbol');
+    const cantContain = document.querySelector('#cantContain');
+
+    // Function to return the SVG with specified fill color and symbol type
+    function getSVG(fillColor, isValid = false) {
+        if (isValid) {
+            return `<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15">
+                        <circle cx="7.5" cy="7.5" r="7.5" fill="${fillColor}"/>
+                        <path d="M4.5 8L6.5 10L10.5 5" stroke="white" stroke-width="2" fill="none"/>
+                    </svg>`;
+        } else {
+            return `<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15">
+                        <circle cx="7.5" cy="7.5" r="7.5" fill="${fillColor}"/>
+                        <line x1="5" y1="5" x2="10" y2="10" stroke="white" stroke-width="2"/>
+                        <line x1="5" y2="5" x2="10" y1="10" stroke="white" stroke-width="2"/>
+                    </svg>`;
+        }
+    }
+
+    // Initialize SVGs with default grey color
+    function initializeSVGs() {
+        charactersMin.innerHTML = getSVG("#d4d4d4");
+        containsSymbol.innerHTML = getSVG("#d4d4d4");
+        cantContain.innerHTML = getSVG("#d4d4d4");
+    }
+
+    initializeSVGs(); // Set default SVGs on load
+
+    function normalizeString(str) {
+        return str.replace(/[\W_]+/g, '').toLowerCase();
+    }
+
+    function validatePassword() {
+        const password = passwordInput.node.value; // Remove normalizeString here
+        const firstName = normalizeString(firstNameInput.node.value);
+        const lastName = normalizeString(lastNameInput.node.value);
+        const emailLocalPart = normalizeString(emailInput.node.value.split('@')[0]);
+
+        // Minimum 8 characters check
+        charactersMin.innerHTML = password.length >= 8 ? getSVG("#00ff00", true) : getSVG("#ff0000");
+
+        // Check for symbol or number
+        const symbolRegex = /[0-9!@#$%^&*(),.?":{}|<>]/;
+        containsSymbol.innerHTML = symbolRegex.test(password) ? getSVG("#00ff00", true) : getSVG("#ff0000");
+
+        // Check for disallowed substrings (firstName, lastName, emailLocalPart)
+        let disallowed = [firstName, lastName, emailLocalPart].filter(Boolean);
+        const containsDisallowed = disallowed.length > 0 && disallowed.some(part => password.includes(part));
+        cantContain.innerHTML = !containsDisallowed && password.length > 0 ? getSVG("#00ff00", true) : getSVG("#ff0000");
+    }
+
+
+    // Handle password field events to set current validation state
+    passwordInput.node.addEventListener('focus', validatePassword);
+    passwordInput.node.addEventListener('input', validatePassword);
+
+
+
+
+
+    // Retrieve the WizedElement instance by its name
+    const signUpButton = Wized.elements.get('SignUp_AgreeSubmitButton');
+
+    // Ensure the element is present in the DOM
+    if (signUpButton && signUpButton.node) {
+        // Add click event listener to the button's DOM node
+        signUpButton.node.addEventListener('click', function () {
+            // Update the state in the Data Store to indicate the button was clicked
+            Wized.data.v.signup_buttonclicked = true;
+        });
+    } else {
+    }
+
+
+
+
+
+
+
+
+
+    //forgot password
+    //forgot password
+    // Handle input rules for ForgotPassword_Email
+    const forgotPasswordEmailInput = Wized.elements.get('ForgotPassword_Email');
+
+    // If the element is missing (e.g., different page), skip attaching handlers
+    if (!forgotPasswordEmailInput || !forgotPasswordEmailInput.node) {
+        return;
+    }
+
+    // Add validation logic for ForgotPassword_Email
+    forgotPasswordEmailInput.node.addEventListener('focus', (event) => {
+        const inputElement = event.target;
+        if (inputElement.value === '') {
+            inputElement.value = '';  // Clear the field when focused if empty
+        }
+    });
+
+    forgotPasswordEmailInput.node.addEventListener('input', handleEmailInput);
+    forgotPasswordEmailInput.node.addEventListener('keydown', handleEmailKeyDown);
+    forgotPasswordEmailInput.node.addEventListener('change', handleEmailInput);
+
+    // Function to handle email input
+    function handleEmailInput(event) {
+        const inputElement = event.target;
+        let input = inputElement.value.replace(/[^a-zA-Z0-9@._-]/g, ''); // Strip invalid characters for email
+        inputElement.value = input; // Update the field with sanitized input
+    }
+
+    // Function to handle email key down events
+    function handleEmailKeyDown(event) {
+        const key = event.key;
+        const inputElement = event.target;
+
+        // Prevent any characters that are not alphanumeric or standard email characters
+        if (!/^[a-zA-Z0-9@._-]$/.test(key) && key.length === 1) {
+            event.preventDefault(); // Prevent invalid characters
+        }
+    }
+
+});
+
+
+
+
+
+//copy email and phone number to clipboard
+
+document.addEventListener('DOMContentLoaded', () => {
+    // Function to copy text to the clipboard
+    function copyToClipboard(text) {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+    }
+
+    // Select the email and phone number buttons
+    const copyEmailButton = document.querySelector('[data-element="help_copyEmail"]');
+    const copyPhoneButton = document.querySelector('[data-element="help_copyPhone"]');
+    const callButton = document.querySelector('[data-element="help_call"]');
+    const sendEmailButton = document.querySelector('[data-element="help_sendEmail"]');
+
+    // Email and phone number to copy
+    const email = 'support@keysbooking.com';
+    const phoneNumber = '+17863388401';
+
+    // Add click event listeners
+    if (copyEmailButton) {
+        copyEmailButton.addEventListener('click', () => {
+            copyToClipboard(email);
+            alert('Email copied to clipboard!');
+        });
+    }
+
+    if (copyPhoneButton) {
+        copyPhoneButton.addEventListener('click', () => {
+            copyToClipboard(phoneNumber);
+            alert('Phone number copied to clipboard!');
+        });
+    }
+
+    if (callButton) {
+        callButton.addEventListener('click', () => {
+            window.location.href = `tel:${phoneNumber}`;
+        });
+    }
+
+    if (sendEmailButton) {
+        sendEmailButton.addEventListener('click', () => {
+            window.location.href = `mailto:${email}`;
+        });
+    }
+});
+
+
+// Trip updates email lead popup
+document.addEventListener('DOMContentLoaded', () => {
+    const popup = document.querySelector('[data-element="email-lead-popup"]');
+    if (!popup) return;
+
+    const closeButton = popup.querySelector('[data-element="email-lead-closeButton"]');
+    const emailInput = popup.querySelector('[data-element="email-lead-input"]');
+    const errorText = popup.querySelector('[data-element="email-lead-errorText"]');
+    const submitButton = popup.querySelector('[data-element="email-lead-submit-button"]');
+    const submitButtonText = popup.querySelector('[data-element="email-lead-submit-button-text"]');
+    const submitButtonLoader = popup.querySelector('[data-element="email-lead-submit-button-loader"]');
+
+    let successPopup = document.querySelector('[data-element="email-lead-success-popup"]');
+
+    if (!closeButton || !emailInput || !errorText || !submitButton || !submitButtonText || !submitButtonLoader) {
+        return;
+    }
+
+    const SUCCESS_VISIBLE_MS = 1000;
+    const SUCCESS_FADE_MS = 400;
+
+    if (!document.getElementById('email-lead-success-styles')) {
+        const successStyle = document.createElement('style');
+        successStyle.id = 'email-lead-success-styles';
+        successStyle.textContent = `
+            [data-element="email-lead-success-popup"],
+            [data-element="email-lead-success-popup"] * {
+                font-family: 'TT Fors', sans-serif;
+            }
+            [data-element="email-lead-success-popup"] {
+                position: fixed;
+                inset: 0;
+                display: none;
+                align-items: center;
+                justify-content: center;
+                z-index: 10001;
+                padding: 20px;
+                box-sizing: border-box;
+                background: rgba(0, 0, 0, 0.45);
+                backdrop-filter: blur(2px);
+                opacity: 1;
+                transition: opacity ${SUCCESS_FADE_MS}ms ease;
+                pointer-events: none;
+            }
+            [data-element="email-lead-success-popup"].email-lead-success-fade-out {
+                opacity: 0;
+            }
+            [data-element="email-lead-success-popup"] .email-lead-success-card {
+                position: relative;
+                width: 100%;
+                max-width: 360px;
+                padding: 28px 24px;
+                border-radius: 8px;
+                background: #ffffff;
+                border: 1px solid #e2e2e2;
+                box-shadow: 0 16px 40px rgba(0, 0, 0, 0.18);
+                text-align: center;
+            }
+            [data-element="email-lead-success-popup"] .email-lead-success-title {
+                margin: 0;
+                font-size: 22px;
+                font-weight: 600;
+                color: #000;
+            }
+            [data-element="email-lead-success-popup"] [data-element="email-lead-success-closeButton"],
+            [data-element="email-lead-success-popup"] .email-lead-success-message,
+            [data-element="email-lead-success-popup"] [data-element="email-lead-success-message"] {
+                display: none !important;
+            }
+        `;
+        document.head.appendChild(successStyle);
+    }
+
+    if (!successPopup) {
+        successPopup = document.createElement('div');
+        successPopup.setAttribute('data-element', 'email-lead-success-popup');
+        successPopup.innerHTML = `
+            <div class="email-lead-success-card">
+                <p class="email-lead-success-title">You're in!</p>
+            </div>
+        `;
+        document.body.appendChild(successPopup);
+    } else {
+        const successCloseButton = successPopup.querySelector('[data-element="email-lead-success-closeButton"]');
+        const successMessage = successPopup.querySelector('.email-lead-success-message, [data-element="email-lead-success-message"]');
+        if (successCloseButton) successCloseButton.style.display = 'none';
+        if (successMessage) successMessage.style.display = 'none';
+    }
+
+    const STORAGE_KEY = 'kb_trip_updates_popup';
+    const VISITOR_KEY = 'kb_visitor_id';
+    const EMAIL_LEADS_API = 'https://xruq-v9q0-hayo.n7c.xano.io/api:WurmsjHX/email-leads';
+    const SHOW_DELAY_MS = 10_000;
+    const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+    const POPUP_TYPE = 'trip_packages_timed';
+
+    const getPopupState = () => {
+        try {
+            return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+        } catch {
+            return {};
+        }
+    };
+
+    const setPopupState = (state) => {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    };
+
+    const shouldShowPopup = () => {
+        const state = getPopupState();
+        if (state.submitted) return false;
+        if (state.lastShown && Date.now() - state.lastShown < THIRTY_DAYS_MS) return false;
+        return true;
+    };
+
+    const markShown = () => {
+        const state = getPopupState();
+        setPopupState({ ...state, lastShown: Date.now() });
+    };
+
+    const markSubmitted = () => {
+        setPopupState({ submitted: true, submittedAt: Date.now() });
+    };
+
+    const getVisitorId = () => {
+        let id = localStorage.getItem(VISITOR_KEY);
+        if (!id) {
+            id = (crypto && crypto.randomUUID)
+                ? crypto.randomUUID()
+                : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+            localStorage.setItem(VISITOR_KEY, id);
+        }
+        return id;
+    };
+
+    const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+
+    const hideError = () => {
+        errorText.style.display = 'none';
+    };
+
+    const showError = (message) => {
+        errorText.textContent = message;
+        errorText.style.display = 'block';
+    };
+
+    const setSubmitLoading = (isLoading) => {
+        submitButton.disabled = isLoading;
+        submitButtonText.style.display = isLoading ? 'none' : 'block';
+        submitButtonLoader.style.display = isLoading ? 'flex' : 'none';
+    };
+
+    const openPopup = () => {
+        popup.style.display = 'flex';
+        document.body.classList.add('no-scroll');
+        hideError();
+        emailInput.focus();
+    };
+
+    const closePopup = () => {
+        popup.style.display = 'none';
+        document.body.classList.remove('no-scroll');
+        hideError();
+        emailInput.value = '';
+        setSubmitLoading(false);
+    };
+
+    let successDismissTimer = null;
+    let successFadeTimer = null;
+
+    const closeSuccessPopup = () => {
+        if (successDismissTimer) {
+            clearTimeout(successDismissTimer);
+            successDismissTimer = null;
+        }
+        if (successFadeTimer) {
+            clearTimeout(successFadeTimer);
+            successFadeTimer = null;
+        }
+        successPopup.style.display = 'none';
+        successPopup.classList.remove('email-lead-success-fade-out');
+    };
+
+    const showSuccessPopup = () => {
+        closeSuccessPopup();
+        successPopup.style.display = 'flex';
+        successDismissTimer = setTimeout(() => {
+            successPopup.classList.add('email-lead-success-fade-out');
+            successFadeTimer = setTimeout(closeSuccessPopup, SUCCESS_FADE_MS);
+        }, SUCCESS_VISIBLE_MS);
+    };
+
+    popup.style.display = 'none';
+    successPopup.style.display = 'none';
+    hideError();
+    setSubmitLoading(false);
+
+    if (!shouldShowPopup()) return;
+
+    let showTimer = null;
+
+    const schedulePopup = () => {
+        showTimer = setTimeout(() => {
+            if (!shouldShowPopup()) return;
+            openPopup();
+            markShown();
+        }, SHOW_DELAY_MS);
+    };
+
+    schedulePopup();
+
+    closeButton.addEventListener('click', closePopup);
+
+    popup.addEventListener('click', (event) => {
+        if (event.target === popup) {
+            closePopup();
+        }
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && popup.style.display === 'flex') {
+            closePopup();
+        }
+    });
+
+    emailInput.addEventListener('input', hideError);
+
+    submitButton.addEventListener('click', async () => {
+        const email = emailInput.value.trim();
+
+        if (!email) {
+            showError('Please enter your email address');
+            return;
+        }
+
+        if (!isValidEmail(email)) {
+            showError('Please enter a valid email address');
+            return;
+        }
+
+        hideError();
+        setSubmitLoading(true);
+
+        try {
+            const response = await fetch(EMAIL_LEADS_API, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email,
+                    visitor_id: getVisitorId(),
+                    source_page: 'bundled-trips',
+                    page_url: window.location.href,
+                    popup_type: POPUP_TYPE,
+                }),
+            });
+
+            const data = await response.json().catch(() => ({}));
+
+            if (!response.ok) {
+                throw new Error(data.message || 'Something went wrong. Please try again.');
+            }
+
+            markSubmitted();
+            if (showTimer) {
+                clearTimeout(showTimer);
+                showTimer = null;
+            }
+            closePopup();
+            showSuccessPopup();
+        } catch (err) {
+            showError(err.message || 'Something went wrong. Please try again.');
+            setSubmitLoading(false);
+        }
+    });
+});
