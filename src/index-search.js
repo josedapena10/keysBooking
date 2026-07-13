@@ -2543,6 +2543,14 @@ document.addEventListener('DOMContentLoaded', function () {
         // Initialize temporary storage for in-progress date selections
         let tempSelectedDates = { ...selectedDates };
 
+        // Latest bookable date: exactly one year from today (inclusive).
+        function getMaxBookableDate() {
+            const maxDate = new Date();
+            maxDate.setHours(0, 0, 0, 0);
+            maxDate.setFullYear(maxDate.getFullYear() + 1);
+            return maxDate;
+        }
+
         // True when a date sits inside the minimum-nights window after the selected
         // check-in (i.e. it is too soon to be a valid checkout and must be blocked).
         function isWithinMinNights(date) {
@@ -2550,6 +2558,11 @@ document.addEventListener('DOMContentLoaded', function () {
             if (date <= tempSelectedDates.checkIn) return false;
             const nights = Math.round((date - tempSelectedDates.checkIn) / MS_PER_DAY);
             return nights < MINIMUM_NIGHTS;
+        }
+
+        // True when a date is more than one year from today and must be blocked.
+        function isBeyondMaxBookableDate(date) {
+            return date > getMaxBookableDate();
         }
 
         // ... existing code ...
@@ -2588,7 +2601,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
             // Determine how many months to show based on screen width
             const isMobile = window.innerWidth <= 650;
-            const numberOfMonths = isMobile ? 24 : 2; // Show 12 months for mobile scroll, 2 for desktop
+            const maxBookableDate = getMaxBookableDate();
+            const monthsUntilMax = (maxBookableDate.getFullYear() - currentYear) * 12
+                + (maxBookableDate.getMonth() - currentMonth) + 1;
+            const numberOfMonths = isMobile ? Math.max(1, monthsUntilMax) : 2;
 
             // Generate multiple months
             let currentMonthToRender = currentMonth;
@@ -2812,8 +2828,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (date < today) {
                     dayCell.style.color = '#D1D1D6';
                     dayCell.style.cursor = 'default';
-                } else if (isWithinMinNights(date)) {
-                    // Inside the minimum-nights window after check-in: block selection
+                } else if (isWithinMinNights(date) || isBeyondMaxBookableDate(date)) {
+                    // Inside the minimum-nights window after check-in, or beyond the
+                    // one-year booking window: block selection with the same disabled look.
                     dayCell.style.color = '#D1D1D6';
                     dayCell.style.cursor = 'not-allowed';
                 } else {
@@ -2960,6 +2977,13 @@ document.addEventListener('DOMContentLoaded', function () {
                     dayElement.style.color = '#D1D1D6';
                     dayElement.style.cursor = 'not-allowed';
                 }
+
+                // Block dates more than one year from today
+                if (isBeyondMaxBookableDate(date)) {
+                    dayElement.style.backgroundColor = '';
+                    dayElement.style.color = '#D1D1D6';
+                    dayElement.style.cursor = 'not-allowed';
+                }
             });
         }
 
@@ -2967,6 +2991,10 @@ document.addEventListener('DOMContentLoaded', function () {
         function handleDateClick(date) {
             // Stop the event from bubbling up to prevent popup from closing
             event.stopPropagation(); // Stop event propagation
+
+            if (isBeyondMaxBookableDate(date)) {
+                return;
+            }
 
             if (!selectingCheckOut) {
                 // Selecting check-in date
@@ -3069,12 +3097,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Navigate to next month
         function navigateNextMonth() {
-            // Calculate max allowed date (2 years from today)
-            const today = new Date();
-            const maxYear = today.getFullYear() + 2;
-            const maxMonth = today.getMonth();
+            const maxBookableDate = getMaxBookableDate();
+            const maxYear = maxBookableDate.getFullYear();
+            const maxMonth = maxBookableDate.getMonth();
 
-            // Only allow navigation if not exceeding 2 years from now
+            // Only allow navigation if not exceeding one year from today
             // Adjust logic to account for showing two months at a time
             const nextMonthValue = currentMonth === 11 ? 0 : currentMonth + 1;
             const nextYearValue = currentMonth === 11 ? currentYear + 1 : currentYear;
@@ -3113,9 +3140,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 prevBtn.style.cursor = 'pointer';
             }
 
-            // Check if next button should be disabled (at 2 years from now)
-            const maxYear = today.getFullYear() + 2;
-            const maxMonth = today.getMonth();
+            // Check if next button should be disabled (at one year from today)
+            const maxBookableDate = getMaxBookableDate();
+            const maxYear = maxBookableDate.getFullYear();
+            const maxMonth = maxBookableDate.getMonth();
 
             // Calculate the second month that's being displayed
             const secondMonthValue = currentMonth === 11 ? 0 : currentMonth + 1;
@@ -3277,7 +3305,7 @@ document.addEventListener('DOMContentLoaded', function () {
                             currentMonth = checkInMonth;
                             currentYear = checkInYear;
                         } else {
-                            // Mobile: always start from current month (to show all 24 months)
+                            // Mobile: always start from current month (scrollable through max bookable month)
                             const today = new Date();
                             currentMonth = today.getMonth();
                             currentYear = today.getFullYear();
