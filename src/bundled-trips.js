@@ -1250,7 +1250,6 @@ window.Wized.push((Wized) => {
         { icon: EMOJI.trustFollowers, title: 'Talk to locals', text: 'Questions before or after booking? Call or email the Keys Booking team.' },
     ];
 
-    let openPackageAccordion = null;
     let openFaqAccordion = null;
 
     function injectStyles() {
@@ -2098,19 +2097,8 @@ window.Wized.push((Wized) => {
                 const panel = root.querySelector(`#${targetId}`);
                 if (!panel) return;
                 const isOpen = pkgBtn.getAttribute('aria-expanded') === 'true';
-                if (isOpen) {
-                    pkgBtn.setAttribute('aria-expanded', 'false');
-                    panel.classList.remove('is-open');
-                    openPackageAccordion = null;
-                } else {
-                    if (openPackageAccordion && openPackageAccordion !== pkgBtn) {
-                        openPackageAccordion.setAttribute('aria-expanded', 'false');
-                        root.querySelector(`#${openPackageAccordion.dataset.target}`)?.classList.remove('is-open');
-                    }
-                    pkgBtn.setAttribute('aria-expanded', 'true');
-                    panel.classList.add('is-open');
-                    openPackageAccordion = pkgBtn;
-                }
+                pkgBtn.setAttribute('aria-expanded', isOpen ? 'false' : 'true');
+                panel.classList.toggle('is-open', !isOpen);
                 return;
             }
 
