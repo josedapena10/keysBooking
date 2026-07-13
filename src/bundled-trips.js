@@ -1333,7 +1333,7 @@ window.Wized.push((Wized) => {
             }
             .bt2-hero h1 {
                 margin: 0 0 12px; font-size: 46px; font-weight: 500; color: #fff;
-                line-height: 1.08; letter-spacing: -.03em; max-width: 11ch;
+                line-height: 1.08; letter-spacing: -.03em; max-width: none;
             }
             .bt2-hero__text { margin: 0 0 22px; font-size: 18px; color: rgba(255,255,255,.9); line-height: 1.5; max-width: 38ch; }
             .bt2-hero__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 8px; }
@@ -1968,7 +1968,7 @@ window.Wized.push((Wized) => {
                 <div class="bt2-hero__inner">
                     <div class="bt2-hero__content">
                         <div class="bt2-hero__pill">${EMOJI.play} As seen on Florida Keys Guide</div>
-                        <h1>Stay. Boat. Fish. One booking.</h1>
+                        <h1>Stay. Boat. Fish.<br>One booking.</h1>
                         <p class="bt2-hero__text">Private packages for the Florida Keys. Choose a trip, pick dates, and book.</p>
                         <div class="bt2-hero__actions">
                             <button type="button" class="bt2-btn bt2-btn--primary" data-scroll="featured-packages">Browse packages</button>
