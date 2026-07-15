@@ -2520,7 +2520,10 @@ function learnExtrasScheduleFromUrl(options = {}) {
         }
 
         const boatDatesRaw = params.get('boatDates');
-        if (!isPackage && params.get('boatId') && boatDatesRaw && boatDatesRaw.trim()) {
+        // DIY: always learn offsets from saved dates. Package: only when guest explicitly saves
+        // (same pattern as charter day offsets) so reload/sync keeps their edited boat dates.
+        const shouldLearnBoatOffsets = !isPackage || fromUserSave;
+        if (shouldLearnBoatOffsets && params.get('boatId') && boatDatesRaw && boatDatesRaw.trim()) {
             const boatDates = boatDatesRaw.split(',').filter(Boolean);
             if (boatDates.length > 0) {
                 const startOffset = String(daysFromCheckin(checkin, boatDates[0]));
