@@ -1812,9 +1812,9 @@ window.Wized.push((Wized) => {
                 ${pkg.estimatedPerPersonPrice && pkg.estimatedGuestCount
                 ? `<p class="bt2-pricing__pp">About $${formatCurrency(pkg.estimatedPerPersonPrice)} per person for ${pkg.estimatedGuestCount} guests</p>`
                 : ''}
-                <p class="bt2-pricing__note">Pricing may vary by dates and season. Exact total once you pick dates.</p>
+                <p class="bt2-pricing__note">Pricing may vary by dates and season.</p>
                </div>`
-            : `<div class="bt2-pricing"><p class="bt2-pricing__note">Pricing may vary by dates and season. Pick dates on the listing for your exact total.</p></div>`;
+            : `<div class="bt2-pricing"><p class="bt2-pricing__note">Pricing may vary by dates and season.</p></div>`;
 
         const includedHtmlFace = pkg.includedComponents?.length
             ? `<div class="bt2-included">
