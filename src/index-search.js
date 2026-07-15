@@ -7654,6 +7654,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const activeFishingChartersFiltersCount = document.querySelector('[data-element="activeFishingChartersFiltersCount"]');
 
             // Guest section elements
+            const MAX_CHARTER_GUESTS = 6;
             const guestMinus = document.querySelector('[data-element="fishingCharterFilter_Guest_Minus"]');
             const guestNumber = document.querySelector('[data-element="fishingCharterFilter_guest_number"]');
             const guestPlus = document.querySelector('[data-element="fishingCharterFilter_guest_Plus"]');
@@ -7791,6 +7792,17 @@ document.addEventListener('DOMContentLoaded', function () {
                         guestMinus.style.cursor = 'pointer';
                     }
                 }
+                if (guestPlus) {
+                    if (currentFilters.guests >= MAX_CHARTER_GUESTS) {
+                        guestPlus.disabled = true;
+                        guestPlus.style.opacity = '0.3';
+                        guestPlus.style.cursor = 'not-allowed';
+                    } else {
+                        guestPlus.disabled = false;
+                        guestPlus.style.opacity = '1';
+                        guestPlus.style.cursor = 'pointer';
+                    }
+                }
 
                 // Update dock delivery checkbox
                 if (dockDeliveryCheckbox) {
@@ -7918,8 +7930,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 guestPlus.addEventListener('click', () => {
                     if (typeof charterModule === 'undefined') return;
                     const current = charterModule.getPendingFilters();
-                    charterModule.setPendingFilters({ guests: current.guests + 1 });
-                    updateCharterFilterDisplay();
+                    if (current.guests < MAX_CHARTER_GUESTS) {
+                        charterModule.setPendingFilters({ guests: current.guests + 1 });
+                        updateCharterFilterDisplay();
+                    }
                 });
             }
 
