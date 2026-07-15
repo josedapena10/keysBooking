@@ -3058,14 +3058,24 @@ document.addEventListener('DOMContentLoaded', function () {
                     const checkOutDate = formatDate(tempSelectedDates.checkOut);
                     const formattedDates = `${checkInDate} - ${checkOutDate}`;
                     pendingSelections.dates = formattedDates;
+                    // Keep real Date objects (with year) — display text is year-less ("Jul 3 - Jul 10")
+                    pendingSelections.selectedDatesObj = {
+                        checkIn: new Date(tempSelectedDates.checkIn),
+                        checkOut: new Date(tempSelectedDates.checkOut)
+                    };
                     updateButtonText(datesButtonText, formattedDates, defaultValues.dates);
                 } else {
                     const formattedDate = `${checkInDate}`;
                     pendingSelections.dates = formattedDate;
+                    pendingSelections.selectedDatesObj = {
+                        checkIn: new Date(tempSelectedDates.checkIn),
+                        checkOut: null
+                    };
                     updateButtonText(datesButtonText, formattedDate, defaultValues.dates);
                 }
             } else {
                 pendingSelections.dates = defaultValues.dates;
+                pendingSelections.selectedDatesObj = { checkIn: null, checkOut: null };
                 updateButtonText(datesButtonText, defaultValues.dates, defaultValues.dates);
             }
         }
@@ -3265,56 +3275,89 @@ document.addEventListener('DOMContentLoaded', function () {
                         checkOut: null
                     };
                 } else {
-                    // Parse dates from current selection if not default
-                    const dateRangeMatch = pendingSelections.dates.match(/([A-Za-z]+)\s+(\d+)\s+-\s+([A-Za-z]+)\s+(\d+)/);
+                    // Prefer real Date objects (they keep the correct year). The button
+                    // text is year-less ("Jul 3 - Jul 10"), so re-parsing it mis-assigns
+                    // next-year same-month ranges as the current year.
+                    const datesObj = pendingSelections.selectedDatesObj
+                        || currentSelections.selectedDatesObj;
+                    const hasDateObjects = datesObj?.checkIn && datesObj?.checkOut;
 
-                    if (dateRangeMatch) {
-                        const months = {
-                            'Jan': 0, 'Feb': 1, 'Mar': 2, 'Apr': 3, 'May': 4, 'Jun': 5,
-                            'Jul': 6, 'Aug': 7, 'Sep': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11
+                    if (hasDateObjects) {
+                        selectedDates.checkIn = new Date(datesObj.checkIn);
+                        selectedDates.checkOut = new Date(datesObj.checkOut);
+                        tempSelectedDates = {
+                            checkIn: new Date(datesObj.checkIn),
+                            checkOut: new Date(datesObj.checkOut)
                         };
-
-                        const checkInMonth = months[dateRangeMatch[1]];
-                        const checkInDay = parseInt(dateRangeMatch[2]);
-                        const checkOutMonth = months[dateRangeMatch[3]];
-                        const checkOutDay = parseInt(dateRangeMatch[4]);
-
-                        // Determine year (handle Dec-Jan transitions)
-                        let checkInYear = currentYear;
-                        let checkOutYear = currentYear;
-
-                        if (checkInMonth > currentMonth + 5) checkInYear--;
-                        if (checkOutMonth > currentMonth + 5) checkOutYear--;
-                        if (checkInMonth < currentMonth - 5) checkInYear++;
-                        if (checkOutMonth < currentMonth - 5) checkOutYear++;
-
-                        selectedDates.checkIn = new Date(checkInYear, checkInMonth, checkInDay);
-                        selectedDates.checkOut = new Date(checkOutYear, checkOutMonth, checkOutDay);
-
-                        // Also update temp selections
-                        tempSelectedDates = { ...selectedDates };
-
-                        // Replace the existing logic with:
                         selectingCheckOut = false;
 
-                        // For mobile: always start from current month but scroll to selected month
-                        // For desktop: navigate directly to selected month
+                        const checkInMonth = selectedDates.checkIn.getMonth();
+                        const checkInYear = selectedDates.checkIn.getFullYear();
                         const isMobile = window.innerWidth <= 650;
                         if (!isMobile) {
-                            // Desktop: navigate to selected month
                             currentMonth = checkInMonth;
                             currentYear = checkInYear;
                         } else {
-                            // Mobile: always start from current month (scrollable through max bookable month)
                             const today = new Date();
                             currentMonth = today.getMonth();
                             currentYear = today.getFullYear();
-
-                            // Store the selected month info for scrolling after render
                             window.scrollToMonth = {
                                 month: checkInMonth,
                                 year: checkInYear
                             };
+                        }
+                    } else {
+                        // Fallback: parse year-less display text (best-effort)
+                        const dateRangeMatch = pendingSelections.dates.match(/([A-Za-z]+)\s+(\d+)\s+-\s+([A-Za-z]+)\s+(\d+)/);
+
+                        if (dateRangeMatch) {
+                            const months = {
+                                'Jan': 0, 'Feb': 1, 'Mar': 2, 'Apr': 3, 'May': 4, 'Jun': 5,
+                                'Jul': 6, 'Aug': 7, 'Sep': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11
+                            };
+
+                            const checkInMonth = months[dateRangeMatch[1]];
+                            const checkInDay = parseInt(dateRangeMatch[2]);
+                            const checkOutMonth = months[dateRangeMatch[3]];
+                            const checkOutDay = parseInt(dateRangeMatch[4]);
+
+                            // Determine year (handle Dec-Jan transitions)
+                            let checkInYear = currentYear;
+                            let checkOutYear = currentYear;
+
+                            if (checkInMonth > currentMonth + 5) checkInYear--;
+                            if (checkOutMonth > currentMonth + 5) checkOutYear--;
+                            if (checkInMonth < currentMonth - 5) checkInYear++;
+                            if (checkOutMonth < currentMonth - 5) checkOutYear++;
+
+                            selectedDates.checkIn = new Date(checkInYear, checkInMonth, checkInDay);
+                            selectedDates.checkOut = new Date(checkOutYear, checkOutMonth, checkOutDay);
+
+                            // Also update temp selections
+                            tempSelectedDates = { ...selectedDates };
+
+                            // Replace the existing logic with:
+                            selectingCheckOut = false;
+
+                            // For mobile: always start from current month but scroll to selected month
+                            // For desktop: navigate directly to selected month
+                            const isMobile = window.innerWidth <= 650;
+                            if (!isMobile) {
+                                // Desktop: navigate to selected month
+                                currentMonth = checkInMonth;
+                                currentYear = checkInYear;
+                            } else {
+                                // Mobile: always start from current month (scrollable through max bookable month)
+                                const today = new Date();
+                                currentMonth = today.getMonth();
+                                currentYear = today.getFullYear();
+
+                                // Store the selected month info for scrolling after render
+                                window.scrollToMonth = {
+                                    month: checkInMonth,
+                                    year: checkInYear
+                                };
+                            }
                         }
                     }
                 }
@@ -3887,10 +3930,15 @@ document.addEventListener('DOMContentLoaded', function () {
 
             // If the button shows a date range (not the default text), preserve it in pending
             if (currentDatesText && currentDatesText !== defaultValues.dates && currentDatesText !== 'Add dates') {
-                // The date is already in pendingSelections.dates from the calendar's updateDatesButtonText function
-                // We just need to make sure it stays there and create the selectedDatesObj if possible
+                // Prefer Date objects already set by the calendar (they include the correct year).
+                // Re-parsing year-less text like "Jul 3 - Jul 10" incorrectly maps next-year
+                // ranges onto the current year (e.g. Jul 2027 → Jul 2026).
+                if (pendingSelections.selectedDatesObj?.checkIn && pendingSelections.selectedDatesObj?.checkOut) {
+                    pendingSelections.dates = currentDatesText;
+                    return;
+                }
 
-                // Try to parse the date range to create selectedDatesObj
+                // Fallback: parse the date range only when Date objects are missing
                 const dateRangeMatch = currentDatesText.match(/([A-Za-z]+)\s+(\d+)\s+-\s+([A-Za-z]+)\s+(\d+)/);
 
                 if (dateRangeMatch) {
@@ -3906,6 +3954,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
                     // Determine year (assume current year or next year)
                     const currentDate = new Date();
+                    currentDate.setHours(0, 0, 0, 0);
                     let checkInYear = currentDate.getFullYear();
                     let checkOutYear = currentDate.getFullYear();
 
@@ -3914,6 +3963,14 @@ document.addEventListener('DOMContentLoaded', function () {
                         checkInYear++;
                     }
                     if (checkOutMonth < currentDate.getMonth()) {
+                        checkOutYear++;
+                    }
+
+                    // If constructed check-in is already in the past, bump to next year
+                    // (e.g. today Jul 15, selecting Jul 3 → Jul 3 next year)
+                    const guessedCheckIn = new Date(checkInYear, checkInMonth, checkInDay);
+                    if (guessedCheckIn < currentDate) {
+                        checkInYear++;
                         checkOutYear++;
                     }
 
