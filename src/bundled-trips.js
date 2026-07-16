@@ -1804,7 +1804,7 @@ window.Wized.push((Wized) => {
     function renderPackageCard(pkg, index) {
         const priceBlock = pkg.startingTotalPrice
             ? `<div class="bt2-pricing">
-                <div class="bt2-pricing__from">From</div>
+                <div class="bt2-pricing__from">Starting at</div>
                 <div class="bt2-pricing__total">
                     <span class="bt2-pricing__amount">$${formatCurrency(pkg.startingTotalPrice)}</span>
                     <span class="bt2-pricing__suffix">total package</span>
