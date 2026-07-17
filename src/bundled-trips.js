@@ -887,7 +887,7 @@ window.Wized.push((Wized) => {
         const property = trip?._property;
 
         const stayMeta = [];
-        if (stayGuestCount) stayMeta.push(`Sleeps ${stayGuestCount}`);
+        if (stayGuestCount) stayMeta.push(`Up to ${stayGuestCount} guests`);
         if (property?.num_beds != null && property.num_beds !== '') {
             const n = Number(property.num_beds);
             stayMeta.push(`${n} bed${n === 1 ? '' : 's'}`);
@@ -905,6 +905,7 @@ window.Wized.push((Wized) => {
             emoji: '🏠',
             typeLabel: 'Private stay',
             title: property?.property_name || `${nights}-night Florida Keys stay`,
+            capacity: stayGuestCount ? `Up to ${stayGuestCount} guests` : '',
             meta: stayMeta.join(' · '),
             timing: nights ? `${nights} nights` : '',
         });
@@ -916,7 +917,8 @@ window.Wized.push((Wized) => {
                 ?? trip?._boat?.max_passengers
                 ?? trip?._boat?.passengerLimit
                 ?? trip?._boat?.passenger_limit;
-            if (max != null && max !== '' && Number(max) > 0) boatMeta.push(`${Number(max)} passengers max`);
+            const boatCapacity = max != null && max !== '' && Number(max) > 0 ? Number(max) : null;
+            if (boatCapacity) boatMeta.push(`Up to ${boatCapacity} guests`);
             if (boatDays || schedule.boatLength) boatMeta.push(`${boatDays || schedule.boatLength}-day rental`);
             if (locationInfo?.boatPickupLabel) boatMeta.push(locationInfo.boatPickupLabel);
             if (locationInfo?.boatOvernightLabel) boatMeta.push(locationInfo.boatOvernightLabel);
@@ -926,6 +928,7 @@ window.Wized.push((Wized) => {
                 emoji: '🚤',
                 typeLabel: 'Boat rental',
                 title: boatLabel || 'Boat rental',
+                capacity: boatCapacity ? `Up to ${boatCapacity} guests` : '',
                 meta: boatMeta.join(' · '),
                 timing: dayRangeLabel(start, schedule.boatLength),
             });
@@ -939,13 +942,14 @@ window.Wized.push((Wized) => {
             const tripLabel = optionName || `${duration} ${type}`.trim() || 'Fishing charter';
             const title = tripLabel;
             const charterMeta = [];
-            if (guestLimit) charterMeta.push(`${guestLimit} guests max`);
+            if (guestLimit) charterMeta.push(`Up to ${guestLimit} guests`);
             if (locationInfo?.charterStatLabel) charterMeta.push(locationInfo.charterStatLabel);
             components.push({
                 kind: 'charter',
                 emoji: '🎣',
                 typeLabel: 'Fishing charter',
                 title,
+                capacity: guestLimit ? `Up to ${guestLimit} guests` : '',
                 meta: charterMeta.join(' · '),
                 timing: timing || '',
             });
@@ -1157,6 +1161,23 @@ window.Wized.push((Wized) => {
             perPerson = Math.round(startingTotalPrice / guestCount);
         }
 
+        const charterGuestLimits = trip?.hasFishingCharter
+            ? (trip?.fishingcharters || [])
+                .map((c) => getCharterGuestLimit(c))
+                .filter((n) => n != null && n > 0)
+            : [];
+        const charterGuestCapacity = charterGuestLimits.length
+            ? Math.min(...charterGuestLimits)
+            : null;
+        const boatGuestCapacity = trip?.hasBoatRental && schedule.boatLength > 0
+            ? toPositiveNumber(
+                trip?._boat?.maxPassengers
+                ?? trip?._boat?.max_passengers
+                ?? trip?._boat?.passengerLimit
+                ?? trip?._boat?.passenger_limit
+            )
+            : null;
+
         const boatDays = schedule.boatLength || nights;
         const charters = (trip?.fishingcharters || []).map((c) => ({
             name: getCharterOptionName(c),
@@ -1196,6 +1217,8 @@ window.Wized.push((Wized) => {
             estimatedPerPersonPrice: perPerson,
             estimatedGuestCount: guestCount,
             stayGuestCount,
+            boatGuestCapacity,
+            charterGuestCapacity,
             nights,
             itinerary,
             includedComponents,
@@ -1419,10 +1442,14 @@ window.Wized.push((Wized) => {
             .bt2-card__body { padding: 18px; flex: 1; display: flex; flex-direction: column; }
             .bt2-card__title { margin: 0 0 6px; font-size: 19px; font-weight: 500; color: var(--bt2-navy); line-height: 1.25; }
             .bt2-card__meta {
-                display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px;
+                display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px;
                 font-size: 13px; color: var(--bt2-muted); margin-bottom: 10px;
             }
             .bt2-card__meta span { display: inline-flex; align-items: center; gap: 4px; }
+            .bt2-card__meta-sep {
+                width: 3px; height: 3px; border-radius: 50%;
+                background: currentColor; opacity: .45; flex-shrink: 0;
+            }
             .bt2-card__summary {
                 margin: 0 0 12px; font-size: 14px; color: var(--bt2-text); line-height: 1.45;
             }
@@ -1431,10 +1458,17 @@ window.Wized.push((Wized) => {
                 padding: 12px 14px; margin: 0 0 12px;
             }
             .bt2-pricing__from { font-size: 11px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--bt2-muted); }
-            .bt2-pricing__total { margin: 2px 0 4px; line-height: 1; color: var(--bt2-navy); }
+            .bt2-pricing__total { margin: 2px 0 0; line-height: 1; color: var(--bt2-navy); }
             .bt2-pricing__amount { font-size: 30px; font-weight: 500; }
             .bt2-pricing__suffix { font-size: 13px; font-weight: 500; margin-left: 4px; }
-            .bt2-pricing__pp { font-size: 13px; font-weight: 500; color: var(--bt2-text); margin: 0; }
+            .bt2-pricing__pp {
+                margin: 8px 0 0; padding-top: 8px;
+                border-top: 1px solid #DCEBFF;
+                font-size: 13px; line-height: 1.4; color: var(--bt2-muted);
+            }
+            .bt2-pricing__pp strong {
+                font-weight: 500; color: var(--bt2-navy);
+            }
             .bt2-pricing__note { font-size: 12px; color: var(--bt2-muted); margin: 6px 0 0; line-height: 1.35; }
             .bt2-card__cta { margin: 0 0 14px; }
             .bt2-card__reassure {
@@ -1465,9 +1499,20 @@ window.Wized.push((Wized) => {
             .bt2-included__top {
                 display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 10px;
             }
+            .bt2-included__heading {
+                display: flex; flex-wrap: wrap; align-items: baseline; gap: 5px;
+                min-width: 0;
+            }
             .bt2-included__type {
                 font-size: 11px; font-weight: 500; letter-spacing: .04em;
                 text-transform: uppercase; color: var(--bt2-primary);
+            }
+            .bt2-included__capacity {
+                font-size: 11px; font-weight: 400; color: var(--bt2-muted);
+                white-space: nowrap;
+            }
+            .bt2-included__capacity::before {
+                content: '·'; margin-right: 5px; color: var(--bt2-muted);
             }
             .bt2-included__timing {
                 font-size: 11px; font-weight: 500; color: var(--bt2-muted); white-space: nowrap;
@@ -1809,41 +1854,12 @@ window.Wized.push((Wized) => {
                     <span class="bt2-pricing__amount">$${formatCurrency(pkg.startingTotalPrice)}</span>
                     <span class="bt2-pricing__suffix">total package</span>
                 </div>
-                ${pkg.estimatedPerPersonPrice && pkg.estimatedGuestCount
-                ? `<p class="bt2-pricing__pp">About $${formatCurrency(pkg.estimatedPerPersonPrice)} per person for ${pkg.estimatedGuestCount} guests</p>`
-                : ''}
                 <p class="bt2-pricing__note">Pricing may vary by dates and season.</p>
+                ${pkg.estimatedPerPersonPrice && pkg.estimatedGuestCount
+                ? `<p class="bt2-pricing__pp"><strong>About $${formatCurrency(pkg.estimatedPerPersonPrice)} per person</strong><br>Based on a group of ${pkg.estimatedGuestCount}</p>`
+                : ''}
                </div>`
             : `<div class="bt2-pricing"><p class="bt2-pricing__note">Pricing may vary by dates and season.</p></div>`;
-
-        const includedHtmlFace = pkg.includedComponents?.length
-            ? `<div class="bt2-included">
-                <p class="bt2-included__label">What's included</p>
-                <ul class="bt2-included__list">
-                    ${pkg.includedComponents.map((item) => `
-                        <li class="bt2-included__item">
-                            <span class="bt2-included__emoji" aria-hidden="true">${item.emoji || ''}</span>
-                            <div class="bt2-included__body">
-                                <div class="bt2-included__top">
-                                    <span class="bt2-included__type">${escapeHtml(item.typeLabel)}</span>
-                                    ${item.timing ? `<span class="bt2-included__timing">${escapeHtml(item.timing)}</span>` : ''}
-                                </div>
-                                <p class="bt2-included__title">${escapeHtml(item.title)}</p>
-                            </div>
-                        </li>
-                    `).join('')}
-                </ul>
-               </div>`
-            : '';
-
-        const ctaBlock = pkg.listingUrl
-            ? `<div class="bt2-card__cta">
-                <a class="bt2-btn bt2-btn--primary bt2-btn--full bt2-cta-link"
-                   href="${escapeHtml(pkg.listingUrl)}"
-                   data-trip-name="${escapeHtml(pkg.title)}">Check dates and book</a>
-                <p class="bt2-card__reassure">Live pricing and full details on the listing</p>
-               </div>`
-            : '';
 
         const kinds = new Set((pkg.includedComponents || []).map((c) => c.kind));
         const charterCount = Number(pkg.charterCount) || 0;
@@ -1857,6 +1873,50 @@ window.Wized.push((Wized) => {
         ].filter(Boolean);
         const stackHtml = stackChips.length
             ? `<div class="bt2-card__stack" aria-hidden="true">${stackChips.map((chip) => `<span class="bt2-card__stack-chip">${chip}</span>`).join('')}</div>`
+            : '';
+
+        const includedHtmlFace = pkg.includedComponents?.length
+            ? `<div class="bt2-included">
+                <p class="bt2-included__label">What's included</p>
+                <ul class="bt2-included__list">
+                    ${pkg.includedComponents.map((item) => `
+                        <li class="bt2-included__item">
+                            <span class="bt2-included__emoji" aria-hidden="true">${item.emoji || ''}</span>
+                            <div class="bt2-included__body">
+                                <div class="bt2-included__top">
+                                    <div class="bt2-included__heading">
+                                        <span class="bt2-included__type">${escapeHtml(item.typeLabel)}</span>
+                                        ${item.capacity ? `<span class="bt2-included__capacity">${escapeHtml(item.capacity)}</span>` : ''}
+                                    </div>
+                                    ${item.timing ? `<span class="bt2-included__timing">${escapeHtml(item.timing)}</span>` : ''}
+                                </div>
+                                <p class="bt2-included__title">${escapeHtml(item.title)}</p>
+                            </div>
+                        </li>
+                    `).join('')}
+                </ul>
+               </div>`
+            : '';
+
+        const detailParts = [
+            kinds.has('stay') ? 'stay' : null,
+            kinds.has('boat') ? 'boat' : null,
+            kinds.has('charter') ? 'charter' : null,
+        ].filter(Boolean);
+        const detailsPhrase = detailParts.length >= 3
+            ? 'full package details'
+            : detailParts.length === 2
+                ? `full ${detailParts[0]} & ${detailParts[1]} details`
+                : detailParts.length === 1
+                    ? `full ${detailParts[0]} details`
+                    : 'full package details';
+        const ctaBlock = pkg.listingUrl
+            ? `<div class="bt2-card__cta">
+                <a class="bt2-btn bt2-btn--primary bt2-btn--full bt2-cta-link"
+                   href="${escapeHtml(pkg.listingUrl)}"
+                   data-trip-name="${escapeHtml(pkg.title)}">Check dates and book</a>
+                <p class="bt2-card__reassure">See photos, dates, and ${detailsPhrase}</p>
+               </div>`
             : '';
 
         const fullItineraryHtml = pkg.itinerary?.length
@@ -1896,6 +1956,11 @@ window.Wized.push((Wized) => {
 
         const nightsLabel = pkg.nights ? `${pkg.nights}-night stay` : '';
 
+        const metaParts = [];
+        if (nightsLabel) metaParts.push(`<span>${EMOJI.stay} ${escapeHtml(nightsLabel)}</span>`);
+        metaParts.push(`<span>${EMOJI.pin} ${escapeHtml(pkg.location)}</span>`);
+        const metaHtml = metaParts.join('<span class="bt2-card__meta-sep" aria-hidden="true"></span>');
+
         const capacityBits = (pkg.includedComponents || [])
             .filter((c) => c.title || c.meta)
             .map((c) => {
@@ -1919,10 +1984,7 @@ window.Wized.push((Wized) => {
                 <div class="bt2-card__body">
                     ${featuredLabel}
                     <h3 class="bt2-card__title">${escapeHtml(pkg.title)}</h3>
-                    <div class="bt2-card__meta">
-                        ${nightsLabel ? `<span>${EMOJI.stay} ${escapeHtml(nightsLabel)}</span>` : ''}
-                        <span>${EMOJI.pin} ${escapeHtml(pkg.location)}</span>
-                    </div>
+                    <div class="bt2-card__meta">${metaHtml}</div>
                     ${summaryHtml}
                     ${priceBlock}
                     ${ctaBlock}
@@ -1968,7 +2030,7 @@ window.Wized.push((Wized) => {
                     <div class="bt2-hero__content">
                         <div class="bt2-hero__pill">${EMOJI.play} As seen on Florida Keys Guide</div>
                         <h1>Stay. Boat. Fish.<br>One booking.</h1>
-                        <p class="bt2-hero__text">Private packages for the Florida Keys. Choose a trip, pick dates, and book.</p>
+                        <p class="bt2-hero__text">Choose a private Florida Keys package or build your own from our stays, boat rentals, and fishing charters.</p>
                         <div class="bt2-hero__actions">
                             <button type="button" class="bt2-btn bt2-btn--primary" data-scroll="featured-packages">Browse packages</button>
                             <a href="${HOME_URL}" class="bt2-btn bt2-btn--ghost bt2-build-own">Or build your own</a>
@@ -1994,7 +2056,7 @@ window.Wized.push((Wized) => {
                         <p class="bt2-trust__label">Fishing charters</p>
                     </div>
                     <div class="bt2-trust__item">
-                        <p class="bt2-trust__num">32,000+</p>
+                        <p class="bt2-trust__num">37,000+</p>
                         <p class="bt2-trust__label">Followers</p>
                     </div>
                 </div>
@@ -2129,12 +2191,12 @@ window.Wized.push((Wized) => {
             <div class="bt2-mid-cta bt2-mid-cta--${variant}">
                 <div class="bt2-mid-cta__copy">
                     <span class="bt2-card__badge bt2-card__badge--blue">Build your own</span>
-                    <h3>Don’t see the right trip?</h3>
-                    <p>Start on the homepage and put your trip together in three steps.</p>
+                    <h3>Want something more custom?</h3>
+                    <p>Build your own Florida Keys trip by choosing a stay, then adding a boat rental, a fishing charter, or both.</p>
                     <ol class="bt2-mid-cta__steps">
-                        <li><span class="bt2-mid-cta__num">1</span><span>Pick your dates</span></li>
-                        <li><span class="bt2-mid-cta__num">2</span><span>Choose a stay</span></li>
-                        <li><span class="bt2-mid-cta__num">3</span><span>Add a boat, a charter, or both</span></li>
+                        <li><span class="bt2-mid-cta__num">1</span><span>Select a stay</span></li>
+                        <li><span class="bt2-mid-cta__num">2</span><span>Add a boat rental, fishing charter, or both</span></li>
+                        <li><span class="bt2-mid-cta__num">3</span><span>Enjoy the Florida Keys</span></li>
                     </ol>
                 </div>
                 <a href="${HOME_URL}" class="bt2-btn bt2-build-own">Build your own trip</a>
