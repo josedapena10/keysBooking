@@ -2857,7 +2857,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const cancelSaveContainer = document.getElementById('editListing_cancelAndSaveButtonContainer_description');
         const cancelButton = document.getElementById('editListing_cancelButton_description');
         const saveButton = document.getElementById('editListing_saveButton_description');
-        const maxChars = 4000;
+        const maxChars = 6000;
         const maxDisplayChars = 300;
 
         // Always show subtext if error is not visible
