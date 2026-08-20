@@ -557,10 +557,6 @@ function setupTermsContainer(accepted) {
     const termsCheckbox = document.querySelector('[data-element="terms_checkbox"]');
 
 
-    if (!termsContainer) {
-        return;
-    }
-
     if (accepted) {
         termsContainer.style.display = 'none';
         if (termsCheckbox) termsCheckbox.style.display = 'none';
@@ -2282,7 +2278,35 @@ function showErrorState() {
 }
 
 // =============================================================================
-// 8) MAIN INITIALIZATION
+// 8) HOST DASHBOARD BUTTON
+// =============================================================================
+
+const BOAT_HOST_DASHBOARD_PATH = '/boat-host/dashboard';
+const CHARTER_HOST_DASHBOARD_PATH = '/charter-host/dashboard';
+
+function setupDashboardButton(parsed) {
+    const button = document.querySelector('[data-element="manageBooking_dashboardButton"]');
+    if (!button) return;
+
+    // Without a valid id there's no way to know which dashboard this host belongs on
+    if (!parsed) {
+        button.style.display = 'none';
+        return;
+    }
+
+    const path = parsed.type === 'boat' ? BOAT_HOST_DASHBOARD_PATH : CHARTER_HOST_DASHBOARD_PATH;
+
+    if (button.tagName === 'A') button.setAttribute('href', path);
+    button.style.cursor = 'pointer';
+
+    button.addEventListener('click', (event) => {
+        event.preventDefault();
+        window.location.href = path;
+    });
+}
+
+// =============================================================================
+// 9) MAIN INITIALIZATION
 // =============================================================================
 
 async function init() {
@@ -2300,6 +2324,8 @@ async function init() {
 
     // Parse URL
     const parsed = parseIdFromURL();
+
+    setupDashboardButton(parsed);
 
     if (!parsed) {
         await hideLoader();
