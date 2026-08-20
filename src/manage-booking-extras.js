@@ -2284,17 +2284,16 @@ function showErrorState() {
 const BOAT_HOST_DASHBOARD_PATH = '/boat-host/dashboard';
 const CHARTER_HOST_DASHBOARD_PATH = '/charter-host/dashboard';
 
-function setupDashboardButton(parsed) {
+function setupDashboardButton() {
     const button = document.querySelector('[data-element="manageBooking_dashboardButton"]');
     if (!button) return;
 
-    // Without a valid id there's no way to know which dashboard this host belongs on
-    if (!parsed) {
-        button.style.display = 'none';
-        return;
-    }
+    // Only the leading letter matters here, so this still works on ids the full parser rejects
+    const id = new URLSearchParams(window.location.search).get('id') || '';
+    const firstChar = id.charAt(0).toUpperCase();
+    if (firstChar !== 'B' && firstChar !== 'C') return;
 
-    const path = parsed.type === 'boat' ? BOAT_HOST_DASHBOARD_PATH : CHARTER_HOST_DASHBOARD_PATH;
+    const path = firstChar === 'B' ? BOAT_HOST_DASHBOARD_PATH : CHARTER_HOST_DASHBOARD_PATH;
 
     if (button.tagName === 'A') button.setAttribute('href', path);
     button.style.cursor = 'pointer';
@@ -2325,7 +2324,7 @@ async function init() {
     // Parse URL
     const parsed = parseIdFromURL();
 
-    setupDashboardButton(parsed);
+    setupDashboardButton();
 
     if (!parsed) {
         await hideLoader();
