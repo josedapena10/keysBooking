@@ -2178,8 +2178,9 @@ function hideAllContentInBodyContainer() {
     // Find all elements with data-element attribute within bodyContainer
     const allDataElements = bodyContainer.querySelectorAll('[data-element]');
     allDataElements.forEach(el => {
-        // Skip the loader itself
-        if (el.getAttribute('data-element') !== 'manageBooking_loader') {
+        // Skip the loader itself, plus the dashboard button which stays visible throughout
+        const name = el.getAttribute('data-element');
+        if (name !== 'manageBooking_loader' && name !== 'manageBooking_dashboardButton') {
             el.style.display = 'none';
         }
     });
@@ -2294,6 +2295,9 @@ function setupDashboardButton() {
     if (firstChar !== 'B' && firstChar !== 'C') return;
 
     const path = firstChar === 'B' ? BOAT_HOST_DASHBOARD_PATH : CHARTER_HOST_DASHBOARD_PATH;
+
+    // showLoader()/hideAllContent() blanket-hide data-elements, so re-reveal it here
+    if (button.style.display === 'none') button.style.removeProperty('display');
 
     if (button.tagName === 'A') button.setAttribute('href', path);
     button.style.cursor = 'pointer';

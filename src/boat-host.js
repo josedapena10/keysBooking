@@ -1,4 +1,12 @@
 
+// Show loader on page load
+(function () {
+    const loader = document.querySelector('[data-element="loader"]');
+    if (loader) {
+        loader.style.display = 'flex';
+    }
+})();
+
 (async function () {
     try {
         const profileButton = document.querySelector('[data-element="profile_button"]');
@@ -938,6 +946,11 @@
         render();
     }
 
+    function hidePageLoader() {
+        const loader = document.querySelector('[data-element="loader"]');
+        if (loader) loader.style.display = 'none';
+    }
+
     async function init(userId) {
         injectStyles();
         state.userId = userId;
@@ -950,6 +963,8 @@
             } else {
                 renderMessage('Boat host dashboard', 'We could not load your reservations. Please refresh and try again.');
             }
+        } finally {
+            hidePageLoader();
         }
     }
 
@@ -961,12 +976,18 @@
     window.Wized.push(async (Wized) => {
         // Signed-out visitors are held on the locked Login-Modal, so don't boot the dashboard
         const token = Wized && Wized.data && Wized.data.c && Wized.data.c.token;
-        if (token == null || String(token).trim() === '') return;
+        if (token == null || String(token).trim() === '') {
+            hidePageLoader();
+            return;
+        }
 
         await Wized.requests.waitFor('Load_user');
         const userId = Wized.data.r.Load_user.data.id;
         window.keysBookingHostUserId = userId;
-        if (!getRoot()) return;
+        if (!getRoot()) {
+            hidePageLoader();
+            return;
+        }
         await init(userId);
     });
 })();
