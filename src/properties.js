@@ -12811,6 +12811,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                     minAge: company.minAge || 0,
                                     integrationType: company.integration_type || '',
                                     publicDockDeliveryDetails: company.publicDockDeliveryDetails || [],
+                                    rodReelRental: company.rodReelRental || false,
                                 };
                             }
                             return boat;
@@ -15657,6 +15658,15 @@ document.addEventListener('DOMContentLoaded', () => {
                             stackBlocksContainer.appendChild(newStackBlock);
                         }
                     }
+                }
+
+                // Rod & reel rental amenity (comes from the boat company)
+                const boatDetailsRodReelRentalContainer = document.querySelector('[data-element="boatDetails_amenityBlock_rodReelRentalContainer"]');
+                if (boatDetailsRodReelRentalContainer) {
+                    // Support both nested _boat_company and flat structure
+                    const boatCompanyData = boat._boat_company || boat;
+                    const hasRodReelRental = boatCompanyData?.rodReelRental === true;
+                    boatDetailsRodReelRentalContainer.style.display = hasRodReelRental ? 'flex' : 'none';
                 }
 
                 // Handle rules section
