@@ -2044,19 +2044,19 @@ window.Wized.push((Wized) => {
                 <div class="bt2-trust__panel">
                 <div class="bt2-trust__grid">
                     <div class="bt2-trust__item">
-                        <p class="bt2-trust__num">35+</p>
+                        <p class="bt2-trust__num">34+</p>
                         <p class="bt2-trust__label">Stays</p>
                     </div>
                     <div class="bt2-trust__item">
-                        <p class="bt2-trust__num">34+</p>
+                        <p class="bt2-trust__num">39+</p>
                         <p class="bt2-trust__label">Boat rentals</p>
                     </div>
                     <div class="bt2-trust__item">
-                        <p class="bt2-trust__num">18+</p>
+                        <p class="bt2-trust__num">19+</p>
                         <p class="bt2-trust__label">Fishing charters</p>
                     </div>
                     <div class="bt2-trust__item">
-                        <p class="bt2-trust__num">37,000+</p>
+                        <p class="bt2-trust__num">55,000+</p>
                         <p class="bt2-trust__label">Followers</p>
                     </div>
                 </div>
