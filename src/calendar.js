@@ -2018,6 +2018,26 @@ document.addEventListener('DOMContentLoaded', function () {
     let propertiesDataRef = null; // Add a global reference to property data
     let isCurrentPropertyPmsSynced = false; // true when current listing has is_pms_synced - disables calendar/day edits
 
+    // Days occupied by a booking, whether a Keys Booking reservation or an externally-synced one.
+    // Their price is editable but their availability is not.
+    function isBookedDateType(type) {
+        return type === 'reservation' || type === 'reserved';
+    }
+
+    // Resolves a day's type from calendarEvents. Keys Booking reservations are stored as a single
+    // multi-day event, so they must be matched by range rather than by start date alone.
+    function getDateType(dateStr) {
+        const spanningReservation = calendarEvents.find(event =>
+            event.extendedProps?.type === 'reservation' &&
+            String(event.start).split('T')[0] <= dateStr &&
+            String(event.end).split('T')[0] > dateStr
+        );
+        if (spanningReservation) return 'reservation';
+
+        const event = calendarEvents.find(e => String(e.start).split('T')[0] === dateStr);
+        return event ? event.extendedProps.type : 'available';
+    }
+
     // Helper function to get current propertyId with validation
     function getCurrentPropertyId() {
         if (!propertyId) {
@@ -3377,8 +3397,11 @@ document.addEventListener('DOMContentLoaded', function () {
     function groupConsecutiveDatesByType() {
         if (selectedDates.length === 0) return { open: [], blocked: [] };
 
-        // Sort dates chronologically
-        const sortedDates = [...selectedDates].sort();
+        // Booked days can be re-priced but never re-opened or blocked, so they are excluded here.
+        // This also breaks ranges around them, keeping them out of any availability payload.
+        const sortedDates = [...selectedDates].sort()
+            .filter(dateStr => !isBookedDateType(selectedDateTypes[dateStr]));
+        if (sortedDates.length === 0) return { open: [], blocked: [] };
 
         const openRanges = [];
         const blockedRanges = [];
@@ -4950,55 +4973,14 @@ document.addEventListener('DOMContentLoaded', function () {
             return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
         }
 
-        // Validate date range to ensure no reservations or reserved dates are in the range
-        function validateDateRange(startDate, endDate) {
-            // Convert to date objects if they're not already
-            const start = startDate instanceof Date ? startDate : new Date(startDate);
-            const end = endDate instanceof Date ? endDate : new Date(endDate);
-
-            // Check each day in the range
-            const currentDate = new Date(start);
-            while (currentDate <= end) {
-                const dateStr = currentDate.toISOString().split('T')[0];
-
-                // Find event for this date
-                const eventOnDate = calendarEvents.find(event => {
-                    // Extract date parts directly from ISO string to avoid timezone issues
-                    const eventDateStr = typeof event.start === 'string'
-                        ? event.start.split('T')[0] // Get YYYY-MM-DD part if it's a string
-                        : event.start.toISOString().split('T')[0]; // Convert to ISO string first if it's a Date
-
-                    const currentDateStr = currentDate.toISOString().split('T')[0];
-                    return eventDateStr === currentDateStr;
-                });
-
-                // Check if event type is reservation or reserved
-                if (eventOnDate && (eventOnDate.extendedProps.type === 'reservation' ||
-                    eventOnDate.extendedProps.type === 'reserved')) {
-                    return {
-                        valid: false,
-                        message: `Cannot select date range containing reservations: ${formatDateForDisplay(currentDate)} contains a reservation. Please select dates that don't overlap with existing reservations.`
-                    };
-                }
-
-                // Move to next day
-                currentDate.setDate(currentDate.getDate() + 1);
-            }
-
-            return { valid: true };
-        }
+        // Date ranges may span reservations and externally-synced days; those days are still
+        // selectable so their nightly price can be edited. Availability edits skip them
+        // (see groupConsecutiveDatesByType).
 
         // Function to apply the selected date range
         function applyDateRange() {
             if (!state.selectedStartDate || !state.selectedEndDate) {
                 alert('Please select both start and end dates');
-                return;
-            }
-
-            // Validate the date range
-            const validation = validateDateRange(state.selectedStartDate, state.selectedEndDate);
-            if (!validation.valid) {
-                alert(validation.message);
                 return;
             }
 
@@ -5018,16 +5000,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 selectedDates.push(dateStr);
 
                 // Determine and store the date type
-                const event = calendarEvents.find(event => {
-                    const eventDateStr = event.start.split('T')[0];
-                    return eventDateStr === dateStr;
-                });
-
-                if (event) {
-                    selectedDateTypes[dateStr] = event.extendedProps.type;
-                } else {
-                    selectedDateTypes[dateStr] = 'available'; // Default to available if no event
-                }
+                selectedDateTypes[dateStr] = getDateType(dateStr);
 
                 // Add selected styling to the day
                 const dateElement = document.querySelector(`.fc-daygrid-day[data-date="${dateStr}"]`);
@@ -5227,15 +5200,6 @@ document.addEventListener('DOMContentLoaded', function () {
                                 alert('End date must be after the start date');
                             }
                         }
-                        return;
-                    }
-                }
-
-                // Check if the selected date range contains any reservation or reserved dates
-                if (state.selectedStartDate && state.selectedEndDate) {
-                    const validation = validateDateRange(state.selectedStartDate, state.selectedEndDate);
-                    if (!validation.valid) {
-                        alert(validation.message);
                         return;
                     }
                 }
