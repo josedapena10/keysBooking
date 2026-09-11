@@ -450,6 +450,60 @@ window.Wized.push((Wized) => {
         } catch (_) { }
     };
 
+    /* ── Analytics ── */
+    const ATTRIBUTION_KEY = 'kb_bundled_attribution';
+
+    const trackEvent = (name, detail = {}) => {
+        const payload = {
+            event: name,
+            bundledTripId: detail.bundledTripId || '',
+            packageName: detail.packageName || '',
+            reference: referenceRaw,
+            sessionId,
+            ...detail,
+        };
+        try {
+            window.dataLayer = window.dataLayer || [];
+            window.dataLayer.push(payload);
+        } catch (_) { }
+        try {
+            if (typeof window.gtag === 'function') {
+                const { event, ...rest } = payload;
+                window.gtag('event', event, rest);
+            }
+        } catch (_) { }
+        try {
+            if (typeof window.analytics?.track === 'function') {
+                const { event, ...rest } = payload;
+                window.analytics.track(event, rest);
+            }
+        } catch (_) { }
+    };
+
+    /** Card data attributes → analytics detail. */
+    const cardDetail = (card) => ({
+        bundledTripId: card?.dataset?.packageId || '',
+        packageName: card?.dataset?.tripName || '',
+        isReference: card?.dataset?.reference === 'true',
+    });
+
+    /**
+     * Reference attribution has to survive the jump to the property listing page,
+     * so it also rides along in storage and not only in the listing URL.
+     */
+    const persistAttribution = (detail = {}) => {
+        const payload = {
+            reference: referenceRaw,
+            bundledTripId: detail.bundledTripId || '',
+            packageName: detail.packageName || '',
+            sessionId,
+            savedAt: Date.now(),
+        };
+        const json = JSON.stringify(payload);
+        try { sessionStorage.setItem(ATTRIBUTION_KEY, json); } catch (_) { }
+        try { localStorage.setItem(ATTRIBUTION_KEY, json); } catch (_) { }
+    };
+
     /* ── Package schedule (unchanged from bundled-trips.js) ── */
     const PACKAGE_SCHEDULE_FALLBACK_BY_TRIP_ID = {
         3: { boatStartOffset: 1, boatLength: 7, charterSlots: [{ tripId: 1, offsets: [1] }, { tripId: 3, offsets: [3] }] },
@@ -614,6 +668,8 @@ window.Wized.push((Wized) => {
             }))));
         }
         if (trip.id != null) url.searchParams.set('bundledTripId', String(trip.id));
+        if (referenceRaw) url.searchParams.set('reference', referenceRaw);
+        url.searchParams.set('bundledSessionId', sessionId);
         return url.toString();
     };
 
@@ -655,6 +711,141 @@ window.Wized.push((Wized) => {
         if (lower.includes('full day')) return 'Full Day';
         if (lower.includes('half day')) return 'Half Day';
         return 'Charter';
+    };
+
+    /** `_fishingcharter.name` is usually "Operator - 55' Hatteras". */
+    const splitCharterOperator = (fullName = '') => {
+        const parts = String(fullName).split(/\s+[-–]\s+/);
+        const operator = (parts.shift() || '').trim();
+        return { operator, vessel: parts.join(' - ').trim() };
+    };
+
+    const getCharterOperatorLabel = (charter) =>
+        splitCharterOperator(getCharterCompanyName(charter)).operator;
+
+    const getCharterVesselLabel = (charter) => {
+        const fc = charter?._fishingcharter;
+        const { vessel } = splitCharterOperator(fc?.name || '');
+        if (vessel) return vessel;
+        const boat = Array.isArray(fc?.boatInfo) ? fc.boatInfo[0] : null;
+        if (!boat) return '';
+        const bits = [];
+        if (boat.boatLength) bits.push(`${String(boat.boatLength).replace(/\s*(ft|feet|')$/i, '')}'`);
+        if (boat.boatManufacturer) bits.push(boat.boatManufacturer);
+        else if (boat.boatType) bits.push(boat.boatType);
+        return bits.join(' ').trim();
+    };
+
+    /** Xano returns pixel dimensions on every image, so slide picks can be framed-aware. */
+    const imageAspect = (image) => {
+        const w = Number(image?.meta?.width);
+        const h = Number(image?.meta?.height);
+        return w > 0 && h > 0 ? w / h : null;
+    };
+
+    // Widest card box (16/10 desktop; mobile's 4/3 is taller). Anything at least this
+    // wide fills both without losing any height.
+    const CARD_BOX_RATIO = 1.6;
+
+    /**
+     * Lower is better. Losing the top of someone holding a fish ruins the photo, while
+     * trimming the sides rarely does, so vertical crop is penalised far harder.
+     */
+    const frameScore = (image) => {
+        const ratio = imageAspect(image);
+        if (ratio == null) return 0.3;
+        if (ratio >= CARD_BOX_RATIO) return (1 - CARD_BOX_RATIO / ratio) * 0.2;
+        return 1 - ratio / CARD_BOX_RATIO;
+    };
+
+    /**
+     * Captains upload square and portrait phone photos, and several charters have 17+
+     * images where the first one is the worst framed. Pick the best fit instead.
+     */
+    const pickBestFramed = (images) => {
+        const usable = (images || []).filter((img) => img?.url);
+        if (usable.length < 2) return usable[0] || null;
+        return usable.reduce((best, img) => (frameScore(img) < frameScore(best) ? img : best));
+    };
+
+    const getBoatCompanyName = (trip) => (
+        trip?._boat?.__boatcompany?.name
+        || trip?._boat?._boatcompany?.name
+        || trip?._boat?.boatCompany?.name
+        || ''
+    ).trim();
+
+    /**
+     * Max three slides so the card stays short: the stay, then the boat the group
+     * runs (rental if there is one, otherwise the charter vessel), then fishing.
+     * Vessels are deduped by operator so packages with repeat charters from the
+     * same operator don't show the same boat twice.
+     */
+    const buildMediaSlides = (trip) => {
+        const slides = [];
+        const usedUrls = new Set();
+        const usedVessels = new Set();
+
+        const push = (url, label, vesselKey) => {
+            if (!url || slides.length >= 3 || usedUrls.has(url)) return;
+            if (vesselKey && usedVessels.has(vesselKey)) return;
+            usedUrls.add(url);
+            if (vesselKey) usedVessels.add(vesselKey);
+            slides.push({ url, label });
+        };
+
+        const vesselPools = [];
+        const actionImages = [];
+        (Array.isArray(trip?.fishingcharters) ? trip.fishingcharters : []).forEach((charter) => {
+            const fc = charter?._fishingcharter;
+            if (!fc) return;
+            const key = `charter:${(fc.name || '').trim().toLowerCase()}`;
+            const vessels = (Array.isArray(fc.boatInfo) ? fc.boatInfo : [])
+                .map((boat) => boat?.image)
+                .filter((image) => image?.url);
+            if (vessels.length) vesselPools.push({ key, images: vessels });
+            (Array.isArray(fc.images) ? fc.images : []).forEach((img) => {
+                if (img?.image?.url) actionImages.push(img.image);
+            });
+        });
+
+        const fresh = (images) => images.filter((image) => !usedUrls.has(image.url));
+        const nextVessel = () => {
+            for (const pool of vesselPools) {
+                if (usedVessels.has(pool.key)) continue;
+                const image = pickBestFramed(fresh(pool.images));
+                if (image) return { image, key: pool.key };
+            }
+            return null;
+        };
+
+        // Slide 1 — the stay
+        push(trip?._property?._property_main_image?.property_image?.url, 'Stay');
+
+        // Slide 2 — the boat rental, or the charter vessel when there is no rental
+        if (trip?.hasBoatRental) {
+            const boatPhotos = (Array.isArray(trip?._boat?.photos) ? trip._boat.photos : [])
+                .map((photo) => photo?.image)
+                .filter((image) => image?.url);
+            push(
+                pickBestFramed(boatPhotos)?.url,
+                'Boat rental',
+                `boat:${(trip?._boat?.name || trip?.boats_id || '').toString().toLowerCase()}`,
+            );
+        }
+        if (slides.length < 2) {
+            const vessel = nextVessel();
+            if (vessel) push(vessel.image.url, 'Fishing charter', vessel.key);
+        }
+
+        // Slide 3 — fishing, falling back to another operator's vessel
+        const action = pickBestFramed(fresh(actionImages));
+        if (action) push(action.url, 'Fishing');
+        if (slides.length < 3) {
+            const vessel = nextVessel();
+            if (vessel) push(vessel.image.url, 'Fishing charter', vessel.key);
+        }
+        return slides;
     };
 
     const parseDetailsText = (html = '') => {
@@ -923,11 +1114,17 @@ window.Wized.push((Wized) => {
             if (locationInfo?.boatPickupLabel) boatMeta.push(locationInfo.boatPickupLabel);
             if (locationInfo?.boatOvernightLabel) boatMeta.push(locationInfo.boatOvernightLabel);
 
+            const boatCompany = getBoatCompanyName(trip);
+            const boatTitle = [boatCompany, boatLabel || 'Boat rental']
+                .filter(Boolean)
+                .filter((part, i, arr) => arr.indexOf(part) === i)
+                .join(' · ');
+
             components.push({
                 kind: 'boat',
                 emoji: '🚤',
                 typeLabel: 'Boat rental',
-                title: boatLabel || 'Boat rental',
+                title: boatTitle,
                 capacity: boatCapacity ? `Up to ${boatCapacity} guests` : '',
                 meta: boatMeta.join(' · '),
                 timing: dayRangeLabel(start, schedule.boatLength),
@@ -940,7 +1137,12 @@ window.Wized.push((Wized) => {
             const type = getCharterTripType(optionName);
             const guestLimit = charter ? getCharterGuestLimit(charter) : null;
             const tripLabel = optionName || `${duration} ${type}`.trim() || 'Fishing charter';
-            const title = tripLabel;
+            // Name the operator and vessel rather than a generic "Fishing charter".
+            const title = [
+                charter ? getCharterOperatorLabel(charter) : '',
+                charter ? getCharterVesselLabel(charter) : '',
+                tripLabel,
+            ].filter(Boolean).join(' · ');
             const charterMeta = [];
             if (guestLimit) charterMeta.push(`Up to ${guestLimit} guests`);
             if (locationInfo?.charterStatLabel) charterMeta.push(locationInfo.charterStatLabel);
@@ -1140,6 +1342,25 @@ window.Wized.push((Wized) => {
         });
     };
 
+    /** Only offer swaps for the pieces this package actually includes. */
+    const buildCustomizationOptions = (trip) => {
+        const hasBoat = Boolean(trip?.hasBoatRental);
+        const hasCharter = Boolean(trip?.hasFishingCharter);
+        const options = [];
+
+        if (hasBoat && hasCharter) options.push('Swap the boat or charter');
+        else if (hasBoat) options.push('Swap the rental boat');
+        else if (hasCharter) options.push('Swap a charter');
+
+        if (hasCharter) options.push('Add or remove a fishing day');
+        else options.push('Add a fishing charter');
+
+        if (!hasBoat) options.push('Add a rental boat');
+
+        options.push('Extend your stay beyond the package nights');
+        return options;
+    };
+
     const tripToPackage = (trip, isReferenceMatch = false) => {
         const parsed = parseDetailsText(trip?.details_text || '');
         const schedule = getPackageScheduleFromTrip(trip);
@@ -1189,6 +1410,8 @@ window.Wized.push((Wized) => {
             trip?._property?._property_main_image?.property_image?.url ||
             getFirstPhotoUrl(trip?._boat?.photos) ||
             '';
+        const mediaSlides = buildMediaSlides(trip);
+        if (!mediaSlides.length && mainImage) mediaSlides.push({ url: mainImage, label: 'Stay' });
 
         const boatName = trip?._boat?.name || '';
         const boatSize = trip?._boat?.length ? `${trip._boat.length}ft` : '';
@@ -1212,6 +1435,7 @@ window.Wized.push((Wized) => {
             location: trip?._property?.listing_city_state || 'Florida Keys, FL',
             isFeatured: Boolean(isReferenceMatch),
             mainImage,
+            mediaSlides,
             shortDescription: resolveShortDescription(trip),
             startingTotalPrice,
             estimatedPerPersonPrice: perPerson,
@@ -1223,15 +1447,19 @@ window.Wized.push((Wized) => {
             itinerary,
             includedComponents,
             charterCount: Array.isArray(trip?.fishingcharters) ? trip.fishingcharters.length : 0,
+            facets: {
+                hasBoat: Boolean(trip?.hasBoatRental),
+                hasCharter: Boolean(trip?.hasFishingCharter) || charterGuestLimits.length > 0,
+                charterCount: Array.isArray(trip?.fishingcharters) ? trip.fishingcharters.length : 0,
+                staySleeps: toPositiveNumber(trip?._property?.num_guests) || 0,
+                petsAllowed: Boolean(trip?._property?.pets_allowed),
+                privateDock: Boolean(trip?._property?.private_dock),
+            },
             locationInfo,
             whyYouWillLoveIt: resolveWhyYouWillLove(trip),
             includedItems: parsed.includedItems,
             goodToKnow: parsed.goodToKnow,
-            customizationOptions: [
-                'Swap the boat or charter',
-                'Add or remove a fishing day',
-                'Extend your stay beyond the package nights',
-            ],
+            customizationOptions: buildCustomizationOptions(trip),
             listingUrl: buildPackageListingUrl(trip),
         };
     };
@@ -1273,6 +1501,137 @@ window.Wized.push((Wized) => {
         { icon: EMOJI.trustFollowers, title: 'Talk to locals', text: 'Questions before or after booking? Call or email the Keys Booking team.' },
     ];
 
+    /** Areas are alternatives, so picking two widens the results. */
+    const AREA_OPTIONS = [
+        {
+            id: 'islamorada',
+            label: 'Islamorada, FL',
+            hint: 'Upper Florida Keys',
+            match: (p) => /islamorada/i.test(p.location),
+        },
+        {
+            // Key Colony Beach sits inside the Marathon area, so it belongs on the same
+            // option rather than as a third city most visitors won't recognise.
+            id: 'marathon',
+            label: 'Marathon, FL',
+            hint: 'Middle Florida Keys, includes Key Colony Beach',
+            match: (p) => /marathon|key colony/i.test(p.location),
+        },
+    ];
+
+    /** "Includes" reads as a requirement list, so these are AND'd together. */
+    const INCLUDE_OPTIONS = [
+        { id: 'boat', label: 'Rental boat', hint: 'Your own boat for the week', match: (p) => p.facets.hasBoat },
+        { id: 'charter', label: 'Fishing charter', hint: 'Guided trips with a captain', match: (p) => p.facets.hasCharter },
+        { id: 'dock', label: 'Private dock', hint: 'Tie up at the house', match: (p) => p.facets.privateDock },
+        { id: 'pets', label: 'Pet friendly', hint: 'Dogs welcome at the stay', match: (p) => p.facets.petsAllowed },
+    ];
+
+    /**
+     * Each piece of a package carries its own limit — the house sleeps ten, the rental
+     * boat holds eight, the charter seats six — so each gets its own stepper.
+     */
+    const GUEST_COMPONENTS = [
+        { id: 'stay', label: 'Stay sleeps', short: 'Stay', capacityOf: (p) => toPositiveNumber(p.stayGuestCount) || 0 },
+        { id: 'boat', label: 'Rental boat holds', short: 'Boat', capacityOf: (p) => toPositiveNumber(p.boatGuestCapacity) || 0 },
+        { id: 'charter', label: 'Charter seats', short: 'Charter', capacityOf: (p) => toPositiveNumber(p.charterGuestCapacity) || 0 },
+    ];
+
+    /** Catalog-wide bounds for one component, ignoring packages that lack it. */
+    const guestBounds = (packages, component) => {
+        const caps = packages.map((pkg) => component.capacityOf(pkg)).filter((n) => n > 0);
+        return caps.length
+            ? { min: Math.min(...caps), max: Math.max(...caps), present: caps.length }
+            : { min: 0, max: 0, present: 0 };
+    };
+
+    const PRICE_BASES = [
+        { id: 'total', label: 'Total', priceOf: (p) => p.startingTotalPrice || 0 },
+        // Filter against the same number the card shows, not the package default.
+        { id: 'person', label: 'Per person', priceOf: (p) => perPersonPrice(p).amount },
+    ];
+
+    const filterState = {
+        areas: new Set(),
+        includes: new Set(),
+        guests: { stay: 0, boat: 0, charter: 0 },
+        maxPrice: 0,
+        priceBasis: 'total',
+    };
+
+    const priceBasis = () => PRICE_BASES.find((b) => b.id === filterState.priceBasis) || PRICE_BASES[0];
+
+    /**
+     * The party the visitor is sizing for is the biggest number they typed — needing a
+     * stay for eight and a charter for six still means eight people are coming.
+     */
+    const partySize = (state = filterState) => Math.max(0, ...GUEST_COMPONENTS.map((c) => state.guests[c.id] || 0));
+
+    /**
+     * Per-person price against the visitor's own group rather than the package's default
+     * estimate, so a party of eight sees the eight-way split.
+     */
+    const perPersonPrice = (pkg, state = filterState) => {
+        const party = partySize(state);
+        const total = pkg.startingTotalPrice || 0;
+        // A party the stay can't sleep would produce a split that isn't on offer.
+        const fits = party > 0 && total > 0 && party <= (toPositiveNumber(pkg.stayGuestCount) || 0);
+        if (fits) return { amount: Math.round(total / party), groupSize: party, isCustom: true };
+        return {
+            amount: pkg.estimatedPerPersonPrice || 0,
+            groupSize: pkg.estimatedGuestCount || 0,
+            isCustom: false,
+        };
+    };
+    const setGuestComponents = (state = filterState) => GUEST_COMPONENTS.filter((c) => state.guests[c.id] > 0);
+    const activeFilterCount = () => filterState.areas.size + filterState.includes.size
+        + setGuestComponents().length + (filterState.maxPrice ? 1 : 0);
+
+    /** Price ceiling rounded outward so the slider's top notch always includes everything. */
+    const priceCeiling = (packages, basis = priceBasis()) => {
+        const prices = packages.map((p) => basis.priceOf(p)).filter((n) => n > 0);
+        if (!prices.length) return 0;
+        const step = basis.id === 'person' ? 100 : 500;
+        return Math.ceil(Math.max(...prices) / step) * step;
+    };
+
+    const priceFloor = (packages, basis = priceBasis()) => {
+        const prices = packages.map((p) => basis.priceOf(p)).filter((n) => n > 0);
+        if (!prices.length) return 0;
+        const step = basis.id === 'person' ? 100 : 500;
+        return Math.floor(Math.min(...prices) / step) * step;
+    };
+
+    const matchesFilters = (pkg, state = filterState) => {
+        if (state.areas.size
+            && !AREA_OPTIONS.some((a) => state.areas.has(a.id) && a.match(pkg))) return false;
+        if (!INCLUDE_OPTIONS.every((i) => !state.includes.has(i.id) || i.match(pkg))) return false;
+        // A component the package doesn't have reads as capacity 0, so asking for any
+        // size also requires that the package actually includes that piece.
+        if (!GUEST_COMPONENTS.every((c) => {
+            const want = state.guests[c.id];
+            return !want || c.capacityOf(pkg) >= want;
+        })) return false;
+        if (state.maxPrice) {
+            const price = priceBasis().priceOf(pkg);
+            if (!price || price > state.maxPrice) return false;
+        }
+        return true;
+    };
+
+    const filterPackages = (packages, state = filterState) => packages.filter((pkg) => matchesFilters(pkg, state));
+
+    /** A shallow clone so "would this option return anything?" probes don't mutate state. */
+    const probeState = (changes = {}) => ({
+        areas: changes.areas || new Set(filterState.areas),
+        includes: changes.includes || new Set(filterState.includes),
+        guests: { ...filterState.guests, ...(changes.guests || {}) },
+        maxPrice: changes.maxPrice ?? filterState.maxPrice,
+        priceBasis: changes.priceBasis || filterState.priceBasis,
+    });
+
+    let allPackages = [];
+    const viewedPackageIds = new Set();
     let openFaqAccordion = null;
 
     function injectStyles() {
@@ -1282,7 +1641,8 @@ window.Wized.push((Wized) => {
         style.textContent = `
             [data-element="bundled-trips-body-container"],
             .bt2-email-overlay,
-            .bt2-email-success {
+            .bt2-email-success,
+            .bt2-sticky-cta {
                 --bt2-primary: ${BLUE};
                 --bt2-primary-hover: ${BLUE_HOVER};
                 --bt2-primary-light: ${BLUE_LIGHT};
@@ -1399,6 +1759,180 @@ window.Wized.push((Wized) => {
             .bt2-section__head { text-align: center; max-width: 720px; margin: 0 auto 48px; }
             .bt2-section__head h2 { margin: 0 0 12px; font-size: 34px; font-weight: 500; color: var(--bt2-navy); line-height: 1.2; }
             .bt2-section__head p { margin: 0 0 8px; font-size: 16px; color: var(--bt2-text); line-height: 1.6; }
+            /* Own stacking context so open panels sit above the cards below. */
+            .bt2-filters { margin: -20px 0 24px; position: relative; z-index: 30; }
+            .bt2-filters__bar {
+                position: relative;
+                display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px;
+                background: #fff; border: 1px solid var(--bt2-border-light);
+                border-radius: 14px; padding: 8px;
+                box-shadow: 0 4px 16px rgba(16,24,40,.05);
+            }
+            .bt2-fc { position: relative; min-width: 0; }
+            .bt2-fc__trigger {
+                display: flex; align-items: center; gap: 10px; width: 100%;
+                padding: 9px 12px; border-radius: 10px; cursor: pointer; text-align: left;
+                background: none; border: 1px solid transparent; font-family: ${FONT};
+                transition: background .16s ease, border-color .16s ease;
+            }
+            .bt2-fc__trigger:hover { background: var(--bt2-section-light); }
+            .bt2-fc__trigger:focus-visible { outline: 3px solid rgba(10,115,255,.28); outline-offset: 1px; }
+            .bt2-fc.is-open > .bt2-fc__trigger { background: #fff; border-color: var(--bt2-primary); }
+            .bt2-fc.is-set > .bt2-fc__trigger { background: var(--bt2-primary-light); border-color: rgba(10,115,255,.35); }
+            .bt2-fc__icon { flex: none; width: 18px; height: 18px; color: var(--bt2-muted); }
+            .bt2-fc__icon svg { width: 100%; height: 100%; display: block; stroke-linecap: round; stroke-linejoin: round; }
+            .bt2-fc.is-set .bt2-fc__icon { color: var(--bt2-primary); }
+            .bt2-fc__text { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
+            .bt2-fc__label {
+                font-size: 10px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase;
+                color: var(--bt2-muted);
+                white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            }
+            .bt2-fc__value {
+                font-size: 14px; font-weight: 500; color: var(--bt2-navy); line-height: 1.25;
+                white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            }
+            .bt2-fc__caret {
+                flex: none; width: 7px; height: 7px; margin-left: 2px;
+                border-right: 1.6px solid var(--bt2-muted); border-bottom: 1.6px solid var(--bt2-muted);
+                transform: rotate(45deg) translateY(-2px); transition: transform .18s ease;
+            }
+            .bt2-fc.is-open .bt2-fc__caret { transform: rotate(-135deg) translateY(-2px); }
+            .bt2-fc__panel {
+                position: absolute; z-index: 40; top: calc(100% + 8px); left: 0;
+                min-width: 268px; max-width: min(340px, calc(100vw - 32px));
+                background: #fff; border: 1px solid var(--bt2-border);
+                border-radius: 12px; box-shadow: 0 16px 40px rgba(16,24,40,.16);
+                padding: 8px;
+            }
+            .bt2-fc__panel[hidden] { display: none; }
+            .bt2-fc__options { display: flex; flex-direction: column; }
+            .bt2-fc__foot {
+                margin: 6px 6px 2px; font-size: 12px; color: var(--bt2-muted); line-height: 1.45;
+            }
+            .bt2-opt {
+                position: relative;
+                display: flex; align-items: center; gap: 10px; cursor: pointer;
+                padding: 9px 8px; border-radius: 9px; transition: background .14s ease;
+            }
+            .bt2-opt:hover { background: var(--bt2-section-light); }
+            .bt2-opt__box { position: absolute; opacity: 0; width: 0; height: 0; }
+            .bt2-opt__tick {
+                flex: none; width: 18px; height: 18px; border-radius: 5px;
+                border: 1.5px solid var(--bt2-border); background: #fff; position: relative;
+                transition: background .14s ease, border-color .14s ease;
+            }
+            .bt2-opt__tick::after {
+                content: ''; position: absolute; left: 5px; top: 2px;
+                width: 5px; height: 9px; border-right: 2px solid #fff; border-bottom: 2px solid #fff;
+                transform: rotate(40deg) scale(.5); opacity: 0; transition: opacity .14s ease, transform .14s ease;
+            }
+            .bt2-opt.is-checked .bt2-opt__tick { background: var(--bt2-primary); border-color: var(--bt2-primary); }
+            .bt2-opt.is-checked .bt2-opt__tick::after { opacity: 1; transform: rotate(40deg) scale(1); }
+            .bt2-opt__box:focus-visible + .bt2-opt__tick { outline: 3px solid rgba(10,115,255,.28); outline-offset: 2px; }
+            .bt2-opt__body { display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0; }
+            .bt2-opt__label { font-size: 14px; font-weight: 500; color: var(--bt2-navy); }
+            .bt2-opt__hint { font-size: 11.5px; color: var(--bt2-muted); line-height: 1.35; }
+            .bt2-opt__count {
+                flex: none; min-width: 26px; text-align: right;
+                font-size: 12px; font-variant-numeric: tabular-nums; color: var(--bt2-muted);
+            }
+            .bt2-opt.is-empty { opacity: .42; }
+            .bt2-fc[data-control="guests"] .bt2-fc__panel { min-width: 318px; }
+            .bt2-gsteps { display: flex; flex-direction: column; }
+            .bt2-gstep {
+                display: flex; align-items: center; justify-content: space-between; gap: 12px;
+                padding: 9px 8px; border-radius: 9px;
+            }
+            .bt2-gstep + .bt2-gstep { border-top: 1px solid var(--bt2-border-light); }
+            .bt2-gstep__text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+            .bt2-gstep__label { font-size: 14px; font-weight: 500; color: var(--bt2-navy); }
+            .bt2-gstep__meta {
+                font-size: 11.5px; color: var(--bt2-muted); line-height: 1.35;
+                font-variant-numeric: tabular-nums;
+            }
+            .bt2-gstep.is-empty .bt2-gstep__meta { color: #b42318; }
+            .bt2-stepper { flex: none; display: flex; align-items: center; gap: 4px; }
+            .bt2-stepper__btn {
+                flex: none; width: 32px; height: 32px; border-radius: 50%; cursor: pointer;
+                background: #fff; border: 1px solid var(--bt2-border);
+                font-family: ${FONT}; font-size: 16px; line-height: 1; color: var(--bt2-navy);
+                transition: border-color .14s ease, color .14s ease, opacity .14s ease;
+            }
+            .bt2-stepper__btn:hover:not(:disabled) { border-color: var(--bt2-primary); color: var(--bt2-primary); }
+            .bt2-stepper__btn:disabled { opacity: .3; cursor: default; }
+            .bt2-stepper__btn:focus-visible { outline: 3px solid rgba(10,115,255,.28); outline-offset: 2px; }
+            .bt2-stepper__value {
+                min-width: 34px; text-align: center; font-size: 15px; font-weight: 500;
+                color: var(--bt2-muted); font-variant-numeric: tabular-nums;
+            }
+            .bt2-gstep.is-set .bt2-stepper__value { color: var(--bt2-navy); }
+            .bt2-seg {
+                display: grid; grid-template-columns: 1fr 1fr; gap: 3px;
+                margin: 4px 6px 12px; padding: 3px;
+                background: var(--bt2-section-light); border-radius: 9px;
+            }
+            .bt2-seg__btn {
+                padding: 7px 8px; border-radius: 7px; cursor: pointer;
+                background: none; border: 0; font-family: ${FONT};
+                font-size: 12.5px; font-weight: 500; color: var(--bt2-muted);
+                transition: background .14s ease, color .14s ease, box-shadow .14s ease;
+            }
+            .bt2-seg__btn.is-active {
+                background: #fff; color: var(--bt2-navy);
+                box-shadow: 0 1px 3px rgba(16,24,40,.12);
+            }
+            .bt2-seg__btn:focus-visible { outline: 3px solid rgba(10,115,255,.28); outline-offset: 1px; }
+            .bt2-range { padding: 0 8px 4px; }
+            .bt2-range__hist {
+                display: flex; align-items: flex-end; gap: 2px; height: 40px; margin-bottom: 6px;
+            }
+            .bt2-range__bar {
+                flex: 1; border-radius: 2px 2px 0 0; background: var(--bt2-primary);
+                opacity: .7; transition: opacity .14s ease, background .14s ease;
+            }
+            .bt2-range__bar.is-muted { background: var(--bt2-border); opacity: 1; }
+            .bt2-range__input {
+                -webkit-appearance: none; appearance: none; width: 100%; height: 20px;
+                background: none; cursor: pointer; display: block; margin: 0;
+            }
+            .bt2-range__input::-webkit-slider-runnable-track {
+                height: 4px; border-radius: 999px;
+                background: linear-gradient(to right,
+                    var(--bt2-primary) var(--bt2-range-pct,100%),
+                    var(--bt2-border) var(--bt2-range-pct,100%));
+            }
+            .bt2-range__input::-moz-range-track { height: 4px; border-radius: 999px; background: var(--bt2-border); }
+            .bt2-range__input::-moz-range-progress { height: 4px; border-radius: 999px; background: var(--bt2-primary); }
+            .bt2-range__input::-webkit-slider-thumb {
+                -webkit-appearance: none; appearance: none; margin-top: -7px;
+                width: 18px; height: 18px; border-radius: 50%;
+                background: #fff; border: 2px solid var(--bt2-primary);
+                box-shadow: 0 1px 4px rgba(16,24,40,.28);
+            }
+            .bt2-range__input::-moz-range-thumb {
+                width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--bt2-primary);
+                background: #fff; box-shadow: 0 1px 4px rgba(16,24,40,.28);
+            }
+            .bt2-range__input:focus-visible { outline: 3px solid rgba(10,115,255,.28); outline-offset: 4px; }
+            .bt2-range__scale {
+                display: flex; justify-content: space-between;
+                font-size: 11.5px; color: var(--bt2-muted); font-variant-numeric: tabular-nums;
+            }
+            .bt2-filters__status {
+                display: flex; align-items: center; gap: 12px;
+                margin-top: 12px; min-height: 20px;
+            }
+            .bt2-filters__count { margin: 0; font-size: 13px; color: var(--bt2-muted); }
+            .bt2-filters__clear {
+                background: none; border: 0; padding: 0; cursor: pointer;
+                font-family: ${FONT}; font-size: 13px; font-weight: 500; color: var(--bt2-primary);
+                text-decoration: underline; text-underline-offset: 3px;
+            }
+            .bt2-filters__clear:hover { color: var(--bt2-primary-hover); }
+            .bt2-fallback .bt2-filters__clear {
+                min-height: 44px; padding: 0 20px; text-decoration: none; color: var(--bt2-navy);
+            }
             .bt2-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 24px; }
             .bt2-card {
                 background: #fff; border: 1px solid var(--bt2-border); border-radius: 14px;
@@ -1408,17 +1942,49 @@ window.Wized.push((Wized) => {
             }
             .bt2-card:hover { transform: translateY(-3px); box-shadow: 0 12px 28px rgba(16,24,40,.1); }
             .bt2-card--featured {
-                border-color: #7CB3FF; box-shadow: 0 10px 32px rgba(10,115,255,.18);
-                outline: 2px solid rgba(10,115,255,.25); outline-offset: 0;
+                border-color: #A6CBFF;
+                box-shadow: 0 6px 20px rgba(16,24,40,.06), 0 0 0 3px rgba(10,115,255,.1);
             }
             .bt2-featured-label {
-                display: inline-flex; align-items: center; gap: 6px;
-                margin: 0 0 10px; padding: 5px 10px;
+                display: inline-flex; align-items: center; gap: 5px;
+                margin: 0 0 10px; padding: 4px 9px;
                 background: #EEF5FF; border: 1px solid #C8DCFF; border-radius: 999px;
-                font-size: 12px; font-weight: 500; color: #175CD3;
+                font-size: 10px; font-weight: 500; color: #175CD3;
+                letter-spacing: .06em; text-transform: uppercase; line-height: 1.4;
             }
             .bt2-card__media { position: relative; aspect-ratio: 16/10; background: #e8edf2; }
             .bt2-card__media img { width: 100%; height: 100%; object-fit: cover; display: block; }
+            .bt2-carousel { position: absolute; inset: 0; }
+            .bt2-carousel__track {
+                display: flex; height: 100%; overflow-x: auto; overflow-y: hidden;
+                scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch;
+                scrollbar-width: none; -ms-overflow-style: none; overscroll-behavior-x: contain;
+            }
+            .bt2-carousel__track::-webkit-scrollbar { display: none; }
+            .bt2-carousel__track:focus-visible { outline: 3px solid rgba(10,115,255,.4); outline-offset: -3px; }
+            .bt2-carousel__slide {
+                position: relative; flex: 0 0 100%; width: 100%; height: 100%;
+                scroll-snap-align: start; scroll-snap-stop: always;
+            }
+            .bt2-carousel__slide img { pointer-events: none; }
+            .bt2-carousel__tag {
+                position: absolute; top: 10px; left: 10px;
+                padding: 4px 8px; border-radius: 6px;
+                background: rgba(5,18,35,.72); color: #fff; backdrop-filter: blur(4px);
+                font-size: 10px; font-weight: 500; line-height: 1.4;
+                letter-spacing: .07em; text-transform: uppercase;
+            }
+            .bt2-carousel__dots {
+                position: absolute; left: 0; right: 0; bottom: 10px;
+                display: flex; align-items: center; justify-content: center; gap: 6px;
+            }
+            .bt2-carousel__dot {
+                width: 7px; height: 7px; padding: 0; border-radius: 50%; cursor: pointer;
+                border: 0; background: rgba(255,255,255,.55);
+                box-shadow: 0 0 0 1px rgba(5,18,35,.25), 0 1px 3px rgba(5,18,35,.45);
+                transition: background .18s ease, width .18s ease;
+            }
+            .bt2-carousel__dot.is-active { background: #fff; width: 18px; border-radius: 999px; }
             .bt2-card__badge {
                 position: absolute; top: 12px; left: 12px;
                 padding: 6px 10px; border-radius: 999px;
@@ -1469,6 +2035,9 @@ window.Wized.push((Wized) => {
             .bt2-pricing__pp strong {
                 font-weight: 500; color: var(--bt2-navy);
             }
+            /* Split recomputed from the visitor's own party size, so mark it as theirs. */
+            .bt2-pricing__pp.is-custom { color: var(--bt2-primary); }
+            .bt2-pricing__pp.is-custom strong { color: var(--bt2-primary); }
             .bt2-pricing__note { font-size: 12px; color: var(--bt2-muted); margin: 6px 0 0; line-height: 1.35; }
             .bt2-card__cta { margin: 0 0 14px; }
             .bt2-card__reassure {
@@ -1488,11 +2057,19 @@ window.Wized.push((Wized) => {
                 margin: 0 0 8px; font-size: 11px; font-weight: 500; letter-spacing: .05em;
                 text-transform: uppercase; color: var(--bt2-muted);
             }
-            .bt2-included__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-            .bt2-included__item { display: flex; gap: 8px; align-items: flex-start; }
+            .bt2-included__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+            .bt2-included__item {
+                display: flex; gap: 9px; align-items: flex-start;
+                padding: 8px 10px 8px 9px; border-radius: 8px;
+                background: #FBFCFD; border: 1px solid var(--bt2-border-light);
+                border-left: 3px solid var(--bt2-included-accent, #98A2B3);
+            }
+            .bt2-included__item--stay { --bt2-included-accent: #0A73FF; }
+            .bt2-included__item--boat { --bt2-included-accent: #12B76A; }
+            .bt2-included__item--charter { --bt2-included-accent: #F79009; }
             .bt2-included__emoji {
-                flex-shrink: 0; width: 28px; height: 28px; border-radius: 7px;
-                background: var(--bt2-section-light); border: 1px solid var(--bt2-border-light);
+                flex-shrink: 0; width: 26px; height: 26px; border-radius: 7px;
+                background: #fff; border: 1px solid var(--bt2-border-light);
                 display: grid; place-items: center; font-size: 14px; line-height: 1;
             }
             .bt2-included__body { min-width: 0; flex: 1; }
@@ -1505,7 +2082,7 @@ window.Wized.push((Wized) => {
             }
             .bt2-included__type {
                 font-size: 11px; font-weight: 500; letter-spacing: .04em;
-                text-transform: uppercase; color: var(--bt2-primary);
+                text-transform: uppercase; color: var(--bt2-included-accent, var(--bt2-primary));
             }
             .bt2-included__capacity {
                 font-size: 11px; font-weight: 400; color: var(--bt2-muted);
@@ -1557,6 +2134,19 @@ window.Wized.push((Wized) => {
                 background: #fff; color: var(--bt2-navy); border: 0;
             }
             .bt2-mid-cta .bt2-btn:hover { background: #F0F7FF; }
+            .bt2-mid-cta--slim {
+                display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+                background: transparent; border: 0; border-radius: 0;
+                box-shadow: none; padding: 2px 0 6px;
+            }
+            .bt2-mid-cta--slim .bt2-mid-cta__slim-label {
+                margin: 0; font-size: 14px; color: var(--bt2-muted); line-height: 1.5;
+            }
+            .bt2-mid-cta--slim .bt2-mid-cta__slim-link {
+                font-size: 15px; font-weight: 500; color: var(--bt2-primary);
+                text-decoration: underline; text-underline-offset: 3px;
+            }
+            .bt2-mid-cta--slim .bt2-mid-cta__slim-link:hover { color: var(--bt2-primary-hover); }
             @media (min-width: 993px) { .bt2-mid-cta--desktop { display: flex; } }
             @media (min-width: 768px) and (max-width: 992px) { .bt2-mid-cta--tablet { display: flex; } }
             @media (max-width: 767px) {
@@ -1581,6 +2171,7 @@ window.Wized.push((Wized) => {
                 letter-spacing: .06em; text-transform: uppercase;
             }
             .bt2-details h4:first-child { margin-top: 0; }
+            .bt2-details__cta { margin: 18px 0 4px; }
             .bt2-details p { margin: 0 0 10px; font-size: 14px; color: var(--bt2-text); line-height: 1.6; }
             .bt2-details ul { margin: 0 0 4px; padding-left: 0; list-style: none; font-size: 14px; color: var(--bt2-text); }
             .bt2-details ul li {
@@ -1735,6 +2326,17 @@ window.Wized.push((Wized) => {
                 .bt2-section { padding: 48px 0; }
                 .bt2-section__head { margin-bottom: 32px; }
                 .bt2-section__head h2 { font-size: 28px; }
+                .bt2-filters { margin: -14px 0 20px; }
+                /* Two-up keeps every control tappable without a scrolling toolbar. */
+                .bt2-filters__bar { grid-template-columns: 1fr 1fr; gap: 6px; padding: 6px; border-radius: 12px; }
+                .bt2-fc__trigger { gap: 8px; padding: 8px 10px; }
+                .bt2-fc__value { font-size: 13px; }
+                /* Panels span the whole bar rather than one narrow half of it. */
+                .bt2-fc { position: static; }
+                .bt2-fc__panel {
+                    left: 6px; right: 6px; top: calc(100% + 6px);
+                    min-width: 0; max-width: none;
+                }
                 .bt2-grid { grid-template-columns: 1fr; gap: 18px; }
                 .bt2-card:hover { transform: none; }
                 .bt2-card__media { aspect-ratio: 4/3; }
@@ -1832,6 +2434,29 @@ window.Wized.push((Wized) => {
                 margin: 0; font-size: 22px; font-weight: 500; color: var(--bt2-navy);
                 font-family: ${FONT};
             }
+            .bt2-sticky-cta {
+                position: fixed; left: 0; right: 0; bottom: 0; z-index: 9000;
+                display: none; align-items: center; gap: 12px;
+                padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+                background: #fff; border-top: 1px solid var(--bt2-border);
+                font-family: ${FONT};
+            }
+            .bt2-sticky-cta__info { min-width: 0; flex: 1; }
+            .bt2-sticky-cta__name {
+                margin: 0; font-size: 13px; font-weight: 500; color: var(--bt2-navy);
+                line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            }
+            .bt2-sticky-cta__price {
+                margin: 1px 0 0; font-size: 12px; color: var(--bt2-muted);
+                line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            }
+            .bt2-sticky-cta__btn {
+                flex-shrink: 0; min-height: 44px; padding: 0 14px;
+                font-size: 14px; white-space: nowrap;
+            }
+            @media (max-width: 767px) {
+                .bt2-sticky-cta.is-visible { display: flex; }
+            }
             body.bt2-no-scroll { overflow: hidden; }
             @media (max-width: 767px) {
                 .bt2-email-modal__hero { height: 72px; }
@@ -1847,6 +2472,7 @@ window.Wized.push((Wized) => {
     }
 
     function renderPackageCard(pkg, index) {
+        const perPerson = perPersonPrice(pkg);
         const priceBlock = pkg.startingTotalPrice
             ? `<div class="bt2-pricing">
                 <div class="bt2-pricing__from">Starting at</div>
@@ -1855,8 +2481,13 @@ window.Wized.push((Wized) => {
                     <span class="bt2-pricing__suffix">total package</span>
                 </div>
                 <p class="bt2-pricing__note">Pricing may vary by dates and season.</p>
-                ${pkg.estimatedPerPersonPrice && pkg.estimatedGuestCount
-                ? `<p class="bt2-pricing__pp"><strong>About $${formatCurrency(pkg.estimatedPerPersonPrice)} per person</strong><br>Based on a group of ${pkg.estimatedGuestCount}</p>`
+                ${perPerson.amount && perPerson.groupSize
+                ? `<p class="bt2-pricing__pp${perPerson.isCustom ? ' is-custom' : ''}">
+                    <strong>About $${formatCurrency(perPerson.amount)} per person</strong><br>
+                    ${perPerson.isCustom
+                    ? `Based on your group of ${perPerson.groupSize}`
+                    : `Based on a group of ${perPerson.groupSize}`}
+                   </p>`
                 : ''}
                </div>`
             : `<div class="bt2-pricing"><p class="bt2-pricing__note">Pricing may vary by dates and season.</p></div>`;
@@ -1880,7 +2511,7 @@ window.Wized.push((Wized) => {
                 <p class="bt2-included__label">What's included</p>
                 <ul class="bt2-included__list">
                     ${pkg.includedComponents.map((item) => `
-                        <li class="bt2-included__item">
+                        <li class="bt2-included__item bt2-included__item--${escapeHtml(item.kind || 'stay')}">
                             <span class="bt2-included__emoji" aria-hidden="true">${item.emoji || ''}</span>
                             <div class="bt2-included__body">
                                 <div class="bt2-included__top">
@@ -1914,8 +2545,20 @@ window.Wized.push((Wized) => {
             ? `<div class="bt2-card__cta">
                 <a class="bt2-btn bt2-btn--primary bt2-btn--full bt2-cta-link"
                    href="${escapeHtml(pkg.listingUrl)}"
-                   data-trip-name="${escapeHtml(pkg.title)}">Check dates and book</a>
+                   data-trip-name="${escapeHtml(pkg.title)}"
+                   data-cta-placement="card">Check dates &amp; exact price</a>
                 <p class="bt2-card__reassure">See photos, dates, and ${detailsPhrase}</p>
+               </div>`
+            : '';
+
+        // Reading the whole itinerary is the strongest buying signal, so the panel
+        // has to end on the booking step rather than on a link away from it.
+        const panelCtaBlock = pkg.listingUrl
+            ? `<div class="bt2-details__cta">
+                <a class="bt2-btn bt2-btn--primary bt2-btn--full bt2-cta-link"
+                   href="${escapeHtml(pkg.listingUrl)}"
+                   data-trip-name="${escapeHtml(pkg.title)}"
+                   data-cta-placement="itinerary_end">Check dates &amp; exact price</a>
                </div>`
             : '';
 
@@ -1951,7 +2594,40 @@ window.Wized.push((Wized) => {
 
         const featuredClass = pkg.isFeatured ? ' bt2-card--featured' : '';
         const featuredLabel = pkg.isFeatured
-            ? `<div class="bt2-featured-label">${EMOJI.check} This is the trip from your video</div>`
+            ? `<div class="bt2-featured-label">${EMOJI.check} The trip you requested</div>`
+            : '';
+
+        const slides = pkg.mediaSlides?.length
+            ? pkg.mediaSlides
+            : (pkg.mainImage ? [{ url: pkg.mainImage, label: 'Stay' }] : []);
+        const carouselId = `bt2-carousel-${index}`;
+        const mediaHtml = slides.length
+            ? `<div class="bt2-carousel" id="${carouselId}" data-carousel>
+                <div class="bt2-carousel__track" data-carousel-track
+                     ${slides.length > 1 ? 'tabindex="0" role="group" aria-label="Package photos"' : ''}>
+                    ${slides.map((slide, i) => `
+                        <div class="bt2-carousel__slide">
+                            <img src="${escapeHtml(slide.url)}"
+                                 alt="${escapeHtml(`${pkg.title} — ${slide.label}`)}"
+                                 loading="${i === 0 ? 'eager' : 'lazy'}">
+                            <span class="bt2-carousel__tag">${escapeHtml(slide.label)}</span>
+                        </div>`).join('')}
+                </div>
+                ${slides.length > 1
+                ? `<div class="bt2-carousel__dots" data-carousel-dots>
+                        ${slides.map((slide, i) => `
+                            <button type="button" class="bt2-carousel__dot${i === 0 ? ' is-active' : ''}"
+                                    data-slide="${i}"
+                                    aria-label="${escapeHtml(`Show ${slide.label} photo`)}"></button>`).join('')}
+                       </div>`
+                : ''}
+               </div>`
+            : '';
+
+        const stickyPriceLabel = pkg.startingTotalPrice
+            ? `From $${formatCurrency(pkg.startingTotalPrice)}${perPerson.amount
+                ? ` · ~$${formatCurrency(perPerson.amount)} pp`
+                : ''}`
             : '';
 
         const nightsLabel = pkg.nights ? `${pkg.nights}-night stay` : '';
@@ -1976,10 +2652,14 @@ window.Wized.push((Wized) => {
             : '';
 
         return `
-            <article class="bt2-card${featuredClass} is-loaded" data-package-id="${escapeHtml(pkg.id)}">
+            <article class="bt2-card${featuredClass} is-loaded"
+                     data-package-id="${escapeHtml(pkg.id)}"
+                     data-trip-name="${escapeHtml(pkg.title)}"
+                     data-reference="${pkg.isFeatured ? 'true' : 'false'}"
+                     data-price-label="${escapeHtml(stickyPriceLabel)}">
                 <div class="bt2-card__media">
-                    ${pkg.mainImage ? `<img src="${escapeHtml(pkg.mainImage)}" alt="${escapeHtml(pkg.title)}" loading="lazy">` : ''}
-                    ${stackHtml}
+                    ${mediaHtml}
+                    ${slides.length > 1 ? '' : stackHtml}
                 </div>
                 <div class="bt2-card__body">
                     ${featuredLabel}
@@ -1991,7 +2671,7 @@ window.Wized.push((Wized) => {
                     ${includedHtmlFace}
                     <button type="button" class="bt2-accordion-btn bt2-package-toggle"
                             aria-expanded="false" aria-controls="${detailsId}" data-target="${detailsId}">
-                        Trip details ${icons.chevron}
+                        View full itinerary ${icons.chevron}
                     </button>
                     <div class="bt2-accordion-panel" id="${detailsId}" role="region">
                         <div class="bt2-details">
@@ -2001,6 +2681,7 @@ window.Wized.push((Wized) => {
                             ${goodHtml}
                             <h4>Make it yours</h4>
                             ${customizeHtml}
+                            ${panelCtaBlock}
                         </div>
                     </div>
                 </div>
@@ -2070,6 +2751,7 @@ window.Wized.push((Wized) => {
                         <h2>Featured packages</h2>
                         <p>Choose a trip, then check dates for live pricing. Package prices may vary by week and season.</p>
                     </div>
+                    <div id="bt2-filters"></div>
                     <div class="bt2-grid" id="bt2-packages-grid">${renderSkeletons(6)}</div>
                 </div>
             </section>
@@ -2125,6 +2807,23 @@ window.Wized.push((Wized) => {
             </section>`;
     }
 
+    /** Shared by the card, itinerary-end, and sticky-bar CTAs. */
+    function handleCtaClick(cta) {
+        // The sticky bar lives outside the card, so it carries the same data attributes.
+        const detail = cardDetail(cta.closest('.bt2-card') || cta);
+        logEvent({
+            on_link_click: true,
+            link_clicked: cta.href.toLowerCase(),
+            link_clicked_trip_name: cta.dataset.tripName || '',
+        });
+        trackEvent('bundled_package_cta_click', {
+            ...detail,
+            destination: cta.href,
+            placement: cta.dataset.ctaPlacement || 'card',
+        });
+        persistAttribution(detail);
+    }
+
     function bindPageInteractions(root) {
         if (root.dataset.bt2Bound) return;
         root.dataset.bt2Bound = 'true';
@@ -2140,16 +2839,15 @@ window.Wized.push((Wized) => {
             const buildOwn = e.target.closest('.bt2-build-own');
             if (buildOwn) {
                 logEvent({ on_link_click: true, link_clicked: '/', link_clicked_trip_name: 'Build Your Own Trip' });
+                trackEvent('bundled_build_your_own_click', {
+                    placement: buildOwn.closest('.bt2-mid-cta--slim') ? 'slim_reference' : 'standard',
+                });
                 return;
             }
 
             const cta = e.target.closest('.bt2-cta-link');
             if (cta && cta.href && cta.href !== '#') {
-                logEvent({
-                    on_link_click: true,
-                    link_clicked: cta.href.toLowerCase(),
-                    link_clicked_trip_name: cta.dataset.tripName || '',
-                });
+                handleCtaClick(cta);
                 return;
             }
 
@@ -2161,6 +2859,7 @@ window.Wized.push((Wized) => {
                 const isOpen = pkgBtn.getAttribute('aria-expanded') === 'true';
                 pkgBtn.setAttribute('aria-expanded', isOpen ? 'false' : 'true');
                 panel.classList.toggle('is-open', !isOpen);
+                if (!isOpen) trackEvent('bundled_trip_details_open', cardDetail(pkgBtn.closest('.bt2-card')));
                 return;
             }
 
@@ -2203,6 +2902,529 @@ window.Wized.push((Wized) => {
             </div>`;
     }
 
+    /** Reference traffic came for one specific package, so this stays a quiet secondary option. */
+    function renderSlimCta() {
+        return `
+            <div class="bt2-mid-cta bt2-mid-cta--slim">
+                <p class="bt2-mid-cta__slim-label">Not quite what you want?</p>
+                <a href="${HOME_URL}" class="bt2-mid-cta__slim-link bt2-build-own">Build your own Florida Keys trip &rarr;</a>
+            </div>`;
+    }
+
+    function initCarousels(root) {
+        root.querySelectorAll('[data-carousel]').forEach((carousel) => {
+            if (carousel.dataset.bt2CarouselBound) return;
+            carousel.dataset.bt2CarouselBound = 'true';
+
+            const track = carousel.querySelector('[data-carousel-track]');
+            const dots = Array.from(carousel.querySelectorAll('.bt2-carousel__dot'));
+            if (!track || dots.length < 2) return;
+
+            const card = carousel.closest('.bt2-card');
+            let current = 0;
+            let pending = null;
+
+            const setActive = (index) => {
+                if (index === current) return;
+                current = index;
+                dots.forEach((dot, i) => dot.classList.toggle('is-active', i === index));
+                trackEvent('bundled_carousel_swipe', {
+                    ...cardDetail(card),
+                    slideIndex: index,
+                    slideLabel: track.children[index]?.querySelector('.bt2-carousel__tag')?.textContent || '',
+                });
+            };
+
+            track.addEventListener('scroll', () => {
+                if (pending) return;
+                pending = requestAnimationFrame(() => {
+                    pending = null;
+                    const width = track.clientWidth || 1;
+                    const index = Math.round(track.scrollLeft / width);
+                    setActive(Math.max(0, Math.min(dots.length - 1, index)));
+                });
+            }, { passive: true });
+
+            dots.forEach((dot, i) => {
+                dot.addEventListener('click', () => {
+                    track.scrollTo({ left: track.clientWidth * i, behavior: 'smooth' });
+                });
+            });
+        });
+    }
+
+    let viewFallbackBound = false;
+
+    /**
+     * Fires bundled_package_view once a card is ~half seen — never just on page load.
+     * Seen packages are tracked by id, so re-rendering the grid after a filter change
+     * doesn't report the same package twice.
+     */
+    function observePackageViews(root) {
+        const markViewed = (card) => {
+            const id = card.dataset.packageId || '';
+            if (viewedPackageIds.has(id)) return;
+            viewedPackageIds.add(id);
+            trackEvent('bundled_package_view', cardDetail(card));
+        };
+
+        if (!('IntersectionObserver' in window)) {
+            if (viewFallbackBound) return;
+            viewFallbackBound = true;
+            let pending = null;
+            const check = () => {
+                pending = null;
+                root.querySelectorAll('.bt2-card').forEach((card) => {
+                    if (viewedPackageIds.has(card.dataset.packageId || '')) return;
+                    const rect = card.getBoundingClientRect();
+                    const visible = Math.min(rect.bottom, window.innerHeight) - Math.max(rect.top, 0);
+                    if (visible <= 0) return;
+                    if (visible >= Math.min(rect.height, window.innerHeight) * 0.5) markViewed(card);
+                });
+            };
+            const schedule = () => {
+                if (pending) return;
+                pending = setTimeout(check, 150);
+            };
+            window.addEventListener('scroll', schedule, { passive: true });
+            window.addEventListener('resize', schedule);
+            schedule();
+            return;
+        }
+
+        root.querySelectorAll('.bt2-card').forEach((card) => {
+            if (viewedPackageIds.has(card.dataset.packageId || '')) return;
+            // A card taller than the viewport can never reach 50% of its own height on
+            // screen, so fall back to whatever half a viewport works out to for that card.
+            const threshold = Math.max(0.1, Math.min(0.5, (window.innerHeight * 0.5) / Math.max(card.offsetHeight, 1)));
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach((entry) => {
+                    if (!entry.isIntersecting || entry.intersectionRatio < threshold) return;
+                    markViewed(card);
+                    observer.disconnect();
+                });
+            }, { threshold: [threshold] });
+            observer.observe(card);
+        });
+    }
+
+    /**
+     * Mobile-only bottom bar carrying the CTA for whichever card owns the viewport.
+     * Cards run 1.3 screens closed and 3.5 open, so the card's own button spends most
+     * of the read off-screen. Hides itself whenever that button is already visible.
+     */
+    function initStickyCta(root) {
+        if (document.querySelector('.bt2-sticky-cta')) return;
+
+        const bar = document.createElement('div');
+        bar.className = 'bt2-sticky-cta';
+        bar.innerHTML = `
+            <div class="bt2-sticky-cta__info">
+                <p class="bt2-sticky-cta__name"></p>
+                <p class="bt2-sticky-cta__price"></p>
+            </div>
+            <a class="bt2-btn bt2-btn--primary bt2-cta-link bt2-sticky-cta__btn"
+               href="#" data-cta-placement="sticky">Check dates &amp; price</a>`;
+        document.body.appendChild(bar);
+
+        const nameEl = bar.querySelector('.bt2-sticky-cta__name');
+        const priceEl = bar.querySelector('.bt2-sticky-cta__price');
+        const link = bar.querySelector('.bt2-sticky-cta__btn');
+        link.addEventListener('click', () => {
+            if (link.href && !link.href.endsWith('#')) handleCtaClick(link);
+        });
+
+        let shownFor = null;
+        let pending = null;
+
+        const hide = () => {
+            bar.classList.remove('is-visible');
+            shownFor = null;
+        };
+
+        const update = () => {
+            pending = null;
+            if (document.querySelector('.bt2-email-overlay.is-open')) return hide();
+
+            const vh = window.innerHeight;
+            let card = null;
+            let mostVisible = 0;
+            root.querySelectorAll('.bt2-card').forEach((el) => {
+                const rect = el.getBoundingClientRect();
+                const visible = Math.min(rect.bottom, vh) - Math.max(rect.top, 0);
+                if (visible > mostVisible) {
+                    mostVisible = visible;
+                    card = el;
+                }
+            });
+            if (!card || mostVisible < vh * 0.6) return hide();
+
+            const cardCta = card.querySelector('.bt2-card__cta .bt2-cta-link');
+            if (!cardCta || !cardCta.href || cardCta.href.endsWith('#')) return hide();
+
+            // Stand down whenever any of the card's own buttons is already on screen,
+            // including the one at the end of an expanded itinerary.
+            const barHeight = bar.offsetHeight || 76;
+            const ownCtaVisible = Array.from(card.querySelectorAll('.bt2-cta-link')).some((el) => {
+                // A collapsed accordion still reports a box, so check the panel is open.
+                const panel = el.closest('.bt2-accordion-panel');
+                if (panel && !panel.classList.contains('is-open')) return false;
+                const rect = el.getBoundingClientRect();
+                if (rect.height <= 0) return false;
+                return rect.bottom > 0 && rect.top < vh - barHeight;
+            });
+            if (ownCtaVisible) return hide();
+
+            const id = card.dataset.packageId || '';
+            if (id !== shownFor) {
+                shownFor = id;
+                nameEl.textContent = card.dataset.tripName || '';
+                priceEl.textContent = card.dataset.priceLabel || '';
+                link.href = cardCta.href;
+                link.dataset.packageId = id;
+                link.dataset.tripName = card.dataset.tripName || '';
+                link.dataset.reference = card.dataset.reference || 'false';
+            }
+            bar.classList.add('is-visible');
+        };
+
+        const schedule = () => {
+            if (pending) return;
+            pending = requestAnimationFrame(update);
+        };
+
+        window.addEventListener('scroll', schedule, { passive: true });
+        window.addEventListener('resize', schedule);
+        root.addEventListener('click', schedule);
+        schedule();
+    }
+
+    /** Height of any fixed/sticky site header, so scroll targets aren't hidden behind it. */
+    function getStickyHeaderOffset() {
+        const candidates = new Set([
+            ...document.body.children,
+            ...document.querySelectorAll('header, nav, .w-nav, [class*="navbar"], [class*="nav-bar"], [data-element*="nav"]'),
+        ]);
+        let offset = 0;
+        candidates.forEach((el) => {
+            if (!(el instanceof Element) || el.closest('[data-element="bundled-trips-body-container"]')) return;
+            const styles = window.getComputedStyle(el);
+            if (styles.position !== 'fixed' && styles.position !== 'sticky') return;
+            if (styles.display === 'none' || styles.visibility === 'hidden') return;
+            const rect = el.getBoundingClientRect();
+            // Only count bars pinned to the top of the viewport.
+            if (rect.height <= 0 || rect.height > window.innerHeight / 2 || rect.top > 1) return;
+            offset = Math.max(offset, rect.bottom);
+        });
+        return Math.max(0, offset);
+    }
+
+    /** Land on the card's title and upper edge with a little headroom, not mid-image. */
+    function scrollToCard(card) {
+        const headroom = 16;
+        const top = card.getBoundingClientRect().top + window.scrollY - getStickyHeaderOffset() - headroom;
+        window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+    }
+
+    /** Only offer a control when it would actually split the catalog. */
+    function usableFilters(packages) {
+        const splits = (option) => {
+            const hits = packages.filter((pkg) => option.match(pkg)).length;
+            return hits > 0 && hits < packages.length;
+        };
+        const areas = AREA_OPTIONS.filter(splits);
+        const includes = INCLUDE_OPTIONS.filter(splits);
+        // A component is worth a stepper if its capacity varies, or if requiring any
+        // capacity at all would rule some packages out.
+        const guests = GUEST_COMPONENTS
+            .map((component) => ({ component, ...guestBounds(packages, component) }))
+            .filter((row) => row.present > 0 && (row.min < row.max || row.present < packages.length));
+        const price = priceFloor(packages, PRICE_BASES[0]) < priceCeiling(packages, PRICE_BASES[0])
+            ? true
+            : null;
+        const any = areas.length || includes.length || guests.length || price;
+        return { areas, includes, guests, price, any };
+    }
+
+    const ICONS = {
+        pin: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M8 14.5S13 10.4 13 6.5a5 5 0 0 0-10 0C3 10.4 8 14.5 8 14.5Z"/><circle cx="8" cy="6.4" r="1.9"/></svg>',
+        check: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2 4.2h3.2M2 8h3.2M2 11.8h3.2"/><path d="M8.2 4.2h6M8.2 8h6M8.2 11.8h6" opacity=".45"/></svg>',
+        guests: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="6" cy="5.4" r="2.4"/><path d="M1.8 13.4c0-2.3 1.9-4.1 4.2-4.1s4.2 1.8 4.2 4.1"/><path d="M10.6 3.3a2.4 2.4 0 0 1 0 4.2M11.6 9.5c1.6.4 2.7 1.8 2.7 3.5" opacity=".45"/></svg>',
+        price: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M8 2.2v11.6"/><path d="M10.6 5.1c0-1.1-1.2-1.8-2.6-1.8s-2.6.7-2.6 1.8S6.3 7 8 7.3s2.8.9 2.8 2.1-1.3 1.9-2.8 1.9-2.8-.8-2.8-1.9"/></svg>',
+    };
+
+    const optionRow = (kind, option) => `
+        <label class="bt2-opt" data-opt="${escapeHtml(kind)}:${escapeHtml(option.id)}">
+            <input type="checkbox" class="bt2-opt__box" data-${escapeHtml(kind)}="${escapeHtml(option.id)}">
+            <span class="bt2-opt__tick" aria-hidden="true"></span>
+            <span class="bt2-opt__body">
+                <span class="bt2-opt__label">${escapeHtml(option.label)}</span>
+                ${option.hint ? `<span class="bt2-opt__hint">${escapeHtml(option.hint)}</span>` : ''}
+            </span>
+            <span class="bt2-opt__count" aria-hidden="true"></span>
+        </label>`;
+
+    const control = (id, icon, label, panel, panelLabel = label) => `
+        <div class="bt2-fc" data-control="${id}">
+            <button type="button" class="bt2-fc__trigger" aria-expanded="false" aria-haspopup="true">
+                <span class="bt2-fc__icon" aria-hidden="true">${icon}</span>
+                <span class="bt2-fc__text">
+                    <span class="bt2-fc__label">${escapeHtml(label)}</span>
+                    <span class="bt2-fc__value" data-fc-value>Any</span>
+                </span>
+                <span class="bt2-fc__caret" aria-hidden="true"></span>
+            </button>
+            <div class="bt2-fc__panel" role="group" aria-label="${escapeHtml(panelLabel)}" hidden>${panel}</div>
+        </div>`;
+
+    function renderFilterBar(host, filters) {
+        const controls = [];
+
+        if (filters.areas.length) {
+            controls.push(control('area', ICONS.pin, 'Location', `
+                <div class="bt2-fc__options">${filters.areas.map((a) => optionRow('area', a)).join('')}</div>`));
+        }
+
+        if (filters.includes.length) {
+            controls.push(control('include', ICONS.check, 'Includes', `
+                <div class="bt2-fc__options">${filters.includes.map((i) => optionRow('include', i)).join('')}</div>
+                <p class="bt2-fc__foot">Every box you tick has to be in the package.</p>`, 'Package includes'));
+        }
+
+        if (filters.guests.length) {
+            controls.push(control('guests', ICONS.guests, 'Guests', `
+                <div class="bt2-gsteps">
+                    ${filters.guests.map(({ component }) => `
+                        <div class="bt2-gstep" data-guest-row="${component.id}">
+                            <span class="bt2-gstep__text">
+                                <span class="bt2-gstep__label">${escapeHtml(component.label)}</span>
+                                <span class="bt2-gstep__meta"></span>
+                            </span>
+                            <span class="bt2-stepper">
+                                <button type="button" class="bt2-stepper__btn" data-guests-step="-1"
+                                        data-guest-kind="${component.id}"
+                                        aria-label="Fewer &mdash; ${escapeHtml(component.label)}">&minus;</button>
+                                <span class="bt2-stepper__value" data-guests-value="${component.id}"
+                                      aria-live="polite">Any</span>
+                                <button type="button" class="bt2-stepper__btn" data-guests-step="1"
+                                        data-guest-kind="${component.id}"
+                                        aria-label="More &mdash; ${escapeHtml(component.label)}">+</button>
+                            </span>
+                        </div>`).join('')}
+                </div>
+                <p class="bt2-fc__foot">Set each piece to the party size it has to handle.</p>`));
+        }
+
+        if (filters.price) {
+            const basis = PRICE_BASES[0];
+            controls.push(control('price', ICONS.price, 'Price', `
+                <div class="bt2-seg" role="group" aria-label="Price basis">
+                    ${PRICE_BASES.map((b) => `
+                        <button type="button" class="bt2-seg__btn" data-basis="${b.id}"
+                                aria-pressed="${b.id === basis.id ? 'true' : 'false'}">${escapeHtml(b.label)}</button>`).join('')}
+                </div>
+                <div class="bt2-range">
+                    <div class="bt2-range__hist" data-hist aria-hidden="true"></div>
+                    <input type="range" class="bt2-range__input" data-price-range
+                           min="0" max="100" step="1" value="100" aria-label="Maximum price">
+                    <div class="bt2-range__scale">
+                        <span data-price-low></span>
+                        <span data-price-high></span>
+                    </div>
+                </div>`));
+        }
+
+        host.innerHTML = `
+            <div class="bt2-filters">
+                <div class="bt2-filters__bar">${controls.join('')}</div>
+                <div class="bt2-filters__status">
+                    <p class="bt2-filters__count" aria-live="polite"></p>
+                    <button type="button" class="bt2-filters__clear" hidden>Clear all</button>
+                </div>
+            </div>`;
+    }
+
+    /** Reflect state back into every control, including counts and dead-end warnings. */
+    function syncFilterBar(host, shownCount) {
+        const total = allPackages.length;
+        const basis = priceBasis();
+
+        const setValue = (id, text, isSet) => {
+            const fc = host.querySelector(`.bt2-fc[data-control="${id}"]`);
+            if (!fc) return;
+            fc.classList.toggle('is-set', Boolean(isSet));
+            const value = fc.querySelector('[data-fc-value]');
+            if (value) value.textContent = text;
+        };
+
+        // Location + includes checkboxes, with the count each one would leave behind.
+        const syncOptions = (kind, options, selected) => {
+            host.querySelectorAll(`[data-${kind}]`).forEach((box) => {
+                const id = box.dataset[kind];
+                const option = options.find((o) => o.id === id);
+                if (!option) return;
+                const on = selected.has(id);
+                box.checked = on;
+                const probe = probeState({
+                    [kind === 'area' ? 'areas' : 'includes']: on
+                        ? new Set([...selected].filter((x) => x !== id))
+                        : new Set([...selected, id]),
+                });
+                const hits = filterPackages(allPackages, probe).length;
+                const row = box.closest('.bt2-opt');
+                row.classList.toggle('is-checked', on);
+                row.classList.toggle('is-empty', !on && hits === 0);
+                const count = row.querySelector('.bt2-opt__count');
+                if (count) count.textContent = String(hits);
+            });
+        };
+        syncOptions('area', AREA_OPTIONS, filterState.areas);
+        syncOptions('include', INCLUDE_OPTIONS, filterState.includes);
+
+        // Two full city names don't fit a half-width control on a phone.
+        const areaLabels = AREA_OPTIONS.filter((a) => filterState.areas.has(a.id)).map((a) => a.label);
+        setValue('area', areaLabels.length === 1
+            ? areaLabels[0]
+            : (areaLabels.length ? `${areaLabels.length} areas` : 'Anywhere'), areaLabels.length);
+
+        const includeLabels = INCLUDE_OPTIONS.filter((i) => filterState.includes.has(i.id)).map((i) => i.label);
+        setValue('include', includeLabels.length === 1
+            ? includeLabels[0]
+            : (includeLabels.length ? `${includeLabels.length} selected` : 'Anything'), includeLabels.length);
+
+        // Guests: one stepper per piece of the package, each with its own bounds.
+        host.querySelectorAll('[data-guest-row]').forEach((row) => {
+            const component = GUEST_COMPONENTS.find((c) => c.id === row.dataset.guestRow);
+            if (!component) return;
+            const want = filterState.guests[component.id];
+            const { max, present } = guestBounds(allPackages, component);
+
+            const value = row.querySelector('[data-guests-value]');
+            if (value) value.textContent = want ? String(want) : 'Any';
+
+            row.querySelectorAll('[data-guests-step]').forEach((btn) => {
+                const step = Number(btn.dataset.guestsStep);
+                btn.disabled = step < 0 ? want === 0 : want >= max;
+            });
+
+            // What this row alone still allows on top of the rest of the selection, so
+            // a dead end shows up before the grid empties.
+            const hits = filterPackages(allPackages, probeState({
+                guests: { [component.id]: want },
+            })).length;
+            const meta = row.querySelector('.bt2-gstep__meta');
+            if (meta) {
+                meta.textContent = want
+                    ? `${hits} ${hits === 1 ? 'package fits' : 'packages fit'} ${want}+`
+                    : `${present} have one · up to ${max}`;
+            }
+            row.classList.toggle('is-set', want > 0);
+            row.classList.toggle('is-empty', want > 0 && hits === 0);
+        });
+
+        const setGuests = setGuestComponents();
+        setValue('guests', setGuests.length === 1
+            ? `${setGuests[0].short} ${filterState.guests[setGuests[0].id]}+`
+            : (setGuests.length ? `${setGuests.length} set` : 'Any size'), setGuests.length);
+
+        // Price: slider bounds follow the basis, and the histogram shows the spread.
+        const range = host.querySelector('[data-price-range]');
+        if (range) {
+            const low = priceFloor(allPackages, basis);
+            const high = priceCeiling(allPackages, basis);
+            const step = basis.id === 'person' ? 50 : 100;
+            range.min = String(low);
+            range.max = String(high);
+            range.step = String(step);
+            const current = filterState.maxPrice || high;
+            range.value = String(Math.min(Math.max(current, low), high));
+            range.style.setProperty('--bt2-range-pct', `${high > low ? ((Number(range.value) - low) / (high - low)) * 100 : 100}%`);
+
+            const lowEl = host.querySelector('[data-price-low]');
+            const highEl = host.querySelector('[data-price-high]');
+            if (lowEl) lowEl.textContent = `$${formatCurrency(low)}`;
+            if (highEl) highEl.textContent = `$${formatCurrency(high)}+`;
+
+            host.querySelectorAll('[data-basis]').forEach((btn) => {
+                const on = btn.dataset.basis === basis.id;
+                btn.classList.toggle('is-active', on);
+                btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+            });
+
+            const hist = host.querySelector('[data-hist]');
+            if (hist) {
+                const buckets = 14;
+                const span = Math.max(1, high - low);
+                const counts = new Array(buckets).fill(0);
+                allPackages.forEach((pkg) => {
+                    const price = basis.priceOf(pkg);
+                    if (!price) return;
+                    const i = Math.min(buckets - 1, Math.floor(((price - low) / span) * buckets));
+                    counts[Math.max(0, i)] += 1;
+                });
+                const peak = Math.max(1, ...counts);
+                const cut = Number(range.value);
+                hist.innerHTML = counts.map((c, i) => {
+                    const bucketLow = low + (span / buckets) * i;
+                    const muted = bucketLow > cut ? ' is-muted' : '';
+                    return `<span class="bt2-range__bar${muted}" style="height:${Math.max(8, (c / peak) * 100)}%"></span>`;
+                }).join('');
+            }
+
+            const atMax = !filterState.maxPrice || filterState.maxPrice >= high;
+            setValue('price', atMax
+                ? `Any ${basis.id === 'person' ? 'per person' : 'total'}`
+                : `Up to $${formatCurrency(filterState.maxPrice)}${basis.id === 'person' ? ' pp' : ''}`,
+                !atMax);
+        }
+
+        const countEl = host.querySelector('.bt2-filters__count');
+        if (countEl) {
+            countEl.textContent = activeFilterCount()
+                ? `Showing ${shownCount} of ${total} Florida Keys packages`
+                : `${total} Florida Keys packages`;
+        }
+        const clearBtn = host.querySelector('.bt2-filters__clear');
+        if (clearBtn) clearBtn.hidden = activeFilterCount() === 0;
+    }
+
+    function renderGrid(grid) {
+        // The requested package always stays on the page, filters or not — the badge
+        // above its title already explains why it's there.
+        const referenced = allPackages.filter((pkg) => pkg.isFeatured);
+        const matched = filterPackages(allPackages.filter((pkg) => !pkg.isFeatured));
+        const packages = [...referenced, ...matched];
+
+        if (!packages.length) {
+            grid.innerHTML = `
+                <div class="bt2-fallback" style="grid-column:1/-1">
+                    <p>No packages match those filters. Try removing one, or build a trip from scratch.</p>
+                    <button type="button" class="bt2-btn bt2-btn--secondary bt2-filters__clear">Clear filters</button>
+                </div>`;
+            return 0;
+        }
+
+        const hasReferenceMatch = referenced.length > 0;
+        const parts = [];
+        packages.forEach((pkg, i) => {
+            parts.push(renderPackageCard(pkg, i));
+            if (hasReferenceMatch) {
+                if (i === 0) parts.push(renderSlimCta());
+                return;
+            }
+            // After first row: mobile=1, tablet=2, desktop=3
+            if (i === 0) parts.push(renderMidCta('mobile'));
+            if (i === 1) parts.push(renderMidCta('tablet'));
+            if (i === 2) parts.push(renderMidCta('desktop'));
+        });
+        grid.innerHTML = parts.join('');
+
+        initCarousels(grid);
+        observePackageViews(grid);
+        initStickyCta(grid);
+        return packages.length;
+    }
+
     function renderPackages(grid, trips) {
         if (!trips.length) {
             grid.innerHTML = `
@@ -2212,21 +3434,187 @@ window.Wized.push((Wized) => {
                 </div>`;
             return;
         }
-        const packages = trips.map((trip) => {
+
+        allPackages = trips.map((trip) => {
             const isRef = referenceNormalized && normalizeForMatch(trip.trip_name || '') === referenceNormalized;
             return tripToPackage(trip, isRef);
         });
-        packages.sort((a, b) => Number(b.isFeatured) - Number(a.isFeatured));
+        allPackages.sort((a, b) => Number(b.isFeatured) - Number(a.isFeatured));
 
-        const parts = [];
-        packages.forEach((pkg, i) => {
-            parts.push(renderPackageCard(pkg, i));
-            // After first row: mobile=1, tablet=2, desktop=3
-            if (i === 0) parts.push(renderMidCta('mobile'));
-            if (i === 1) parts.push(renderMidCta('tablet'));
-            if (i === 2) parts.push(renderMidCta('desktop'));
+        const host = document.querySelector('#bt2-filters');
+        const filters = usableFilters(allPackages);
+        if (host && filters.any) {
+            renderFilterBar(host, filters);
+            bindFilters(host, grid);
+        }
+
+        const visible = renderGrid(grid);
+        if (host && filters.any) syncFilterBar(host, visible);
+    }
+
+    /** A flat, readable description of the selection for the analytics payload. */
+    function describeFilters() {
+        const parts = [
+            ...Array.from(filterState.areas).map((id) => `area:${id}`),
+            ...Array.from(filterState.includes).map((id) => `includes:${id}`),
+        ];
+        setGuestComponents().forEach((c) => parts.push(`${c.id}:${filterState.guests[c.id]}+`));
+        if (filterState.maxPrice) parts.push(`max${filterState.priceBasis}:${filterState.maxPrice}`);
+        return parts.join(',') || 'none';
+    }
+
+    function bindFilters(host, grid) {
+        const closePanels = (except) => {
+            host.querySelectorAll('.bt2-fc').forEach((fc) => {
+                if (fc === except) return;
+                fc.classList.remove('is-open');
+                fc.querySelector('.bt2-fc__panel').hidden = true;
+                fc.querySelector('.bt2-fc__trigger').setAttribute('aria-expanded', 'false');
+            });
+        };
+
+        // Re-rendering the grid mid-interaction must not close the panel the visitor
+        // is still working in, so apply() only touches the grid and the bar's state.
+        const apply = (source) => {
+            const visible = renderGrid(grid);
+            syncFilterBar(host, visible);
+            trackEvent('bundled_filter_apply', {
+                filters: describeFilters(),
+                filterSource: source,
+                priceBasis: filterState.priceBasis,
+                resultCount: visible,
+            });
+        };
+
+        const reset = () => {
+            filterState.areas.clear();
+            filterState.includes.clear();
+            GUEST_COMPONENTS.forEach((c) => { filterState.guests[c.id] = 0; });
+            filterState.maxPrice = 0;
+        };
+
+        host.addEventListener('click', (e) => {
+            const trigger = e.target.closest('.bt2-fc__trigger');
+            if (trigger) {
+                const fc = trigger.closest('.bt2-fc');
+                const open = !fc.classList.contains('is-open');
+                closePanels(fc);
+                fc.classList.toggle('is-open', open);
+                const panel = fc.querySelector('.bt2-fc__panel');
+                panel.hidden = !open;
+                trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+                // Tapping a control low on the screen would otherwise open the panel
+                // off the bottom of the viewport.
+                if (open) {
+                    requestAnimationFrame(() => {
+                        const overflow = panel.getBoundingClientRect().bottom - (window.innerHeight - 12);
+                        if (overflow > 0) window.scrollBy({ top: overflow, behavior: 'smooth' });
+                    });
+                }
+                return;
+            }
+
+            const step = e.target.closest('[data-guests-step]');
+            if (step) {
+                const component = GUEST_COMPONENTS.find((c) => c.id === step.dataset.guestKind);
+                if (!component) return;
+                const { max } = guestBounds(allPackages, component);
+                const next = filterState.guests[component.id] + Number(step.dataset.guestsStep);
+                const before = partySize();
+                // Counts run 1..max, and stepping below one goes back to "Any".
+                filterState.guests[component.id] = next < 1 ? 0 : Math.min(next, max);
+                // Per-person prices are re-split by party size, so an old ceiling on the
+                // per-person scale no longer means what the visitor set it to mean.
+                if (filterState.priceBasis === 'person' && partySize() !== before) filterState.maxPrice = 0;
+                apply(`guests_${component.id}`);
+                return;
+            }
+
+            const basisBtn = e.target.closest('[data-basis]');
+            if (basisBtn) {
+                if (basisBtn.dataset.basis === filterState.priceBasis) return;
+                filterState.priceBasis = basisBtn.dataset.basis;
+                // The old ceiling means nothing on the new scale.
+                filterState.maxPrice = 0;
+                apply('price_basis');
+                return;
+            }
+
+            if (e.target.closest('.bt2-filters__clear')) {
+                if (!activeFilterCount()) return;
+                reset();
+                closePanels();
+                apply('clear');
+                keepFiltersInView(host);
+            }
         });
-        grid.innerHTML = parts.join('');
+
+        host.addEventListener('change', (e) => {
+            const box = e.target.closest('[data-area], [data-include]');
+            if (!box) return;
+            const kind = box.dataset.area ? 'area' : 'include';
+            const set = kind === 'area' ? filterState.areas : filterState.includes;
+            const id = kind === 'area' ? box.dataset.area : box.dataset.include;
+            if (box.checked) set.add(id);
+            else set.delete(id);
+            apply(kind);
+        });
+
+        // Track the thumb live, but only re-render the grid once the drag settles.
+        host.addEventListener('input', (e) => {
+            const range = e.target.closest('[data-price-range]');
+            if (!range) return;
+            const high = Number(range.max);
+            const value = Number(range.value);
+            filterState.maxPrice = value >= high ? 0 : value;
+            range.style.setProperty('--bt2-range-pct',
+                `${high > Number(range.min) ? ((value - Number(range.min)) / (high - Number(range.min))) * 100 : 100}%`);
+            const fc = range.closest('.bt2-fc');
+            const label = fc?.querySelector('[data-fc-value]');
+            if (label) {
+                label.textContent = filterState.maxPrice
+                    ? `Up to $${formatCurrency(filterState.maxPrice)}${filterState.priceBasis === 'person' ? ' pp' : ''}`
+                    : `Any ${filterState.priceBasis === 'person' ? 'per person' : 'total'}`;
+            }
+            fc?.classList.toggle('is-set', Boolean(filterState.maxPrice));
+            fc?.querySelectorAll('[data-hist] .bt2-range__bar').forEach((bar, i, bars) => {
+                const bucketLow = Number(range.min) + ((high - Number(range.min)) / bars.length) * i;
+                bar.classList.toggle('is-muted', bucketLow > value);
+            });
+        });
+
+        host.addEventListener('change', (e) => {
+            if (e.target.closest('[data-price-range]')) apply('price');
+        });
+
+        host.addEventListener('keydown', (e) => {
+            if (e.key !== 'Escape') return;
+            const open = host.querySelector('.bt2-fc.is-open');
+            if (!open) return;
+            closePanels();
+            open.querySelector('.bt2-fc__trigger').focus();
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!host.querySelector('.bt2-fc.is-open')) return;
+            if (host.contains(e.target)) return;
+            closePanels();
+        });
+
+        // The empty state renders its own clear button inside the grid.
+        grid.addEventListener('click', (e) => {
+            if (!e.target.closest('.bt2-filters__clear')) return;
+            reset();
+            const visible = renderGrid(grid);
+            syncFilterBar(host, visible);
+            keepFiltersInView(host);
+        });
+    }
+
+    /** A shorter grid can leave the visitor stranded below it, so pull them back up. */
+    function keepFiltersInView(host) {
+        const top = host.getBoundingClientRect().top + window.scrollY - getStickyHeaderOffset() - 16;
+        if (window.scrollY > top) window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
     }
 
     function initEmailPopup() {
@@ -2284,6 +3672,9 @@ window.Wized.push((Wized) => {
         };
         const setPopupState = (state) => localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
         const shouldShow = () => {
+            // Campaign traffic arrived to book one package; don't interrupt that with a
+            // scroll-locking email ask ten seconds in.
+            if (referenceRaw) return false;
             const s = getPopupState();
             if (s.submitted) return false;
             if (s.lastShown && Date.now() - s.lastShown < THIRTY_DAYS_MS) return false;
@@ -2441,10 +3832,15 @@ window.Wized.push((Wized) => {
                 renderPackages(grid, tripsToRender);
 
                 if (referenceNormalized && tripsToRender.length) {
-                    requestAnimationFrame(() => {
-                        const firstCard = grid.querySelector('.bt2-card');
-                        if (firstCard) firstCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    });
+                    const referencedCard = grid.querySelector('.bt2-card[data-reference="true"]') || grid.querySelector('.bt2-card');
+                    if (referencedCard) {
+                        persistAttribution(cardDetail(referencedCard));
+                        requestAnimationFrame(() => {
+                            scrollToCard(referencedCard);
+                            // Re-aim once images have settled so we don't land mid-image.
+                            setTimeout(() => scrollToCard(referencedCard), 400);
+                        });
+                    }
                 }
             })
             .catch((err) => {
