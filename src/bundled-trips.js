@@ -387,6 +387,11 @@ window.Wized.push((Wized) => {
     const CONTACT_EMAIL = 'support@keysbooking.com';
     const CONTACT_PHONE = '+17863388401';
     const HOME_URL = '/';
+    /**
+     * Whole-catalogue totals, not what these packages happen to use. Held in one place
+     * so the hero stats and the build-your-own pitch can't drift apart.
+     */
+    const INVENTORY = { stays: 34, boats: 39, charters: 19 };
     const HELP_HERO_IMAGE = 'https://cdn.prod.website-files.com/65c420cdaa11ef67a52edb9a/69c432e85f8f42f896932c0e_iStock-483475944%20copy%202%20Large.webp';
     const BLUE = '#0A73FF';
     const BLUE_HOVER = '#005FD6';
@@ -1730,7 +1735,7 @@ window.Wized.push((Wized) => {
                 padding: 16px 18px;
             }
             .bt2-trust__grid {
-                display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px 16px;
+                display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px 16px;
                 align-items: start;
             }
             .bt2-trust__item {
@@ -1743,6 +1748,16 @@ window.Wized.push((Wized) => {
             .bt2-trust__label {
                 font-size: 12px; font-weight: 500; color: var(--bt2-muted); margin: 0; line-height: 1.3;
             }
+            /* Turns the counts above from "how big we are" into "what you can pick from". */
+            .bt2-trust__mix {
+                margin: 12px 0 0; padding-top: 12px; border-top: 1px solid var(--bt2-border-light);
+                font-size: 13px; color: var(--bt2-muted); line-height: 1.4; text-align: center;
+            }
+            .bt2-trust__mix a {
+                font-weight: 500; color: var(--bt2-primary);
+                text-decoration: underline; text-underline-offset: 3px; white-space: nowrap;
+            }
+            .bt2-trust__mix a:hover { color: var(--bt2-primary-hover); }
             .bt2-section { padding: 80px 0; }
             .bt2-section--packages { padding-top: 56px; }
             .bt2-section--alt { background: var(--bt2-section-light); }
@@ -2116,6 +2131,14 @@ window.Wized.push((Wized) => {
             .bt2-mid-cta__copy > p {
                 margin: 0; font-size: 14px; color: rgba(255,255,255,.88); line-height: 1.45; max-width: 42ch;
             }
+            /* The proof that the grid above isn't the whole catalogue. Inline and
+               wrapping, so it costs one line rather than a block. */
+            .bt2-mid-cta__inv {
+                list-style: none; margin: 10px 0 0; padding: 0;
+                display: flex; flex-wrap: wrap; gap: 6px 14px;
+                font-size: 13px; color: rgba(255,255,255,.88); line-height: 1.3;
+            }
+            .bt2-mid-cta__inv strong { font-weight: 600; color: #fff; }
             .bt2-mid-cta__steps {
                 list-style: none; margin: 12px 0 0; padding: 0;
                 display: grid; gap: 6px;
@@ -2321,7 +2344,7 @@ window.Wized.push((Wized) => {
                 }
                 .bt2-trust { padding: 0 16px 24px; margin-top: -20px; }
                 .bt2-trust__panel { padding: 14px 12px; }
-                .bt2-trust__grid { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px 10px; }
+                .bt2-trust__grid { grid-template-columns: repeat(3,minmax(0,1fr)); gap: 14px 8px; }
                 .bt2-trust__item { align-items: center; }
                 .bt2-trust__num { font-size: 17px; }
                 .bt2-trust__label { font-size: 12px; }
@@ -2719,7 +2742,7 @@ window.Wized.push((Wized) => {
                     <div class="bt2-hero__content">
                         <div class="bt2-hero__pill">${EMOJI.play} As seen on Florida Keys Guide</div>
                         <h1>Stay. Boat. Fish.<br>One booking.</h1>
-                        <p class="bt2-hero__text">Choose a private Florida Keys package or build your own from our stays, boat rentals, and fishing charters.</p>
+                        <p class="bt2-hero__text">Choose a ready-made Florida Keys package, or build your own from ${INVENTORY.stays} stays, ${INVENTORY.boats} boat rentals, and ${INVENTORY.charters} fishing charters.</p>
                         <div class="bt2-hero__actions">
                             <button type="button" class="bt2-btn bt2-btn--primary" data-scroll="featured-packages">Browse packages</button>
                             <a href="${HOME_URL}" class="bt2-btn bt2-btn--ghost bt2-build-own">Or build your own</a>
@@ -2733,22 +2756,21 @@ window.Wized.push((Wized) => {
                 <div class="bt2-trust__panel">
                 <div class="bt2-trust__grid">
                     <div class="bt2-trust__item">
-                        <p class="bt2-trust__num">34+</p>
+                        <p class="bt2-trust__num">${INVENTORY.stays}+</p>
                         <p class="bt2-trust__label">Stays</p>
                     </div>
                     <div class="bt2-trust__item">
-                        <p class="bt2-trust__num">39+</p>
+                        <p class="bt2-trust__num">${INVENTORY.boats}+</p>
                         <p class="bt2-trust__label">Boat rentals</p>
                     </div>
                     <div class="bt2-trust__item">
-                        <p class="bt2-trust__num">19+</p>
+                        <p class="bt2-trust__num">${INVENTORY.charters}+</p>
                         <p class="bt2-trust__label">Fishing charters</p>
                     </div>
-                    <div class="bt2-trust__item">
-                        <p class="bt2-trust__num">55,000+</p>
-                        <p class="bt2-trust__label">Followers</p>
-                    </div>
                 </div>
+                <p class="bt2-trust__mix">Any of them can go together &mdash;
+                    <a href="${HOME_URL}" class="bt2-build-own">build your own trip &rarr;</a>
+                </p>
                 </div>
             </section>
             </div>
@@ -2898,8 +2920,13 @@ window.Wized.push((Wized) => {
             <div class="bt2-mid-cta bt2-mid-cta--${variant}">
                 <div class="bt2-mid-cta__copy">
                     <span class="bt2-card__badge bt2-card__badge--blue">Build your own</span>
-                    <h3>Want something more custom?</h3>
-                    <p>Build your own Florida Keys trip by choosing a stay, then adding a boat rental, a fishing charter, or both.</p>
+                    <h3>These packages are only a sample</h3>
+                    <p>Pair any stay with any boat rental or fishing charter &mdash; one booking, same as above.</p>
+                    <ul class="bt2-mid-cta__inv">
+                        <li><strong>${INVENTORY.stays}</strong> stays</li>
+                        <li><strong>${INVENTORY.boats}</strong> boat rentals</li>
+                        <li><strong>${INVENTORY.charters}</strong> fishing charters</li>
+                    </ul>
                     <ol class="bt2-mid-cta__steps">
                         <li><span class="bt2-mid-cta__num">1</span><span>Select a stay</span></li>
                         <li><span class="bt2-mid-cta__num">2</span><span>Add a boat rental, fishing charter, or both</span></li>
