@@ -702,6 +702,44 @@ window.Wized.push((Wized) => {
         return company;
     };
 
+    /** Xano stores `tripStartTime` as a 24h number, so 7.5 means 7:30 AM. */
+    const formatHourTo12 = (value) => {
+        if (value == null || value === '') return '';
+        const num = Number(value);
+        if (!Number.isFinite(num)) return '';
+        let hour = Math.floor(num);
+        let minutes = Math.round((num - hour) * 60);
+        if (minutes >= 60) {
+            hour += 1;
+            minutes = 0;
+        }
+        const suffix = hour < 12 ? 'AM' : 'PM';
+        const displayHour = hour % 12 === 0 ? 12 : hour % 12;
+        return `${displayHour}:${String(minutes).padStart(2, '0')} ${suffix}`;
+    };
+
+    /** Pulls "9am" / "9:30 PM" out of a copy string and normalises it. */
+    const timeFromLabel = (label = '') => {
+        const match = String(label).match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)/i);
+        if (!match) return '';
+        const hour = Number(match[1]) % 12;
+        const minutes = match[2] ? Number(match[2]) : 0;
+        const isPm = match[3].toLowerCase() === 'pm';
+        return formatHourTo12(hour + (isPm ? 12 : 0) + minutes / 60);
+    };
+
+    /** The time now lives on its own itinerary line, so drop it from the place copy. */
+    const stripTimeFromLabel = (label = '') => String(label)
+        .replace(/\s*(?:at|around)?\s*\d{1,2}(?::\d{2})?\s*(?:am|pm)/i, '')
+        .replace(/\s*[·-]\s*$/, '')
+        .trim();
+
+    const getCharterStartTimeLabel = (charter) => {
+        const tripId = charter?.trip_id;
+        const option = charter?._fishingcharter?.tripOptions?.find((opt) => opt?.id === tripId);
+        return formatHourTo12(option?.tripStartTime);
+    };
+
     const getCharterTripType = (name = '') => {
         const lower = name.toLowerCase();
         if (lower.includes('offshore')) return 'Offshore';
@@ -1089,6 +1127,24 @@ window.Wized.push((Wized) => {
         if (baths) stayMeta.push(baths);
         if (locationInfo?.hasPrivateDock) stayMeta.push('Private dock');
 
+        const stayFacts = [];
+        if (stayGuestCount) stayFacts.push(`Sleeps ${stayGuestCount}`);
+        if (property?.num_bedrooms != null && property.num_bedrooms !== '') {
+            const n = Number(property.num_bedrooms);
+            stayFacts.push(`${n} bedroom${n === 1 ? '' : 's'}`);
+        }
+        if (property?.num_beds != null && property.num_beds !== '') {
+            const n = Number(property.num_beds);
+            stayFacts.push(`${n} bed${n === 1 ? '' : 's'}`);
+        }
+        if (baths) stayFacts.push(baths);
+        if (locationInfo?.hasPrivateDock) {
+            stayFacts.push(locationInfo.maxBoatLength
+                ? `Private dock · up to ${locationInfo.maxBoatLength}`
+                : 'Private dock');
+        }
+        if (property?.pets_allowed) stayFacts.push('Pets allowed');
+
         components.push({
             kind: 'stay',
             emoji: '🏠',
@@ -1096,6 +1152,7 @@ window.Wized.push((Wized) => {
             title: property?.property_name || `${nights}-night Florida Keys stay`,
             capacity: stayGuestCount ? `Up to ${stayGuestCount} guests` : '',
             meta: stayMeta.join(' · '),
+            facts: stayFacts,
             timing: nights ? `${nights} nights` : '',
         });
 
@@ -1124,6 +1181,7 @@ window.Wized.push((Wized) => {
                 subtitle: boatCompany && boatCompany !== boatName ? boatCompany : '',
                 capacity: boatCapacity ? `Up to ${boatCapacity} guests` : '',
                 meta: boatMeta.join(' · '),
+                facts: boatCapacity ? [`Max ${boatCapacity} passengers`] : [],
                 timing: dayRangeLabel(start, schedule.boatLength),
             });
         }
@@ -1148,6 +1206,7 @@ window.Wized.push((Wized) => {
                 subtitle: [operator, vessel].filter(Boolean).join(' · '),
                 capacity: guestLimit ? `Up to ${guestLimit} guests` : '',
                 meta: charterMeta.join(' · '),
+                facts: guestLimit ? [`Max ${guestLimit} guests`] : [],
                 timing: timing || '',
             });
         };
@@ -1220,18 +1279,23 @@ window.Wized.push((Wized) => {
         const startDay = start + 1;
         const endDay = start + days;
         if (days === 1) return `Day ${startDay}`;
-        return `Days ${startDay} to ${endDay}`;
+        return `Days ${startDay}–${endDay}`;
     };
 
-    const buildPackageItinerary = (trip, schedule, locationInfo, charters, boatLabel, boatDays) => {
+    const buildPackageItinerary = (trip, schedule, locationInfo, charters, boatLabel) => {
         const nights = schedule.packageNights || Number(trip?.trip_nights) || 7;
         const steps = [];
+
+        // Stored as loose copy like "4 PM", so normalise before showing it.
+        const checkInTime = timeFromLabel(trip?._property?.check_in_time);
+        const checkOutTime = timeFromLabel(trip?._property?.check_out_time);
 
         steps.push({
             day: 1,
             dayLabel: 'Day 1',
             emoji: '🏠',
             title: 'Check-in',
+            timeLabel: checkInTime ? `From ${checkInTime}` : '',
             detail: `${nights}-night stay starts`,
             kind: 'stay',
         });
@@ -1242,25 +1306,27 @@ window.Wized.push((Wized) => {
             const endLabel = dayLabelFromOffset(start + schedule.boatLength - 1);
             const rangeLabel = dayRangeLabel(start, schedule.boatLength);
             let detail;
-            if (locationInfo?.boatPickupLabel && locationInfo?.boatOvernightLabel) {
-                detail = `${locationInfo.boatPickupLabel} · ${locationInfo.boatOvernightLabel}`;
-            } else if (locationInfo?.boatDelivery) {
-                detail = 'Private dock delivery';
+            if (locationInfo?.boatDelivery) {
+                detail = 'Private dock delivery · Leave docked at private dock';
             } else if (locationInfo?.hasPrivateDock) {
-                detail = locationInfo.boatPickupTimeLabel
-                    ? `Pickup at nearby dock · leave docked at stay private dock · ${locationInfo.boatPickupTimeLabel}`
-                    : 'Pickup at nearby dock · leave docked at stay private dock';
+                detail = 'Pickup at nearby dock · Leave docked at stay private dock';
             } else {
-                detail = locationInfo.boatPickupTimeLabel
-                    ? `Pickup at boat rental location · leave docked there · ${locationInfo.boatPickupTimeLabel}`
-                    : 'Pickup at boat rental location · leave docked there';
+                detail = 'Pickup at boat rental location · Leave docked there';
             }
+            const boatVerb = locationInfo?.boatDelivery ? 'Delivery' : 'Pickup';
+            const rawBoatTime = String(locationInfo?.boatPickupTime || '').replace(/pickup/i, '').trim();
+            const boatTime = timeFromLabel(rawBoatTime);
             steps.push({
                 day: Number(start) + 1,
-                dayLabel: rangeLabel || (startLabel === endLabel ? startLabel : `${startLabel} to ${endLabel}`),
+                dayLabel: rangeLabel || (startLabel === endLabel ? startLabel : `${startLabel}–${endLabel}`),
                 emoji: '🚤',
+                typeLabel: 'Boat rental',
                 title: boatLabel || 'Boat rental',
-                detail: `${boatDays || schedule.boatLength}-day rental · ${detail}`,
+                timeLabel: boatTime || rawBoatTime
+                    ? `${boatVerb} ${boatTime || rawBoatTime}`
+                    : '',
+                // The day range already states the rental length.
+                detail,
                 kind: 'boat',
             });
         }
@@ -1275,22 +1341,26 @@ window.Wized.push((Wized) => {
                     : (charters[slotIndex]?.name || 'Fishing charter');
                 const duration = getCharterDurationLabel(name);
                 const type = getCharterTripType(name);
-                const pickup = locationInfo?.charterStatLabel === 'Private dock pickup'
+                const pickupRaw = locationInfo?.charterStatLabel === 'Private dock pickup'
                     ? 'Private dock pickup'
                     : locationInfo?.charterStatLabel === 'Mixed pickup'
                         ? 'Confirm pickup during checkout'
                         : (locationInfo?.charterStatLabel || 'Charter dock 9am');
+                const startTime = getCharterStartTimeLabel(charterFromTrip) || timeFromLabel(pickupRaw);
+                const pickup = startTime ? stripTimeFromLabel(pickupRaw) : pickupRaw;
                 const title = name && name !== 'Fishing charter' ? name : `${duration} ${type}`.trim();
                 const detailParts = [];
                 if (companyName && companyName !== name) detailParts.push(companyName);
-                detailParts.push(pickup);
+                if (pickup) detailParts.push(pickup);
 
                 offsets.forEach((offset) => {
                     steps.push({
                         day: Number(offset) + 1,
                         dayLabel: dayLabelFromOffset(offset),
                         emoji: '🎣',
+                        typeLabel: 'Fishing charter',
                         title,
+                        timeLabel: startTime ? `Starts ${startTime}` : '',
                         detail: detailParts.join(' · '),
                         kind: 'charter',
                     });
@@ -1303,18 +1373,22 @@ window.Wized.push((Wized) => {
                 const name = charter ? getCharterOptionName(charter) : 'Fishing charter';
                 const duration = getCharterDurationLabel(name);
                 const type = getCharterTripType(name);
-                const pickup = locationInfo?.charterStatLabel === 'Private dock pickup'
+                const pickupRaw = locationInfo?.charterStatLabel === 'Private dock pickup'
                     ? 'Private dock pickup'
                     : locationInfo?.charterStatLabel || 'Charter dock 9am';
+                const startTime = getCharterStartTimeLabel(charter) || timeFromLabel(pickupRaw);
+                const pickup = startTime ? stripTimeFromLabel(pickupRaw) : pickupRaw;
                 const title = name && name !== 'Fishing charter' ? name : `${duration} ${type}`.trim();
                 const detailParts = [];
                 if (companyName && companyName !== name) detailParts.push(companyName);
-                detailParts.push(pickup);
+                if (pickup) detailParts.push(pickup);
                 steps.push({
                     day: Number(offset) + 1,
                     dayLabel: dayLabelFromOffset(offset),
                     emoji: '🎣',
+                    typeLabel: 'Fishing charter',
                     title,
+                    timeLabel: startTime ? `Starts ${startTime}` : '',
                     detail: detailParts.join(' · '),
                     kind: 'charter',
                 });
@@ -1326,6 +1400,7 @@ window.Wized.push((Wized) => {
             dayLabel: `Day ${nights + 1}`,
             emoji: '👋',
             title: 'Checkout',
+            timeLabel: checkOutTime ? `By ${checkOutTime}` : '',
             detail: 'Trip ends',
             kind: 'checkout',
         });
@@ -1413,7 +1488,7 @@ window.Wized.push((Wized) => {
         const boatLabel = boatName || (boatSize ? `${boatSize} Boat` : 'Boat Rental');
 
         const locationInfo = getPackageLocationInfo(trip?._property, trip);
-        const itinerary = buildPackageItinerary(trip, schedule, locationInfo, charters, boatLabel, boatDays);
+        const itinerary = buildPackageItinerary(trip, schedule, locationInfo, charters, boatLabel);
         const includedComponents = buildIncludedComponents({
             trip,
             schedule,
@@ -1478,6 +1553,7 @@ window.Wized.push((Wized) => {
 
     const icons = {
         chevron: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>',
+        clock: '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l3 2"/></svg>',
     };
 
     const FAQ_ITEMS = [
@@ -2114,6 +2190,39 @@ window.Wized.push((Wized) => {
             .bt2-included__sub {
                 margin: 1px 0 0; font-size: 12px; color: var(--bt2-muted); line-height: 1.3;
             }
+            .bt2-logistics {
+                list-style: none; margin: 0 0 4px; padding: 0;
+                display: flex; flex-direction: column; gap: 12px;
+            }
+            .bt2-details .bt2-logistics__item {
+                position: relative; margin: 0; padding: 0 0 0 12px;
+                border-left: 2px solid var(--bt2-logistics-accent, #98A2B3);
+            }
+            .bt2-details .bt2-logistics__item::before { display: none; }
+            .bt2-logistics__item--stay { --bt2-logistics-accent: #0A73FF; }
+            .bt2-logistics__item--boat { --bt2-logistics-accent: #12B76A; }
+            .bt2-logistics__item--charter { --bt2-logistics-accent: #F79009; }
+            .bt2-logistics__type {
+                display: block; font-size: 10px; font-weight: 500;
+                letter-spacing: .07em; text-transform: uppercase;
+                color: var(--bt2-logistics-accent, var(--bt2-muted));
+            }
+            .bt2-details p.bt2-logistics__title {
+                margin: 2px 0 0; font-size: 14px; font-weight: 500;
+                color: var(--bt2-navy); line-height: 1.35;
+            }
+            .bt2-details p.bt2-logistics__sub {
+                margin: 1px 0 0; font-size: 12px; color: var(--bt2-muted); line-height: 1.35;
+            }
+            .bt2-logistics__facts {
+                display: flex; flex-wrap: wrap; gap: 5px; margin: 7px 0 0;
+            }
+            .bt2-logistics__fact {
+                display: inline-flex; align-items: center;
+                padding: 3px 8px; border-radius: 6px;
+                background: #F2F4F7; font-size: 11px; font-weight: 500;
+                color: #475467; line-height: 1.4;
+            }
             .bt2-mid-cta {
                 display: none; grid-column: 1 / -1;
                 background: linear-gradient(135deg, #0B3B75 0%, #0A73FF 100%);
@@ -2206,25 +2315,51 @@ window.Wized.push((Wized) => {
                 content: ''; position: absolute; left: 0; top: .55em;
                 width: 5px; height: 5px; border-radius: 50%; background: #98A2B3;
             }
-            .bt2-itinerary {
-                list-style: none; margin: 0 0 4px; padding: 0;
-                border: 1px solid var(--bt2-border-light); border-radius: 10px; overflow: hidden;
+            /* A trip is a sequence, so the list reads as a timeline instead of a table. */
+            .bt2-itinerary { list-style: none; margin: 0 0 4px; padding: 0; }
+            .bt2-itinerary__step {
+                position: relative; display: flex; flex-direction: column; gap: 2px;
+                margin: 0; padding: 0 0 16px 24px; font-size: 14px; line-height: 1.5;
+                color: var(--bt2-text); --bt2-step-accent: #98A2B3;
             }
-            .bt2-itinerary li {
-                display: flex; flex-direction: column; gap: 4px;
-                padding: 12px 14px; margin: 0; font-size: 14px; line-height: 1.5;
-                color: var(--bt2-text); background: #fff;
-                border-bottom: 1px solid var(--bt2-border-light);
+            .bt2-itinerary__step:last-child { padding-bottom: 0; }
+            .bt2-itinerary__step--stay { --bt2-step-accent: #0A73FF; }
+            .bt2-itinerary__step--boat { --bt2-step-accent: #12B76A; }
+            .bt2-itinerary__step--charter { --bt2-step-accent: #F79009; }
+            .bt2-itinerary__step::before {
+                content: ''; position: absolute; left: 5px; top: 14px; bottom: 0;
+                width: 1.5px; background: var(--bt2-border-light);
             }
-            .bt2-itinerary li:last-child { border-bottom: 0; }
-            .bt2-itinerary li:nth-child(even) { background: #F8FAFC; }
+            .bt2-itinerary__step:last-child::before { display: none; }
+            .bt2-itinerary__step::after {
+                content: ''; position: absolute; left: 0; top: 4px;
+                width: 8px; height: 8px; border-radius: 50%; background: var(--bt2-step-accent);
+            }
+            p.bt2-itinerary__meta { display: flex; align-items: center; gap: 6px; margin: 0; }
             .bt2-itinerary__day {
-                font-size: 11px; font-weight: 500; color: var(--bt2-muted);
-                letter-spacing: .04em; text-transform: uppercase;
+                font-size: 10px; font-weight: 500; color: #98A2B3;
+                letter-spacing: .07em; text-transform: uppercase;
             }
-            .bt2-itinerary__body { min-width: 0; }
-            .bt2-itinerary__title { margin: 0; font-weight: 500; color: var(--bt2-navy); line-height: 1.35; }
-            .bt2-itinerary__detail { margin: 3px 0 0; font-size: 13px; color: var(--bt2-muted); line-height: 1.45; }
+            .bt2-itinerary__type {
+                font-size: 10px; font-weight: 500; color: var(--bt2-step-accent);
+                letter-spacing: .07em; text-transform: uppercase;
+            }
+            .bt2-itinerary__type::before { content: '·'; margin-right: 6px; color: #D0D5DD; }
+            .bt2-itinerary__body { min-width: 0; display: flex; flex-direction: column; }
+            /* Type selector needed so these outrank the generic .bt2-details p margins. */
+            p.bt2-itinerary__title { margin: 0; font-weight: 500; color: var(--bt2-navy); line-height: 1.35; }
+            /* A flex item, not inline: an inline row would inherit the 21px line box. */
+            .bt2-itinerary__time {
+                align-self: flex-start; display: flex; align-items: center; gap: 5px;
+                margin: 2px 0 0; font-size: 12px; color: var(--bt2-muted);
+                line-height: 1.45; white-space: nowrap;
+            }
+            .bt2-itinerary__time svg { flex: 0 0 auto; opacity: .6; }
+            p.bt2-itinerary__detail { margin: 2px 0 0; font-size: 13px; color: var(--bt2-muted); line-height: 1.45; }
+            p.bt2-itinerary__note {
+                margin: 12px 0 0; padding-left: 24px;
+                font-size: 12px; color: #98A2B3; line-height: 1.45;
+            }
             .bt2-steps {
                 list-style: none; margin: 0 0 4px; padding: 0; counter-reset: bt2how;
             }
@@ -2591,14 +2726,19 @@ window.Wized.push((Wized) => {
         const fullItineraryHtml = pkg.itinerary?.length
             ? `<h4>Day by day</h4>
                 <ol class="bt2-itinerary">${pkg.itinerary.map((step) => `
-                    <li>
-                        <span class="bt2-itinerary__day">${escapeHtml(step.dayLabel)}</span>
+                    <li class="bt2-itinerary__step bt2-itinerary__step--${escapeHtml(step.kind)}">
+                        <p class="bt2-itinerary__meta">
+                            <span class="bt2-itinerary__day">${escapeHtml(step.dayLabel)}</span>
+                            ${step.typeLabel ? `<span class="bt2-itinerary__type">${escapeHtml(step.typeLabel)}</span>` : ''}
+                        </p>
                         <div class="bt2-itinerary__body">
                             <p class="bt2-itinerary__title">${escapeHtml(step.title)}</p>
+                            ${step.timeLabel ? `<span class="bt2-itinerary__time">${icons.clock}${escapeHtml(step.timeLabel)}</span>` : ''}
                             ${step.detail ? `<p class="bt2-itinerary__detail">${escapeHtml(step.detail)}</p>` : ''}
                         </div>
                     </li>
-                `).join('')}</ol>`
+                `).join('')}</ol>
+                <p class="bt2-itinerary__note">You can customize this itinerary before you book.</p>`
             : '';
 
         const detailsId = `bt2-details-${index}`;
@@ -2668,18 +2808,30 @@ window.Wized.push((Wized) => {
         metaParts.push(`<span>${EMOJI.pin} ${escapeHtml(pkg.location)}</span>`);
         const metaHtml = metaParts.join('<span class="bt2-card__meta-sep" aria-hidden="true"></span>');
 
-        const capacityBits = (pkg.includedComponents || [])
-            .filter((c) => c.title || c.meta)
-            .map((c) => {
-                if (c.kind === 'charter') {
-                    const parts = [c.title, c.meta].filter(Boolean);
-                    return `${c.typeLabel}: ${parts.join(' · ')}`;
-                }
-                if (c.meta) return `${c.typeLabel}: ${c.meta}`;
-                return `${c.typeLabel}: ${c.title}`;
-            });
-        const capacityHtml = capacityBits.length
-            ? `<h4>Capacities and logistics</h4><ul>${capacityBits.map((m) => `<li>${escapeHtml(m)}</li>`).join('')}</ul>`
+        const seenCapacity = new Set();
+        const logisticsItems = (pkg.includedComponents || []).filter((c) => {
+            if (!(c.title || (c.facts && c.facts.length))) return false;
+            const key = `${c.kind}|${c.title}|${(c.facts || []).join('|')}`;
+            if (seenCapacity.has(key)) return false;
+            seenCapacity.add(key);
+            return true;
+        });
+        const capacityHtml = logisticsItems.length
+            ? `<h4>Capacities</h4>
+                <ul class="bt2-logistics">${logisticsItems.map((c) => {
+                    const facts = (c.facts && c.facts.length)
+                        ? c.facts
+                        : String(c.meta || '').split(' · ').map((s) => s.trim()).filter(Boolean);
+                    return `
+                    <li class="bt2-logistics__item bt2-logistics__item--${escapeHtml(c.kind || 'stay')}">
+                        <span class="bt2-logistics__type">${escapeHtml(c.typeLabel)}</span>
+                        ${c.title ? `<p class="bt2-logistics__title">${escapeHtml(c.title)}</p>` : ''}
+                        ${c.subtitle ? `<p class="bt2-logistics__sub">${escapeHtml(c.subtitle)}</p>` : ''}
+                        ${facts.length
+                            ? `<div class="bt2-logistics__facts">${facts.map((f) => `<span class="bt2-logistics__fact">${escapeHtml(f)}</span>`).join('')}</div>`
+                            : ''}
+                    </li>`;
+                }).join('')}</ul>`
             : '';
 
         return `
@@ -2707,8 +2859,8 @@ window.Wized.push((Wized) => {
                     <div class="bt2-accordion-panel" id="${detailsId}" role="region">
                         <div class="bt2-details">
                             ${whyHtml}
-                            ${capacityHtml}
                             ${fullItineraryHtml}
+                            ${capacityHtml}
                             ${goodHtml}
                             <h4>Make it yours</h4>
                             ${customizeHtml}
