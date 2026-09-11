@@ -784,37 +784,42 @@ window.Wized.push((Wized) => {
     const buildMediaSlides = (trip) => {
         const slides = [];
         const usedUrls = new Set();
-        const usedVessels = new Set();
 
-        const push = (url, label, vesselKey) => {
+        const push = (url, label, inset) => {
             if (!url || slides.length >= 3 || usedUrls.has(url)) return;
-            if (vesselKey && usedVessels.has(vesselKey)) return;
             usedUrls.add(url);
-            if (vesselKey) usedVessels.add(vesselKey);
-            slides.push({ url, label });
+            slides.push({ url, label, inset: inset && inset !== url ? inset : '' });
         };
 
-        const vesselPools = [];
-        const actionImages = [];
+        // Kept per operator rather than pooled, so the inset vessel always belongs to
+        // the same charter as the photo it sits on.
+        const charterPools = [];
         (Array.isArray(trip?.fishingcharters) ? trip.fishingcharters : []).forEach((charter) => {
             const fc = charter?._fishingcharter;
             if (!fc) return;
-            const key = `charter:${(fc.name || '').trim().toLowerCase()}`;
-            const vessels = (Array.isArray(fc.boatInfo) ? fc.boatInfo : [])
-                .map((boat) => boat?.image)
-                .filter((image) => image?.url);
-            if (vessels.length) vesselPools.push({ key, images: vessels });
-            (Array.isArray(fc.images) ? fc.images : []).forEach((img) => {
-                if (img?.image?.url) actionImages.push(img.image);
+            charterPools.push({
+                vessels: (Array.isArray(fc.boatInfo) ? fc.boatInfo : [])
+                    .map((boat) => boat?.image)
+                    .filter((image) => image?.url),
+                gallery: (Array.isArray(fc.images) ? fc.images : [])
+                    .filter((img) => img?.image?.url)
+                    .map((img) => ({ image: img.image, order: Number(img.order) })),
             });
         });
 
-        const fresh = (images) => images.filter((image) => !usedUrls.has(image.url));
-        const nextVessel = () => {
-            for (const pool of vesselPools) {
-                if (usedVessels.has(pool.key)) continue;
-                const image = pickBestFramed(fresh(pool.images));
-                if (image) return { image, key: pool.key };
+        /**
+         * One slide per package: the operator's lead photo carries it, with their boat
+         * tucked into a corner inset so the vessel still shows without costing a slide.
+         */
+        const charterSlide = () => {
+            for (const pool of charterPools) {
+                const gallery = pool.gallery.filter((entry) => !usedUrls.has(entry.image.url));
+                // Operators order their gallery deliberately, so honour order 1 over framing.
+                const lead = gallery.find((entry) => entry.order === 1);
+                const main = lead ? lead.image : pickBestFramed(gallery.map((entry) => entry.image));
+                const vessel = pickBestFramed(pool.vessels.filter((image) => !usedUrls.has(image.url)));
+                if (main) return { url: main.url, inset: vessel?.url || '' };
+                if (vessel) return { url: vessel.url, inset: '' };
             }
             return null;
         };
@@ -822,29 +827,17 @@ window.Wized.push((Wized) => {
         // Slide 1 — the stay
         push(trip?._property?._property_main_image?.property_image?.url, 'Stay');
 
-        // Slide 2 — the boat rental, or the charter vessel when there is no rental
+        // Slide 2 — the rental boat, when the package comes with one
         if (trip?.hasBoatRental) {
             const boatPhotos = (Array.isArray(trip?._boat?.photos) ? trip._boat.photos : [])
                 .map((photo) => photo?.image)
                 .filter((image) => image?.url);
-            push(
-                pickBestFramed(boatPhotos)?.url,
-                'Boat rental',
-                `boat:${(trip?._boat?.name || trip?.boats_id || '').toString().toLowerCase()}`,
-            );
-        }
-        if (slides.length < 2) {
-            const vessel = nextVessel();
-            if (vessel) push(vessel.image.url, 'Fishing charter', vessel.key);
+            push(pickBestFramed(boatPhotos)?.url, 'Boat rental');
         }
 
-        // Slide 3 — fishing, falling back to another operator's vessel
-        const action = pickBestFramed(fresh(actionImages));
-        if (action) push(action.url, 'Fishing');
-        if (slides.length < 3) {
-            const vessel = nextVessel();
-            if (vessel) push(vessel.image.url, 'Fishing charter', vessel.key);
-        }
+        // Slide 3 — the charter
+        const charter = charterSlide();
+        if (charter) push(charter.url, 'Fishing charter', charter.inset);
         return slides;
     };
 
@@ -1971,6 +1964,14 @@ window.Wized.push((Wized) => {
                 font-size: 10px; font-weight: 500; line-height: 1.4;
                 letter-spacing: .07em; text-transform: uppercase;
             }
+            /* Outranks the blanket .bt2-card__media img fill rule. */
+            .bt2-carousel__slide .bt2-carousel__inset {
+                position: absolute; bottom: 10px; left: 10px;
+                width: 36%; max-width: 116px; min-width: 72px; height: auto; aspect-ratio: 3/2;
+                object-fit: cover; border-radius: 7px;
+                border: 1.5px solid rgba(255,255,255,.92);
+                box-shadow: 0 2px 8px rgba(5,18,35,.4);
+            }
             .bt2-carousel__dots {
                 position: absolute; left: 0; right: 0; bottom: 10px;
                 display: flex; align-items: center; justify-content: center; gap: 6px;
@@ -2613,6 +2614,11 @@ window.Wized.push((Wized) => {
                                  alt="${escapeHtml(`${pkg.title} — ${slide.label}`)}"
                                  loading="${i === 0 ? 'eager' : 'lazy'}">
                             <span class="bt2-carousel__tag">${escapeHtml(slide.label)}</span>
+                            ${slide.inset
+                    ? `<img class="bt2-carousel__inset" src="${escapeHtml(slide.inset)}"
+                                        alt="${escapeHtml(`${pkg.title} — charter boat`)}"
+                                        loading="lazy">`
+                    : ''}
                         </div>`).join('')}
                 </div>
                 ${slides.length > 1
@@ -3411,7 +3417,13 @@ window.Wized.push((Wized) => {
         packages.forEach((pkg, i) => {
             parts.push(renderPackageCard(pkg, i));
             if (hasReferenceMatch) {
+                // The quiet link stays next to the package they came for, but they still
+                // get the full pitch further down once they've scrolled past it.
                 if (i === 0) parts.push(renderSlimCta());
+                // End of the second row at each breakpoint: 1 / 2 / 3 columns.
+                if (i === 3) parts.push(renderMidCta('mobile'));
+                if (i === 3) parts.push(renderMidCta('tablet'));
+                if (i === 5) parts.push(renderMidCta('desktop'));
                 return;
             }
             // After first row: mobile=1, tablet=2, desktop=3
