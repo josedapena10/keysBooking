@@ -4774,7 +4774,7 @@ document.addEventListener('DOMContentLoaded', function () {
             if (isCheckoutOnly) {
                 if (!selectedStartDate) {
                     // No check-in selected: show semi-disabled state
-                    dayElement.style.opacity = '0.6';
+                    dayElement.style.opacity = '0.45';
                     dayElement.style.color = 'black';
                     dayElement.style.cursor = 'not-allowed';
                 } else {
@@ -4789,7 +4789,7 @@ document.addEventListener('DOMContentLoaded', function () {
             if (!selectedStartDate && !isDateDisabled(currentDate) && !isCheckoutOnly) {
                 const hasRule = getCheckinoutRuleForDate(dateString) !== null;
                 if (hasRule && !isCheckinAllowedOnDate(currentDate)) {
-                    dayElement.style.opacity = '0.6';
+                    dayElement.style.opacity = '0.45';
                     dayElement.style.color = 'black';
                     dayElement.style.cursor = 'not-allowed';
                     dayElement.classList.add('checkinout-restricted');
@@ -4832,7 +4832,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (!(currentDate > selectedStartDate && currentDate < selectedEndDate)) {
                         const hasRule = getCheckinoutRuleForDate(dateString) !== null;
                         if (hasRule && !isCheckinAllowedOnDate(currentDate)) {
-                            dayElement.style.opacity = '0.6';
+                            dayElement.style.opacity = '0.45';
                             dayElement.style.color = 'black';
                             dayElement.style.cursor = 'not-allowed';
                             dayElement.classList.add('checkinout-restricted');
@@ -5539,7 +5539,7 @@ document.addEventListener('DOMContentLoaded', function () {
       }
 
       .calendar-day.checkinout-restricted {
-        opacity: 0.6;
+        opacity: 0.45;
         cursor: not-allowed;
         color: black;
       }
