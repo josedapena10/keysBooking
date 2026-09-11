@@ -1114,17 +1114,16 @@ window.Wized.push((Wized) => {
             if (locationInfo?.boatPickupLabel) boatMeta.push(locationInfo.boatPickupLabel);
             if (locationInfo?.boatOvernightLabel) boatMeta.push(locationInfo.boatOvernightLabel);
 
+            // Lead with the boat itself and credit the company underneath it.
             const boatCompany = getBoatCompanyName(trip);
-            const boatTitle = [boatCompany, boatLabel || 'Boat rental']
-                .filter(Boolean)
-                .filter((part, i, arr) => arr.indexOf(part) === i)
-                .join(' · ');
+            const boatName = boatLabel || 'Boat rental';
 
             components.push({
                 kind: 'boat',
                 emoji: '🚤',
                 typeLabel: 'Boat rental',
-                title: boatTitle,
+                title: boatName,
+                subtitle: boatCompany && boatCompany !== boatName ? boatCompany : '',
                 capacity: boatCapacity ? `Up to ${boatCapacity} guests` : '',
                 meta: boatMeta.join(' · '),
                 timing: dayRangeLabel(start, schedule.boatLength),
@@ -1137,12 +1136,9 @@ window.Wized.push((Wized) => {
             const type = getCharterTripType(optionName);
             const guestLimit = charter ? getCharterGuestLimit(charter) : null;
             const tripLabel = optionName || `${duration} ${type}`.trim() || 'Fishing charter';
-            // Name the operator and vessel rather than a generic "Fishing charter".
-            const title = [
-                charter ? getCharterOperatorLabel(charter) : '',
-                charter ? getCharterVesselLabel(charter) : '',
-                tripLabel,
-            ].filter(Boolean).join(' · ');
+            // Lead with the trip being booked; the operator and their boat go underneath.
+            const operator = charter ? getCharterOperatorLabel(charter) : '';
+            const vessel = charter ? getCharterVesselLabel(charter) : '';
             const charterMeta = [];
             if (guestLimit) charterMeta.push(`Up to ${guestLimit} guests`);
             if (locationInfo?.charterStatLabel) charterMeta.push(locationInfo.charterStatLabel);
@@ -1150,7 +1146,8 @@ window.Wized.push((Wized) => {
                 kind: 'charter',
                 emoji: '🎣',
                 typeLabel: 'Fishing charter',
-                title,
+                title: tripLabel,
+                subtitle: [operator, vessel].filter(Boolean).join(' · '),
                 capacity: guestLimit ? `Up to ${guestLimit} guests` : '',
                 meta: charterMeta.join(' · '),
                 timing: timing || '',
@@ -2097,6 +2094,10 @@ window.Wized.push((Wized) => {
             .bt2-included__title {
                 margin: 1px 0 0; font-size: 13px; font-weight: 500; color: var(--bt2-navy); line-height: 1.3;
             }
+            /* Who provides it, secondary to what the guest actually booked. */
+            .bt2-included__sub {
+                margin: 1px 0 0; font-size: 12px; color: var(--bt2-muted); line-height: 1.3;
+            }
             .bt2-mid-cta {
                 display: none; grid-column: 1 / -1;
                 background: linear-gradient(135deg, #0B3B75 0%, #0A73FF 100%);
@@ -2522,6 +2523,7 @@ window.Wized.push((Wized) => {
                                     ${item.timing ? `<span class="bt2-included__timing">${escapeHtml(item.timing)}</span>` : ''}
                                 </div>
                                 <p class="bt2-included__title">${escapeHtml(item.title)}</p>
+                                ${item.subtitle ? `<p class="bt2-included__sub">${escapeHtml(item.subtitle)}</p>` : ''}
                             </div>
                         </li>
                     `).join('')}
