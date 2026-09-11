@@ -4718,7 +4718,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
                 } else if (!selectedStartDate && hasCheckinoutRule && !ciAllowed) {
                     dayElement.classList.add('checkinout-restricted');
-                    dayElement.style.opacity = '0.6';
+                    dayElement.style.opacity = '0.45';
                     dayElement.style.color = 'black';
                     dayElement.style.cursor = 'not-allowed';
                     dayElement.addEventListener('click', (e) => {
