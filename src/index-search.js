@@ -292,6 +292,62 @@ document.addEventListener('DOMContentLoaded', function () {
     // Store original unfiltered results
     let unfilteredListings = [];
 
+    // Keep listing order stable across reloads in the same tab/day,
+    // but reshuffle for a new session or a new calendar day.
+    const LISTING_ORDER_SESSION_KEY = 'kbListingOrderSession';
+
+    function getLocalCalendarDay() {
+        const now = new Date();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        return `${now.getFullYear()}-${month}-${day}`;
+    }
+
+    function getListingOrderSeed() {
+        const today = getLocalCalendarDay();
+        try {
+            const raw = sessionStorage.getItem(LISTING_ORDER_SESSION_KEY);
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                if (parsed && parsed.seed && parsed.day === today) {
+                    return parsed.seed;
+                }
+            }
+        } catch (_e) {
+            /* ignore unreadable session data */
+        }
+
+        const seed = (Math.floor(Math.random() * 0x7fffffff) + 1) >>> 0;
+        try {
+            sessionStorage.setItem(LISTING_ORDER_SESSION_KEY, JSON.stringify({ seed, day: today }));
+        } catch (_e) {
+            /* ignore quota / private-mode failures */
+        }
+        return seed;
+    }
+
+    function hashListingOrderValue(id, seed) {
+        let h = (Number(id) || 0) >>> 0;
+        h ^= seed >>> 0;
+        h = Math.imul(h ^ (h >>> 16), 2246822507);
+        h = Math.imul(h ^ (h >>> 13), 3266489917);
+        return (h ^ (h >>> 16)) >>> 0;
+    }
+
+    function shuffleListingsForSession(listings) {
+        if (!Array.isArray(listings) || listings.length < 2) {
+            return Array.isArray(listings) ? listings : [];
+        }
+
+        const seed = getListingOrderSeed();
+        return [...listings].sort((a, b) => {
+            const hashA = hashListingOrderValue(a && a.id, seed);
+            const hashB = hashListingOrderValue(b && b.id, seed);
+            if (hashA !== hashB) return hashA - hashB;
+            return String(a && a.id != null ? a.id : '').localeCompare(String(b && b.id != null ? b.id : ''));
+        });
+    }
+
     // --- Phase 0: Pricing helpers ---
     const fmtMoney = (n) => '$' + Math.round(Number(n) || 0).toLocaleString('en-US');
     const hasDates = () => Boolean(apiFormats?.dates?.checkIn && apiFormats?.dates?.checkOut);
@@ -8896,8 +8952,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 /* ignore */
             }
 
-            // Set the base list for filtering
-            currentListings = Array.isArray(availableProperties) ? availableProperties : [];
+            // Set the base list for filtering (session-stable random order)
+            currentListings = shuffleListingsForSession(
+                Array.isArray(availableProperties) ? availableProperties : []
+            );
             unfilteredListings = [...currentListings];
 
             // IMPORTANT: Also update window.originalListings for map bounds filtering
