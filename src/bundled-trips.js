@@ -2039,11 +2039,15 @@ window.Wized.push((Wized) => {
                 font-size: 11.5px; color: var(--bt2-muted); font-variant-numeric: tabular-nums;
             }
             .bt2-filters__status {
-                display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+                display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
                 margin-top: 12px; min-height: 20px;
             }
-            .bt2-filters__count { margin: 0; font-size: 13px; color: var(--bt2-muted); flex: 1 1 auto; }
-            .bt2-filters__tools { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+            .bt2-filters__copy {
+                display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
+                min-width: 0; flex: 1;
+            }
+            .bt2-filters__count { margin: 0; font-size: 13px; color: var(--bt2-muted); }
+            .bt2-filters__tools { flex: none; }
             .bt2-sort { position: relative; }
             .bt2-sort__btn {
                 width: 32px; height: 32px; padding: 0; border: 0; border-radius: 8px;
@@ -2565,7 +2569,6 @@ window.Wized.push((Wized) => {
                 .bt2-section__head { margin-bottom: 32px; }
                 .bt2-section__head h2 { font-size: 28px; }
                 .bt2-filters { margin: -14px 0 20px; }
-                .bt2-filters__status { gap: 8px 12px; }
                 /* Two-up keeps every control tappable without a scrolling toolbar. */
                 .bt2-filters__bar { grid-template-columns: 1fr 1fr; gap: 6px; padding: 6px; border-radius: 12px; }
                 .bt2-fc__trigger { gap: 8px; padding: 8px 10px; }
@@ -3552,7 +3555,10 @@ window.Wized.push((Wized) => {
             <div class="bt2-filters">
                 ${controls.length ? `<div class="bt2-filters__bar">${controls.join('')}</div>` : ''}
                 <div class="bt2-filters__status">
-                    <p class="bt2-filters__count" aria-live="polite"></p>
+                    <div class="bt2-filters__copy">
+                        <p class="bt2-filters__count" aria-live="polite"></p>
+                        <button type="button" class="bt2-filters__clear" hidden>Clear all</button>
+                    </div>
                     <div class="bt2-filters__tools">
                         <div class="bt2-sort">
                             <button type="button" class="bt2-sort__btn" aria-expanded="false"
@@ -3564,7 +3570,6 @@ window.Wized.push((Wized) => {
                                             aria-selected="${o.id === filterState.sort ? 'true' : 'false'}">${escapeHtml(o.label)}</button>`).join('')}
                             </div>
                         </div>
-                        <button type="button" class="bt2-filters__clear" hidden>Clear all</button>
                     </div>
                 </div>
             </div>`;
