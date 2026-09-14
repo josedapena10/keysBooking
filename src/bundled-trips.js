@@ -678,6 +678,13 @@ window.Wized.push((Wized) => {
         return url.toString();
     };
 
+    /** Same page, with this trip pinned and scrolled into view. */
+    const buildPackageShareUrl = (title) => {
+        const url = new URL(window.location.pathname, window.location.origin);
+        if (title) url.searchParams.set('reference', title);
+        return url.toString();
+    };
+
     const getFirstPhotoUrl = (photos) => {
         if (!Array.isArray(photos)) return '';
         const ordered = photos.find((p) => p?.order === 1 && p?.image?.url);
@@ -1554,6 +1561,8 @@ window.Wized.push((Wized) => {
     const icons = {
         chevron: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>',
         clock: '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l3 2"/></svg>',
+        share: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7"/><path d="M12 4v12"/><path d="m8 8 4-4 4 4"/></svg>',
+        shareCheck: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5 9.5 17 19 7.5"/></svg>',
     };
 
     const FAQ_ITEMS = [
@@ -1628,7 +1637,14 @@ window.Wized.push((Wized) => {
         guests: { stay: 0, boat: 0, charter: 0 },
         maxPrice: 0,
         priceBasis: 'total',
+        sort: 'recommended',
     };
+
+    const SORT_OPTIONS = [
+        { id: 'recommended', label: 'Recommended' },
+        { id: 'price-asc', label: 'Price: low to high' },
+        { id: 'price-desc', label: 'Price: high to low' },
+    ];
 
     const priceBasis = () => PRICE_BASES.find((b) => b.id === filterState.priceBasis) || PRICE_BASES[0];
 
@@ -1699,7 +1715,29 @@ window.Wized.push((Wized) => {
         guests: { ...filterState.guests, ...(changes.guests || {}) },
         maxPrice: changes.maxPrice ?? filterState.maxPrice,
         priceBasis: changes.priceBasis || filterState.priceBasis,
+        sort: changes.sort || filterState.sort,
     });
+
+    /** Featured stays first; missing prices sink to the bottom on a price sort. */
+    const sortPackages = (packages) => {
+        const list = [...packages];
+        const priceOf = (pkg) => {
+            const n = Number(pkg?.startingTotalPrice);
+            return Number.isFinite(n) && n > 0 ? n : 0;
+        };
+        if (filterState.sort === 'price-asc' || filterState.sort === 'price-desc') {
+            const dir = filterState.sort === 'price-asc' ? 1 : -1;
+            list.sort((a, b) => {
+                const ap = priceOf(a);
+                const bp = priceOf(b);
+                if (!ap && !bp) return 0;
+                if (!ap) return 1;
+                if (!bp) return -1;
+                return (ap - bp) * dir;
+            });
+        }
+        return list;
+    };
 
     let allPackages = [];
     const viewedPackageIds = new Set();
@@ -2001,10 +2039,39 @@ window.Wized.push((Wized) => {
                 font-size: 11.5px; color: var(--bt2-muted); font-variant-numeric: tabular-nums;
             }
             .bt2-filters__status {
-                display: flex; align-items: center; gap: 12px;
+                display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
                 margin-top: 12px; min-height: 20px;
             }
-            .bt2-filters__count { margin: 0; font-size: 13px; color: var(--bt2-muted); }
+            .bt2-filters__count { margin: 0; font-size: 13px; color: var(--bt2-muted); flex: 1 1 auto; }
+            .bt2-filters__tools { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+            .bt2-sort { position: relative; }
+            .bt2-sort__btn {
+                width: 32px; height: 32px; padding: 0; border: 0; border-radius: 8px;
+                background: none; color: var(--bt2-muted); cursor: pointer;
+                display: grid; place-items: center;
+                transition: background .14s ease, color .14s ease;
+            }
+            .bt2-sort__btn svg { width: 16px; height: 16px; display: block; }
+            .bt2-sort__btn:hover { background: var(--bt2-section-light); color: var(--bt2-navy); }
+            .bt2-sort.is-open .bt2-sort__btn,
+            .bt2-sort.is-set .bt2-sort__btn { background: var(--bt2-primary-light); color: var(--bt2-primary); }
+            .bt2-sort__btn:focus-visible { outline: 3px solid rgba(10,115,255,.28); outline-offset: 1px; }
+            .bt2-sort__panel {
+                position: absolute; z-index: 40; top: calc(100% + 6px); right: 0;
+                min-width: 188px; padding: 6px;
+                background: #fff; border: 1px solid var(--bt2-border);
+                border-radius: 12px; box-shadow: 0 16px 40px rgba(16,24,40,.16);
+            }
+            .bt2-sort__panel[hidden] { display: none; }
+            .bt2-sort__opt {
+                display: block; width: 100%; text-align: left; cursor: pointer;
+                padding: 8px 10px; border: 0; border-radius: 8px;
+                background: none; font-family: ${FONT}; font-size: 13px; font-weight: 500;
+                color: var(--bt2-navy);
+            }
+            .bt2-sort__opt:hover { background: var(--bt2-section-light); }
+            .bt2-sort__opt.is-active { background: var(--bt2-primary-light); color: var(--bt2-primary); }
+            .bt2-sort__opt:focus-visible { outline: 3px solid rgba(10,115,255,.28); outline-offset: -1px; }
             .bt2-filters__clear {
                 background: none; border: 0; padding: 0; cursor: pointer;
                 font-family: ${FONT}; font-size: 13px; font-weight: 500; color: var(--bt2-primary);
@@ -2084,6 +2151,17 @@ window.Wized.push((Wized) => {
             .bt2-card__badge--green { background: #12B76A; }
             .bt2-card__badge--purple { background: #7F56D9; }
             .bt2-card__badge--gold { background: #D99A00; }
+            .bt2-share {
+                position: absolute; top: 10px; right: 10px; z-index: 4;
+                width: 36px; height: 36px; padding: 0; border: 0; border-radius: 50%;
+                background: rgba(255,255,255,.94); color: var(--bt2-navy); cursor: pointer;
+                display: grid; place-items: center;
+                box-shadow: 0 1px 5px rgba(5,18,35,.22);
+                transition: background .16s ease, color .16s ease, transform .16s ease;
+            }
+            .bt2-share:hover { background: #fff; transform: scale(1.05); }
+            .bt2-share:focus-visible { outline: 3px solid rgba(10,115,255,.4); outline-offset: 2px; }
+            .bt2-share.is-copied { background: #12B76A; color: #fff; }
             .bt2-card__stack {
                 position: absolute; left: 12px; right: 12px; bottom: 12px;
                 display: flex; flex-wrap: wrap; gap: 6px;
@@ -2487,6 +2565,7 @@ window.Wized.push((Wized) => {
                 .bt2-section__head { margin-bottom: 32px; }
                 .bt2-section__head h2 { font-size: 28px; }
                 .bt2-filters { margin: -14px 0 20px; }
+                .bt2-filters__status { gap: 8px 12px; }
                 /* Two-up keeps every control tappable without a scrolling toolbar. */
                 .bt2-filters__bar { grid-template-columns: 1fr 1fr; gap: 6px; padding: 6px; border-radius: 12px; }
                 .bt2-fc__trigger { gap: 8px; padding: 8px 10px; }
@@ -2819,19 +2898,19 @@ window.Wized.push((Wized) => {
         const capacityHtml = logisticsItems.length
             ? `<h4>Capacities</h4>
                 <ul class="bt2-logistics">${logisticsItems.map((c) => {
-                    const facts = (c.facts && c.facts.length)
-                        ? c.facts
-                        : String(c.meta || '').split(' · ').map((s) => s.trim()).filter(Boolean);
-                    return `
+                const facts = (c.facts && c.facts.length)
+                    ? c.facts
+                    : String(c.meta || '').split(' · ').map((s) => s.trim()).filter(Boolean);
+                return `
                     <li class="bt2-logistics__item bt2-logistics__item--${escapeHtml(c.kind || 'stay')}">
                         <span class="bt2-logistics__type">${escapeHtml(c.typeLabel)}</span>
                         ${c.title ? `<p class="bt2-logistics__title">${escapeHtml(c.title)}</p>` : ''}
                         ${c.subtitle ? `<p class="bt2-logistics__sub">${escapeHtml(c.subtitle)}</p>` : ''}
                         ${facts.length
-                            ? `<div class="bt2-logistics__facts">${facts.map((f) => `<span class="bt2-logistics__fact">${escapeHtml(f)}</span>`).join('')}</div>`
-                            : ''}
+                        ? `<div class="bt2-logistics__facts">${facts.map((f) => `<span class="bt2-logistics__fact">${escapeHtml(f)}</span>`).join('')}</div>`
+                        : ''}
                     </li>`;
-                }).join('')}</ul>`
+            }).join('')}</ul>`
             : '';
 
         return `
@@ -2843,6 +2922,12 @@ window.Wized.push((Wized) => {
                 <div class="bt2-card__media">
                     ${mediaHtml}
                     ${slides.length > 1 ? '' : stackHtml}
+                    ${pkg.title
+                ? `<button type="button" class="bt2-share" data-share
+                                data-share-url="${escapeHtml(buildPackageShareUrl(pkg.title))}"
+                                data-share-title="${escapeHtml(pkg.title)}"
+                                aria-label="Share ${escapeHtml(pkg.title)}">${icons.share}</button>`
+                : ''}
                 </div>
                 <div class="bt2-card__body">
                     ${featuredLabel}
@@ -2989,6 +3074,39 @@ window.Wized.push((Wized) => {
             </section>`;
     }
 
+    async function sharePackage(btn) {
+        const url = btn.dataset.shareUrl;
+        const title = btn.dataset.shareTitle || 'Florida Keys trip';
+        if (!url) return;
+        const card = btn.closest('.bt2-card');
+        const markCopied = () => {
+            btn.classList.add('is-copied');
+            btn.innerHTML = icons.shareCheck;
+            btn.setAttribute('aria-label', 'Link copied');
+            window.setTimeout(() => {
+                btn.classList.remove('is-copied');
+                btn.innerHTML = icons.share;
+                btn.setAttribute('aria-label', `Share ${title}`);
+            }, 1800);
+        };
+        if (typeof navigator.share === 'function') {
+            try {
+                await navigator.share({ title, text: `Check out this Keys trip: ${title}`, url });
+                trackEvent('bundled_package_share', { ...cardDetail(card), method: 'native' });
+                return;
+            } catch (err) {
+                if (err?.name === 'AbortError') return;
+            }
+        }
+        try {
+            await navigator.clipboard.writeText(url);
+            markCopied();
+            trackEvent('bundled_package_share', { ...cardDetail(card), method: 'clipboard' });
+        } catch (_) {
+            window.prompt('Copy this trip link', url);
+        }
+    }
+
     /** Shared by the card, itinerary-end, and sticky-bar CTAs. */
     function handleCtaClick(cta) {
         // The sticky bar lives outside the card, so it carries the same data attributes.
@@ -3024,6 +3142,14 @@ window.Wized.push((Wized) => {
                 trackEvent('bundled_build_your_own_click', {
                     placement: buildOwn.closest('.bt2-mid-cta--slim') ? 'slim_reference' : 'standard',
                 });
+                return;
+            }
+
+            const shareBtn = e.target.closest('[data-share]');
+            if (shareBtn) {
+                e.preventDefault();
+                e.stopPropagation();
+                sharePackage(shareBtn);
                 return;
             }
 
@@ -3338,6 +3464,7 @@ window.Wized.push((Wized) => {
         check: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2 4.2h3.2M2 8h3.2M2 11.8h3.2"/><path d="M8.2 4.2h6M8.2 8h6M8.2 11.8h6" opacity=".45"/></svg>',
         guests: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="6" cy="5.4" r="2.4"/><path d="M1.8 13.4c0-2.3 1.9-4.1 4.2-4.1s4.2 1.8 4.2 4.1"/><path d="M10.6 3.3a2.4 2.4 0 0 1 0 4.2M11.6 9.5c1.6.4 2.7 1.8 2.7 3.5" opacity=".45"/></svg>',
         price: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M8 2.2v11.6"/><path d="M10.6 5.1c0-1.1-1.2-1.8-2.6-1.8s-2.6.7-2.6 1.8S6.3 7 8 7.3s2.8.9 2.8 2.1-1.3 1.9-2.8 1.9-2.8-.8-2.8-1.9"/></svg>',
+        sort: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4.2 6.2 8 2.5l3.8 3.7"/><path d="M4.2 9.8 8 13.5l3.8-3.7"/></svg>',
     };
 
     const optionRow = (kind, option) => `
@@ -3423,10 +3550,22 @@ window.Wized.push((Wized) => {
 
         host.innerHTML = `
             <div class="bt2-filters">
-                <div class="bt2-filters__bar">${controls.join('')}</div>
+                ${controls.length ? `<div class="bt2-filters__bar">${controls.join('')}</div>` : ''}
                 <div class="bt2-filters__status">
                     <p class="bt2-filters__count" aria-live="polite"></p>
-                    <button type="button" class="bt2-filters__clear" hidden>Clear all</button>
+                    <div class="bt2-filters__tools">
+                        <div class="bt2-sort">
+                            <button type="button" class="bt2-sort__btn" aria-expanded="false"
+                                    aria-haspopup="listbox" aria-label="Sort packages">${ICONS.sort}</button>
+                            <div class="bt2-sort__panel" role="listbox" aria-label="Sort packages" hidden>
+                                ${SORT_OPTIONS.map((o) => `
+                                    <button type="button" class="bt2-sort__opt${o.id === filterState.sort ? ' is-active' : ''}"
+                                            data-sort="${escapeHtml(o.id)}" role="option"
+                                            aria-selected="${o.id === filterState.sort ? 'true' : 'false'}">${escapeHtml(o.label)}</button>`).join('')}
+                            </div>
+                        </div>
+                        <button type="button" class="bt2-filters__clear" hidden>Clear all</button>
+                    </div>
                 </div>
             </div>`;
     }
@@ -3444,7 +3583,9 @@ window.Wized.push((Wized) => {
             if (value) value.textContent = text;
         };
 
-        // Location + includes checkboxes, with the count each one would leave behind.
+        // Location + includes: count packages that have this option given the other
+        // filters. Always require it (don't toggle) so checking a box doesn't swap
+        // "how many have this" for "how many you'd have without it".
         const syncOptions = (kind, options, selected) => {
             host.querySelectorAll(`[data-${kind}]`).forEach((box) => {
                 const id = box.dataset[kind];
@@ -3452,10 +3593,10 @@ window.Wized.push((Wized) => {
                 if (!option) return;
                 const on = selected.has(id);
                 box.checked = on;
+                const required = new Set(selected);
+                required.add(id);
                 const probe = probeState({
-                    [kind === 'area' ? 'areas' : 'includes']: on
-                        ? new Set([...selected].filter((x) => x !== id))
-                        : new Set([...selected, id]),
+                    [kind === 'area' ? 'areas' : 'includes']: required,
                 });
                 const hits = filterPackages(allPackages, probe).length;
                 const row = box.closest('.bt2-opt');
@@ -3565,6 +3706,16 @@ window.Wized.push((Wized) => {
                 !atMax);
         }
 
+        const sortRoot = host.querySelector('.bt2-sort');
+        if (sortRoot) {
+            sortRoot.classList.toggle('is-set', filterState.sort !== 'recommended');
+            sortRoot.querySelectorAll('[data-sort]').forEach((btn) => {
+                const on = btn.dataset.sort === filterState.sort;
+                btn.classList.toggle('is-active', on);
+                btn.setAttribute('aria-selected', on ? 'true' : 'false');
+            });
+        }
+
         const countEl = host.querySelector('.bt2-filters__count');
         if (countEl) {
             countEl.textContent = activeFilterCount()
@@ -3579,7 +3730,7 @@ window.Wized.push((Wized) => {
         // The requested package always stays on the page, filters or not — the badge
         // above its title already explains why it's there.
         const referenced = allPackages.filter((pkg) => pkg.isFeatured);
-        const matched = filterPackages(allPackages.filter((pkg) => !pkg.isFeatured));
+        const matched = sortPackages(filterPackages(allPackages.filter((pkg) => !pkg.isFeatured)));
         const packages = [...referenced, ...matched];
 
         if (!packages.length) {
@@ -3636,13 +3787,13 @@ window.Wized.push((Wized) => {
 
         const host = document.querySelector('#bt2-filters');
         const filters = usableFilters(allPackages);
-        if (host && filters.any) {
+        if (host) {
             renderFilterBar(host, filters);
             bindFilters(host, grid);
         }
 
         const visible = renderGrid(grid);
-        if (host && filters.any) syncFilterBar(host, visible);
+        if (host) syncFilterBar(host, visible);
     }
 
     /** A flat, readable description of the selection for the analytics payload. */
@@ -3653,10 +3804,14 @@ window.Wized.push((Wized) => {
         ];
         setGuestComponents().forEach((c) => parts.push(`${c.id}:${filterState.guests[c.id]}+`));
         if (filterState.maxPrice) parts.push(`max${filterState.priceBasis}:${filterState.maxPrice}`);
+        if (filterState.sort && filterState.sort !== 'recommended') parts.push(`sort:${filterState.sort}`);
         return parts.join(',') || 'none';
     }
 
     function bindFilters(host, grid) {
+        if (host.dataset.bt2FiltersBound) return;
+        host.dataset.bt2FiltersBound = 'true';
+
         const closePanels = (except) => {
             host.querySelectorAll('.bt2-fc').forEach((fc) => {
                 if (fc === except) return;
@@ -3664,6 +3819,14 @@ window.Wized.push((Wized) => {
                 fc.querySelector('.bt2-fc__panel').hidden = true;
                 fc.querySelector('.bt2-fc__trigger').setAttribute('aria-expanded', 'false');
             });
+            const sort = host.querySelector('.bt2-sort');
+            if (sort && sort !== except) {
+                sort.classList.remove('is-open');
+                const panel = sort.querySelector('.bt2-sort__panel');
+                const btn = sort.querySelector('.bt2-sort__btn');
+                if (panel) panel.hidden = true;
+                if (btn) btn.setAttribute('aria-expanded', 'false');
+            }
         };
 
         // Re-rendering the grid mid-interaction must not close the panel the visitor
@@ -3687,6 +3850,27 @@ window.Wized.push((Wized) => {
         };
 
         host.addEventListener('click', (e) => {
+            const sortBtn = e.target.closest('.bt2-sort__btn');
+            if (sortBtn) {
+                const sort = sortBtn.closest('.bt2-sort');
+                const open = !sort.classList.contains('is-open');
+                closePanels(sort);
+                sort.classList.toggle('is-open', open);
+                sort.querySelector('.bt2-sort__panel').hidden = !open;
+                sortBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+                return;
+            }
+
+            const sortOpt = e.target.closest('[data-sort]');
+            if (sortOpt) {
+                const next = sortOpt.dataset.sort;
+                closePanels();
+                if (next === filterState.sort) return;
+                filterState.sort = next;
+                apply('sort');
+                return;
+            }
+
             const trigger = e.target.closest('.bt2-fc__trigger');
             if (trigger) {
                 const fc = trigger.closest('.bt2-fc');
@@ -3782,14 +3966,16 @@ window.Wized.push((Wized) => {
 
         host.addEventListener('keydown', (e) => {
             if (e.key !== 'Escape') return;
-            const open = host.querySelector('.bt2-fc.is-open');
-            if (!open) return;
+            const openFc = host.querySelector('.bt2-fc.is-open');
+            const openSort = host.querySelector('.bt2-sort.is-open');
+            if (!openFc && !openSort) return;
             closePanels();
-            open.querySelector('.bt2-fc__trigger').focus();
+            if (openFc) openFc.querySelector('.bt2-fc__trigger')?.focus();
+            else openSort.querySelector('.bt2-sort__btn')?.focus();
         });
 
         document.addEventListener('click', (e) => {
-            if (!host.querySelector('.bt2-fc.is-open')) return;
+            if (!host.querySelector('.bt2-fc.is-open') && !host.querySelector('.bt2-sort.is-open')) return;
             if (host.contains(e.target)) return;
             closePanels();
         });
