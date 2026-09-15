@@ -1150,7 +1150,7 @@ window.Wized.push((Wized) => {
                 ? `Private dock · up to ${locationInfo.maxBoatLength}`
                 : 'Private dock');
         }
-        if (property?.pets_allowed) stayFacts.push('Pets allowed');
+        if (property?.pets_allowed) stayFacts.push('Pets on request');
 
         components.push({
             kind: 'stay',
@@ -1604,7 +1604,7 @@ window.Wized.push((Wized) => {
         { id: 'boat', label: 'Rental boat', hint: 'Your own boat for the week', match: (p) => p.facets.hasBoat },
         { id: 'charter', label: 'Fishing charter', hint: 'Guided trips with a captain', match: (p) => p.facets.hasCharter },
         { id: 'dock', label: 'Private dock', hint: 'Tie up at the house', match: (p) => p.facets.privateDock },
-        { id: 'pets', label: 'Pet friendly', hint: 'Dogs welcome at the stay', match: (p) => p.facets.petsAllowed },
+        { id: 'pets', label: 'Pets on request', hint: 'Pets allowed on a request basis', match: (p) => p.facets.petsAllowed },
     ];
 
     /**
