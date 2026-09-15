@@ -391,7 +391,7 @@ window.Wized.push((Wized) => {
      * Whole-catalogue totals, not what these packages happen to use. Held in one place
      * so the hero stats and the build-your-own pitch can't drift apart.
      */
-    const INVENTORY = { stays: 34, boats: 39, charters: 19 };
+    const INVENTORY = { stays: 34, boats: 47, charters: 20 };
     const HELP_HERO_IMAGE = 'https://cdn.prod.website-files.com/65c420cdaa11ef67a52edb9a/69c432e85f8f42f896932c0e_iStock-483475944%20copy%202%20Large.webp';
     const BLUE = '#0A73FF';
     const BLUE_HOVER = '#005FD6';
@@ -3201,7 +3201,7 @@ window.Wized.push((Wized) => {
             <div class="bt2-mid-cta bt2-mid-cta--${variant}">
                 <div class="bt2-mid-cta__copy">
                     <span class="bt2-card__badge bt2-card__badge--blue">Build your own</span>
-                    <h3>These packages are only a sample</h3>
+                    <h3>Want a different combination?</h3>
                     <p>Pair any stay with any boat rental or fishing charter &mdash; one booking, same as above.</p>
                     <ul class="bt2-mid-cta__inv">
                         <li><strong>${INVENTORY.stays}</strong> stays</li>
