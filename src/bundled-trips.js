@@ -1158,6 +1158,7 @@ window.Wized.push((Wized) => {
             typeLabel: 'Private stay',
             title: property?.property_name || `${nights}-night Florida Keys stay`,
             capacity: stayGuestCount ? `Up to ${stayGuestCount} guests` : '',
+            guestLimit: stayGuestCount || null,
             meta: stayMeta.join(' · '),
             facts: stayFacts,
             timing: nights ? `${nights} nights` : '',
@@ -1187,6 +1188,7 @@ window.Wized.push((Wized) => {
                 title: boatName,
                 subtitle: boatCompany && boatCompany !== boatName ? boatCompany : '',
                 capacity: boatCapacity ? `Up to ${boatCapacity} guests` : '',
+                guestLimit: boatCapacity,
                 meta: boatMeta.join(' · '),
                 facts: boatCapacity ? [`Max ${boatCapacity} passengers`] : [],
                 timing: dayRangeLabel(start, schedule.boatLength),
@@ -1212,6 +1214,7 @@ window.Wized.push((Wized) => {
                 title: tripLabel,
                 subtitle: [operator, vessel].filter(Boolean).join(' · '),
                 capacity: guestLimit ? `Up to ${guestLimit} guests` : '',
+                guestLimit: guestLimit || null,
                 meta: charterMeta.join(' · '),
                 facts: guestLimit ? [`Max ${guestLimit} guests`] : [],
                 timing: timing || '',
@@ -1460,12 +1463,11 @@ window.Wized.push((Wized) => {
         }
 
         const charterGuestLimits = trip?.hasFishingCharter
-            ? (trip?.fishingcharters || [])
-                .map((c) => getCharterGuestLimit(c))
-                .filter((n) => n != null && n > 0)
+            ? (trip?.fishingcharters || []).map((c) => toPositiveNumber(getCharterGuestLimit(c)))
             : [];
-        const charterGuestCapacity = charterGuestLimits.length
-            ? Math.min(...charterGuestLimits)
+        const knownCharterLimits = charterGuestLimits.filter(Boolean);
+        const charterGuestCapacity = knownCharterLimits.length
+            ? Math.min(...knownCharterLimits)
             : null;
         const boatGuestCapacity = trip?.hasBoatRental && schedule.boatLength > 0
             ? toPositiveNumber(
@@ -1520,6 +1522,7 @@ window.Wized.push((Wized) => {
             stayGuestCount,
             boatGuestCapacity,
             charterGuestCapacity,
+            charterGuestLimits,
             nights,
             itinerary,
             includedComponents,
@@ -1653,6 +1656,68 @@ window.Wized.push((Wized) => {
      * stay for eight and a charter for six still means eight people are coming.
      */
     const partySize = (state = filterState) => Math.max(0, ...GUEST_COMPONENTS.map((c) => state.guests[c.id] || 0));
+
+    const capToCapacity = (want, capacity) => {
+        if (!want) return null;
+        const max = toPositiveNumber(capacity);
+        return max ? Math.min(want, max) : want;
+    };
+
+    /** Same number shown on the card as "Up to X guests". */
+    const guestLimitFromComponents = (pkg, kind) => {
+        const hit = (pkg.includedComponents || []).find((c) => c.kind === kind);
+        return toPositiveNumber(hit?.guestLimit);
+    };
+
+    /**
+     * Listing pages read guest counts from the URL. If the visitor already sized a stay,
+     * boat, or charter here, send those numbers through so they don't have to enter them
+     * again. A stay-only filter also fills boat/charter guests, capped at what each
+     * piece actually holds.
+     */
+    const applyGuestFiltersToListingUrl = (listingUrl, pkg, state = filterState) => {
+        if (!listingUrl || !pkg) return listingUrl || '';
+        const stayWanted = toPositiveNumber(state.guests.stay);
+        const boatWanted = toPositiveNumber(state.guests.boat);
+        const charterWanted = toPositiveNumber(state.guests.charter);
+        if (!stayWanted && !boatWanted && !charterWanted) return listingUrl;
+
+        let url;
+        try { url = new URL(listingUrl, window.location.origin); } catch { return listingUrl; }
+
+        const party = partySize(state);
+        const stayMax = pkg.stayGuestCount || guestLimitFromComponents(pkg, 'stay');
+        const stayCount = capToCapacity(stayWanted || party, stayMax);
+        if (stayCount) {
+            url.searchParams.set('guests', String(stayCount));
+            url.searchParams.set('adults', String(stayCount));
+        }
+
+        if (url.searchParams.has('boatGuests') || url.searchParams.has('boatId')) {
+            const boatMax = pkg.boatGuestCapacity || guestLimitFromComponents(pkg, 'boat');
+            const boatCount = capToCapacity(boatWanted || stayWanted || party, boatMax);
+            if (boatCount) url.searchParams.set('boatGuests', String(boatCount));
+        }
+
+        const charterIndexes = new Set();
+        url.searchParams.forEach((_, key) => {
+            const match = /^fishingCharter(?:Id|Guests|TripId|Dates|Pickup)(\d+)$/.exec(key);
+            if (match) charterIndexes.add(match[1]);
+        });
+        if (charterIndexes.size) {
+            const wanted = charterWanted || stayWanted || party;
+            charterIndexes.forEach((n) => {
+                const index = Number(n) - 1;
+                const charterMax = (pkg.charterGuestLimits && pkg.charterGuestLimits[index])
+                    || pkg.charterGuestCapacity
+                    || guestLimitFromComponents(pkg, 'charter');
+                const charterCount = capToCapacity(wanted, charterMax);
+                if (charterCount) url.searchParams.set(`fishingCharterGuests${n}`, String(charterCount));
+            });
+        }
+
+        return url.toString();
+    };
 
     /**
      * Per-person price against the visitor's own group rather than the package's default
@@ -2784,24 +2849,25 @@ window.Wized.push((Wized) => {
                 : detailParts.length === 1
                     ? `full ${detailParts[0]} details`
                     : 'full package details';
-        const ctaBlock = pkg.listingUrl
+        const listingUrl = applyGuestFiltersToListingUrl(pkg.listingUrl, pkg);
+        const ctaBlock = listingUrl
             ? `<div class="bt2-card__cta">
                 <a class="bt2-btn bt2-btn--primary bt2-btn--full bt2-cta-link"
-                   href="${escapeHtml(pkg.listingUrl)}"
+                   href="${escapeHtml(listingUrl)}"
                    data-trip-name="${escapeHtml(pkg.title)}"
-                   data-cta-placement="card">Check dates &amp; exact price</a>
+                   data-cta-placement="card">Check dates &amp; book</a>
                 <p class="bt2-card__reassure">See photos, dates, and ${detailsPhrase}</p>
                </div>`
             : '';
 
         // Reading the whole itinerary is the strongest buying signal, so the panel
         // has to end on the booking step rather than on a link away from it.
-        const panelCtaBlock = pkg.listingUrl
+        const panelCtaBlock = listingUrl
             ? `<div class="bt2-details__cta">
                 <a class="bt2-btn bt2-btn--primary bt2-btn--full bt2-cta-link"
-                   href="${escapeHtml(pkg.listingUrl)}"
+                   href="${escapeHtml(listingUrl)}"
                    data-trip-name="${escapeHtml(pkg.title)}"
-                   data-cta-placement="itinerary_end">Check dates &amp; exact price</a>
+                   data-cta-placement="itinerary_end">Check dates &amp; and book</a>
                </div>`
             : '';
 
@@ -3340,7 +3406,7 @@ window.Wized.push((Wized) => {
                 <p class="bt2-sticky-cta__price"></p>
             </div>
             <a class="bt2-btn bt2-btn--primary bt2-cta-link bt2-sticky-cta__btn"
-               href="#" data-cta-placement="sticky">Check dates &amp; price</a>`;
+               href="#" data-cta-placement="sticky">Check dates &amp; book</a>`;
         document.body.appendChild(bar);
 
         const nameEl = bar.querySelector('.bt2-sticky-cta__name');
@@ -3350,12 +3416,10 @@ window.Wized.push((Wized) => {
             if (link.href && !link.href.endsWith('#')) handleCtaClick(link);
         });
 
-        let shownFor = null;
         let pending = null;
 
         const hide = () => {
             bar.classList.remove('is-visible');
-            shownFor = null;
         };
 
         const update = () => {
@@ -3392,15 +3456,12 @@ window.Wized.push((Wized) => {
             if (ownCtaVisible) return hide();
 
             const id = card.dataset.packageId || '';
-            if (id !== shownFor) {
-                shownFor = id;
-                nameEl.textContent = card.dataset.tripName || '';
-                priceEl.textContent = card.dataset.priceLabel || '';
-                link.href = cardCta.href;
-                link.dataset.packageId = id;
-                link.dataset.tripName = card.dataset.tripName || '';
-                link.dataset.reference = card.dataset.reference || 'false';
-            }
+            nameEl.textContent = card.dataset.tripName || '';
+            priceEl.textContent = card.dataset.priceLabel || '';
+            link.href = cardCta.href;
+            link.dataset.packageId = id;
+            link.dataset.tripName = card.dataset.tripName || '';
+            link.dataset.reference = card.dataset.reference || 'false';
             bar.classList.add('is-visible');
         };
 
