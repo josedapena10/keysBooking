@@ -391,7 +391,7 @@ window.Wized.push((Wized) => {
      * Whole-catalogue totals, not what these packages happen to use. Held in one place
      * so the hero stats and the build-your-own pitch can't drift apart.
      */
-    const INVENTORY = { stays: 34, boats: 47, charters: 20 };
+    const INVENTORY = { stays: 34, boats: 47, charters: 19 };
     const HELP_HERO_IMAGE = 'https://cdn.prod.website-files.com/65c420cdaa11ef67a52edb9a/69c432e85f8f42f896932c0e_iStock-483475944%20copy%202%20Large.webp';
     const BLUE = '#0A73FF';
     const BLUE_HOVER = '#005FD6';
@@ -2337,6 +2337,13 @@ window.Wized.push((Wized) => {
             .bt2-included__sub {
                 margin: 1px 0 0; font-size: 12px; color: var(--bt2-muted); line-height: 1.3;
             }
+            .bt2-included__more {
+                display: inline-block; margin: 4px 0 0;
+                font-size: 12px; font-weight: 500; color: var(--bt2-primary);
+                text-decoration: none;
+            }
+            .bt2-included__more:hover { text-decoration: underline; text-underline-offset: 2px; }
+            .bt2-included__more:focus-visible { outline: 3px solid rgba(10,115,255,.28); outline-offset: 2px; }
             .bt2-logistics {
                 list-style: none; margin: 0 0 4px; padding: 0;
                 display: flex; flex-direction: column; gap: 12px;
@@ -2813,6 +2820,13 @@ window.Wized.push((Wized) => {
             ? `<div class="bt2-card__stack" aria-hidden="true">${stackChips.map((chip) => `<span class="bt2-card__stack-chip">${chip}</span>`).join('')}</div>`
             : '';
 
+        const listingUrl = applyGuestFiltersToListingUrl(pkg.listingUrl, pkg);
+        const stayPhotosLink = listingUrl
+            ? `<a class="bt2-cta-link bt2-included__more"
+                   href="${escapeHtml(listingUrl)}"
+                   data-trip-name="${escapeHtml(pkg.title)}"
+                   data-cta-placement="stay_included">Stay photos &amp; details</a>`
+            : '';
         const includedHtmlFace = pkg.includedComponents?.length
             ? `<div class="bt2-included">
                 <p class="bt2-included__label">What's included</p>
@@ -2830,6 +2844,7 @@ window.Wized.push((Wized) => {
                                 </div>
                                 <p class="bt2-included__title">${escapeHtml(item.title)}</p>
                                 ${item.subtitle ? `<p class="bt2-included__sub">${escapeHtml(item.subtitle)}</p>` : ''}
+                                ${item.kind === 'stay' ? stayPhotosLink : ''}
                             </div>
                         </li>
                     `).join('')}
@@ -2849,7 +2864,6 @@ window.Wized.push((Wized) => {
                 : detailParts.length === 1
                     ? `full ${detailParts[0]} details`
                     : 'full package details';
-        const listingUrl = applyGuestFiltersToListingUrl(pkg.listingUrl, pkg);
         const ctaBlock = listingUrl
             ? `<div class="bt2-card__cta">
                 <a class="bt2-btn bt2-btn--primary bt2-btn--full bt2-cta-link"
@@ -3446,6 +3460,9 @@ window.Wized.push((Wized) => {
             // including the one at the end of an expanded itinerary.
             const barHeight = bar.offsetHeight || 76;
             const ownCtaVisible = Array.from(card.querySelectorAll('.bt2-cta-link')).some((el) => {
+                // Photo/detail gateways share the listing URL, but they are not the book button.
+                const placement = el.dataset.ctaPlacement || 'card';
+                if (placement !== 'card' && placement !== 'itinerary_end') return false;
                 // A collapsed accordion still reports a box, so check the panel is open.
                 const panel = el.closest('.bt2-accordion-panel');
                 if (panel && !panel.classList.contains('is-open')) return false;
