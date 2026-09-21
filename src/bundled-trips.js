@@ -412,11 +412,51 @@ window.Wized.push((Wized) => {
         : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
     const params = new URLSearchParams(window.location.search);
-    const referenceRaw = params.get('reference') || '';
-    const referenceNormalized = referenceRaw.toLowerCase().replace(/-/g, ' ').replace(/\s+/g, ' ').trim();
 
-    const normalizeForMatch = (str = '') =>
-        str.toLowerCase().replace(/-/g, ' ').replace(/\s+/g, ' ').trim();
+    /**
+     * `reference=hook-wine-&-sinker` (or a decoded %26) is split by the query parser
+     * at `&`, so the leftover "-sinker-…" shows up as extra keys. Glue those back on.
+     * Literal `%26` (double-encoded) is left for slug matching to treat as `&`.
+     */
+    const readReferenceParam = () => {
+        const value = params.get('reference');
+        if (value == null || value === '') return '';
+        const parts = [value];
+        params.forEach((val, key) => {
+            if (key === 'reference') return;
+            if (!(key.startsWith('-') || key.startsWith(' ') || key.startsWith('%'))) return;
+            parts.push(val ? `${key}=${val}` : key);
+        });
+        return parts.join('&');
+    };
+
+    const normalizeForMatch = (str = '') => String(str)
+        .toLowerCase()
+        .replace(/%26/g, ' ')
+        .replace(/&amp;/g, ' ')
+        .replace(/&/g, ' ')
+        .replace(/[^a-z0-9]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    const referenceRaw = readReferenceParam();
+    const referenceNormalized = normalizeForMatch(referenceRaw);
+
+    /** Exact slug, or the one trip that contains every word in the reference slug. */
+    const matchingReferenceIndexes = (trips) => {
+        if (!referenceNormalized) return [];
+        const slugs = trips.map((t) => normalizeForMatch(t?.trip_name || ''));
+        const exact = [];
+        slugs.forEach((slug, i) => { if (slug === referenceNormalized) exact.push(i); });
+        if (exact.length) return exact;
+        const words = referenceNormalized.split(' ');
+        const hits = [];
+        slugs.forEach((slug, i) => {
+            const set = new Set(slug.split(' '));
+            if (words.every((w) => set.has(w))) hits.push(i);
+        });
+        return hits.length === 1 ? hits : [];
+    };
 
     const toTitleLike = (str = '') =>
         normalizeForMatch(str).replace(/\b\w/g, (c) => c.toUpperCase());
@@ -3862,8 +3902,11 @@ window.Wized.push((Wized) => {
             return;
         }
 
+        const referencedIds = new Set(
+            matchingReferenceIndexes(trips).map((i) => String(trips[i]?.id))
+        );
         allPackages = trips.map((trip) => {
-            const isRef = referenceNormalized && normalizeForMatch(trip.trip_name || '') === referenceNormalized;
+            const isRef = referencedIds.has(String(trip.id));
             return tripToPackage(trip, isRef);
         });
         allPackages.sort((a, b) => Number(b.isFeatured) - Number(a.isFeatured));
@@ -4273,9 +4316,9 @@ window.Wized.push((Wized) => {
 
                 let tripsToRender = sorted;
                 if (referenceNormalized) {
-                    const idx = sorted.findIndex((t) => normalizeForMatch(t?.trip_name || '') === referenceNormalized);
-                    if (idx > -1) {
-                        const [match] = sorted.splice(idx, 1);
+                    const idxs = matchingReferenceIndexes(sorted);
+                    if (idxs.length) {
+                        const [match] = sorted.splice(idxs[0], 1);
                         tripsToRender = [match, ...sorted];
                     }
                 }
