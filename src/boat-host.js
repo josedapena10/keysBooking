@@ -426,7 +426,8 @@
     function normalizeRow(raw) {
         const boat = raw.boat || raw._boat || {};
         const stay = raw.stay || raw.reservation || {};
-        const guest = raw.guest || raw._guestuser || {};
+        const firstRecord = (value) => (Array.isArray(value) ? (value[0] || {}) : (value || {}));
+        const guest = { ...firstRecord(raw._guestuser), ...firstRecord(raw.guest) };
         const info = raw.additional_info || raw._boat_additionalinfo || {};
         const pricing = Array.isArray(raw.pricing) ? raw.pricing[0] || {} : raw.pricing || {};
 
@@ -487,7 +488,8 @@
                 firstName: pick(guest, ['first_name', 'First_Name'], ''),
                 lastName: pick(guest, ['last_name', 'Last_Name'], ''),
                 birthDate: pick(guest, ['birth_date', 'Birth_Date'], ''),
-                phone: pick(guest, ['phone', 'phoneNumber'], '')
+                phone: pick(guest, ['phone', 'phoneNumber'], ''),
+                email: pick(guest, ['email', 'Email'], '')
             },
 
             info: {
@@ -834,11 +836,13 @@
         const showDetails = status === 'request' || status === 'accepted' || status === 'completed';
         const showContact = status === 'accepted' || status === 'completed';
         const contactNumber = showContact ? (row.stay.guestNumber || row.guest.phone) : '';
+        const email = showContact ? row.guest.email : '';
 
         const rows = [
             detailRow('Name', `${row.guest.firstName} ${row.guest.lastName}`.trim()),
             detailRow('Date of birth', formatDobWithAge(row.guest.birthDate)),
-            detailRow('Contact number', contactNumber ? formatPhone(contactNumber) : '')
+            detailRow('Contact number', contactNumber ? formatPhone(contactNumber) : ''),
+            detailRow('Email', email)
         ];
 
         if (showDetails) {

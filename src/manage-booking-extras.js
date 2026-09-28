@@ -1133,6 +1133,22 @@ function renderBoatCustomerDetails(piData, resCodeData, statusVariant, linkState
         setText('manageBooking_customerDetails_boat_phoneNumber', '');
     }
 
+    // Email
+    if (statusVariant === 'accepted') {
+        showFlex('manageBooking_customerDetails_boat_emailContainer');
+        showFlex('manageBooking_customerDetails_boat_email');
+        if (resCodeData._guestuser && resCodeData._guestuser.Email) {
+            setText('manageBooking_customerDetails_boat_email', resCodeData._guestuser.Email);
+        }
+    } else if (statusVariant === 'completed') {
+        showFlex('manageBooking_customerDetails_boat_emailContainer');
+        showFlex('manageBooking_customerDetails_boat_email');
+        setText('manageBooking_customerDetails_boat_email', '');
+    } else {
+        hide('manageBooking_customerDetails_boat_emailContainer');
+        setText('manageBooking_customerDetails_boat_email', '');
+    }
+
     // Date of birth
     if (resCodeData._guestuser && resCodeData._guestuser.Birth_Date) {
         setText('manageBooking_customerDetails_boat_dateOfBirth', formatDobWithAge(resCodeData._guestuser.Birth_Date));
@@ -1932,6 +1948,22 @@ function renderCharterCustomerDetails(piData, resCodeData, charterEntry, statusV
         setText('manageBooking_customerDetails_fishingCharter_phoneNumber', '');
     }
 
+    // Email
+    if (statusVariant === 'accepted') {
+        showFlex('manageBooking_customerDetails_fishingCharter_emailContainer');
+        showFlex('manageBooking_customerDetails_fishingCharter_email');
+        if (resCodeData._guestuser && resCodeData._guestuser[0] && resCodeData._guestuser[0].Email) {
+            setText('manageBooking_customerDetails_fishingCharter_email', resCodeData._guestuser[0].Email);
+        }
+    } else if (statusVariant === 'completed') {
+        showFlex('manageBooking_customerDetails_fishingCharter_emailContainer');
+        showFlex('manageBooking_customerDetails_fishingCharter_email');
+        setText('manageBooking_customerDetails_fishingCharter_email', '');
+    } else {
+        hide('manageBooking_customerDetails_fishingCharter_emailContainer');
+        setText('manageBooking_customerDetails_fishingCharter_email', '');
+    }
+
     // Date of birth (_guestuser is an array, so access first element)
     if (resCodeData._guestuser && resCodeData._guestuser[0] && resCodeData._guestuser[0].Birth_Date) {
         const dobFormatted = formatDobWithAge(resCodeData._guestuser[0].Birth_Date);
@@ -2224,6 +2256,8 @@ function hideAllContent() {
         'manageBooking_customerDetails_boat_name',
         'manageBooking_customerDetails_boat_phoneNumberContainer',
         'manageBooking_customerDetails_boat_phoneNumber',
+        'manageBooking_customerDetails_boat_emailContainer',
+        'manageBooking_customerDetails_boat_email',
         'manageBooking_customerDetails_boat_dateOfBirth',
         'manageBooking_customerDetails_boat_homeAddressContainer',
         'manageBooking_customerDetails_boat_homeAddress',
@@ -2252,6 +2286,8 @@ function hideAllContent() {
         'manageBooking_customerDetails_fishingCharter_name',
         'manageBooking_customerDetails_fishingCharter_phoneNumberContainer',
         'manageBooking_customerDetails_fishingCharter_phoneNumber',
+        'manageBooking_customerDetails_fishingCharter_emailContainer',
+        'manageBooking_customerDetails_fishingCharter_email',
         'manageBooking_customerDetails_fishingCharter_dateOfBirth',
 
         // Manage booking section

@@ -417,7 +417,8 @@
 
     function normalizeRow(raw) {
         const stay = raw.stay || {};
-        const guest = raw.guest || {};
+        const firstRecord = (value) => (Array.isArray(value) ? (value[0] || {}) : (value || {}));
+        const guest = { ...firstRecord(raw._guestuser), ...firstRecord(raw.guest) };
         const pricing = raw.pricing || {};
         const charterId = raw.charterId;
         const charter = state.charterById[charterId] || {};
@@ -469,7 +470,8 @@
             guest: {
                 firstName: pick(guest, ['first_name', 'First_Name'], ''),
                 lastName: pick(guest, ['last_name', 'Last_Name'], ''),
-                birthDate: pick(guest, ['birth_date', 'Birth_Date'], '')
+                birthDate: pick(guest, ['birth_date', 'Birth_Date'], ''),
+                email: pick(guest, ['email', 'Email'], '')
             }
         };
     }
@@ -858,10 +860,12 @@
     function buildGuestSection(row, status) {
         const showContact = status === 'accepted' || status === 'completed';
         const contactNumber = showContact ? row.stay.guestNumber : '';
+        const email = showContact ? row.guest.email : '';
         return section('Guest details', [
             detailRow('Name', `${row.guest.firstName} ${row.guest.lastName}`.trim()),
             detailRow('Date of birth', formatDobWithAge(row.guest.birthDate)),
-            detailRow('Contact number', contactNumber ? formatPhone(contactNumber) : '')
+            detailRow('Contact number', contactNumber ? formatPhone(contactNumber) : ''),
+            detailRow('Email', email)
         ]);
     }
 
