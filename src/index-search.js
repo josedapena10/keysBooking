@@ -664,6 +664,14 @@ document.addEventListener('DOMContentLoaded', function () {
             : `${startMonth} ${startDay} - ${endMonth} ${endDay}`;
     }
 
+    // Bedrooms/beds step by 1, bathrooms by 0.5, so snap URL values to the nearest valid step.
+    function parseRoomFilterParam(value, step) {
+        const num = parseFloat(value);
+        if (!isFinite(num) || num <= 0) return null;
+        const snapped = Math.round(num / step) * step;
+        return snapped > 0 ? snapped : null;
+    }
+
     function readSearchStateFromURL() {
         const p = new URLSearchParams(window.location.search);
         return {
@@ -680,6 +688,9 @@ document.addEventListener('DOMContentLoaded', function () {
             pets: parseInt(p.get('pets')) || 0,
             boatRental: p.get('boat') === '1',
             fishingCharter: p.get('charter') === '1',
+            bedrooms: parseRoomFilterParam(p.get('bedrooms'), 1),
+            beds: parseRoomFilterParam(p.get('beds'), 1),
+            bathrooms: parseRoomFilterParam(p.get('bathrooms'), 0.5),
         };
     }
 
@@ -755,6 +766,18 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         }
 
+        if (state.bedrooms || state.beds || state.bathrooms) {
+            activeFilters.bedrooms = state.bedrooms;
+            activeFilters.beds = state.beds;
+            activeFilters.bathrooms = state.bathrooms;
+            pendingFilters.bedrooms = state.bedrooms;
+            pendingFilters.beds = state.beds;
+            pendingFilters.bathrooms = state.bathrooms;
+            try {
+                if (filterSystem && typeof filterSystem.updateCount === 'function') filterSystem.updateCount();
+            } catch (e) { }
+        }
+
         Object.assign(pendingSelections, currentSelections);
 
         try {
@@ -808,6 +831,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (apiFormats.type.boatRental) p.set('boat', '1');
                 if (apiFormats.type.fishingCharter) p.set('charter', '1');
             }
+
+            if (activeFilters.bedrooms) p.set('bedrooms', activeFilters.bedrooms);
+            if (activeFilters.beds) p.set('beds', activeFilters.beds);
+            if (activeFilters.bathrooms) p.set('bathrooms', activeFilters.bathrooms);
 
             const qs = p.toString();
             const newUrl = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
@@ -8209,6 +8236,7 @@ document.addEventListener('DOMContentLoaded', function () {
             applyPendingFilters();
 
             updateFilterCount();
+            syncSearchStateToURL();
             if (filterModal) {
                 filterModal.style.display = 'none';
             }
