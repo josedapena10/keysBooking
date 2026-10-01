@@ -826,6 +826,36 @@ window.Wized.push((Wized) => {
         return bits.join(' ').trim();
     };
 
+    /**
+     * Xano serves vault files at upload resolution, and hosts upload phone originals —
+     * several stay photos are 24MP/3MB, past the pixel ceiling iOS refuses to decode at
+     * all. `?tpl=large.jpg` returns an 800px JPEG, which also repairs the handful of
+     * uploads Xano stored as application/octet-stream.
+     * AVIF is left alone on purpose: Xano's resizer 500s on it, so a template here would
+     * turn a format those browsers merely dislike into a hard failure.
+     */
+    const XANO_TPL_EXT = /\.(jpe?g|png|webp|gif|heic|heif)(\?|#|$)/i;
+    const CARD_IMAGE_TPL = 'large.jpg';
+    /** Roughly the first grid row. The other 19 cards have no business racing to load. */
+    const EAGER_CARD_COUNT = 3;
+
+    const isXanoVaultPhoto = (url) => {
+        if (!url || typeof url !== 'string' || url.startsWith('data:') || url.startsWith('blob:')) return false;
+        try {
+            const parsed = new URL(url, window.location.href);
+            if (!parsed.hostname.includes('xano.io') || !parsed.pathname.includes('/vault/')) return false;
+        } catch (_) {
+            return false;
+        }
+        return XANO_TPL_EXT.test(url.split('?')[0].split('#')[0]);
+    };
+
+    /** Passes anything it can't resize straight through, so callers never branch. */
+    const sizedImageUrl = (url) => {
+        if (!isXanoVaultPhoto(url) || /[?&]tpl=/i.test(url)) return url || '';
+        return `${url}${url.includes('?') ? '&' : '?'}tpl=${CARD_IMAGE_TPL}`;
+    };
+
     /** Xano returns pixel dimensions on every image, so slide picks can be framed-aware. */
     const imageAspect = (image) => {
         const w = Number(image?.meta?.width);
@@ -875,10 +905,17 @@ window.Wized.push((Wized) => {
         const slides = [];
         const usedUrls = new Set();
 
-        const push = (url, label, inset) => {
+        const push = (image, label, inset) => {
+            const url = image?.url;
             if (!url || slides.length >= 3 || usedUrls.has(url)) return;
             usedUrls.add(url);
-            slides.push({ url, label, inset: inset && inset !== url ? inset : '' });
+            slides.push({
+                url,
+                label,
+                width: Number(image?.meta?.width) || 0,
+                height: Number(image?.meta?.height) || 0,
+                inset: inset?.url && inset.url !== url ? inset.url : '',
+            });
         };
 
         // Kept per operator rather than pooled, so the inset vessel always belongs to
@@ -908,26 +945,26 @@ window.Wized.push((Wized) => {
                 const lead = gallery.find((entry) => entry.order === 1);
                 const main = lead ? lead.image : pickBestFramed(gallery.map((entry) => entry.image));
                 const vessel = pickBestFramed(pool.vessels.filter((image) => !usedUrls.has(image.url)));
-                if (main) return { url: main.url, inset: vessel?.url || '' };
-                if (vessel) return { url: vessel.url, inset: '' };
+                if (main) return { image: main, inset: vessel };
+                if (vessel) return { image: vessel, inset: null };
             }
             return null;
         };
 
         // Slide 1 — the stay
-        push(trip?._property?._property_main_image?.property_image?.url, 'Stay');
+        push(trip?._property?._property_main_image?.property_image, 'Stay');
 
         // Slide 2 — the rental boat, when the package comes with one
         if (trip?.hasBoatRental) {
             const boatPhotos = (Array.isArray(trip?._boat?.photos) ? trip._boat.photos : [])
                 .map((photo) => photo?.image)
                 .filter((image) => image?.url);
-            push(pickBestFramed(boatPhotos)?.url, 'Boat rental');
+            push(pickBestFramed(boatPhotos), 'Boat rental');
         }
 
         // Slide 3 — the charter
         const charter = charterSlide();
-        if (charter) push(charter.url, 'Fishing charter', charter.inset);
+        if (charter) push(charter.image, 'Fishing charter', charter.inset);
         return slides;
     };
 
@@ -2224,6 +2261,9 @@ window.Wized.push((Wized) => {
                 scroll-snap-align: start; scroll-snap-stop: always;
             }
             .bt2-carousel__slide img { pointer-events: none; }
+            /* A photo that can't load keeps its labelled frame rather than going blank. */
+            .bt2-carousel__slide.is-failed { background: linear-gradient(135deg,#eef2f7,#d9e2ec); }
+            .bt2-carousel__slide.is-failed img { visibility: hidden; }
             .bt2-carousel__tag {
                 position: absolute; top: 10px; left: 10px;
                 padding: 4px 8px; border-radius: 6px;
@@ -2969,20 +3009,26 @@ window.Wized.push((Wized) => {
             ? pkg.mediaSlides
             : (pkg.mainImage ? [{ url: pkg.mainImage, label: 'Stay' }] : []);
         const carouselId = `bt2-carousel-${index}`;
+        // Only cards that can already be on screen are worth blocking the load on.
+        const eagerCard = index < EAGER_CARD_COUNT;
         const mediaHtml = slides.length
             ? `<div class="bt2-carousel" id="${carouselId}" data-carousel>
                 <div class="bt2-carousel__track" data-carousel-track
                      ${slides.length > 1 ? 'tabindex="0" role="group" aria-label="Package photos"' : ''}>
                     ${slides.map((slide, i) => `
                         <div class="bt2-carousel__slide">
-                            <img src="${escapeHtml(slide.url)}"
+                            <img src="${escapeHtml(sizedImageUrl(slide.url))}"
+                                 data-full-src="${escapeHtml(slide.url)}"
                                  alt="${escapeHtml(`${pkg.title} — ${slide.label}`)}"
-                                 loading="${i === 0 ? 'eager' : 'lazy'}">
+                                 ${slide.width && slide.height ? `width="${slide.width}" height="${slide.height}"` : ''}
+                                 loading="${i === 0 && eagerCard ? 'eager' : 'lazy'}"
+                                 decoding="async">
                             <span class="bt2-carousel__tag">${escapeHtml(slide.label)}</span>
                             ${slide.inset
-                    ? `<img class="bt2-carousel__inset" src="${escapeHtml(slide.inset)}"
+                    ? `<img class="bt2-carousel__inset" src="${escapeHtml(sizedImageUrl(slide.inset))}"
+                                        data-full-src="${escapeHtml(slide.inset)}"
                                         alt="${escapeHtml(`${pkg.title} — charter boat`)}"
-                                        loading="lazy">`
+                                        loading="lazy" decoding="async">`
                     : ''}
                         </div>`).join('')}
                 </div>
@@ -3387,6 +3433,75 @@ window.Wized.push((Wized) => {
                 });
             });
         });
+    }
+
+    /**
+     * Keeps card photos from failing silently.
+     *
+     * Two things go wrong in the wild, both worst inside the Instagram/Facebook in-app
+     * browsers: Xano's resizer rejects a few uploads, and a memory-starved WebView drops
+     * image decodes outright. Neither fires anything a user can act on — `error` never
+     * retries, so one blip left an empty grey box for the rest of the session.
+     *
+     * Also promotes a card's off-screen slides to eager once the card is in view, because
+     * lazy images inside a horizontal scroller aren't reliably triggered by a swipe.
+     */
+    function initCardMedia(root) {
+        const degrade = (img) => {
+            const slide = img.closest('.bt2-carousel__slide');
+            // The inset vessel is decorative, so dropping it beats framing a broken photo.
+            if (img.classList.contains('bt2-carousel__inset') || !slide) {
+                img.remove();
+                return;
+            }
+            // Leaving the slide in place keeps the carousel's dots and indexes honest.
+            slide.classList.add('is-failed');
+        };
+
+        const recover = (img) => {
+            if (!img || img.dataset.bt2Recovered === 'failed') return;
+            const full = img.dataset.fullSrc || '';
+            // Retry unresized before giving up: a template failure still has a real file
+            // behind it. Only once — the retry's own error has to fall through to degrade.
+            if (img.dataset.bt2Recovered !== 'full' && full && full !== img.getAttribute('src')) {
+                img.dataset.bt2Recovered = 'full';
+                img.src = full;
+                return;
+            }
+            img.dataset.bt2Recovered = 'failed';
+            degrade(img);
+        };
+
+        // `error` doesn't bubble, so catch it on the way down.
+        if (!root.dataset.bt2MediaBound) {
+            root.dataset.bt2MediaBound = 'true';
+            root.addEventListener('error', (evt) => {
+                const img = evt.target;
+                if (img instanceof HTMLImageElement) recover(img);
+            }, true);
+        }
+
+        // innerHTML images can finish before the listener above exists.
+        root.querySelectorAll('.bt2-carousel img').forEach((img) => {
+            if (img.complete && img.naturalWidth === 0) recover(img);
+        });
+
+        if (!('IntersectionObserver' in window)) {
+            root.querySelectorAll('.bt2-carousel img[loading="lazy"]')
+                .forEach((img) => img.setAttribute('loading', 'eager'));
+            return;
+        }
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach((entry) => {
+                if (!entry.isIntersecting) return;
+                entry.target.querySelectorAll('img[loading="lazy"]')
+                    .forEach((img) => img.setAttribute('loading', 'eager'));
+                observer.unobserve(entry.target);
+            });
+        }, { rootMargin: '200px 0px' });
+
+        root.querySelectorAll('[data-carousel]').forEach((carousel) => observer.observe(carousel));
     }
 
     let viewFallbackBound = false;
@@ -3887,6 +4002,7 @@ window.Wized.push((Wized) => {
         grid.innerHTML = parts.join('');
 
         initCarousels(grid);
+        initCardMedia(grid);
         observePackageViews(grid);
         initStickyCta(grid);
         return packages.length;
