@@ -5,7 +5,9 @@
 // for background 2nd click modal - mirror click
 var script = document.createElement('script');
 script.src = 'https://cdn.jsdelivr.net/npm/@finsweet/attributes-mirrorclick@1/mirrorclick.js';
-document.body.appendChild(script);
+// document.body is null if this file is ever injected into <head>, and throwing here
+// would abandon every later statement in this file (including the renderer at the bottom).
+(document.body || document.documentElement).appendChild(script);
 
 // for no scroll background when modal is open
 // when DOM is ready
@@ -75,7 +77,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 window.Wized = window.Wized || [];
-window.Wized.push((Wized) => {
+const wireAuthFormInputs = (Wized) => {
 
 
     const passwordInput = Wized.elements.get('SignUp_Password');
@@ -113,17 +115,24 @@ window.Wized.push((Wized) => {
         return string.charAt(0).toUpperCase() + string.slice(1).toLowerCase();
     }
 
+    // Signup-only fields. Wized runs this callback on every page, so each group is
+    // attached independently rather than assuming the whole form is present.
+
     // Event listener for when the user leaves the first name input field
-    firstNameInput.node.addEventListener('blur', (event) => {
-        const inputElement = event.target;
-        inputElement.value = capitalizeFirstLetter(inputElement.value);
-    });
+    if (firstNameInput?.node) {
+        firstNameInput.node.addEventListener('blur', (event) => {
+            const inputElement = event.target;
+            inputElement.value = capitalizeFirstLetter(inputElement.value);
+        });
+    }
 
     // Event listener for when the user leaves the last name input field
-    lastNameInput.node.addEventListener('blur', (event) => {
-        const inputElement = event.target;
-        inputElement.value = capitalizeFirstLetter(inputElement.value);
-    });
+    if (lastNameInput?.node) {
+        lastNameInput.node.addEventListener('blur', (event) => {
+            const inputElement = event.target;
+            inputElement.value = capitalizeFirstLetter(inputElement.value);
+        });
+    }
 
 
 
@@ -141,16 +150,18 @@ window.Wized.push((Wized) => {
 
 
 
-    phoneNumberInput.node.addEventListener('focus', (event) => {
-        const inputElement = event.target;
-        if (inputElement.value === '') {
-            inputElement.value = '';  // Clear the field when focused if empty
-        }
-    });
+    if (phoneNumberInput?.node) {
+        phoneNumberInput.node.addEventListener('focus', (event) => {
+            const inputElement = event.target;
+            if (inputElement.value === '') {
+                inputElement.value = '';  // Clear the field when focused if empty
+            }
+        });
 
-    phoneNumberInput.node.addEventListener('input', handlePhoneNumberInput);
-    phoneNumberInput.node.addEventListener('keydown', handlePhoneKeyDown);
-    phoneNumberInput.node.addEventListener('change', handlePhoneNumberInput);
+        phoneNumberInput.node.addEventListener('input', handlePhoneNumberInput);
+        phoneNumberInput.node.addEventListener('keydown', handlePhoneKeyDown);
+        phoneNumberInput.node.addEventListener('change', handlePhoneNumberInput);
+    }
 
     function handlePhoneNumberInput(event) {
         const inputElement = event.target;
@@ -269,9 +280,9 @@ window.Wized.push((Wized) => {
 
     // Initialize SVGs with default grey color
     function initializeSVGs() {
-        charactersMin.innerHTML = getSVG("#d4d4d4");
-        containsSymbol.innerHTML = getSVG("#d4d4d4");
-        cantContain.innerHTML = getSVG("#d4d4d4");
+        if (charactersMin) charactersMin.innerHTML = getSVG("#d4d4d4");
+        if (containsSymbol) containsSymbol.innerHTML = getSVG("#d4d4d4");
+        if (cantContain) cantContain.innerHTML = getSVG("#d4d4d4");
     }
 
     initializeSVGs(); // Set default SVGs on load
@@ -281,28 +292,30 @@ window.Wized.push((Wized) => {
     }
 
     function validatePassword() {
-        const password = passwordInput.node.value; // Remove normalizeString here
-        const firstName = normalizeString(firstNameInput.node.value);
-        const lastName = normalizeString(lastNameInput.node.value);
-        const emailLocalPart = normalizeString(emailInput.node.value.split('@')[0]);
+        const password = passwordInput?.node?.value || ''; // Remove normalizeString here
+        const firstName = normalizeString(firstNameInput?.node?.value || '');
+        const lastName = normalizeString(lastNameInput?.node?.value || '');
+        const emailLocalPart = normalizeString((emailInput?.node?.value || '').split('@')[0]);
 
         // Minimum 8 characters check
-        charactersMin.innerHTML = password.length >= 8 ? getSVG("#00ff00", true) : getSVG("#ff0000");
+        if (charactersMin) charactersMin.innerHTML = password.length >= 8 ? getSVG("#00ff00", true) : getSVG("#ff0000");
 
         // Check for symbol or number
         const symbolRegex = /[0-9!@#$%^&*(),.?":{}|<>]/;
-        containsSymbol.innerHTML = symbolRegex.test(password) ? getSVG("#00ff00", true) : getSVG("#ff0000");
+        if (containsSymbol) containsSymbol.innerHTML = symbolRegex.test(password) ? getSVG("#00ff00", true) : getSVG("#ff0000");
 
         // Check for disallowed substrings (firstName, lastName, emailLocalPart)
         let disallowed = [firstName, lastName, emailLocalPart].filter(Boolean);
         const containsDisallowed = disallowed.length > 0 && disallowed.some(part => password.includes(part));
-        cantContain.innerHTML = !containsDisallowed && password.length > 0 ? getSVG("#00ff00", true) : getSVG("#ff0000");
+        if (cantContain) cantContain.innerHTML = !containsDisallowed && password.length > 0 ? getSVG("#00ff00", true) : getSVG("#ff0000");
     }
 
 
     // Handle password field events to set current validation state
-    passwordInput.node.addEventListener('focus', validatePassword);
-    passwordInput.node.addEventListener('input', validatePassword);
+    if (passwordInput?.node) {
+        passwordInput.node.addEventListener('focus', validatePassword);
+        passwordInput.node.addEventListener('input', validatePassword);
+    }
 
 
 
@@ -369,7 +382,16 @@ window.Wized.push((Wized) => {
         }
     }
 
-});
+};
+
+// Wized runs this callback synchronously when its library has already loaded, so an
+// uncaught throw would propagate out of this top-level statement and abandon the rest
+// of the file — including the bundled trips renderer below. Keep it contained.
+try {
+    window.Wized.push(wireAuthFormInputs);
+} catch (err) {
+    console.error('Auth form wiring failed', err);
+}
 
 
 
@@ -407,9 +429,17 @@ window.Wized.push((Wized) => {
     const BLUE_SOFT = '#EFF6FF';
     const FONT = "'TT Fors', sans-serif";
 
-    const sessionId = (crypto && crypto.randomUUID)
-        ? crypto.randomUUID()
-        : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    /** `crypto` itself is absent in some older webviews, so a bare reference can throw. */
+    const newRandomId = () => {
+        try {
+            if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+                return crypto.randomUUID();
+            }
+        } catch (_) { }
+        return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    };
+
+    const sessionId = newRandomId();
 
     const params = new URLSearchParams(window.location.search);
 
@@ -4288,10 +4318,14 @@ window.Wized.push((Wized) => {
         const heroEl = overlay.querySelector('#bt2-email-hero');
         if (heroEl) heroEl.style.backgroundImage = `url('${HELP_HERO_IMAGE}')`;
 
+        // iOS webviews throw SecurityError on any localStorage access when the user has
+        // cookies blocked, which is common in Instagram/TikTok in-app browsers.
         const getPopupState = () => {
             try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch { return {}; }
         };
-        const setPopupState = (state) => localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        const setPopupState = (state) => {
+            try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (_) { }
+        };
         const shouldShow = () => {
             // Campaign traffic arrived to book one package; don't interrupt that with a
             // scroll-locking email ask ten seconds in.
@@ -4302,10 +4336,11 @@ window.Wized.push((Wized) => {
             return true;
         };
         const getVisitorId = () => {
-            let id = localStorage.getItem(VISITOR_KEY);
+            let id = null;
+            try { id = localStorage.getItem(VISITOR_KEY); } catch (_) { }
             if (!id) {
-                id = (crypto && crypto.randomUUID) ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-                localStorage.setItem(VISITOR_KEY, id);
+                id = newRandomId();
+                try { localStorage.setItem(VISITOR_KEY, id); } catch (_) { }
             }
             return id;
         };
