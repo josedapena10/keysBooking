@@ -8517,6 +8517,9 @@ document.addEventListener('DOMContentLoaded', function () {
     let paginationShowTimeout = null;
     const PAGINATION_SHOW_DELAY_MS = 300;
 
+    /** Bumped on every pagination visibility decision so a deferred rAF can detect it is stale. */
+    let paginationVisibilityGeneration = 0;
+
     /** Phone map/list footer: hide while listings are loading so it does not flash above empty space. */
     let phoneMapFooterRevealGeneration = 0;
 
@@ -8720,6 +8723,8 @@ document.addEventListener('DOMContentLoaded', function () {
         // Record when skeleton loading started
         skeletonStartTime = Date.now();
 
+        const paginationGenerationAtRequest = ++paginationVisibilityGeneration;
+
         // Use requestAnimationFrame to avoid blocking map interactions
         requestAnimationFrame(() => {
             // Create and show skeleton cards
@@ -8730,12 +8735,18 @@ document.addEventListener('DOMContentLoaded', function () {
             if (listingsContainer) {
                 listingsContainer.style.display = 'none';
             }
-            if (paginationContainer) {
-                paginationContainer.style.display = 'none';
-            }
-            if (paginationShowTimeout) {
-                clearTimeout(paginationShowTimeout);
-                paginationShowTimeout = null;
+
+            // rAF is suspended while the tab is hidden, so this callback can run long
+            // after renderPagination already revealed the controls. Hiding then would
+            // never be undone, so only act while this is still the latest decision.
+            if (paginationGenerationAtRequest === paginationVisibilityGeneration) {
+                if (paginationContainer) {
+                    paginationContainer.style.display = 'none';
+                }
+                if (paginationShowTimeout) {
+                    clearTimeout(paginationShowTimeout);
+                    paginationShowTimeout = null;
+                }
             }
 
             // Show skeleton container
@@ -8759,6 +8770,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (listingsContainer) listingsContainer.style.display = '';
                 if (skeletonContainer) skeletonContainer.style.display = 'none';
                 revealPhoneMapFooterWhenReady();
+                reconcilePaginationVisibility();
             });
             return;
         }
@@ -8789,6 +8801,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Reset timing variables
                 skeletonStartTime = null;
                 skeletonTimeout = null;
+
+                reconcilePaginationVisibility();
             });
         };
 
@@ -10028,6 +10042,46 @@ document.addEventListener('DOMContentLoaded', function () {
         return;
     }
 
+    /** Hide pagination for good: also drops a pending reveal so it cannot fire against stale controls. */
+    function hidePaginationControls() {
+        paginationVisibilityGeneration++;
+        shouldDelayPaginationRender = false;
+        if (paginationShowTimeout) {
+            clearTimeout(paginationShowTimeout);
+            paginationShowTimeout = null;
+        }
+        const paginationContainer = document.querySelector('[data-element="pagination-container"]');
+        if (paginationContainer) {
+            paginationContainer.style.display = 'none';
+        }
+    }
+
+    /**
+     * Re-assert pagination visibility against current state. Covers hides that landed
+     * after a reveal (suspended rAF) and searches that errored before rendering.
+     */
+    function reconcilePaginationVisibility() {
+        if (isSearchInProgress || skeletonStartTime) return;
+
+        const paginationContainer = document.querySelector('[data-element="pagination-container"]');
+        if (!paginationContainer) return;
+
+        const totalListings = currentListings ? currentListings.length : 0;
+        if (Math.ceil(totalListings / listingsPerPage) <= 1) return;
+
+        // A pending reveal owns the container; don't race it.
+        if (paginationShowTimeout) return;
+
+        if (!paginationContainer.children.length) {
+            renderPagination(totalListings);
+            return;
+        }
+
+        if (paginationContainer.style.display === 'none') {
+            paginationContainer.style.display = 'flex';
+        }
+    }
+
     // Function to render pagination controls
     function renderPagination(totalListings) {
         const paginationContainer = document.querySelector('[data-element="pagination-container"]');
@@ -10037,9 +10091,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Hide pagination if only 1 page or no listings
         if (totalPages <= 1) {
-            paginationContainer.style.display = 'none';
+            hidePaginationControls();
             return;
         }
+
+        paginationVisibilityGeneration++;
 
         // Build first, then show (optionally delayed) to avoid flash before cards are ready
         paginationContainer.style.display = 'none';
@@ -10217,6 +10273,14 @@ document.addEventListener('DOMContentLoaded', function () {
         `;
     document.head.appendChild(paginationStyle);
 
+    // Loading in a background tab defers the skeleton's rAF until the tab is focused,
+    // which can hide pagination after it was already revealed.
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState !== 'visible') return;
+        requestAnimationFrame(() => {
+            requestAnimationFrame(reconcilePaginationVisibility);
+        });
+    });
 
 
     // True when the user has any client-side filter applied (price, rooms, dock, amenities, pets)
@@ -10368,10 +10432,7 @@ document.addEventListener('DOMContentLoaded', function () {
             listingContainer.appendChild(reloadButton);
 
             // Hide pagination for empty state
-            const paginationContainer = document.querySelector('[data-element="pagination-container"]');
-            if (paginationContainer) {
-                paginationContainer.style.display = 'none';
-            }
+            hidePaginationControls();
             return;
         }
 
