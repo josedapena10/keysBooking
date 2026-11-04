@@ -46,6 +46,11 @@ test('maps a vault photo to the fixed Xano origin', () => {
     );
 });
 
+test('allows dots inside a real Xano folder name', () => {
+    const path = '/vault/qmQ8aYUK/4hXS55ZIZMwPgd4QKDRj1dshrJ8/_jZehQ../0c2cb23b-734a-474b-8c92-e8026dc16b31.jpg';
+    assert.equal(buildOriginUrl(`${W}${path}?tpl=large.jpg`), `${X}${path}?tpl=large.jpg`);
+});
+
 test('drops cache-busting and unknown query params', () => {
     assert.equal(
         buildOriginUrl(`${W}/vault/a/b.jpg?tpl=xlarge.jpg&imgRetryTs=123&x=1`),
@@ -60,6 +65,10 @@ test('refuses anything that is not a vault photo', () => {
         `${W}/vault/a/b.pdf`, // not a photo
         `${W}/vault/a/b.svg`, // svg can carry scripts
         `${W}/vault/../api:WurmsjHX/user.jpg`, // path traversal
+        `${W}/vault/%2e%2e/api:WurmsjHX/user.jpg`, // encoded traversal
+        `${W}/vault/a/..%2f..%2fapi.jpg`, // encoded slashes
+        `${W}/vault/a/..%5c..%5capi.jpg`, // encoded backslashes
+        `${W}/vault/a/%252e%252e%252fapi.jpg`, // double-encoded traversal
         `${W}/vault//evil.com/x.jpg`,
         `${W}/https://evil.com/x.jpg`, // open-proxy attempt
         `${W}/vault/a/b.jpg?tpl=../../x`, // unknown template

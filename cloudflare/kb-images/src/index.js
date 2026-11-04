@@ -35,6 +35,20 @@ function reject(status, message) {
 }
 
 /**
+ * True for paths that could step outside /vault/. Xano folder names can legitimately
+ * contain dots (e.g. "_jZehQ.."), so only a whole "." or ".." segment counts. Encoded
+ * dots, slashes, backslashes and percent signs are refused so nothing downstream can
+ * decode them into a traversal.
+ */
+function hasUnsafePath(path) {
+    return (
+        path.includes('//') ||
+        /%(?:2e|2f|5c|25)/i.test(path) ||
+        path.split('/').some((segment) => segment === '.' || segment === '..')
+    );
+}
+
+/**
  * Turns an incoming request into the exact Xano URL to fetch, or null if the request
  * isn't one this Worker serves. Exported for tests.
  */
@@ -46,7 +60,7 @@ export function buildOriginUrl(requestUrl) {
         return null;
     }
     const path = url.pathname;
-    if (path.includes('..') || path.includes('//') || !PHOTO_PATH.test(path)) {
+    if (hasUnsafePath(path) || !PHOTO_PATH.test(path)) {
         return null;
     }
     const origin = new URL(path, XANO_ORIGIN);

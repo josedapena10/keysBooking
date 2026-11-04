@@ -21,7 +21,7 @@
 
     // Set to your Worker's address once it is deployed, e.g. 'https://img.keysbooking.com'
     // or 'https://kb-images.<your-subdomain>.workers.dev'. Leave '' to disable the CDN.
-    var CDN_BASE = '';
+    var CDN_BASE = 'https://kb-images.keysbooking.workers.dev';
 
     // Only this Xano instance is rewritten. Must match XANO_ORIGIN in the Worker.
     var XANO_HOST = 'xruq-v9q0-hayo.n7c.xano.io';

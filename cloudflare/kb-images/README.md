@@ -7,7 +7,7 @@ instance in `src/index.js` — it is not a general proxy.
 ## Deploy (one time, ~5 minutes)
 1. Create a free Cloudflare account if you don't have one.
 2. In this folder: `npm install`, then `npx wrangler login` (opens your browser).
-3. `npm test` — should print `pass 9`.
+3. `npm test` — should print `pass 10`.
 4. `npx wrangler deploy` — prints your Worker's address, e.g.
    `https://kb-images.<your-subdomain>.workers.dev`.
 5. Check it: open
