@@ -1,0 +1,12 @@
+name = "kb-images"
+main = "src/index.js"
+compatibility_date = "2026-11-01"
+
+# Option A (works right away): served at https://kb-images.<your-subdomain>.workers.dev
+workers_dev = true
+
+# Option B (only if keysbooking.com's DNS is on Cloudflare): serve at img.keysbooking.com.
+# Uncomment, deploy, then set CDN_BASE in src/kb-images.js to 'https://img.keysbooking.com'.
+# routes = [
+#   { pattern = "img.keysbooking.com", custom_domain = true }
+# ]
