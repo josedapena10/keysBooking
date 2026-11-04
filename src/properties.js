@@ -1,3 +1,15 @@
+/* Image CDN switch lives in kb-images.js (loaded site-wide). Without it, URLs are unchanged. */
+function kbToCdn(url) {
+    return window.KBImages && window.KBImages.toCdn ? window.KBImages.toCdn(url) : url;
+}
+function kbIsCdnHost(host) {
+    try {
+        return !!(window.KBImages && window.KBImages.CDN_BASE && new URL(window.KBImages.CDN_BASE).host === host);
+    } catch (_) {
+        return false;
+    }
+}
+
 /* Xano vault ?tpl= — property page images (preview large.jpg, gallery xlarge.jpg) */
 const XANO_VAULT_PATH = '/vault/';
 const XANO_PHOTO_EXT = /\.(jpe?g|png|webp|gif|heic|heif)(\?|#|$)/i;
@@ -9,7 +21,7 @@ function isXanoVaultPhotoUrl(url) {
     }
     try {
         const parsed = new URL(url, window.location.href);
-        if (!parsed.hostname.includes('xano.io') || !parsed.pathname.includes(XANO_VAULT_PATH)) {
+        if (!(parsed.hostname.includes('xano.io') || kbIsCdnHost(parsed.host)) || !parsed.pathname.includes(XANO_VAULT_PATH)) {
             return false;
         }
         const path = url.split('?')[0].split('#')[0];
@@ -41,7 +53,7 @@ function withXanoImageTpl(rawUrl, tpl) {
         return trimmed;
     }
     const joiner = trimmed.includes('?') ? '&' : '?';
-    return `${trimmed}${joiner}tpl=${tpl}`;
+    return kbToCdn(`${trimmed}${joiner}tpl=${tpl}`);
 }
 
 function xanoPropertyPreviewImageUrl(rawUrl) {

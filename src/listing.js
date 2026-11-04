@@ -1,3 +1,21 @@
+/* Resized (and, once kb-images.js sets a CDN, cached) property photo URL. */
+function kbPhotoUrl(url, tpl) {
+    if (window.KBImages && window.KBImages.url) {
+        return window.KBImages.url(url, tpl);
+    }
+    try {
+        const u = new URL(url);
+        if (u.hostname.endsWith('.xano.io') && u.pathname.startsWith('/vault/') &&
+            /\.(jpe?g|png|webp|gif|heic|heif)$/i.test(u.pathname) && !u.searchParams.has('tpl')) {
+            u.searchParams.set('tpl', tpl);
+            return u.toString();
+        }
+    } catch (_) {
+        /* not a URL we can resize */
+    }
+    return url;
+}
+
 // for background 2nd click modal - mirror click
 var script = document.createElement('script');
 script.src = 'https://cdn.jsdelivr.net/npm/@finsweet/attributes-mirrorclick@1/mirrorclick.js';
@@ -3104,7 +3122,7 @@ document.addEventListener('DOMContentLoaded', () => {
           const preload = document.createElement('link');
           preload.rel = 'preload';
           preload.as = 'image';
-          preload.href = firstPhotoUrl;
+          preload.href = kbPhotoUrl(firstPhotoUrl, 'xlarge.jpg');
           preload.fetchPriority = 'high';
           document.head.appendChild(preload);
         } else {
@@ -3150,13 +3168,13 @@ document.addEventListener('DOMContentLoaded', () => {
           // Mobile: only the first image eager/high priority; others lazy
           // Desktop: first 3 eager for faster initial carousel
           if (index === 0) {
-            li.innerHTML = `<img src="${photoUrl.property_image.url}" 
+            li.innerHTML = `<img src="${kbPhotoUrl(photoUrl.property_image.url, 'xlarge.jpg')}" 
                              alt="Property Photo"
                              loading="eager"
                              fetchpriority="high"
                              decoding="async">`;
           } else if (!isMobile && index < 3) {
-            li.innerHTML = `<img src="${photoUrl.property_image.url}" 
+            li.innerHTML = `<img src="${kbPhotoUrl(photoUrl.property_image.url, 'large.jpg')}" 
                              alt="Property Photo"
                              loading="eager"
                              decoding="async">`;
@@ -3164,7 +3182,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             }
           } else {
-            li.innerHTML = `<img src="${photoUrl.property_image.url}" 
+            li.innerHTML = `<img src="${kbPhotoUrl(photoUrl.property_image.url, 'large.jpg')}" 
                              alt="Property Photo"
                              loading="lazy"
                              decoding="async">`;

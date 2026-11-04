@@ -1,3 +1,21 @@
+/* Resized (and, once kb-images.js sets a CDN, cached) property photo URL. */
+function kbPhotoUrl(url, tpl) {
+    if (window.KBImages && window.KBImages.url) {
+        return window.KBImages.url(url, tpl);
+    }
+    try {
+        const u = new URL(url);
+        if (u.hostname.endsWith('.xano.io') && u.pathname.startsWith('/vault/') &&
+            /\.(jpe?g|png|webp|gif|heic|heif)$/i.test(u.pathname) && !u.searchParams.has('tpl')) {
+            u.searchParams.set('tpl', tpl);
+            return u.toString();
+        }
+    } catch (_) {
+        /* not a URL we can resize */
+    }
+    return url;
+}
+
 // for background 2nd click modal - mirror click
 var script = document.createElement('script');
 script.src = 'https://cdn.jsdelivr.net/npm/@finsweet/attributes-mirrorclick@1/mirrorclick.js';
@@ -1691,10 +1709,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 slider.mount();
 
-                propertyPhotos.forEach((photoUrl) => {
+                propertyPhotos.forEach((photoUrl, photoIndex) => {
                     var li = document.createElement('li');
                     li.classList.add('splide__slide');
-                    li.innerHTML = `<img src="${photoUrl.property_image.url}" alt="Property Photo">`;
+                    // Card-size photo (~800px); slides after the first wait until they are about to be seen.
+                    li.innerHTML = `<img src="${kbPhotoUrl(photoUrl.property_image.url, 'large.jpg')}" alt="Property Photo" loading="${photoIndex === 0 ? 'eager' : 'lazy'}" decoding="async">`;
                     slider.add(li);
                 });
 

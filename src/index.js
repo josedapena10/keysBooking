@@ -1,3 +1,21 @@
+/* Resized (and, once kb-images.js sets a CDN, cached) property photo URL. */
+function kbPhotoUrl(url, tpl) {
+    if (window.KBImages && window.KBImages.url) {
+        return window.KBImages.url(url, tpl);
+    }
+    try {
+        const u = new URL(url);
+        if (u.hostname.endsWith('.xano.io') && u.pathname.startsWith('/vault/') &&
+            /\.(jpe?g|png|webp|gif|heic|heif)$/i.test(u.pathname) && !u.searchParams.has('tpl')) {
+            u.searchParams.set('tpl', tpl);
+            return u.toString();
+        }
+    } catch (_) {
+        /* not a URL we can resize */
+    }
+    return url;
+}
+
 
 
 
@@ -151,10 +169,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         slider.mount();
 
-                        photoUrls.forEach((photoUrl) => {
+                        photoUrls.forEach((photoUrl, photoIndex) => {
                             var li = document.createElement('li');
                             li.classList.add('splide__slide');
-                            li.innerHTML = `<img src="${photoUrl.property_image.url}" alt="Property Photo">`;
+                            // Card-size photo (~800px). Only the first slide of the first few cards loads
+                            // immediately; every other slide waits until it is about to be seen.
+                            const eager = photoIndex === 0 && index < 3;
+                            li.innerHTML = `<img src="${kbPhotoUrl(photoUrl.property_image.url, 'large.jpg')}" alt="Property Photo" loading="${eager ? 'eager' : 'lazy'}" decoding="async">`;
                             slider.add(li);
                         });
 

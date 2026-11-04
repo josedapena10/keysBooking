@@ -26,3 +26,14 @@ typings/
 
 # Production files
 dist
+# Xano workspace pull: contains hardcoded API keys. Never commit.
+xano/
+.xano/
+
+# Any dotenv variant
+.env.*
+!.env.example
+
+# Local-only files
+.claude/settings.local.json
+docs/gcp-scheduler-jobs.md

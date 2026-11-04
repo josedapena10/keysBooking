@@ -1,3 +1,15 @@
+/* Image CDN switch lives in kb-images.js (loaded site-wide). Without it, URLs are unchanged. */
+function kbToCdn(url) {
+    return window.KBImages && window.KBImages.toCdn ? window.KBImages.toCdn(url) : url;
+}
+function kbIsCdnHost(host) {
+    try {
+        return !!(window.KBImages && window.KBImages.CDN_BASE && new URL(window.KBImages.CDN_BASE).host === host);
+    } catch (_) {
+        return false;
+    }
+}
+
 
 
 
@@ -873,7 +885,7 @@ try {
         if (!url || typeof url !== 'string' || url.startsWith('data:') || url.startsWith('blob:')) return false;
         try {
             const parsed = new URL(url, window.location.href);
-            if (!parsed.hostname.includes('xano.io') || !parsed.pathname.includes('/vault/')) return false;
+            if (!(parsed.hostname.includes('xano.io') || kbIsCdnHost(parsed.host)) || !parsed.pathname.includes('/vault/')) return false;
         } catch (_) {
             return false;
         }
@@ -882,8 +894,8 @@ try {
 
     /** Passes anything it can't resize straight through, so callers never branch. */
     const sizedImageUrl = (url) => {
-        if (!isXanoVaultPhoto(url) || /[?&]tpl=/i.test(url)) return url || '';
-        return `${url}${url.includes('?') ? '&' : '?'}tpl=${CARD_IMAGE_TPL}`;
+        if (!isXanoVaultPhoto(url) || /[?&]tpl=/i.test(url)) return kbToCdn(url || '');
+        return kbToCdn(`${url}${url.includes('?') ? '&' : '?'}tpl=${CARD_IMAGE_TPL}`);
     };
 
     /** Xano returns pixel dimensions on every image, so slide picks can be framed-aware. */
