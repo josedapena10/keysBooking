@@ -857,109 +857,122 @@ document.addEventListener('DOMContentLoaded', function () {
         } catch (e) { }
     }
 
-    // Function to get location bounds from Google Maps Geocoding API
-    async function getLocationBounds(locationName) {
+    // Hardcoded search bounds for every location offered in the location autocomplete.
+    // Format: [swLat, swLng, neLat, neLng]
+    const LOCATION_BOUNDS = {
+        // Regions
+        "Florida Keys": [24.4, -82.2, 25.35, -80.0],
+        "Upper Keys": [24.82, -80.78, 25.35, -80.2],
+        "Middle Keys": [24.68, -81.2, 24.84, -80.78],
+        "Lower Keys": [24.54, -81.82, 24.73, -81.2],
+
+        // Upper Keys
+        "Key Largo": [25.04, -80.5, 25.19, -80.33],
+        "North Key Largo": [25.17, -80.42, 25.33, -80.23],
+        "Tavernier": [24.98, -80.56, 25.04, -80.49],
+        "Islamorada": [24.82, -80.76, 24.99, -80.53],
+        "Plantation Key": [24.94, -80.59, 24.99, -80.53],
+        "Windley Key": [24.94, -80.62, 24.96, -80.59],
+        "Upper Matecumbe Key": [24.89, -80.66, 24.94, -80.61],
+        "Upper Matecumbe": [24.89, -80.66, 24.94, -80.61],
+        "Lower Matecumbe Key": [24.83, -80.76, 24.87, -80.71],
+        "Lower Matecumbe": [24.83, -80.76, 24.87, -80.71],
+
+        // Middle Keys
+        "Layton": [24.815, -80.825, 24.835, -80.8],
+        "Long Key": [24.79, -80.88, 24.84, -80.79],
+        "Conch Key": [24.785, -80.895, 24.795, -80.885],
+        "Duck Key": [24.76, -80.93, 24.78, -80.9],
+        "Grassy Key": [24.74, -81.0, 24.78, -80.92],
+        "Marathon": [24.69, -81.14, 24.78, -80.93],
+        "Key Colony Beach": [24.715, -81.025, 24.73, -81.005],
+
+        // Lower Keys
+        "Big Pine Key": [24.63, -81.4, 24.73, -81.31],
+        "No Name Key": [24.68, -81.34, 24.71, -81.3],
+        "Little Torch Key": [24.65, -81.4, 24.68, -81.38],
+        "Middle Torch Key": [24.66, -81.42, 24.7, -81.39],
+        "Ramrod Key": [24.65, -81.43, 24.67, -81.4],
+        "Summerland Key": [24.64, -81.46, 24.67, -81.43],
+        "Cudjoe Key": [24.63, -81.52, 24.7, -81.47],
+        "Sugarloaf Key": [24.6, -81.6, 24.7, -81.52],
+        "Big Coppitt Key": [24.58, -81.68, 24.61, -81.64],
+        "Big Coppitt": [24.58, -81.68, 24.61, -81.64],
+        "Geiger Key": [24.57, -81.66, 24.59, -81.64],
+        "Boca Chica Key": [24.56, -81.72, 24.6, -81.67],
+        "Key Haven": [24.575, -81.74, 24.59, -81.72],
+        "Stock Island": [24.56, -81.75, 24.58, -81.72],
+        "Key West": [24.54, -81.82, 24.58, -81.73],
+
+        // Key Largo neighborhoods
+        "Port Largo": [25.095, -80.44, 25.11, -80.425],
+        "Rock Harbor": [25.07, -80.46, 25.09, -80.44],
+        "Garden Cove": [25.165, -80.375, 25.18, -80.36],
+        "Sexton Cove": [25.14, -80.4, 25.16, -80.385],
+        "Sunset Cove": [25.105, -80.445, 25.12, -80.435],
+        "Cross Key Waterways": [25.15, -80.395, 25.165, -80.38],
+        "Anglers Park": [25.12, -80.42, 25.135, -80.405],
+
+        // Islamorada neighborhoods
+        "Plantation Key Colony": [24.965, -80.57, 24.98, -80.555],
+        "Venetian Shores": [24.955, -80.58, 24.965, -80.565],
+        "Port Antigua": [24.845, -80.735, 24.855, -80.725],
+        "Safety Harbor": [24.915, -80.64, 24.93, -80.625],
+
+        // Marathon neighborhoods
+        "Boot Key Harbor": [24.695, -81.115, 24.71, -81.09],
+        "Sombrero Beach": [24.689237, -81.092847, 24.710746, -81.074342],
+        "Coco Plum": [24.72, -81.01, 24.735, -80.99],
+        "Little Venice": [24.715, -81.07, 24.725, -81.05],
+
+        // Big Pine Key neighborhoods
+        "Eden Pines": [24.635, -81.39, 24.65, -81.375],
+        "Pine Channel Estates": [24.67, -81.39, 24.69, -81.375],
+        "Doctor's Arm": [24.7, -81.37, 24.72, -81.35],
+
+        // Key West neighborhoods
+        "Old Town": [24.545, -81.81, 24.565, -81.79],
+        "New Town": [24.555, -81.78, 24.575, -81.74],
+        "Bahama Village": [24.548, -81.807, 24.553, -81.8],
+        "Truman Annex": [24.545, -81.811, 24.552, -81.804],
+        "Casa Marina": [24.545, -81.79, 24.553, -81.775],
+        "The Meadows": [24.553, -81.795, 24.56, -81.785],
+        "Midtown": [24.553, -81.785, 24.565, -81.77],
+        "Key West Historic Seaport": [24.558, -81.81, 24.564, -81.8]
+    };
+
+    const LOCATION_BOUNDS_BY_LOWER_NAME = new Map(
+        Object.entries(LOCATION_BOUNDS).map(([name, box]) => [name.toLowerCase(), box])
+    );
+
+    // Longest names first so "North Key Largo" wins over "Key Largo" in substring matching
+    const LOCATION_NAMES_LONGEST_FIRST = [...LOCATION_BOUNDS_BY_LOWER_NAME.keys()]
+        .sort((a, b) => b.length - a.length);
+
+    function boundsFromBox([swLat, swLng, neLat, neLng]) {
+        return {
+            northeast: { lat: neLat, lng: neLng },
+            southwest: { lat: swLat, lng: swLng },
+            center: { lat: (neLat + swLat) / 2, lng: (neLng + swLng) / 2 }
+        };
+    }
+
+    function getLocationBounds(locationName) {
 
         if (!locationName || locationName === defaultValues.location) {
             return null;
         }
 
-        // Clean the location name (remove ", FL" and any extra spaces)
-        const cleanLocation = locationName.replace(/, FL$/, '').trim();
+        const cleanLocation = locationName.replace(/,\s*FL$/i, '').trim().toLowerCase();
 
-        // Check for special locations first
-        const specialLocations = {
-            "Sombrero Beach": {
-                bounds: {
-                    northeast: { lat: 24.710746, lng: -81.074342 },
-                    southwest: { lat: 24.689237, lng: -81.092847 },
-                    center: { lat: 24.699992, lng: -81.083595 }
-                }
-            },
-            "Upper Keys": {
-                bounds: {
-                    northeast: { lat: 25.3, lng: -80.0 },
-                    southwest: { lat: 24.5, lng: -80.9 },
-                    center: { lat: 24.9, lng: -80.45 }
-                }
-            },
-            "Middle Keys": {
-                bounds: {
-                    northeast: { lat: 24.8, lng: -80.8 },
-                    southwest: { lat: 24.4, lng: -81.3 },
-                    center: { lat: 24.6, lng: -81.05 }
-                }
-            },
-            "Lower Keys": {
-                bounds: {
-                    northeast: { lat: 24.5, lng: -81.2 },
-                    southwest: { lat: 24.4, lng: -82.0 },
-                    center: { lat: 24.45, lng: -81.6 }
-                }
-            }
-        };
-
-        // Check if the location contains any of our special locations
-        for (const [specialName, data] of Object.entries(specialLocations)) {
-            // Check if the location starts with the special location name
-            // or contains it after a comma (e.g., "Sombrero Beach" or "Something, Sombrero Beach")
-            if (cleanLocation.startsWith(specialName) ||
-                cleanLocation.includes(`, ${specialName}`) ||
-                cleanLocation.toLowerCase().includes(specialName.toLowerCase())) {
-                return data.bounds;
-            }
+        // "Neighborhood, City" -> try the neighborhood first, then the city
+        for (const part of cleanLocation.split(',').map(s => s.trim()).filter(Boolean)) {
+            const box = LOCATION_BOUNDS_BY_LOWER_NAME.get(part);
+            if (box) return boundsFromBox(box);
         }
 
-        // Add "Florida Keys" context if it's not already included
-        let searchLocation = locationName;
-        if (!searchLocation.toLowerCase().includes('florida keys') &&
-            !searchLocation.toLowerCase().includes('fl, usa')) {
-            // Ensure we're searching for the location in Florida, USA
-            searchLocation = searchLocation.replace(', FL', ', Florida Keys, FL, USA');
-        }
-
-        try {
-
-            const googleMapsApiKey = 'AIzaSyBtTdNYqGeF4GHpw0OA-tasMjY2yEO-4BY';
-            const encodedLocation = encodeURIComponent(searchLocation);
-
-            const apiUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodedLocation}&key=${googleMapsApiKey}`;
-
-            const response = await fetch(apiUrl);
-
-            if (!response.ok) {
-                throw new Error('Failed to fetch location data');
-            }
-
-            const data = await response.json();
-
-            if (data.status !== 'OK' || !data.results || !data.results[0]) {
-                return null;
-            }
-
-            const location = data.results[0];
-
-            const viewport = location.geometry.viewport;
-
-            const result = {
-                northeast: {
-                    lat: viewport.northeast.lat,
-                    lng: viewport.northeast.lng
-                },
-                southwest: {
-                    lat: viewport.southwest.lat,
-                    lng: viewport.southwest.lng
-                },
-                center: {
-                    lat: location.geometry.location.lat,
-                    lng: location.geometry.location.lng
-                }
-            };
-
-            return result;
-        } catch (error) {
-            return null;
-        }
+        const containedName = LOCATION_NAMES_LONGEST_FIRST.find(name => cleanLocation.includes(name));
+        return containedName ? boundsFromBox(LOCATION_BOUNDS_BY_LOWER_NAME.get(containedName)) : null;
     }
 
     // Function to update API formats based on current selections
@@ -1001,9 +1014,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
                 // For "Map area", we keep the existing bounds and don't call getLocationBounds
             } else {
-                // For regular locations, get bounds from Google Maps API (cached if already queried)
                 if (!apiFormats.location.bounds || currentSelections.location !== defaultValues.location) {
-                    apiFormats.location.bounds = await getLocationBounds(currentSelections.location);
+                    apiFormats.location.bounds = getLocationBounds(currentSelections.location);
                 }
             }
         } else {
