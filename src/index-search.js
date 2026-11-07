@@ -565,9 +565,9 @@ document.addEventListener('DOMContentLoaded', function () {
         location: {
             name: defaultValues.location,
             bounds: {
-                // Default bounds for the Florida Keys
+                // Default bounds for the Florida Keys (keep in sync with FLORIDA_KEYS_BOUNDS)
                 northeast: {
-                    lat: 25.2,
+                    lat: 25.35,
                     lng: -80.0
                 },
                 southwest: {
@@ -857,109 +857,146 @@ document.addEventListener('DOMContentLoaded', function () {
         } catch (e) { }
     }
 
-    // Function to get location bounds from Google Maps Geocoding API
+    // Whole-Keys bounds: used for the default location and as the last-resort fallback,
+    // so a search is never sent without bounds (the API returns nothing without them).
+    const FLORIDA_KEYS_BOUNDS = {
+        northeast: { lat: 25.35, lng: -80.0 },
+        southwest: { lat: 24.4, lng: -82.2 },
+        center: { lat: 24.85, lng: -81.1 }
+    };
+
+    function makeBounds(swLat, swLng, neLat, neLng) {
+        return {
+            northeast: { lat: neLat, lng: neLng },
+            southwest: { lat: swLat, lng: swLng },
+            center: { lat: (neLat + swLat) / 2, lng: (neLng + swLng) / 2 }
+        };
+    }
+
+    // Hardcoded bounds for the places people search by. Checked before any Google call,
+    // so the common searches never depend on the Geocoding API.
+    // Order matters: more specific names must come before names they contain
+    // (e.g. "North Key Largo" before "Key Largo", "Big Coppitt Key" before "Big Coppitt").
+    const KNOWN_LOCATION_BOUNDS = [
+        // Neighborhoods
+        ["Sombrero Beach", makeBounds(24.689237, -81.092847, 24.710746, -81.074342)],
+        ["Coco Plum", makeBounds(24.715, -81.025, 24.740, -80.995)],
+        ["Boot Key Harbor", makeBounds(24.695, -81.115, 24.720, -81.085)],
+        ["Little Venice", makeBounds(24.705, -81.105, 24.720, -81.085)],
+
+        // Regions
+        ["Upper Keys", makeBounds(24.84, -80.90, 25.35, -80.0)],
+        ["Middle Keys", makeBounds(24.62, -81.20, 24.87, -80.76)],
+        ["Lower Keys", makeBounds(24.50, -81.85, 24.75, -81.20)],
+
+        // Upper Keys
+        ["North Key Largo", makeBounds(25.20, -80.42, 25.35, -80.22)],
+        ["Key Largo", makeBounds(25.00, -80.55, 25.35, -80.22)],
+        ["Tavernier", makeBounds(24.98, -80.56, 25.04, -80.48)],
+        ["Plantation Key", makeBounds(24.94, -80.62, 25.00, -80.53)],
+        ["Windley Key", makeBounds(24.93, -80.62, 24.965, -80.58)],
+        ["Upper Matecumbe Key", makeBounds(24.89, -80.67, 24.94, -80.60)],
+        ["Lower Matecumbe Key", makeBounds(24.83, -80.76, 24.89, -80.67)],
+        ["Islamorada", makeBounds(24.83, -80.76, 25.00, -80.52)],
+
+        // Middle Keys
+        ["Layton", makeBounds(24.80, -80.86, 24.87, -80.76)],
+        ["Long Key", makeBounds(24.80, -80.86, 24.87, -80.76)],
+        ["Conch Key", makeBounds(24.78, -80.90, 24.80, -80.88)],
+        ["Duck Key", makeBounds(24.76, -80.93, 24.79, -80.90)],
+        ["Grassy Key", makeBounds(24.74, -80.99, 24.79, -80.92)],
+        ["Key Colony Beach", makeBounds(24.71, -81.035, 24.74, -81.005)],
+        ["Marathon", makeBounds(24.68, -81.14, 24.80, -80.90)],
+
+        // Lower Keys
+        ["No Name Key", makeBounds(24.68, -81.34, 24.72, -81.30)],
+        ["Big Pine Key", makeBounds(24.62, -81.42, 24.73, -81.30)],
+        ["Little Torch Key", makeBounds(24.64, -81.41, 24.69, -81.37)],
+        ["Middle Torch Key", makeBounds(24.65, -81.43, 24.71, -81.40)],
+        ["Ramrod Key", makeBounds(24.64, -81.44, 24.68, -81.39)],
+        ["Summerland Key", makeBounds(24.64, -81.47, 24.68, -81.43)],
+        ["Cudjoe Key", makeBounds(24.63, -81.53, 24.70, -81.47)],
+        ["Sugarloaf Key", makeBounds(24.60, -81.60, 24.70, -81.52)],
+        ["Big Coppitt Key", makeBounds(24.58, -81.68, 24.61, -81.63)],
+        ["Big Coppitt", makeBounds(24.58, -81.68, 24.61, -81.63)],
+        ["Geiger Key", makeBounds(24.57, -81.66, 24.59, -81.63)],
+        ["Boca Chica Key", makeBounds(24.55, -81.72, 24.59, -81.66)],
+        ["Key Haven", makeBounds(24.57, -81.75, 24.59, -81.72)],
+        ["Stock Island", makeBounds(24.56, -81.75, 24.58, -81.72)],
+        ["Key West", makeBounds(24.53, -81.82, 24.60, -81.73)]
+    ];
+
+    function findKnownLocationBounds(locationName) {
+        const lower = locationName.toLowerCase();
+        for (const [name, bounds] of KNOWN_LOCATION_BOUNDS) {
+            if (lower.includes(name.toLowerCase())) return bounds;
+        }
+        return null;
+    }
+
+    function viewportToBounds(viewport, center) {
+        return {
+            northeast: { lat: viewport.northeast.lat, lng: viewport.northeast.lng },
+            southwest: { lat: viewport.southwest.lat, lng: viewport.southwest.lng },
+            center: { lat: center.lat, lng: center.lng }
+        };
+    }
+
+    // Geocode with the Maps JavaScript API when it is loaded (works with a website-restricted key),
+    // otherwise with the Geocoding web service. Returns null on any failure.
+    async function geocodeLocationBounds(searchLocation) {
+        try {
+            if (typeof google !== 'undefined' && google.maps && google.maps.Geocoder) {
+                const { results } = await new google.maps.Geocoder().geocode({ address: searchLocation });
+                const first = results && results[0];
+                if (!first || !first.geometry || !first.geometry.viewport) return null;
+                const vp = first.geometry.viewport;
+                const ne = vp.getNorthEast();
+                const sw = vp.getSouthWest();
+                const loc = first.geometry.location;
+                return viewportToBounds(
+                    { northeast: { lat: ne.lat(), lng: ne.lng() }, southwest: { lat: sw.lat(), lng: sw.lng() } },
+                    { lat: loc.lat(), lng: loc.lng() }
+                );
+            }
+
+            const googleMapsApiKey = 'AIzaSyBtTdNYqGeF4GHpw0OA-tasMjY2yEO-4BY';
+            const apiUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(searchLocation)}&key=${googleMapsApiKey}`;
+            const response = await fetch(apiUrl);
+            if (!response.ok) return null;
+            const data = await response.json();
+            if (data.status !== 'OK' || !data.results || !data.results[0]) {
+                console.warn('[search] Geocoding failed:', data.status, data.error_message || '');
+                return null;
+            }
+            const first = data.results[0];
+            return viewportToBounds(first.geometry.viewport, first.geometry.location);
+        } catch (error) {
+            console.warn('[search] Geocoding error:', error);
+            return null;
+        }
+    }
+
+    // Get bounds for a location name. Never returns null for a real location:
+    // known places → hardcoded bounds; anything else → geocode; if that fails → whole Keys.
     async function getLocationBounds(locationName) {
 
         if (!locationName || locationName === defaultValues.location) {
             return null;
         }
 
-        // Clean the location name (remove ", FL" and any extra spaces)
-        const cleanLocation = locationName.replace(/, FL$/, '').trim();
-
-        // Check for special locations first
-        const specialLocations = {
-            "Sombrero Beach": {
-                bounds: {
-                    northeast: { lat: 24.710746, lng: -81.074342 },
-                    southwest: { lat: 24.689237, lng: -81.092847 },
-                    center: { lat: 24.699992, lng: -81.083595 }
-                }
-            },
-            "Upper Keys": {
-                bounds: {
-                    northeast: { lat: 25.3, lng: -80.0 },
-                    southwest: { lat: 24.5, lng: -80.9 },
-                    center: { lat: 24.9, lng: -80.45 }
-                }
-            },
-            "Middle Keys": {
-                bounds: {
-                    northeast: { lat: 24.8, lng: -80.8 },
-                    southwest: { lat: 24.4, lng: -81.3 },
-                    center: { lat: 24.6, lng: -81.05 }
-                }
-            },
-            "Lower Keys": {
-                bounds: {
-                    northeast: { lat: 24.5, lng: -81.2 },
-                    southwest: { lat: 24.4, lng: -82.0 },
-                    center: { lat: 24.45, lng: -81.6 }
-                }
-            }
-        };
-
-        // Check if the location contains any of our special locations
-        for (const [specialName, data] of Object.entries(specialLocations)) {
-            // Check if the location starts with the special location name
-            // or contains it after a comma (e.g., "Sombrero Beach" or "Something, Sombrero Beach")
-            if (cleanLocation.startsWith(specialName) ||
-                cleanLocation.includes(`, ${specialName}`) ||
-                cleanLocation.toLowerCase().includes(specialName.toLowerCase())) {
-                return data.bounds;
-            }
-        }
+        const known = findKnownLocationBounds(locationName);
+        if (known) return known;
 
         // Add "Florida Keys" context if it's not already included
         let searchLocation = locationName;
         if (!searchLocation.toLowerCase().includes('florida keys') &&
             !searchLocation.toLowerCase().includes('fl, usa')) {
-            // Ensure we're searching for the location in Florida, USA
             searchLocation = searchLocation.replace(', FL', ', Florida Keys, FL, USA');
         }
 
-        try {
-
-            const googleMapsApiKey = 'AIzaSyBtTdNYqGeF4GHpw0OA-tasMjY2yEO-4BY';
-            const encodedLocation = encodeURIComponent(searchLocation);
-
-            const apiUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodedLocation}&key=${googleMapsApiKey}`;
-
-            const response = await fetch(apiUrl);
-
-            if (!response.ok) {
-                throw new Error('Failed to fetch location data');
-            }
-
-            const data = await response.json();
-
-            if (data.status !== 'OK' || !data.results || !data.results[0]) {
-                return null;
-            }
-
-            const location = data.results[0];
-
-            const viewport = location.geometry.viewport;
-
-            const result = {
-                northeast: {
-                    lat: viewport.northeast.lat,
-                    lng: viewport.northeast.lng
-                },
-                southwest: {
-                    lat: viewport.southwest.lat,
-                    lng: viewport.southwest.lng
-                },
-                center: {
-                    lat: location.geometry.location.lat,
-                    lng: location.geometry.location.lng
-                }
-            };
-
-            return result;
-        } catch (error) {
-            return null;
-        }
+        const geocoded = await geocodeLocationBounds(searchLocation);
+        return geocoded || FLORIDA_KEYS_BOUNDS;
     }
 
     // Function to update API formats based on current selections
@@ -1010,20 +1047,7 @@ document.addEventListener('DOMContentLoaded', function () {
             // If using default location, use default Florida Keys bounds
             apiFormats.location = {
                 name: defaultValues.location,
-                bounds: {
-                    northeast: {
-                        lat: 25.2,
-                        lng: -80.0
-                    },
-                    southwest: {
-                        lat: 24.4,
-                        lng: -82.2
-                    },
-                    center: {
-                        lat: 24.7,
-                        lng: -81.1
-                    }
-                }
+                bounds: JSON.parse(JSON.stringify(FLORIDA_KEYS_BOUNDS))
             };
         }
 
