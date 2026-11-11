@@ -289,7 +289,7 @@ document.addEventListener('click', (e) => {
     };
 
     const HERO = {
-        pill: `Florida Keys stays · Founding partner offer`,
+        pill: 'Vacation rentals & hotels',
         title: 'Get bookings from travelers planning their whole Keys trip',
         text: `Keys Booking is where guests book their stay, boat rental, and fishing charter in one checkout. List your vacation rental, portfolio, or hotel alongside the channels you already use — and pay ${FOUNDING.foundingFee} host fees as a founding partner.`,
     };
@@ -386,7 +386,7 @@ document.addEventListener('click', (e) => {
     const COMPETITORS = [
         { name: 'Airbnb', feeLabel: '3–15%', calcFee: 15, calcNote: 'host-only fee' },
         { name: 'VRBO', feeLabel: '8%', calcFee: 8, calcNote: 'pay-per-booking' },
-        { name: 'Booking.com', feeLabel: '~15%', calcFee: 15, calcNote: 'typical commission' },
+        { name: 'Booking.com', shortName: 'Booking', feeLabel: '~15%', calcFee: 15, calcNote: 'typical commission' },
     ];
     const COMPETITOR_FEE_NOTE = 'Typical published fees: Airbnb ~3% split fee or ~15% host-only fee, VRBO 8% pay-per-booking, Booking.com ~15% commission. Actual fees vary by account and plan.';
 
@@ -509,13 +509,19 @@ document.addEventListener('click', (e) => {
                 line-height: 1.6; font-size: 16px; -webkit-font-smoothing: antialiased;
             }
             ${CONTAINER_SELECTOR} *, ${CONTAINER_SELECTOR} *::before, ${CONTAINER_SELECTOR} *::after { box-sizing: border-box; }
+            ${CONTAINER_SELECTOR} *, .hh2-popup-overlay *, .hh2-sticky * { font-family: inherit; }
+            ${CONTAINER_SELECTOR} blockquote { border: 0; padding: 0; }
+            ${CONTAINER_SELECTOR} :is(h1,h2,h3,h4,strong,b,th,label), .hh2-popup-overlay :is(h2,h3,strong,b,label), .hh2-sticky strong { font-weight: 500; }
+            ${CONTAINER_SELECTOR} :is(h1,h2,h3,h4), .hh2-popup-overlay :is(h2,h3) { text-wrap: balance; }
+            :is(.hh2-trust__label, .hh2-result span, .hh2-fees__label, .hh2-fees__value, .hh2-option__body span, .hh2-compare td, .hh2-compare th, .hh2-step p, .hh2-faq-btn span, .hh2-listing__title, .hh2-calc__rows span, .hh2-picker__note, .hh2-head p, .hh2-case__conclusion, .hh2-flow__head p, .hh2-steps__needs, .hh2-steps__assist, .hh2-final__text, .hh2-offer__label, .hh2-perks li, .hh2-contact__value, .hh2-testimonial__note, .hh2-compare__note, .hh2-calc__note) { text-wrap: balance; }
+            ${CONTAINER_SELECTOR} :is(p,li,span,blockquote,figcaption,label,small), .hh2-popup-overlay :is(p,label,small) { text-wrap: pretty; }
             .hh2-wrap { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
             .hh2-full { width: 100vw; max-width: 100vw; margin-left: calc(50% - 50vw); margin-right: calc(50% - 50vw); }
 
             .hh2-btn {
                 display: inline-flex; align-items: center; justify-content: center; gap: 8px;
                 min-height: 50px; padding: 0 26px; border-radius: 8px;
-                font-family: ${FONT}; font-size: 16px; font-weight: 700;
+                font-family: ${FONT}; font-size: 16px; font-weight: 500;
                 text-decoration: none; cursor: pointer; border: none;
                 transition: background .18s ease, color .18s ease, border-color .18s ease, transform .18s ease;
             }
@@ -525,10 +531,10 @@ document.addEventListener('click', (e) => {
             .hh2-btn--full { width: 100%; }
             .hh2-link-btn {
                 background: none; border: 0; padding: 0; cursor: pointer;
-                font-family: ${FONT}; font-size: inherit; font-weight: 650; color: var(--hh2-primary);
+                font-family: ${FONT}; font-size: inherit; font-weight: 500; color: var(--hh2-primary);
                 text-decoration: underline; text-underline-offset: 3px;
             }
-            .hh2-eyebrow { display: block; margin-bottom: 8px; font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--hh2-primary); }
+            .hh2-eyebrow { display: block; margin-bottom: 8px; font-size: 12px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--hh2-primary); }
             .hh2-tick {
                 flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%;
                 background: var(--hh2-green); color: #fff; display: inline-grid; place-items: center;
@@ -538,10 +544,10 @@ document.addEventListener('click', (e) => {
                 background: #F2F4F7; color: #98A2B3; display: inline-grid; place-items: center;
             }
             .hh2-perks { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
-            .hh2-perks li { display: flex; gap: 10px; align-items: flex-start; font-size: 15px; font-weight: 600; color: var(--hh2-navy); line-height: 1.45; }
+            .hh2-perks li { display: flex; gap: 10px; align-items: flex-start; font-size: 15px; font-weight: 500; color: var(--hh2-navy); line-height: 1.45; }
 
             /* Listing type picker */
-            .hh2-picker__label { margin: 0 0 10px; font-size: 13px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--hh2-muted); }
+            .hh2-picker__label { margin: 0 0 10px; font-size: 13px; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; color: var(--hh2-muted); }
             .hh2-picker__options { display: grid; grid-template-columns: 1fr; gap: 10px; }
             .hh2-option {
                 display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 16px;
@@ -553,9 +559,9 @@ document.addEventListener('click', (e) => {
             .hh2-option:focus-visible { outline: 3px solid rgba(10,115,255,.35); outline-offset: 2px; }
             .hh2-option__icon { flex-shrink: 0; width: 44px; height: 44px; border-radius: 10px; background: var(--hh2-primary-light); display: grid; place-items: center; font-size: 22px; line-height: 1; }
             .hh2-option__body { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; }
-            .hh2-option__body strong { font-size: 16px; font-weight: 700; color: var(--hh2-navy); line-height: 1.25; }
+            .hh2-option__body strong { font-size: 16px; font-weight: 500; color: var(--hh2-navy); line-height: 1.25; }
             .hh2-option__body span { font-size: 13px; color: var(--hh2-muted); line-height: 1.35; }
-            .hh2-option__arrow { flex-shrink: 0; font-size: 20px; font-weight: 700; color: var(--hh2-primary); }
+            .hh2-option__arrow { flex-shrink: 0; font-size: 20px; font-weight: 500; color: var(--hh2-primary); }
             .hh2-picker__note { margin: 12px 0 0; font-size: 14px; color: var(--hh2-muted); }
             .hh2-picker--dark .hh2-picker__label { color: rgba(255,255,255,.75); }
             .hh2-picker--dark .hh2-option { border-color: transparent; }
@@ -578,10 +584,10 @@ document.addEventListener('click', (e) => {
                 display: inline-flex; align-items: center; gap: 6px;
                 background: rgba(10,115,255,.22); color: #c6dbff;
                 border: 1px solid rgba(158,197,255,.4); border-radius: 999px;
-                padding: 7px 14px; font-size: 12px; font-weight: 800;
+                padding: 7px 14px; font-size: 12px; font-weight: 500;
                 letter-spacing: .06em; text-transform: uppercase; margin-bottom: 18px;
             }
-            .hh2-hero h1 { margin: 0 0 16px; font-size: 52px; font-weight: 700; color: #fff; line-height: 1.06; letter-spacing: -.03em; max-width: 18ch; text-wrap: balance; }
+            .hh2-hero h1 { margin: 0 0 16px; font-size: 52px; font-weight: 500; color: #fff; line-height: 1.06; letter-spacing: -.03em; max-width: 18ch; text-wrap: balance; }
             .hh2-hero__text { margin: 0 0 28px; font-size: 19px; color: rgba(255,255,255,.9); line-height: 1.5; max-width: 44ch; }
 
             /* Founding offer card */
@@ -591,26 +597,26 @@ document.addEventListener('click', (e) => {
             }
             .hh2-offer__badge {
                 display: inline-block; margin-bottom: 10px; padding: 6px 12px; border-radius: 999px;
-                background: #FFF6E0; color: #B54708; font-size: 12px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase;
+                background: #FFF6E0; color: #B54708; font-size: 12px; font-weight: 500; letter-spacing: .05em; text-transform: uppercase;
             }
-            .hh2-offer__label { margin: 0 0 14px; font-size: 14px; font-weight: 650; color: var(--hh2-muted); }
+            .hh2-offer__label { margin: 0 0 14px; font-size: 14px; font-weight: 500; color: var(--hh2-muted); }
             .hh2-offer .hh2-perks { text-align: left; margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--hh2-border-light); gap: 10px; }
             .hh2-offer .hh2-perks li { font-size: 14px; }
             .hh2-fee { display: flex; flex-direction: column; align-items: center; gap: 4px; margin-bottom: 16px; }
-            .hh2-fee__old { position: relative; display: inline-block; font-size: 22px; font-weight: 700; color: var(--hh2-muted); }
+            .hh2-fee__old { position: relative; display: inline-block; font-size: 22px; font-weight: 500; color: var(--hh2-muted); }
             .hh2-fee__old::after {
                 content: ''; position: absolute; left: 0; top: 52%; height: 2px; width: 0;
                 background: currentColor; animation: hh2-strike 1s ease-in-out .5s forwards;
             }
             .hh2-fee__new {
-                font-size: 40px; font-weight: 800; color: var(--hh2-navy); line-height: 1.1;
+                font-size: 40px; font-weight: 500; color: var(--hh2-navy); line-height: 1.1;
                 opacity: 0; transform: translateY(6px); animation: hh2-reveal .7s ease 1.5s forwards;
             }
             @keyframes hh2-strike { to { width: 100%; } }
             @keyframes hh2-reveal { to { opacity: 1; transform: translateY(0); } }
             .hh2-spots { margin: 0; }
             .hh2-spots__text {
-                margin: 0 0 8px; font-size: 14px; font-weight: 700;
+                margin: 0 0 8px; font-size: 14px; font-weight: 500;
                 background: linear-gradient(90deg, #0088cc, #0066aa, #4b0082, #6600cc, #0088cc);
                 background-size: 200% 100%; -webkit-background-clip: text; background-clip: text;
                 -webkit-text-fill-color: transparent; animation: hh2-gradient 3s ease infinite;
@@ -628,17 +634,17 @@ document.addEventListener('click', (e) => {
             }
             .hh2-trust__item { padding: 20px 16px; text-align: center; }
             .hh2-trust__item + .hh2-trust__item { border-left: 1px solid var(--hh2-border-light); }
-            .hh2-trust__value { margin: 0; font-size: 26px; font-weight: 800; color: var(--hh2-navy); line-height: 1.15; }
-            .hh2-trust__label { margin: 2px 0 0; font-size: 13px; font-weight: 600; color: var(--hh2-muted); line-height: 1.35; }
+            .hh2-trust__value { margin: 0; font-size: 26px; font-weight: 500; color: var(--hh2-navy); line-height: 1.15; }
+            .hh2-trust__label { margin: 2px 0 0; font-size: 13px; font-weight: 500; color: var(--hh2-muted); line-height: 1.35; }
 
             /* Sections */
             .hh2-section { padding: 88px 0; }
             .hh2-section--alt { background: var(--hh2-section-light); }
             .hh2-head { text-align: center; max-width: 720px; margin: 0 auto 48px; }
-            .hh2-head h2 { text-wrap: balance; margin: 0 0 12px; font-size: 36px; font-weight: 700; color: var(--hh2-navy); line-height: 1.2; letter-spacing: -.02em; }
+            .hh2-head h2 { text-wrap: balance; margin: 0 0 12px; font-size: 36px; font-weight: 500; color: var(--hh2-navy); line-height: 1.2; letter-spacing: -.02em; }
             .hh2-head p { margin: 0; font-size: 17px; color: var(--hh2-text); }
-            .hh2-subhead { margin: 56px 0 20px; text-align: center; font-size: 13px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--hh2-muted); }
-            .hh2-step__num { display: block; margin-bottom: 10px; font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--hh2-primary); }
+            .hh2-subhead { margin: 56px 0 20px; text-align: center; font-size: 13px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--hh2-muted); }
+            .hh2-step__num { display: block; margin-bottom: 10px; font-size: 12px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--hh2-primary); }
 
 
             /* Partner logos */
@@ -664,7 +670,7 @@ document.addEventListener('click', (e) => {
                 position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
                 display: flex; flex-direction: column; align-items: center; gap: 12px;
                 background: none; border: 0; cursor: pointer; color: #fff;
-                font-family: ${FONT}; font-size: 16px; font-weight: 600; transition: transform .25s ease;
+                font-family: ${FONT}; font-size: 16px; font-weight: 500; transition: transform .25s ease;
             }
             .hh2-video__play:hover { transform: translate(-50%,-50%) scale(1.08); }
             .hh2-video.is-playing .hh2-video__play { display: none; }
@@ -673,18 +679,18 @@ document.addEventListener('click', (e) => {
             .hh2-flow { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 20px; align-items: start; }
             .hh2-flow__step { display: flex; flex-direction: column; gap: 12px; }
             .hh2-flow__head .hh2-step__num { margin-bottom: 4px; }
-            .hh2-flow__head p { margin: 0; font-size: 16px; font-weight: 650; color: var(--hh2-navy); line-height: 1.4; }
+            .hh2-flow__head p { margin: 0; font-size: 16px; font-weight: 500; color: var(--hh2-navy); line-height: 1.4; }
             .hh2-listing { display: flex; gap: 12px; background: #fff; border: 1px solid var(--hh2-border); border-radius: 12px; padding: 10px; }
             .hh2-listing img { width: 84px; height: 84px; border-radius: 8px; object-fit: cover; flex-shrink: 0; }
             .hh2-listing__body { min-width: 0; display: flex; flex-direction: column; justify-content: center; }
-            .hh2-listing__title { margin: 0; font-size: 14px; font-weight: 700; color: var(--hh2-navy); line-height: 1.3; }
+            .hh2-listing__title { margin: 0; font-size: 14px; font-weight: 500; color: var(--hh2-navy); line-height: 1.3; }
             .hh2-listing__sub { margin: 2px 0 6px; font-size: 13px; color: var(--hh2-muted); }
             .hh2-listing__price { margin: 0; font-size: 13px; color: var(--hh2-text); }
             .hh2-listing__price strong { color: var(--hh2-navy); }
             .hh2-receipt { background: #fff; border: 1px solid var(--hh2-border); border-radius: 12px; padding: 18px; }
-            .hh2-receipt h4 { margin: 0 0 12px; font-size: 15px; font-weight: 700; color: var(--hh2-navy); }
+            .hh2-receipt h4 { margin: 0 0 12px; font-size: 15px; font-weight: 500; color: var(--hh2-navy); }
             .hh2-receipt__row { display: flex; justify-content: space-between; font-size: 14px; padding: 4px 0; }
-            .hh2-receipt__row--total { margin-top: 8px; padding-top: 10px; border-top: 1px solid var(--hh2-border-light); font-weight: 800; color: var(--hh2-navy); }
+            .hh2-receipt__row--total { margin-top: 8px; padding-top: 10px; border-top: 1px solid var(--hh2-border-light); font-weight: 500; color: var(--hh2-navy); }
 
 
             /* Reasons + audiences */
@@ -694,13 +700,13 @@ document.addEventListener('click', (e) => {
             .hh2-audience .hh2-btn { margin-top: auto; }
             .hh2-audience p { margin-bottom: 20px !important; }
             .hh2-reason__icon { width: 48px; height: 48px; margin-bottom: 14px; border-radius: 10px; background: var(--hh2-primary-light); display: grid; place-items: center; font-size: 24px; line-height: 1; }
-            .hh2-reason h3, .hh2-audience h3 { margin: 0 0 8px; font-size: 19px; font-weight: 700; color: var(--hh2-navy); }
+            .hh2-reason h3, .hh2-audience h3 { margin: 0 0 8px; font-size: 19px; font-weight: 500; color: var(--hh2-navy); }
             .hh2-reason p, .hh2-audience p { margin: 0; font-size: 15px; color: var(--hh2-muted); line-height: 1.55; }
 
             /* Testimonial */
             .hh2-testimonial { max-width: 760px; margin: 24px auto 0; padding: 32px; text-align: center; border-radius: 16px; background: var(--hh2-navy); color: #fff; }
             .hh2-testimonial__stars { color: #FDB022; font-size: 20px; letter-spacing: 2px; margin-bottom: 12px; }
-            .hh2-testimonial blockquote { margin: 0 0 14px; font-size: 20px; font-weight: 600; line-height: 1.45; }
+            .hh2-testimonial blockquote { margin: 0 0 14px; font-size: 20px; font-weight: 500; line-height: 1.45; }
             .hh2-testimonial figcaption { font-size: 14px; color: rgba(255,255,255,.75); }
             .hh2-testimonial figcaption strong { color: #fff; }
             .hh2-testimonial__note { margin: 16px 0 0; padding-top: 16px; border-top: 1px solid rgba(255,255,255,.15); font-size: 14px; color: rgba(255,255,255,.85); }
@@ -710,39 +716,39 @@ document.addEventListener('click', (e) => {
                 max-width: 860px; margin: 0 auto; text-align: center;
                 background: #fff; border: 1px solid var(--hh2-border); border-radius: 16px; padding: 36px;
             }
-            .hh2-case h3 { margin: 0 0 6px; font-size: 22px; font-weight: 700; color: var(--hh2-navy); }
-            .hh2-case h4 { margin: 18px 0 8px; font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--hh2-muted); }
+            .hh2-case h3 { margin: 0 0 6px; font-size: 22px; font-weight: 500; color: var(--hh2-navy); }
+            .hh2-case h4 { margin: 18px 0 8px; font-size: 12px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--hh2-muted); }
             .hh2-case p { margin: 0; font-size: 16px; }
             .hh2-results { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; margin-top: 20px; }
             .hh2-result { background: var(--hh2-section-light); border: 1px solid var(--hh2-border-light); border-radius: 12px; padding: 14px; text-align: center; }
-            .hh2-result strong { display: block; font-size: 20px; font-weight: 800; color: var(--hh2-navy); }
+            .hh2-result strong { display: block; font-size: 20px; font-weight: 500; color: var(--hh2-navy); }
             .hh2-result span { font-size: 13px; color: var(--hh2-muted); }
-            .hh2-case__conclusion { margin-top: 18px !important; font-weight: 650; color: var(--hh2-navy); }
+            .hh2-case__conclusion { margin-top: 18px !important; font-weight: 500; color: var(--hh2-navy); }
             /* Founding partner + calculator */
             .hh2-founding { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 20px; align-items: stretch; }
             .hh2-founding__card {
                 display: grid; grid-template-columns: minmax(0,1.3fr) minmax(0,1fr); gap: 32px; align-items: center; margin-top: 20px;
                 background: #fff; border: 1px solid var(--hh2-border); border-radius: 16px; padding: 30px;
             }
-            .hh2-founding__card h3 { margin: 0 0 16px; font-size: 24px; font-weight: 700; color: var(--hh2-navy); }
+            .hh2-founding__card h3 { margin: 0 0 16px; font-size: 24px; font-weight: 500; color: var(--hh2-navy); }
             .hh2-fees { background: #fff; border: 1px solid var(--hh2-border); border-radius: 16px; padding: 8px 24px; }
             .hh2-fees__row { display: flex; justify-content: space-between; gap: 16px; padding: 16px 0; border-bottom: 1px solid var(--hh2-border-light); }
             .hh2-fees__row:last-child { border-bottom: 0; }
-            .hh2-fees__label { font-size: 15px; font-weight: 600; color: var(--hh2-muted); }
-            .hh2-fees__value { text-align: right; font-size: 16px; font-weight: 700; color: var(--hh2-navy); }
+            .hh2-fees__label { font-size: 15px; font-weight: 500; color: var(--hh2-muted); }
+            .hh2-fees__value { text-align: right; font-size: 16px; font-weight: 500; color: var(--hh2-navy); }
             .hh2-fees__value small { display: block; font-size: 13px; font-weight: 500; color: var(--hh2-muted); }
             .hh2-calc {
                 background: linear-gradient(135deg, #0B3B75 0%, #0A73FF 100%); color: #fff;
                 border-radius: 16px; padding: 30px; box-shadow: 0 16px 40px rgba(10,115,255,.22);
             }
             .hh2-calc .hh2-eyebrow { color: #C6DBFF; }
-            .hh2-calc h3 { margin: 0 0 20px; font-size: 24px; font-weight: 700; color: #fff; }
-            .hh2-calc label { display: block; font-size: 14px; font-weight: 600; color: rgba(255,255,255,.85); }
-            .hh2-calc__revenue { margin: 2px 0 10px; font-size: 34px; font-weight: 800; line-height: 1.1; }
+            .hh2-calc h3 { margin: 0 0 20px; font-size: 24px; font-weight: 500; color: #fff; }
+            .hh2-calc label { display: block; font-size: 14px; font-weight: 500; color: rgba(255,255,255,.85); }
+            .hh2-calc__revenue { margin: 2px 0 10px; font-size: 34px; font-weight: 500; line-height: 1.1; }
             .hh2-calc input[type="range"] { width: 100%; accent-color: #fff; cursor: pointer; }
             .hh2-calc__scale { display: flex; justify-content: space-between; font-size: 12px; color: rgba(255,255,255,.7); }
             .hh2-calc__headline { margin: 20px 0 12px; padding: 16px; border-radius: 12px; background: rgba(255,255,255,.14); font-size: 16px; }
-            .hh2-calc__headline strong { display: block; font-size: 30px; font-weight: 800; line-height: 1.15; }
+            .hh2-calc__headline strong { display: block; font-size: 30px; font-weight: 500; line-height: 1.15; }
             .hh2-calc__rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
             .hh2-calc__rows li { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font-size: 14px; }
             .hh2-calc__rows small { color: rgba(255,255,255,.7); }
@@ -754,10 +760,11 @@ document.addEventListener('click', (e) => {
             .hh2-compare table { width: 100%; min-width: 640px; border-collapse: collapse; }
             .hh2-compare th, .hh2-compare td { padding: 16px 14px; text-align: center; border-bottom: 1px solid var(--hh2-border-light); font-size: 15px; }
             .hh2-compare tr:last-child td { border-bottom: 0; }
-            .hh2-compare th { background: var(--hh2-section-light); font-size: 14px; font-weight: 800; color: var(--hh2-navy); }
+            .hh2-compare th { background: var(--hh2-section-light); font-size: 14px; font-weight: 500; color: var(--hh2-navy); }
             .hh2-compare td { white-space: nowrap; }
-            .hh2-compare td:first-child { text-align: left; font-weight: 600; color: var(--hh2-navy); white-space: normal; }
-            .hh2-compare .is-us { background: rgba(10,115,255,.06); color: var(--hh2-primary); font-weight: 800; }
+            .hh2-compare td:first-child { text-align: left; font-weight: 500; color: var(--hh2-navy); white-space: normal; }
+            .hh2-compare .is-us { background: rgba(10,115,255,.06); color: var(--hh2-primary); font-weight: 500; }
+            .hh2-name-short { display: none; }
             .hh2-compare__note { max-width: 980px; margin: 12px auto 0; font-size: 12px; color: var(--hh2-muted); text-align: center; }
 
             /* Steps */
@@ -765,7 +772,7 @@ document.addEventListener('click', (e) => {
             .hh2-steps__needs, .hh2-steps__assist { max-width: 720px; margin: 0 auto 10px; text-align: center; font-size: 15px; color: var(--hh2-muted); }
             .hh2-steps__assist { margin-bottom: 40px; color: var(--hh2-text); }
             .hh2-step { background: #fff; border: 1px solid var(--hh2-border); border-radius: 14px; padding: 26px 24px; }
-            .hh2-step h3 { margin: 0 0 6px; font-size: 20px; font-weight: 700; color: var(--hh2-navy); }
+            .hh2-step h3 { margin: 0 0 6px; font-size: 20px; font-weight: 500; color: var(--hh2-navy); }
             .hh2-step p { margin: 0; font-size: 15px; color: var(--hh2-muted); }
 
 
@@ -776,7 +783,7 @@ document.addEventListener('click', (e) => {
             .hh2-faq-btn {
                 width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 16px;
                 padding: 18px 20px; background: #fff; border: 0; text-align: left; cursor: pointer;
-                font-family: ${FONT}; font-size: 16px; font-weight: 650; color: var(--hh2-navy);
+                font-family: ${FONT}; font-size: 16px; font-weight: 500; color: var(--hh2-navy);
             }
             .hh2-faq-btn svg { flex-shrink: 0; color: var(--hh2-muted); transition: transform .2s; }
             .hh2-faq-btn[aria-expanded="true"] svg { transform: rotate(180deg); }
@@ -791,14 +798,14 @@ document.addEventListener('click', (e) => {
             }
             .hh2-contact a:hover { border-color: var(--hh2-primary); transform: translateY(-2px); }
             .hh2-contact__icon { font-size: 22px; line-height: 1; margin-bottom: 6px; }
-            .hh2-contact__label { font-size: 16px; font-weight: 700; color: var(--hh2-navy); }
+            .hh2-contact__label { font-size: 16px; font-weight: 500; color: var(--hh2-navy); }
             .hh2-contact__value { font-size: 14px; color: var(--hh2-muted); word-break: break-word; }
 
             /* Final CTA */
             .hh2-final { position: relative; padding: 88px 24px; text-align: center; background: var(--hh2-navy) center/cover no-repeat; }
             .hh2-final__overlay { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(5,18,35,.75), rgba(5,18,35,.88)); }
             .hh2-final__inner { position: relative; z-index: 1; max-width: 680px; margin: 0 auto; }
-            .hh2-final h2 { text-wrap: balance; margin: 0 0 12px; font-size: 40px; font-weight: 700; color: #fff; line-height: 1.15; }
+            .hh2-final h2 { text-wrap: balance; margin: 0 0 12px; font-size: 40px; font-weight: 500; color: #fff; line-height: 1.15; }
             .hh2-final__text { margin: 0 0 28px; font-size: 18px; color: rgba(255,255,255,.9); }
 
             /* Sticky mobile CTA (appended to body, so no container variables) */
@@ -811,11 +818,11 @@ document.addEventListener('click', (e) => {
             }
             .hh2-sticky.is-visible { transform: translateY(0); }
             .hh2-sticky__copy { display: flex; flex-direction: column; min-width: 0; }
-            .hh2-sticky__copy strong { font-size: 15px; font-weight: 800; color: ${NAVY}; line-height: 1.2; }
+            .hh2-sticky__copy strong { font-size: 15px; font-weight: 500; color: ${NAVY}; line-height: 1.2; }
             .hh2-sticky__copy span { font-size: 12px; color: ${MUTED}; }
             .hh2-sticky button {
                 flex-shrink: 0; min-height: 46px; padding: 0 18px; border: 0; border-radius: 8px;
-                background: ${BLUE}; color: #fff; font-family: ${FONT}; font-size: 15px; font-weight: 700; cursor: pointer;
+                background: ${BLUE}; color: #fff; font-family: ${FONT}; font-size: 15px; font-weight: 500; cursor: pointer;
             }
 
             /* "We add it for you" popup */
@@ -835,11 +842,11 @@ document.addEventListener('click', (e) => {
                 position: absolute; top: 16px; right: 16px; width: 34px; height: 34px; border-radius: 50%;
                 border: 0; background: #F2F4F7; color: #475467; font-size: 20px; cursor: pointer;
             }
-            .hh2-popup h2 { margin: 0 0 6px; font-size: 24px; font-weight: 700; color: ${NAVY}; }
+            .hh2-popup h2 { margin: 0 0 6px; font-size: 24px; font-weight: 500; color: ${NAVY}; }
             .hh2-popup > p { margin: 0 0 22px; font-size: 15px; color: ${MUTED}; }
             .hh2-form { display: flex; flex-direction: column; gap: 16px; }
             .hh2-field { display: flex; flex-direction: column; gap: 6px; }
-            .hh2-field label { font-size: 15px; font-weight: 600; color: ${NAVY}; }
+            .hh2-field label { font-size: 15px; font-weight: 500; color: ${NAVY}; }
             .hh2-field small { font-size: 12px; font-weight: 400; color: ${MUTED}; }
             .hh2-field input, .hh2-field select {
                 min-height: 48px; padding: 0 14px; border: 1.5px solid ${BORDER}; border-radius: 8px;
@@ -849,18 +856,18 @@ document.addEventListener('click', (e) => {
             .hh2-popup .hh2-btn:disabled { opacity: .7; cursor: default; }
             .hh2-form__error { display: none; margin: 0; padding: 12px 14px; border-radius: 8px; background: #FEF3F2; color: #B42318; font-size: 14px; line-height: 1.45; }
             .hh2-form__error.is-visible { display: block; }
-            .hh2-form__error a { color: inherit; font-weight: 600; }
+            .hh2-form__error a { color: inherit; font-weight: 500; }
             .hh2-form__hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
             .hh2-popup__success { display: none; text-align: center; padding: 12px 0 4px; }
             .hh2-popup.is-sent .hh2-popup__success { display: block; }
             .hh2-popup.is-sent .hh2-form, .hh2-popup.is-sent > h2, .hh2-popup.is-sent > p { display: none; }
             .hh2-popup__success-icon { width: 56px; height: 56px; margin: 0 auto 14px; border-radius: 50%; background: #ECFDF3; color: #12B76A; display: grid; place-items: center; font-size: 28px; }
-            .hh2-popup__success h3 { margin: 0 0 8px; font-size: 22px; font-weight: 700; color: ${NAVY}; }
+            .hh2-popup__success h3 { margin: 0 0 8px; font-size: 22px; font-weight: 500; color: ${NAVY}; }
             .hh2-popup__success p { margin: 0 0 20px; font-size: 15px; color: ${MUTED}; }
-            .hh2-popup .hh2-btn { display: flex; min-height: 50px; padding: 0 26px; border: 0; border-radius: 8px; background: ${BLUE}; color: #fff; font-family: ${FONT}; font-size: 16px; font-weight: 700; cursor: pointer; align-items: center; justify-content: center; width: 100%; }
+            .hh2-popup .hh2-btn { display: flex; min-height: 50px; padding: 0 26px; border: 0; border-radius: 8px; background: ${BLUE}; color: #fff; font-family: ${FONT}; font-size: 16px; font-weight: 500; cursor: pointer; align-items: center; justify-content: center; width: 100%; }
             .hh2-links { padding: 14px; border-radius: 10px; background: ${SECTION_LIGHT}; border: 1px solid ${BORDER_LIGHT}; }
             .hh2-links__head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 4px; }
-            .hh2-links__add { padding: 6px 12px; border: 0; border-radius: 6px; background: ${BLUE}; color: #fff; font-family: ${FONT}; font-size: 13px; font-weight: 600; cursor: pointer; }
+            .hh2-links__add { padding: 6px 12px; border: 0; border-radius: 6px; background: ${BLUE}; color: #fff; font-family: ${FONT}; font-size: 13px; font-weight: 500; cursor: pointer; }
             .hh2-links__list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
             .hh2-link-item { position: relative; display: grid; gap: 6px; padding: 14px 40px 14px 14px; background: #fff; border: 1px solid ${BORDER_LIGHT}; border-radius: 8px; }
             .hh2-link-item input { min-height: 40px; font-size: 14px; }
@@ -898,10 +905,34 @@ document.addEventListener('click', (e) => {
                 .hh2-final h2 { font-size: 28px; }
                 .hh2-popup { padding: 24px 18px; }
                 .hh2-sticky { display: flex; }
-                ${CONTAINER_SELECTOR} { padding-bottom: 72px; }
+                .hh2-pill { font-size: 11px; padding: 6px 12px; }
+                .hh2-fee__new { font-size: 34px; }
+                .hh2-reason, .hh2-audience { padding: 22px; }
+                .hh2-reason__icon { width: 40px; height: 40px; font-size: 20px; margin-bottom: 12px; }
+                .hh2-reason h3, .hh2-audience h3 { font-size: 18px; }
+                .hh2-fees { padding: 4px 18px; }
+                .hh2-fees__row { flex-direction: column; gap: 2px; padding: 14px 0; }
+                .hh2-fees__value { text-align: left; }
+                .hh2-calc__rows li { align-items: flex-start; }
+                .hh2-calc__rows small { display: block; }
+                .hh2-compare table { min-width: 0; table-layout: fixed; }
+                .hh2-compare th, .hh2-compare td { padding: 12px 4px; font-size: 13px; white-space: normal; }
+                .hh2-compare th { font-size: 12px; }
+                .hh2-name-full { display: none; }
+                .hh2-name-short { display: inline; }
+                .hh2-compare th:first-child, .hh2-compare td:first-child { width: 36%; padding-left: 12px; }
+                .hh2-tick, .hh2-cross { width: 20px; height: 20px; }
+                .hh2-steps { gap: 12px; }
+                .hh2-step { padding: 18px 20px; }
+                .hh2-step h3 { font-size: 18px; }
+                .hh2-steps__assist { margin-bottom: 0; }
+                .hh2-steps__picker { display: none; }
+                .hh2-contact a { padding: 16px; }
             }
             @media (max-width: 480px) {
                 .hh2-results { grid-template-columns: 1fr 1fr; }
+                .hh2-result { padding: 12px 8px; }
+                .hh2-result strong { font-size: 18px; white-space: nowrap; }
             }
         `;
         document.head.appendChild(style);
@@ -948,7 +979,7 @@ document.addEventListener('click', (e) => {
                         ${renderPicker({ dark: true, withId: true })}
                     </div>
                     <div class="hh2-offer">
-                        <span class="hh2-offer__badge">🎉 Founding partner offer</span>
+                        <span class="hh2-offer__badge">Founding partner offer</span>
                         <p class="hh2-offer__label">Limited to the first ${FOUNDING.totalSpots} listings</p>
                         <div class="hh2-fee">
                             <span class="hh2-fee__old">${FOUNDING.defaultFee} Host Fee</span>
@@ -1018,16 +1049,16 @@ document.addEventListener('click', (e) => {
                     </div>
                     <div class="hh2-flow">
                         <div class="hh2-flow__step">
-                            <div class="hh2-flow__head"><span class="hh2-step__num">Step 1</span><p>🏡 Guest books your stay — confirmed instantly</p></div>
+                            <div class="hh2-flow__head"><span class="hh2-step__num">Step 1</span><p>Guest books your stay — confirmed instantly</p></div>
                             ${renderListingCard(stay)}
                         </div>
                         <div class="hh2-flow__step">
-                            <div class="hh2-flow__head"><span class="hh2-step__num">Step 2</span><p>🛥️🎣 They add a boat rental or fishing charter</p></div>
+                            <div class="hh2-flow__head"><span class="hh2-step__num">Step 2</span><p>They add a boat rental or fishing charter</p></div>
                             ${renderListingCard(boat)}
                             ${renderListingCard(charter)}
                         </div>
                         <div class="hh2-flow__step">
-                            <div class="hh2-flow__head"><span class="hh2-step__num">Step 3</span><p>💳 One checkout, plus our concierge for trip plans</p></div>
+                            <div class="hh2-flow__head"><span class="hh2-step__num">Step 3</span><p>One checkout, plus our concierge for trip plans</p></div>
                             <div class="hh2-receipt">
                                 <h4>Price details</h4>
                                 ${row('Stay', stay.price)}
@@ -1135,7 +1166,9 @@ document.addEventListener('click', (e) => {
                                 <tr>
                                     <th></th>
                                     <th class="is-us">Keys Booking</th>
-                                    ${COMPETITORS.map((c) => `<th>${escapeHtml(c.name)}</th>`).join('')}
+                                    ${COMPETITORS.map((c) => c.shortName
+                                        ? `<th><span class="hh2-name-full">${escapeHtml(c.name)}</span><span class="hh2-name-short">${escapeHtml(c.shortName)}</span></th>`
+                                        : `<th>${escapeHtml(c.name)}</th>`).join('')}
                                 </tr>
                             </thead>
                             <tbody>
@@ -1174,7 +1207,7 @@ document.addEventListener('click', (e) => {
                     </div>
                     <p class="hh2-steps__needs">${escapeHtml(STEPS_NEEDS)}</p>
                     <p class="hh2-steps__assist">Prefer we do it? Send us your Airbnb or VRBO link and we’ll build your listing. <button type="button" class="hh2-link-btn" data-action="open-property-popup">Have us list it</button></p>
-                    ${renderPicker({ center: true })}
+                    <div class="hh2-steps__picker">${renderPicker({ center: true })}</div>
                 </div>
             </section>`;
     }
@@ -1372,7 +1405,7 @@ document.addEventListener('click', (e) => {
                     </div>
                     <div class="hh2-links">
                         <div class="hh2-links__head">
-                            <label class="hh2-field" style="margin:0"><span style="font-size:14px;font-weight:600;color:${NAVY}">Listing links <small>(optional)</small></span></label>
+                            <label class="hh2-field" style="margin:0"><span style="font-size:14px;font-weight:500;color:${NAVY}">Listing links <small>(optional)</small></span></label>
                             <button type="button" class="hh2-links__add">+ Add link</button>
                         </div>
                         <small style="font-size:12px;color:${MUTED}">Add links from Airbnb, VRBO, Booking.com, Expedia, or your website</small>
@@ -1643,6 +1676,20 @@ document.addEventListener('click', (e) => {
         });
     }
 
+    // Joins the last two words of each text block so a line never ends with one word alone.
+    function preventOrphans(root) {
+        root.querySelectorAll('h1, h2, h3, h4, p, li, label, blockquote, figcaption, small, td, th, button, span').forEach((el) => {
+            const meaningful = [...el.childNodes].filter((n) => n.nodeType === Node.ELEMENT_NODE || n.textContent.trim());
+            const last = meaningful[meaningful.length - 1];
+            if (!last || last.nodeType !== Node.TEXT_NODE) return;
+            const text = last.textContent;
+            const words = text.trim().split(/\s+/);
+            if (words.length < 3 || words[words.length - 1].length > 14) return;
+            const i = text.trimEnd().lastIndexOf(' ');
+            if (i > 0) last.textContent = `${text.slice(0, i)}\u00A0${text.slice(i + 1)}`;
+        });
+    }
+
     function init() {
         const container = document.querySelector(CONTAINER_SELECTOR);
         if (!container) return;
@@ -1653,7 +1700,10 @@ document.addEventListener('click', (e) => {
 
         injectStyles();
         container.innerHTML = buildPageHtml(DEFAULT_HERO_IMAGE);
-        bindPageInteractions(container, createPropertyPopup());
+        preventOrphans(container);
+        const popup = createPropertyPopup();
+        preventOrphans(document.querySelector('.hh2-popup-overlay'));
+        bindPageInteractions(container, popup);
         initCalculator(container);
         initStickyCta(container);
 
