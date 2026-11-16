@@ -170,10 +170,20 @@ function optimizePropertyPageImages(root) {
             }
         });
 
-        docRoot.querySelectorAll('.allphotos_image, [w-el="ImageModulPage"]').forEach((img) => {
+        // Gallery grid + full-screen photo viewer share the same xlarge URL, so each photo downloads once.
+        docRoot.querySelectorAll(
+            '.allphotos_image, [w-el="ImageModulPage"], .swiper-detail-image, [w-el="ImageDetailImage"]'
+        ).forEach((img) => {
             const raw = getRawVaultUrlFromImg(img);
             if (raw) {
                 setOptimizedImgSrc(img, raw, xanoPropertyGalleryImageUrl, 'xlarge.jpg');
+            }
+        });
+
+        docRoot.querySelectorAll('.bedroomphotos_image').forEach((img) => {
+            const raw = getRawVaultUrlFromImg(img);
+            if (raw) {
+                setOptimizedImgSrc(img, raw, xanoPropertyPreviewImageUrl, 'large.jpg');
             }
         });
     } catch (_) {
