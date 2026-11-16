@@ -149,6 +149,35 @@ function setOptimizedImgSrc(img, rawUrl, transformFn, tplName) {
     return true;
 }
 
+const PROPERTY_HERO_OR_HEADER_SELECTOR = '.images-stack .listingheader_image, [data-element^="ListingImage"]';
+// Gallery grid + full-screen photo viewer share the same xlarge URL, so each photo downloads once.
+const PROPERTY_GALLERY_SELECTOR =
+    '.allphotos_image, [w-el="ImageModulPage"], .swiper-detail-image, [w-el="ImageDetailImage"]';
+const PROPERTY_PREVIEW_SELECTOR = '.bedroomphotos_image';
+const PROPERTY_PHOTO_SELECTOR = [
+    PROPERTY_HERO_OR_HEADER_SELECTOR,
+    PROPERTY_GALLERY_SELECTOR,
+    PROPERTY_PREVIEW_SELECTOR,
+].join(', ');
+
+function optimizePropertyImg(img) {
+    const raw = getRawVaultUrlFromImg(img);
+    if (!raw) {
+        return;
+    }
+    if (img.matches(PROPERTY_HERO_OR_HEADER_SELECTOR)) {
+        if (isListingHeroImage(img)) {
+            setOptimizedImgSrc(img, raw, xanoPropertyHeroImageUrl, 'xlarge.jpg');
+        } else {
+            setOptimizedImgSrc(img, raw, xanoPropertyPreviewImageUrl, 'large.jpg');
+        }
+    } else if (img.matches(PROPERTY_GALLERY_SELECTOR)) {
+        setOptimizedImgSrc(img, raw, xanoPropertyGalleryImageUrl, 'xlarge.jpg');
+    } else if (img.matches(PROPERTY_PREVIEW_SELECTOR)) {
+        setOptimizedImgSrc(img, raw, xanoPropertyPreviewImageUrl, 'large.jpg');
+    }
+}
+
 function optimizePropertyPageImages(root) {
     if (propertyOptimizeRunning) {
         return;
@@ -156,42 +185,66 @@ function optimizePropertyPageImages(root) {
     propertyOptimizeRunning = true;
     const docRoot = root || document;
     try {
-        docRoot.querySelectorAll(
-            '.images-stack .listingheader_image, [data-element^="ListingImage"]'
-        ).forEach((img) => {
-            const raw = getRawVaultUrlFromImg(img);
-            if (!raw) {
-                return;
-            }
-            if (isListingHeroImage(img)) {
-                setOptimizedImgSrc(img, raw, xanoPropertyHeroImageUrl, 'xlarge.jpg');
-            } else {
-                setOptimizedImgSrc(img, raw, xanoPropertyPreviewImageUrl, 'large.jpg');
-            }
-        });
-
-        // Gallery grid + full-screen photo viewer share the same xlarge URL, so each photo downloads once.
-        docRoot.querySelectorAll(
-            '.allphotos_image, [w-el="ImageModulPage"], .swiper-detail-image, [w-el="ImageDetailImage"]'
-        ).forEach((img) => {
-            const raw = getRawVaultUrlFromImg(img);
-            if (raw) {
-                setOptimizedImgSrc(img, raw, xanoPropertyGalleryImageUrl, 'xlarge.jpg');
-            }
-        });
-
-        docRoot.querySelectorAll('.bedroomphotos_image').forEach((img) => {
-            const raw = getRawVaultUrlFromImg(img);
-            if (raw) {
-                setOptimizedImgSrc(img, raw, xanoPropertyPreviewImageUrl, 'large.jpg');
-            }
-        });
+        docRoot.querySelectorAll(PROPERTY_PHOTO_SELECTOR).forEach(optimizePropertyImg);
     } catch (_) {
         /* never block property page load */
     } finally {
         propertyOptimizeRunning = false;
     }
 }
+
+/** True while an image still points at an un-resized original (no ?tpl=). */
+function propertyImgHasRawVaultUrl(img) {
+    return ['src', 'srcset', 'setsrc'].some((attr) => {
+        const value = img.getAttribute(attr);
+        return !!value && !/[?&]tpl=/i.test(value) && isXanoVaultPhotoUrl(value.trim());
+    });
+}
+
+function optimizePropertyImgIfRaw(img) {
+    if (img.tagName === 'IMG' && img.matches(PROPERTY_PHOTO_SELECTOR) && propertyImgHasRawVaultUrl(img)) {
+        optimizePropertyImg(img);
+    }
+}
+
+/*
+ * Wized writes the original upload's URL into these images when it renders. Rewriting it in the
+ * same tick (a MutationObserver runs before the browser starts the image request) means the
+ * full-size original is never requested from Xano at all.
+ */
+(function watchPropertyPhotos() {
+    if (typeof MutationObserver === 'undefined' || !document.documentElement) {
+        return;
+    }
+    try {
+        new MutationObserver((mutations) => {
+            try {
+                for (const m of mutations) {
+                    if (m.type === 'attributes') {
+                        optimizePropertyImgIfRaw(m.target);
+                        continue;
+                    }
+                    m.addedNodes.forEach((node) => {
+                        if (node.nodeType !== 1) {
+                            return;
+                        }
+                        optimizePropertyImgIfRaw(node);
+                        node.querySelectorAll(PROPERTY_PHOTO_SELECTOR).forEach(optimizePropertyImgIfRaw);
+                    });
+                }
+            } catch (_) {
+                /* never block property page load */
+            }
+        }).observe(document.documentElement, {
+            subtree: true,
+            childList: true,
+            attributes: true,
+            attributeFilter: ['src', 'srcset', 'setsrc'],
+        });
+    } catch (_) {
+        /* observer is an optimisation only */
+    }
+})();
 
 function scheduleOptimizePropertyPageImages() {
     const run = () => optimizePropertyPageImages();
