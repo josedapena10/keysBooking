@@ -425,7 +425,7 @@ try {
      * Whole-catalogue totals, not what these packages happen to use. Held in one place
      * so the hero stats and the build-your-own pitch can't drift apart.
      */
-    const INVENTORY = { stays: 34, boats: 47, charters: 19 };
+    const INVENTORY = { stays: 33, boats: 47, charters: 20 };
     const HELP_HERO_IMAGE = 'https://cdn.prod.website-files.com/65c420cdaa11ef67a52edb9a/69c432e85f8f42f896932c0e_iStock-483475944%20copy%202%20Large.webp';
     const BLUE = '#0A73FF';
     const BLUE_HOVER = '#005FD6';
