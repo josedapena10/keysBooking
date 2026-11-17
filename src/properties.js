@@ -64,9 +64,13 @@ function xanoPropertyGalleryImageUrl(rawUrl) {
     return withXanoImageTpl(rawUrl, 'xlarge.jpg');
 }
 
-/** Desktop hero (ListingImage1) + mobile Splide slide 1 — full-quality xlarge */
+/**
+ * Desktop hero (ListingImage1) + mobile Splide slide 1. Uses large (800px, ~235 KB) like photos 2-5:
+ * xlarge (1920px) was ~1.1 MB and made the first photo load noticeably slower than the rest.
+ * The full-screen gallery still uses xlarge.
+ */
 function xanoPropertyHeroImageUrl(rawUrl) {
-    return xanoPropertyGalleryImageUrl(rawUrl);
+    return xanoPropertyPreviewImageUrl(rawUrl);
 }
 
 function isListingHeroImage(img) {
@@ -167,7 +171,7 @@ function optimizePropertyImg(img) {
     }
     if (img.matches(PROPERTY_HERO_OR_HEADER_SELECTOR)) {
         if (isListingHeroImage(img)) {
-            setOptimizedImgSrc(img, raw, xanoPropertyHeroImageUrl, 'xlarge.jpg');
+            setOptimizedImgSrc(img, raw, xanoPropertyHeroImageUrl, 'large.jpg');
         } else {
             setOptimizedImgSrc(img, raw, xanoPropertyPreviewImageUrl, 'large.jpg');
         }
